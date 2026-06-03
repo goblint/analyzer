@@ -42,10 +42,10 @@ struct
 end
 
 
-module PInfo =
+module AuxiliaryPhaseInfo =
 struct
   open AccListSpec
   open List
 
-  include DomListLattice (PInfoDomainListSpec)
+  include DomListLattice (AuxiliaryPhaseInfoDomainListSpec)
 end

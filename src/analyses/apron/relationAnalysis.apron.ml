@@ -33,7 +33,7 @@ struct
     let of_elt {priv; _} = of_elt priv
   end
 
-  module PInfo = Priv.PInfo
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
 
   module RV = RD.V
 
@@ -661,7 +661,7 @@ struct
     | _ -> Result.top q
 
 
-  let pinfo man = ((Priv.lmust man.local):PInfo.t)
+  let pinfo man = ((Priv.lmust man.local):AuxiliaryPhaseInfo.t)
   let consume_pinfo st pinfo = Priv.grow_lmust st pinfo
 
   (* Thread transfer functions. *)

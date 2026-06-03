@@ -171,7 +171,7 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let consume_pinfo (d:D.t) (pinfo:MCPAccess.PInfo.t) =
+  let consume_pinfo (d:D.t) (pinfo:MCPAccess.AuxiliaryPhaseInfo.t) =
     let f (n,(module S:MCPSpec),(d, pinfo)) =
       let d' = S.consume_pinfo (Obj.obj d) (Obj.obj pinfo) in
       n, Obj.repr d'
@@ -208,9 +208,9 @@ struct
         man_with_local man (branch man exp tv)
       | Events.Assign {lval; exp} ->
         man_with_local man (assign man lval exp)
-      | Events.PropPInfo pinfo ->
-        let pinfo:MCPAccess.PInfo.t = Obj.obj pinfo in
-        if M.tracing then M.tracel "phaseProp" "consume_pinfo: %s\n" (MCPAccess.PInfo.show pinfo);
+      | Events.PropAuxiliaryPhaseInfo pinfo ->
+        let pinfo:MCPAccess.AuxiliaryPhaseInfo.t = Obj.obj pinfo in
+        if M.tracing then M.tracel "phaseProp" "consume_pinfo: %s\n" (MCPAccess.AuxiliaryPhaseInfo.show pinfo);
         man_with_local man (consume_pinfo man.local pinfo)
       | e ->
         let spawns = ref [] in
@@ -366,7 +366,7 @@ struct
     in
     BatList.map f (spec_list man.local) (* map without deadcode *)
 
-  and pinfo (man:(D.t, G.t, C.t, V.t) man): MCPAccess.PInfo.t =
+  and pinfo (man:(D.t, G.t, C.t, V.t) man): MCPAccess.AuxiliaryPhaseInfo.t =
     let man'' = outer_man "pinfo" man in
     let f (n, (module S: MCPSpec), d) =
       let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "pinfo" man'' n d in

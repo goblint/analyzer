@@ -35,16 +35,16 @@ struct
   end
 
   module LMust = Queries.LMust
-  module PhaseInfo = MCPAccess.PInfo
+  module MCPPhaseInfo = MCPAccess.AuxiliaryPhaseInfo
 
-  module MHPsPlusLMust =
+  module MHPsPlusMCPPhaseInfo =
   struct
-    include Lattice.Prod (MHPs) (PhaseInfo)
+    include Lattice.Prod (MHPs) (MCPPhaseInfo)
   end
 
   module PhaseChanges =
   struct
-    include MapDomain.MapBot (Const) (MHPsPlusLMust)
+    include MapDomain.MapBot (Const) (MHPsPlusMCPPhaseInfo)
     let name () = "ghost-phase-changes"
   end
 
@@ -172,7 +172,7 @@ struct
   let current_mhp man: MCPAccess.A.t =
     Obj.obj (man.ask (PartAccess Point))
 
-  let current_pinfo man: PhaseInfo.t =
+  let current_pinfo man: MCPPhaseInfo.t =
     Obj.obj (man.ask PhaseInfo)
 
   let sync man reason =
@@ -196,9 +196,9 @@ struct
           | _ ->
             failwith "assumption about ghost owner violated"
       in
-      let rec handle_vars (m, (pinfo:MCPAccess.PInfo.t)) = function
+      let rec handle_vars (m, (pinfo:MCPPhaseInfo.t)) = function
         | []  ->
-          man.split m [Events.PropPInfo (Obj.repr pinfo)]
+          man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
         | var :: vars ->
           match may_be_advanced_here m var with
           | Some curr_pinfo ->
@@ -207,7 +207,7 @@ struct
                  | _ -> failwith "assumption")
              in
              let advanced = D.add var (`Lifted v') m in
-             let pinfo' = PhaseInfo.meet pinfo curr_pinfo in
+             let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
              handle_vars (advanced, pinfo') (var::vars);
              handle_vars (m, pinfo) vars)
           | None ->
@@ -226,7 +226,7 @@ struct
           ) !(YamlWitness.ghostVars)
       in
       if M.tracing then traceEvolution ();
-      handle_vars (local, PhaseInfo.top ()) (phase_ghosts man);
+      handle_vars (local, MCPPhaseInfo.top ()) (phase_ghosts man);
       raise Deadcode
 
 

@@ -24,7 +24,7 @@ module type S =
     module G: Lattice.S
     module V: Printable.S
     module P: DisjointDomain.Representative with type elt := D.t (** Path-representative. *)
-    module PInfo: Lattice.S
+    module AuxiliaryPhaseInfo: Lattice.S
 
     type relation_components_t := RelationDomain.RelComponents (RD) (D).t
     val name: unit -> string
@@ -58,8 +58,8 @@ module type S =
     (** Returns global variables which are privatized. *)
 
 
-    val lmust: relation_components_t -> PInfo.t
-    val grow_lmust: relation_components_t -> PInfo.t -> relation_components_t
+    val lmust: relation_components_t -> AuxiliaryPhaseInfo.t
+    val grow_lmust: relation_components_t -> AuxiliaryPhaseInfo.t -> relation_components_t
 
     val init: unit -> unit
     val finalize: unit -> unit
@@ -74,7 +74,7 @@ struct
   module V = EmptyV
   module AV = RD.V
   module P = UnitP
-  module PInfo = Lattice.Unit
+  module AuxiliaryPhaseInfo = Lattice.Unit
 
   type relation_components_t = RelComponents (RD) (D).t
 
@@ -204,7 +204,7 @@ struct
         None
   end
 
-  module PInfo = Lattice.Unit
+  module AuxiliaryPhaseInfo = Lattice.Unit
 
   type relation_components_t = RelationComponents (RD) (D).t
 
@@ -504,7 +504,7 @@ struct
   module G = RD
   module P = UnitP
 
-  module PInfo = Lattice.Unit
+  module AuxiliaryPhaseInfo = Lattice.Unit
 
   type relation_components_t = RelationDomain.RelComponents (RD) (D).t
 
@@ -1058,7 +1058,7 @@ struct
   module AV = RD.V
   module P = UnitP
 
-  module PInfo = LMust
+  module AuxiliaryPhaseInfo = LMust
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.relation.priv.must-joined" then  ",join"  else "") ^ ")"
 

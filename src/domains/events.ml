@@ -19,8 +19,7 @@ type t =
   | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once(o) *)
   | LeaveOnce of {once_control: CilType.Exp.t}
   | PhaseChange of {old_phase: Queries.PhaseDigest.t; new_phase: Queries.PhaseDigest.t}
-  | GrowLMust of Queries.LMust.t
-  | PropPInfo of Obj.t  (* alias of MCPAccess.PInfo.to avoid dependency cycle *)
+  | PropAuxiliaryPhaseInfo of Obj.t  (* alias of MCPAccess.AuxiliaryPhaseInfo.t to avoid dependency cycle *)
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
 let emit_on_deadcode = function
@@ -29,8 +28,7 @@ let emit_on_deadcode = function
   | EnterMultiThreaded (* Privatization must still publish. *)
   | Access _ (* Protection and races must still consider access. *)
   | PhaseChange _ (* Not sure, but safe default *)
-  | GrowLMust _ (* Not sure, but safe default *)
-  | PropPInfo _ -> (* Not sure, but safe default *)
+  | PropAuxiliaryPhaseInfo _ -> (* Not sure, but safe default *)
     true
   | Lock _ (* Doesn't need to publish. *)
   | SplitBranch _ (* only emitted in split, which is never dead. *)
@@ -60,5 +58,4 @@ let pretty () = function
   | EnterOnce {once_control; ran} -> dprintf "EnterOnce {once_control=%a; ran=%B}" CilType.Exp.pretty once_control ran
   | LeaveOnce {once_control} -> dprintf "LeaveOnce {once_control=%a}" CilType.Exp.pretty once_control
   | PhaseChange {old_phase; new_phase} -> dprintf "PhaseChange {old_phase=%a; new_phase=%a}" Queries.PhaseDigest.pretty old_phase Queries.PhaseDigest.pretty new_phase
-  | GrowLMust lmust -> dprintf "GrowLMust %a" Queries.LMust.pretty lmust
-  | PropPInfo _ -> dprintf "PropPInfo"
+  | PropAuxiliaryPhaseInfo _ -> dprintf "PropAuxiliaryPhaseInfo"
