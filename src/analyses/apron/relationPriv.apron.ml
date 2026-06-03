@@ -58,8 +58,8 @@ module type S =
     (** Returns global variables which are privatized. *)
 
 
-    val lmust: relation_components_t -> AuxiliaryPhaseInfo.t
-    val grow_lmust: relation_components_t -> AuxiliaryPhaseInfo.t -> relation_components_t
+    val aux_phase_info: relation_components_t -> AuxiliaryPhaseInfo.t
+    val consume_aux_phase_info: relation_components_t -> AuxiliaryPhaseInfo.t -> relation_components_t
 
     val init: unit -> unit
     val finalize: unit -> unit
@@ -154,8 +154,8 @@ struct
   let invariant_vars ask getg st = []
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = ()
-  let grow_lmust (st: relation_components_t) _ = st
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info (st: relation_components_t) _ = st
 
   let init () = ()
   let finalize () = ()
@@ -448,8 +448,8 @@ struct
   let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = ()
-  let grow_lmust (st: relation_components_t) _ = st
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info (st: relation_components_t) _ = st
 
   let finalize () = ()
 
@@ -474,10 +474,6 @@ struct
       | _ -> false
     in
     RD.keep_filter oct protected
-
-  let phase_change _ _ _ _ _ st = st
-  let lmust _ = Queries.LMust.bot ()
-  let grow_lmust st _ = st
 end
 
 module PerMutexMeetPrivBase (RD: RelationDomain.RD) =
@@ -776,8 +772,8 @@ struct
       Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = ()
-  let grow_lmust st _ = st
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info st _ = st
 
 end
 
@@ -1435,11 +1431,11 @@ struct
         st
       end
 
-  let lmust (st:relation_components_t) =
+  let aux_phase_info (st:relation_components_t) =
     let _,lmust,_ = st.priv in
     lmust
 
-  let grow_lmust st lmust =
+  let consume_aux_phase_info st lmust =
     let (w, lmust_old, l) = st.priv in
     {st with priv = (w, LMust.union lmust lmust_old, l)}
 

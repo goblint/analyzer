@@ -13,6 +13,7 @@ sig
   module D: Lattice.S
   module G: Lattice.S
   module V: Printable.S
+  module AuxiliaryPhaseInfo: Lattice.S
 
   val startstate: unit -> D.t
 
@@ -42,8 +43,8 @@ sig
   val invariant_vars: Queries.ask -> (V.t -> G.t) -> BaseDomain.BaseComponents (D).t -> varinfo list
   (** Returns global variables which are privatized. *)
 
-  val lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t
-  val grow_lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t -> BaseDomain.BaseComponents (D).t
+  val aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t
+  val consume_aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t -> BaseDomain.BaseComponents (D).t
 
 
   val init: unit -> unit

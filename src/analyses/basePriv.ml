@@ -33,6 +33,7 @@ sig
   module D: Lattice.S
   module G: Lattice.S
   module V: Printable.S
+  module AuxiliaryPhaseInfo: Lattice.S
 
   val startstate: unit -> D.t
 
@@ -60,8 +61,8 @@ sig
   val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
   val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
-  val lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t
-  val grow_lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t -> BaseDomain.BaseComponents (D).t
+  val aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t
+  val consume_aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t -> BaseDomain.BaseComponents (D).t
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -69,11 +70,12 @@ end
 
 module NoFinalizeNoPhase =
 struct
+  module AuxiliaryPhaseInfo = Lattice.Unit
   let finalize () = ()
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = Queries.LMust.bot ()
-  let grow_lmust st _ = st
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info st _ = st
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
@@ -536,6 +538,8 @@ struct
   include PerMutexMeetPrivBase
   include PerMutexTidCommonNC (Digest) (CPA)
 
+  module AuxiliaryPhaseInfo = LMust
+
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g -> vf (V.global g)
@@ -806,16 +810,13 @@ struct
         st
       end
 
-  let lmust (st: BaseComponents (D).t) =
+  let aux_phase_info (st: BaseComponents (D).t) =
     let (_, lmust, _) = st.priv in
-    let elems = List.map fst (LMust.elements lmust) in
-    Queries.LMust.of_list elems
+    lmust
 
-  let grow_lmust (st: BaseComponents (D).t) (lmust: Queries.LMust.t) =
+  let consume_aux_phase_info (st: BaseComponents (D).t) (aux_info: AuxiliaryPhaseInfo.t) =
     let (w, lmust_old, l) = st.priv in
-    let lmust_elems = Queries.LMust.elements lmust in
-    let l' = List.map (fun lm -> (lm, ())) lmust_elems in
-    let new_lmust = LMust.union lmust_old (LMust.of_list l') in
+    let new_lmust = LMust.union lmust_old aux_info in
     {st with priv = (w, new_lmust, l)}
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
@@ -2143,6 +2144,7 @@ struct
   module D = Priv.D
   module G = Priv.G
   module V = Priv.V
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
 
   let time str f arg = Timing.wrap "priv" (Timing.wrap str f) arg
 
@@ -2166,8 +2168,8 @@ struct
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
-  let lmust st = time "lmust" (Priv.lmust) st
-  let grow_lmust st lmust = time "grow_must" (Priv.grow_lmust st) lmust
+  let aux_phase_info st = time "aux_phase_info" (Priv.aux_phase_info) st
+  let consume_aux_phase_info st aux_info = time "consume_aux_phase_info" (Priv.consume_aux_phase_info st) aux_info
 end
 
 module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =

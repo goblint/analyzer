@@ -40,7 +40,7 @@ struct
   include Analyses.ValueContexts(D)
   module P = IdentityP(Dom)
 
-  module AuxiliaryPhaseInfo = Queries.LMust
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -1706,8 +1706,8 @@ struct
                                )
     | _ -> Q.Result.top q
 
-  let aux_phase_info man = Priv.lmust man.local
-  let consume_aux_phase_info st pinfo = Priv.grow_lmust st pinfo
+  let aux_phase_info man = Priv.aux_phase_info man.local
+  let consume_aux_phase_info = Priv.consume_aux_phase_info
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
