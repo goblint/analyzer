@@ -783,30 +783,30 @@ struct
     done;
     !collected
 
-  let mutexGhostTransform ~(man : _ man) (st: store) (exp: exp) = 
+  let mutexGhostTransform ~(man : _ man) (st: store) (exp: exp) =
     let ask = Analyses.ask_of_man man in
     if M.tracing then M.trace "priv" "mutexchecking %a" d_exp exp;
     match constFold true exp with
-    | BinOp (LOr, BinOp (Eq, (Lval (Var v, _)), e2, typ1), e3, typ2) -> 
-      ( match man.ask (Queries.EvalInt e2) with 
-        | `Lifted n -> 
-          ( match IntDomain.IntDomTuple.to_int n with 
-            | Some value when Z.equal value (Z.one) -> 
+    | BinOp (LOr, BinOp (Eq, (Lval (Var v, _)), e2, typ1), e3, typ2) ->
+      ( match man.ask (Queries.EvalInt e2) with
+        | `Lifted n ->
+          ( match IntDomain.IntDomTuple.to_int n with
+            | Some value when Z.equal value (Z.one) ->
               (match man.ask (Queries.IsMutexGhost v) with
                | `Lifted lock ->
                  if M.tracing then M.trace "priv" "corresponding mutex %a with %a" LockDomain.MustLock.pretty lock d_exp e3;
                  let new_st = Priv.lock ask (priv_getg man.global) st lock in
                  let new_man = { man with ask =
-                                            (fun (type a) (q: a Queries.t) -> 
+                                            (fun (type a) (q: a Queries.t) ->
                                                (match q with
-                                                | Q.MayBePublic {global=v; kind; protection} -> 
+                                                | Q.MayBePublic {global=v; kind; protection} ->
                                                   (match man.ask (Q.MayBePublic {global=v; kind; protection}) with
-                                                   | false -> 
+                                                   | false ->
                                                      M.tracel "priv" "Maybepublic false";
                                                      false
                                                    | true ->
-                                                     let res = not (man.ask (Q.MustBeProtectedBy {mutex = lock; global=v; kind; protection})) in 
-                                                     M.tracel "priv" "Maybepublic true \negMustBeProtectedBy %a %a %B" LockDomain.MustLock.pretty lock Basetype.Variables.pretty v res; 
+                                                     let res = not (man.ask (Q.MustBeProtectedBy {mutex = lock; global=v; kind; protection})) in
+                                                     M.tracel "priv" "Maybepublic true \negMustBeProtectedBy %a %a %B" LockDomain.MustLock.pretty lock Basetype.Variables.pretty v res;
                                                      res)
                                                 | _ -> man.ask q : a Queries.result));
                                           local = new_st
@@ -825,9 +825,9 @@ struct
       if exp = MyCFG.unknown_exp then
         VD.top ()
       else
-        let new_exp, new_st, new_man = mutexGhostTransform ~man st exp in
-        eval_rv_ask_evalint ~man:new_man new_st new_exp
-        (* eval_rv_ask_evalint ~man st exp *)
+        (* let new_exp, new_st, new_man = mutexGhostTransform ~man st exp in
+           eval_rv_ask_evalint ~man:new_man new_st new_exp *)
+        eval_rv_ask_evalint ~man st exp
     in
     if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a" d_exp exp VD.pretty r;
     r
