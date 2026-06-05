@@ -8,14 +8,9 @@ fi
 
 file="$1"
 
-# Function to extract the first and second occurrences of the pattern
-extract_variables() {
-    grep -o -m 2 'alloc_m[0-9]\+_locked' "$1"
-}
-
 # Extract variables from the file
-var1=$(extract_variables "$file" | sed -n '1p')
-var2=$(extract_variables "$file" | sed -n '2p')
+var1=$(sed -nr "s/.*(alloc_m[0-9]+_locked).*g1.*/\1/p" "$file")
+var2=$(sed -nr "s/.*(alloc_m[0-9]+_locked).*g2.*/\1/p" "$file")
 
 # Check if both variables were found
 if [ -z "$var1" ] || [ -z "$var2" ]; then

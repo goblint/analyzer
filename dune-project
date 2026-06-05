@@ -1,4 +1,4 @@
-(lang dune 3.13)
+(lang dune 3.20)
 (using dune_site 0.1)
 (cram enable)
 (name goblint)
@@ -17,6 +17,7 @@
 (documentation "https://goblint.readthedocs.io/en/latest/")
 (authors "Simmo Saan" "Michael Schwarz" "Julian Erhard" "Sarah Tilscher" "Karoliine Holter" "Michael Petter" "Ali Rasim Kocal" "Ralf Vogler" "Kalmer Apinis" "Vesal Vojdani" ) ; same authors as in .zenodo.json and CITATION.cff
 (maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>" "Karoliine Holter <karoliine.holter@ut.ee>")
+(maintenance_intent "(latest)" "(latest).(latest-1)") ; also keep previous minor version (with two releases per year, always keep a SV-COMP release)
 (license MIT)
 
 (package
@@ -39,7 +40,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (ocaml (>= 4.14))
     (goblint-cil (>= 2.0.9)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
     (batteries (>= 3.9.0))
-    (patricia-tree (>= 0.13.0))
+    (patricia-tree (>= 0.14.0))
     (zarith (>= 1.12))
     (yojson (and (>= 2.0.0) (< 3))) ; json-data-encoding has incompatible yojson representation for yojson 3
     (qcheck-core (>= 0.19))
@@ -70,6 +71,8 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
     domain-local-await
     domain_shims
+    (ocaml-lsp-server :with-dev-setup) ; needed for https://github.com/ocamllabs/vscode-ocaml-platform
+    (ocp-indent :with-dev-setup) ; needed for pre-commit hook
   )
   (depopts
     apron

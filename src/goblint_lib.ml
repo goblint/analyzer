@@ -157,6 +157,21 @@ module Signs = Signs
 module Taint = Taint
 module UnitAnalysis = UnitAnalysis
 
+module GStoreWidening = GStoreWidening
+module GStoreWideningHelper = GStoreWideningHelper
+
+module SimplifiedAnalysis = SimplifiedAnalysis
+module SimplifiedLifter = SimplifiedLifter
+
+(** {3 Solutions}
+
+    Looking at these spoils all the fun! *)
+
+module SignsSol = SignsSol
+module SignsExtendSol = SignsExtendSol
+module TaintSol = TaintSol
+module GStoreWideningSol = GStoreWideningSol
+
 (** {2 Other} *)
 
 module Assert = Assert

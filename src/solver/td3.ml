@@ -56,8 +56,6 @@ module Base =
 
     module UpdateRule = UpdateRule(EqS0) (HM) (VS)
 
-    let exists_key f hm = HM.exists (fun k _ -> f k) hm
-
     let assert_can_receive_side x =
       if Hooks.system x <> None then (
         failwith ("side-effect to unknown w/ rhs: " ^ GobPretty.sprint S.Var.pretty_trace x);
