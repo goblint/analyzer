@@ -158,8 +158,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   let dim_remove (ch: Apron.Dim.change) (t: t) = 
     let new_affeq = Matrix.dim_remove ch t.affeq in
-    let new_t = failwith "forget_vars (List.map Var.to_t dim_list) t" in (* TODO: forget_vars is corretly in module D, but we need to use this here *)
     let dim_list = Array.to_list ch.dim in
+    let new_t = forget_vars (List.map Var.to_t dim_list) t in
     let dim_list = List.sort_uniq Int.compare dim_list in (* remove duplicates *)
     let new_infos = new_infos_remove new_t.infos dim_list in 
     let new_intervals = new_intervals_remove new_t.intervals dim_list in
