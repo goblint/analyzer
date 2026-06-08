@@ -28,9 +28,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   type interval = I.t [@@deriving eq, ord, hash]
   type interval_map = interval VarMap.t [@@deriving eq, ord]
   type slackintervals = interval_map [@@deriving eq, ord]
-  type slack_expr = {
-    terms: (Var.t * Mpqf.t) list;
-  } [@@deriving eq, ord, hash]
+  type slack_expr = (Var.t * Mpqf.t) list [@@deriving eq, ord, hash]
+
   type slack = {
       info: slack_expr;
     intv: interval;
@@ -97,10 +96,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
       VarMap.fold (fun var slack acc ->
         let new_var = shift_index_add var occ_cols in
         let new_slack = {
-          info = {
-            terms = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_add v occ_cols, c) :: acc) [] slack.info.terms);
-            const = slack.info.const;
-          };
+          info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_add v occ_cols, c) :: acc) [] slack.info);
           intv = slack.intv;
         } in
         VarMap.add new_var new_slack acc
@@ -123,10 +119,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
       VarMap.fold (fun var slack acc ->
         let new_var = shift_index_remove var dim_list in
         let new_slack = {
-          info = {
-            terms = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] slack.info.terms);
-            const = slack.info.const;
-          };
+          info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] slack.info);
           intv = slack.intv;
         } in
         VarMap.add new_var new_slack acc
@@ -143,15 +136,12 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     |> String.concat "; "
 
   let string_of_slack_expr (e: slack_expr) =
-    let term_str =
-      match e.terms with
-      | [] -> ""
-      | terms ->
-        terms
-        |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
-        |> String.concat " + "
-    in
-    term_str
+    match e with
+    | [] -> "0"
+    | terms ->
+      terms
+      |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
+      |> String.concat " + "
 
   let string_of_slack (s: slack) =
     I.show s.intv ^ "  (" ^ string_of_slack_expr s.info ^ ")"
@@ -182,4 +172,3 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   let _ = Var.string_of (* silence unused-functor-arg warning until Var is actually used *)
 end
-
