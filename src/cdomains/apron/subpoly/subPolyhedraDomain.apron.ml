@@ -236,7 +236,7 @@ struct
   let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
 
   (* transfer functions *)
-  
+
   (**************
     Removes all rows in the affeq Matrix containing the vars, removes the corresponding entry in the 
   **************)
@@ -249,6 +249,13 @@ struct
   
   let forget_var (t: t) (v: V.t) = forget_vars t [v]
   
+  let assign_exp _ask _t _var _exp _ = failwith "SubPolyhedraDomain.assign_exp: not implemented"
+  let assign_var _t _v _v' = failwith "SubPolyhedraDomain.assign_var: not implemented"
+  let assign_var_parallel _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel: not implemented"
+  let assign_var_parallel_with _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel_with: not implemented"
+  let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
+  let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
+
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   (* Module AssertionRels demands: *)
