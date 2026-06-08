@@ -97,6 +97,8 @@
 (copy_files# cdomains/apron/*.ml)
 (copy_files# cdomains/apron/subpoly/*.ml)
 (copy_files# cdomains/apron/subpoly/intervals/*.ml)
+(copy_files# cdomains/apron/subpoly/*.ml)
+(copy_files# cdomains/apron/subpoly/intervals/*.ml)
 (copy_files# analyses/apron/*.ml)
 (copy_files# util/apron/*.ml)
 (copy_files# arg/z3/*.ml)

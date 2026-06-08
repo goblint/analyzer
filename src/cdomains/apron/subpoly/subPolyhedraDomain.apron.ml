@@ -24,10 +24,13 @@ end
 module VarManagement =
 struct
   module Int = struct
-    type t = int [@@deriving hash]
+    type t = int
     let equal = Int.equal
     let compare = Int.compare
-    let string_of = string_of_int
+    let string_of = Int.to_string
+    let hash = Hashtbl.hash
+    let to_int = identity
+    let to_t = identity
   end
   module SubPolyDomain = SubPoly(Int)(RationalInterval)
   include SharedFunctions.VarManagementOps (SubPolyDomain)
@@ -43,6 +46,18 @@ struct
   let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not   implemented"
 end
 
+
+(* The way we model linexpr for slacks as discussed in the meeting. We use a vector from sparseimplementation of affeq. 
+(i think this is the one we were meant to use) *)
+
+(* When changing from coeffvector to Var.t * Mpqf.t ai wrote the add_term and add_linexpr functions. *)
+(* it also touched linexpr of exp *)
+(*
+  QUESTION: why do we not use sparse Vector implementation for Linexpr_management?
+  Not sure if this needs to be changed to work with the new representation of a polyhedron.
+*)
+
+>>>>>>> forget_vars
 module Linexpr_managment = struct
   include RatOps.ConvenienceOps (Mpqf)
 
@@ -254,17 +269,10 @@ struct
     else 
       let d = Option.get t.d in 
       let dims = List.map (Environment.dim_of_var t.env) vars in (*map of vars in Env. to dimensions in matrix.*)
-      let new_affeq = List.fold_left rem_rows_containing_var d.affeq dims in
-      let new_intervals = List.fold_left (flip SubPolyDomain.VarMap.remove) d.intervals dims in
-      let new_slacks = List.fold_left rem_slacks_containing_var d.slacks dims in
-      {d = Some {affeq = new_affeq ; intervals = new_intervals ; slacks = new_slacks}; env = t.env} 
-
-  let assign_exp _ask _t _var _exp _ = failwith "SubPolyhedraDomain.assign_exp: not implemented"
-  let assign_var _t _v _v' = failwith "SubPolyhedraDomain.assign_var: not implemented"
-  let assign_var_parallel _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel: not implemented"
-  let assign_var_parallel_with _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel_with: not implemented"
-  let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
-  let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
+      {t with d = Some (SubPolyDomain.forget_vars dims d)}
+  
+  let forget_var (t: t) (v: V.t) = forget_vars t [v]
+  
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   (* Module AssertionRels demands: *)
