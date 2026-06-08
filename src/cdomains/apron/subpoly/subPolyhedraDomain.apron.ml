@@ -34,13 +34,13 @@ struct
 
   let dim_add = SubPolyDomain.dim_add
   (*potentially add dim_remove here, not sure though*)  
-  let size _t = failwith "SubPolyhedraDomain.size: not implemented"
+  let size _t = failwith "SubPolyhedraDomain.size: not   implemented"
 end
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
-  let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not implemented"
+  let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not   implemented"
 end
 
 module Linexpr_managment = struct
@@ -144,32 +144,32 @@ module Slack_managment = struct
   (* Helper functions for slack management *)
 
   let map_d (_f: SubPolyDomain.t -> SubPolyDomain.t) (_t: t) =
-    failwith "TODO"
+    failwith "TODO!"
 
-  let var_key (_var: Var.t) = failwith "TODO"
+  let var_key (_var: Var.t) = failwith "TODO!"
 
-  let const_q_of_exp (_exp: exp) = failwith "TODO"
+  let const_q_of_exp (_exp: exp) = failwith "TODO!"
 
-  let rec vars_of_exp (_exp: exp) = failwith "TODO"
+  let rec vars_of_exp (_exp: exp) = failwith "TODO!"
 
-  let interval_of_constraint_op (_op: binop) (_bound: Q.t) = failwith "TODO"
+  let interval_of_constraint_op (_op: binop) (_bound: Q.t) = failwith "TODO!"
 
   let absorb_linexpr_const_into_interval (_linexpr: linexpr) (_interval: RationalInterval.t) =
-    failwith "TODO"
+    failwith "TODO!"
 
   let rec simple_constraint (_t: t) (_exp: exp) : (t * linexpr * RationalInterval.t) option =
-    failwith "TODO"
+    failwith "TODO!"
 
   let slack_var_of_constraint (_linexpr: linexpr) (_interval: RationalInterval.t) =
-    failwith "TODO"
+    failwith "TODO!"
 
   let row_of_slack (_env: Environment.t) (_slack: Var.t) (_linexpr: linexpr) =
-    failwith "TODO"
+    failwith "TODO!"
 
-  let add_constant_interval (_t: t) (_var: Var.t) (_c: Q.t) = failwith "TODO"
+  let add_constant_interval (_t: t) (_var: Var.t) (_c: Q.t) = failwith "TODO!"
 
   let add_slack_constraint (_t: t) (_linexpr: linexpr) (_interval: RationalInterval.t) =
-    failwith "TODO"
+    failwith "TODO!"
 end
 
 module D =
@@ -299,7 +299,7 @@ struct
 
   let env t = t.env
   let eval_interval _ask = Bounds.bound_texpr
-  let invariant _t = failwith "SubPolyhedraDomain.invariant: not implemented"
+  let invariant _t = failwith "SubPolyhedraDomain.invariant:   not implemented"
 
   type marshal = t
   (* marshal is not compatible with apron, therefore we don't have to implement it *)
