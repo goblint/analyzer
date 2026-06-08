@@ -57,7 +57,6 @@ end
   Not sure if this needs to be changed to work with the new representation of a polyhedron.
 *)
 
->>>>>>> forget_vars
 module Linexpr_managment = struct
   include RatOps.ConvenienceOps (Mpqf)
 
@@ -237,29 +236,6 @@ struct
   let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
 
   (* transfer functions *)
-
-  (*******************
-    This function first uses the Matrix interface to get a list of the rows, then filters based on if the var 
-    is 0 which essentially removes all rows where var is non-zero. It then builds the matrix again from the list.
-    It is a bit clunky because Ocaml does not know that the Matrix is already implemented as a list of Vectors.
-  ********************)
-  let rem_rows_containing_var (affeq : SubPolyDomain.affeq) (var: int) : SubPolyDomain.affeq =
-    if SubPolyDomain.Matrix.is_empty affeq then affeq 
-    else
-      let rows = List.init (SubPolyDomain.Matrix.num_rows affeq) (SubPolyDomain.Matrix.get_row affeq) in
-      let filtered = List.filter (fun row -> SubPolyDomain.CoeffVector.nth row var =: Mpqf.zero) rows in
-      List.fold_left SubPolyDomain.Matrix.append_row (SubPolyDomain.Matrix.empty ()) filtered
-
-  (*******************
-    This function takes a slack_map and removes all slack variables whose info contains mention of the var.
-    Used in forget_vars.
-  *******************)    
-  let rem_slacks_containing_var (slacks : SubPolyDomain.slack_map) (var : int) : SubPolyDomain.slack_map = 
-     SubPolyDomain.VarMap.filter (fun _ (slack : SubPolyDomain.slack) -> not (List.mem var (List.map fst slack.info.terms))) slacks 
-
-  (* transfer functions *)
-  let forget_var (t: t) (v: V.t) = remove_vars t [v]
-    
   
   (**************
     Removes all rows in the affeq Matrix containing the vars, removes the corresponding entry in the 
