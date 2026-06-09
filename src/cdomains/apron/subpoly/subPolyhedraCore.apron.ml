@@ -114,39 +114,24 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   let forget_var (var : Var.t) (t: t) : t = 
     forget_vars [var] t
   
-  (* HELPER-FUNCTIONS FOR DIMENSIONAL OPERATIONS *)
-  let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
+  (**
+  [dim_add] Apron dimension change
+  *)
+  let dim_add (ch: Apron.Dim.change) (t: t) = 
+    let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
     (* find all entries that are less or equal to old_index in occ_cols, and count them (=k), then new_index = old_index + k , return new_index *)
     (let k = List.fold_left (fun acc (index, count) -> if index <= (Var.to_int old_index) then acc + count else acc) 0 occ_cols
     in let new_index = (Var.to_int old_index) + k 
-    in Var.to_t new_index)
-
-  let shift_index_remove (old_index : Var.t) (dim_list : int list) : Var.t = 
-    (let k = List.fold_left (fun acc index -> if index < (Var.to_int old_index) then acc + 1 else acc) 0 dim_list
-    in let new_index = (Var.to_int old_index) - k 
-    in Var.to_t new_index)
-
-    (** Replacements for new_slack_add and new_slack_remove for the new datatype: *)
-  let new_infos_add (infos : info_map) occ_cols : info_map = 
+    in Var.to_t new_index) in
+    let new_infos_add (infos : info_map) occ_cols : info_map = 
     VarMap.fold(fun var info acc ->
       let new_var = shift_index_add var occ_cols in
       let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_add v occ_cols, c) :: acc) [] info) in
-      VarMap.add new_var new_info acc) infos VarMap.empty
-  let new_infos_remove (infos : info_map) dim_list : info_map = 
-    VarMap.fold (fun var info acc ->
-      let new_var = shift_index_remove var dim_list in
-      let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] info) in
-      VarMap.add new_var new_info acc) infos VarMap.empty
-  let new_intervals_add (intervals : interval_map) occ_cols : interval_map = 
+      VarMap.add new_var new_info acc) infos VarMap.empty in
+    let new_intervals_add (intervals : interval_map) occ_cols : interval_map = 
     VarMap.fold( fun var interval acc ->
       let new_var = shift_index_add var occ_cols in
-      VarMap.add new_var interval acc) intervals VarMap.empty
-  let new_intervals_remove (intervals : interval_map) dim_list : interval_map =
-    VarMap.fold( fun var interval acc ->
-      let new_var = shift_index_remove var dim_list in
-      VarMap.add new_var interval acc) intervals VarMap.empty
-
-  let dim_add (ch: Apron.Dim.change) (t: t) = 
+      VarMap.add new_var interval acc) intervals VarMap.empty in
     let new_affeq = Matrix.dim_add ch t.affeq in
     let list = Array.to_list ch.dim in
     let grouped_indices = List.group Int.compare list in 
@@ -156,7 +141,23 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     let new_intervals = new_intervals_add t.intervals occ_cols in
     {affeq = new_affeq; infos = new_infos; intervals = new_intervals}
 
-  let dim_remove (ch: Apron.Dim.change) (t: t) = 
+  (**
+  [dim_remove] Apron dimension change
+  *)
+  let dim_remove (ch: Apron.Dim.change) (t: t) =
+    let shift_index_remove (old_index : Var.t) (dim_list : int list) : Var.t = 
+    (let k = List.fold_left (fun acc index -> if index < (Var.to_int old_index) then acc + 1 else acc) 0 dim_list
+    in let new_index = (Var.to_int old_index) - k 
+    in Var.to_t new_index) in
+    let new_infos_remove (infos : info_map) dim_list : info_map = 
+    VarMap.fold (fun var info acc ->
+      let new_var = shift_index_remove var dim_list in
+      let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] info) in
+      VarMap.add new_var new_info acc) infos VarMap.empty in
+    let new_intervals_remove (intervals : interval_map) dim_list : interval_map =
+    VarMap.fold( fun var interval acc ->
+      let new_var = shift_index_remove var dim_list in
+      VarMap.add new_var interval acc) intervals VarMap.empty in
     let new_affeq = Matrix.dim_remove ch t.affeq in
     let dim_list = Array.to_list ch.dim in
     let new_t = forget_vars (List.map Var.to_t dim_list) t in
