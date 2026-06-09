@@ -2,14 +2,15 @@
 
 
 ### Lattice Operations
-- [ ] **Join** 
-- [ ] **Meet**
-- [ ] **Widening**
-- [ ] **Leq**
+- [ ] **Join** : TODO next!
+- [ ] **Meet** : Pairwise meet!
+- [ ] **Widening** : Later on!
+- [ ] **Leq** : Can be implemented with join.
 
 ### Parsing
-- [ ] **Check**: We currently have lots of AI code in the modules related to parsing `CIL` expressions
-- [ ] **Check** Whenever the polyhedron representation changes we need to check whether the information is correctly translated from `CIL` expressions into polyhedron form.
+- [ ] **Implement** bound_texpr: responsible for internal queries, asserts and ?branching?, returns correct (tight) interval bounds for an expression.
+- [ ] **Check** Monomoial simplification
+
 
 ### 3. Variable Management
 - [ ] **forget_vars**: 
@@ -17,6 +18,7 @@
 - [ ] **remove redundancies**: Implement a pass to identify and remove redundant slack variables (e.g., $b_1 - b_2 = 5$) to reduce dimensionality.
 
 ### 5. Reduction
+- [ ] **Simplex** : For now identity will suffice, simplex for more precision later.
 
 ### 6. Verification & Testing
 - [ ] **Unit Tests**
