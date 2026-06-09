@@ -102,7 +102,7 @@ struct
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
-  module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module Result = AnalysisResult.Result (LT)
   module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)
