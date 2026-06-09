@@ -50,7 +50,7 @@ struct
   let printXmlWarning f () =
     List.iter (printXml_warn f) !Messages.Table.messages_list
 
-  let do_html_output () =
+  let do_html_output xml_file_name =
     let g2html_path = get_string "exp.g2html_path" in
     let g2html_path =
       if g2html_path = "" then
@@ -65,7 +65,7 @@ struct
           "--num-threads"; string_of_int (jobs ());
           "--dot-timeout"; "0";
           "--result-dir"; "result";
-          !Messages.xml_file_name
+          xml_file_name
         ]
       in
       match Timing.wrap "g2html" Unix.system command with
@@ -97,8 +97,9 @@ struct
       in
       List.iter one_fun xs
     in
+    let xml_file_name = ref "" in
     let write_file f fn =
-      Messages.xml_file_name := fn;
+      xml_file_name := fn;
       Logs.info "Writing xml to temp. file: %s" fn;
       BatPrintf.fprintf f "<run>";
       BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
@@ -118,7 +119,7 @@ struct
     if get_string "result" = "g2html" then (
       BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file;
       CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) live;
-      do_html_output ()
+      do_html_output !xml_file_name
     )
     else
       let f = BatIO.output_channel out in

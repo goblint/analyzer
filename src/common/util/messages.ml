@@ -177,8 +177,6 @@ let () = AfterConfig.register (fun () ->
       GobFormat.pp_set_ansi_color_tags !formatter
   )
 
-let xml_file_name = ref ""
-
 (** The file where everything is output *)
 let out = ref stdout
 
