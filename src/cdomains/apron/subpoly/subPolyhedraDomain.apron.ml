@@ -229,7 +229,8 @@ struct
   (* fixpoint iteration handling *)
   (* here we wire up the things from Core *)
   let meet _a _b = failwith "SubPolyhedraDomain.meet: not implemented"
-
+  
+  (*< Copy-pasted from octagons >*) 
   let leq a b = 
     let env_comp = Environment.cmp a.env b.env in
     if env_comp = -2 || env_comp > 0 then false else
@@ -237,11 +238,12 @@ struct
     if is_bot_env b || is_top a then false else
     (* bis hier: macht mann das immer so -> Rückgabewerte in AffineEq anschauen *)
     failwith "SubPolyhedraDomain.leq: not implemented"
-
+  (*</ Copy-pasted from octagons >*)
   let join _a _b = failwith "SubPolyhedraDomain.join: not implemented"
 
 
- (* let meet a b = (* same as join but calls cap instead of cup *)
+ (* Copy-pasted from octagons for reference:
+    let meet a b = (* same as join but calls cap instead of cup *)
     match a.d,b.d with
     | None, _ -> b
     | _, None -> a
@@ -286,17 +288,21 @@ struct
 
   
   let assign_texpr _t _var _texpr = failwith "SubPolyhedraDomain.assign_texpr: not implemented"
-
+  (*< Copy-pasted from ltve >*)
   let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) : VarManagement.t =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | texp -> assign_texpr t var texp
     | exception Convert.Unsupported_CilExp _ -> forget_vars t [var]
+  (*</ Copy-pasted from ltve >*)
 
+  (*< Copy-pasted from ltve >*)
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
     assign_texpr t v (Var v') (* TODO Leonie: Find mistake *)
+  (*</ Copy-pasted from ltve >*)
 
+  (*< Copy-pasted from ltve >*)
   let assign_var_parallel t vv's =
     let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in
@@ -308,24 +314,34 @@ struct
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
       remove_vars switched_arr primed_vars
     | _ -> t
+  (*</ Copy-pasted from ltve >*)
 
+  (*< Copy-pasted from ltve >*)
   let assign_var_parallel_with t vv's =
     (* TOD0: If we are angling for more performance, this might be a good place ot try. `assign_var_parallel_with` is used whenever a function is entered (body),
        in unlock, at sync edges, and when entering multi-threaded mode. *)
     let t' = assign_var_parallel t vv's in
     t.d <- t'.d;
     t.env <- t'.env
+  (*</ Copy-pasted from ltve >*)
 
+  (*< Copy-pasted from ltve >*)
   let assign_var_parallel' t vs1 vs2 =
     let vv's = List.combine vs1 vs2 in
     assign_var_parallel t vv's
+  (*</ Copy-pasted from ltve >*)
 
+  (*< Copy-pasted from ltve >*)
   let substitute_exp ask t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp ask t var exp no_ov in
     forget_vars res [var] 
-  
+  (*</ Copy-pasted from ltve >*)
+
+  (*< Copy-pasted from ltve >*)
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+  (*</ Copy-pasted from ltve >*)
+
 
   (* Module AssertionRels demands: *)
     let assert_constraint (_ask: Queries.ask) (d: t) (e: exp) (negate: bool) (_no_ov: bool Lazy.t) =
