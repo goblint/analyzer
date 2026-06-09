@@ -180,9 +180,7 @@ let () = AfterConfig.register (fun () ->
 (** The file where everything is output *)
 let out = ref stdout
 
-let get_out name alternative = match get_string "dbg.dump" with
-  | "" -> alternative
-  | path -> open_out (Filename.concat path (name ^ ".out"))
+let get_out name alternative = alternative (* TODO: inline *)
 
 
 let print ?(ppf= !formatter) (m: Message.t) =

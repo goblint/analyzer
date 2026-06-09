@@ -192,13 +192,7 @@ let handle_flags () =
     set_auto "lib.activated[+]" "sv-comp";
 
   if get_bool "kernel" then
-    set_auto "lib.activated[+]" "linux-kernel";
-
-  match get_string "dbg.dump" with
-  | "" -> ()
-  | path ->
-    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
-    set_string "outfile" ""
+    set_auto "lib.activated[+]" "linux-kernel"
 
 let handle_options () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
