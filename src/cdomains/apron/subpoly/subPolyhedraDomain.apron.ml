@@ -260,7 +260,7 @@ struct
 
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
-    assign_texpr t v (Var v')
+    assign_texpr t v (Var v') (* TODO: Find mistake *)
 
   let assign_var_parallel t vv's =
     let assigned_vars = List.map fst vv's in
