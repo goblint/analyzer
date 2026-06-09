@@ -229,8 +229,42 @@ struct
   (* fixpoint iteration handling *)
   (* here we wire up the things from Core *)
   let meet _a _b = failwith "SubPolyhedraDomain.meet: not implemented"
-  let leq _a _b = failwith "SubPolyhedraDomain.leq: not implemented"
+
+  let leq a b = 
+    let env_comp = Environment.cmp a.env b.env in
+    if env_comp = -2 || env_comp > 0 then false else
+    if is_bot_env a || is_top b then true else
+    if is_bot_env b || is_top a then false else
+    (* bis hier: macht mann das immer so -> Rückgabewerte in AffineEq anschauen *)
+    failwith "SubPolyhedraDomain.leq: not implemented"
+
   let join _a _b = failwith "SubPolyhedraDomain.join: not implemented"
+
+
+ (* let meet a b = (* same as join but calls cap instead of cup *)
+    match a.d,b.d with
+    | None, _ -> b
+    | _, None -> a
+    | Some octa, Some octb when (Environment.cmp a.env b.env <> 0)->
+      let sup_env = Environment.lce a.env b.env in
+      let mod_a = SparseOctagon.dim_add (Environment.dimchange a.env sup_env) octa in
+      let mod_b = SparseOctagon.dim_add (Environment.dimchange b.env sup_env) octb in
+      {d=cap mod_a mod_b; env = sup_env}
+    | Some octa, Some octb -> { d = cap octa octb ; env = a.env} (* same environment, so we can just meet the octagons*) 
+
+
+  let join a b = 
+    match a.d,b.d with
+    | None, _ -> b
+    | _, None -> a
+    | Some octa, Some octb when (Environment.cmp a.env b.env <> 0)->
+      let sup_env = Environment.lce a.env b.env in
+      let mod_a = SparseOctagon.dim_add (Environment.dimchange a.env sup_env) octa in
+      let mod_b = SparseOctagon.dim_add (Environment.dimchange b.env sup_env) octb in
+      {d=cup mod_a mod_b; env = sup_env}
+    | Some octa, Some octb -> { d = cup octa octb ; env = a.env} (* same environment, so we can just join the octagons*) 
+ *)
+
   let widen _a _b = failwith "SubPolyhedraDomain.widen: not implemented"
   let narrow _a _b = failwith "SubPolyhedraDomain.narrow: not implemented"
   let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
@@ -250,6 +284,7 @@ struct
   let forget_var (t: t) (v: V.t) = forget_vars t [v]
   
 
+  
   let assign_texpr _t _var _texpr = failwith "SubPolyhedraDomain.assign_texpr: not implemented"
 
   let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) : VarManagement.t =
@@ -260,12 +295,12 @@ struct
 
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
-    assign_texpr t v (Var v')
+    assign_texpr t v (Var v') (* TODO Leonie: Find mistake *)
 
   let assign_var_parallel t vv's =
     let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in
-    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TOD0: we use primed vars in analysis, conflict? *)
+    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (string_of_int i  ^"'")) in
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
