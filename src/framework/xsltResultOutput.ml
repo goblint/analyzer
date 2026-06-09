@@ -96,9 +96,7 @@ struct
       in
       List.iter one_fun xs
     in
-    let xml_file_name = ref "" in
     let write_file f fn =
-      xml_file_name := fn;
       Logs.info "Writing xml to temp. file: %s" fn;
       BatPrintf.fprintf f "<run>";
       BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
@@ -113,16 +111,17 @@ struct
       gtfxml f gtable;
       printXmlWarning f ();
       BatPrintf.fprintf f "</result></run>\n";
-      BatPrintf.fprintf f "%!"
+      BatPrintf.fprintf f "%!";
+      fn
     in
     if get_string "result" = "g2html" then (
-      BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file;
+      let xml_file_name = BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file in
       CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) live;
-      do_html_output !xml_file_name
+      do_html_output xml_file_name
     )
     else
       let f = BatIO.output_channel !Messages.out in
-      write_file f (get_string "outfile")
+      ignore (write_file f (get_string "outfile"))
 end
 
 module Make2 (Result: Result) =
