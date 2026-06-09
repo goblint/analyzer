@@ -361,9 +361,8 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out (Spec.name ()) !M.out in
       let print_one v st =
-        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
+        ignore (Pretty.fprintf !M.out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
       in
       GHT.iter print_one glob
     in

@@ -180,8 +180,6 @@ let () = AfterConfig.register (fun () ->
 (** The file where everything is output *)
 let out = ref stdout
 
-let get_out name alternative = alternative (* TODO: inline *)
-
 
 let print ?(ppf= !formatter) (m: Message.t) =
   let severity_stag = match m.severity with

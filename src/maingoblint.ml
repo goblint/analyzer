@@ -484,7 +484,7 @@ let merge_parsed parsed =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  Errormsg.logChannel := Messages.get_out "cil" cilout;
+  Errormsg.logChannel := cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
@@ -517,7 +517,7 @@ let do_stats () =
     Goblint_solver.SolverStats.print ();
     Logs.newline ();
     Logs.info "Timings:";
-    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel Legacy.stderr);
     flush_all ()
   )
 
