@@ -249,13 +249,47 @@ struct
   
   let forget_var (t: t) (v: V.t) = forget_vars t [v]
   
-  let assign_exp _ask _t _var _exp _ = failwith "SubPolyhedraDomain.assign_exp: not implemented"
-  let assign_var _t _v _v' = failwith "SubPolyhedraDomain.assign_var: not implemented"
-  let assign_var_parallel _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel: not implemented"
-  let assign_var_parallel_with _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel_with: not implemented"
-  let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
-  let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
 
+  let assign_texpr _t _var _texpr = failwith "SubPolyhedraDomain.assign_texpr: not implemented"
+
+  let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) : VarManagement.t =
+    let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
+    match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
+    | texp -> assign_texpr t var texp
+    | exception Convert.Unsupported_CilExp _ -> forget_vars t [var]
+
+  let assign_var (t: VarManagement.t) v v' =
+    let t = add_vars t [v; v'] in
+    assign_texpr t v (Var v')
+
+  let assign_var_parallel t vv's =
+    let assigned_vars = List.map fst vv's in
+    let t = add_vars t assigned_vars in
+    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TOD0: we use primed vars in analysis, conflict? *)
+    let t_primed = add_vars t primed_vars in
+    let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
+    match multi_t.d with
+    | Some arr when not @@ is_top multi_t ->
+      let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
+      remove_vars switched_arr primed_vars
+    | _ -> t
+
+  let assign_var_parallel_with t vv's =
+    (* TOD0: If we are angling for more performance, this might be a good place ot try. `assign_var_parallel_with` is used whenever a function is entered (body),
+       in unlock, at sync edges, and when entering multi-threaded mode. *)
+    let t' = assign_var_parallel t vv's in
+    t.d <- t'.d;
+    t.env <- t'.env
+
+  let assign_var_parallel' t vs1 vs2 =
+    let vv's = List.combine vs1 vs2 in
+    assign_var_parallel t vv's
+
+  let substitute_exp ask t var exp no_ov =
+    let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
+    let res = assign_exp ask t var exp no_ov in
+    forget_vars res [var] 
+  
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   (* Module AssertionRels demands: *)
