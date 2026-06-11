@@ -220,7 +220,6 @@ struct
 
   let to_yojson _ = failwith "SubPolyhedraDomain.to_yojson: not implemented"
 
-
     (* pretty printing *)
   let show (t: t) =
     let env = Environment.show t.env in
@@ -271,20 +270,14 @@ struct
   let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
   let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
 
-  (** [vars_of_exp exp] collects the program variables occurring in [exp]. *)
+  (*< Copy-pasted from ltve >*)
+  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+  (*</ Copy-pasted from ltve >*)
+  
   let rec vars_of_exp (_exp: exp) : Var.t list = failwith "TODO"
 
-  (** [interval_of_constraint_op op bound] turns a comparison operator [op] against
-      [bound] into the interval that the constrained expression must lie in
-      (e.g. [<= bound] -> [(-inf, bound)]). *)
   let interval_of_constraint_op (_op: binop) (_bound: Q.t) : RationalInterval.t = failwith "TODO"
 
-  (** [simple_constraint t exp] parses a linear comparison [exp] into the linear
-      expression being constrained and the interval it has to fall into.
-      Returns [None] if [exp] is not a supported linear comparison.
-
-      Per design: the constant is NOT absorbed into the interval here; it stays as
-      part of the returned [linexpr]. *)
   let rec simple_constraint (_t: t) (_exp: exp) : (t * linexpr * RationalInterval.t) option = failwith "TODO"
 
   (* Module AssertionRels demands: *)
