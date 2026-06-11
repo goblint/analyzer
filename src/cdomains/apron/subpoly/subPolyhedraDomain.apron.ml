@@ -38,6 +38,77 @@ struct
   let dim_add = SubPolyDomain.dim_add
   (*potentially add dim_remove here, not sure though*)  
   let size _t = failwith "SubPolyhedraDomain.size: not   implemented"
+
+   (* aus LTVE, aber überarbeitet. *)
+  (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
+  let monomials_from_texp (t: t) texp =
+    let open Apron.Texpr1 in
+    let exception NotLinearExpr in 
+    let exception ScalarIsInfinity in 
+    let negate coeff_var_list =
+      List.map (fun (monom, offs) -> Z.(BatOption.map (fun (coeff, i) -> (neg coeff, i)) monom, neg offs)) coeff_var_list
+    in
+    let canonicalize (v,o,d) =
+      let gcd = Z.gcd o d in (* gcd of coefficients *)
+      let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
+      let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* canonical form dictates d being positive *)
+      (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
+    in
+    let multiply_with_Q dividend coeff_var_list = 
+      List.map (fun (monom, offs) ->
+        let (v, o, d) = canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, one) in
+        (v, o)
+      ) coeff_var_list
+    in
+    let multiply a b = (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
+      match a, b with
+      | [(None,coeff)], c
+      | c, [(None,coeff)] -> multiply_with_Q coeff c
+      | _ -> raise NotLinearExpr
+    in 
+    let rec convert_texpr texp =
+      begin match texp with
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
+        | Cst (Scalar x) -> 
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> [(None, x)]
+            | None -> raise ScalarIsInfinity end (* bedeutet, dass es keine exakte ganze zahl ist *)
+        | Var x -> 
+          let var_dim = Environment.dim_of_var t.env x in
+          [(Some (Z.one, var_dim), Z.zero)] 
+        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+        | Unop  (Cast, e, _, _) -> convert_texpr e 
+        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
+        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
+        | Binop (Mul, e1, e2, _, _ ) -> multiply (convert_texpr e1) (convert_texpr e2) 
+        | Binop (Div, e1, e2, _, _ ) -> failwith "todo: brauchen wir diesen fall?"
+        | _  -> raise NotLinearExpr end
+    in match convert_texpr texp with
+    | exception NotLinearExpr -> None
+    | exception ScalarIsInfinity -> None
+    | x -> Some(x)
+
+  (* aus LTVE, aber überarbeitet. *)
+  (** convert and simplify a texpr into a list of monomials (coeff,varidx) and a constant offset *)
+  let simplified_monomials_from_texp (t: t) texp =
+    BatOption.bind (monomials_from_texp t texp) (* wenn None, dann return None, sonst so weitermachen: *)
+      (fun monomiallist ->
+        let module IMap = Map.Make(Int) in
+        let accumulate_constants (exprcache, aconst) (v, offs) =
+           let constant = Z.add aconst offs in
+           match v with
+           | None -> (exprcache, constant)
+           | Some (coeff, idx) ->
+             let old_coeff = BatOption.default Z.zero (IMap.find_opt idx exprcache) in
+             let new_coeff = Z.add old_coeff coeff in
+             let newcache =
+               if Z.equal new_coeff Z.zero then IMap.remove idx exprcache
+               else IMap.add idx new_coeff exprcache
+             in (newcache, constant)
+        in 
+        let (expr, constant) = List.fold_left accumulate_constants (IMap.empty, Z.zero) monomiallist in
+        Some (IMap.fold (fun v c acc -> if Z.equal c Z.zero then acc else (c, v) :: acc) expr [], constant))
+
 end
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
