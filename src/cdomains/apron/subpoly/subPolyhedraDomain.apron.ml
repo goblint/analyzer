@@ -145,8 +145,7 @@ module Slack_managment = struct
 
   module CoeffVector = SubPolyDomain.CoeffVector
 
-  (** [is_slack t col] is [true] iff column [col] is a slack column, i.e. it carries
-      an interval bound (the slack columns are exactly the keys of the interval map). *)
+  (** [is_slack t col] is [true] iff column [col] is a slack column. *)
   let is_slack (t: t) (col: int) : bool =
     (* Get the interval map from the domain, false if domain option is None *)
     match t.d with
@@ -174,26 +173,18 @@ module Slack_managment = struct
     find 0
 
   (** [add_slack_constraint t linexpr interval] introduces a fresh slack [s] for the
-      linear expression [linexpr] and constrains [s] to [interval]. Single write entry
-      point used by [assert_constraint] and assignments to record a bounded linear
-      expression.
-
-      Order matters: the slack is first registered in the Apron environment, which
-      shifts the matrix and the existing info/interval keys (via [dim_add]). Only
-      then is the new info written, so it already sees the final column indices. *)
+      linear expression [linexpr] and constrains [s] to [interval]. *)
   let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) : t =
     if is_bot_env t then t
     else
-      (* 1. Register the slack in the env; add_vars performs all index shifting. *)
+      (* register the slack in the env; add_vars performs all index shifting. *)
       let slack_var = fresh_slack_var t in
       let t = add_vars t [slack_var] in
       match t.d with
       | None -> t
       | Some d ->
         let slack_dim = Environment.dim_of_var t.env slack_var in
-        (* 2. Build the info coeffvector over the (now final) columns.
-           Width matches the matrix rows: one column per env dimension plus the
-           constant in the last position (constant kept here, not absorbed into the interval). *)
+        (* build the info coeffvector over the (now final) columns. *)
         let width = Environment.size t.env + 1 in
         let term_entries =
           linexpr.terms
