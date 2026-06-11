@@ -46,28 +46,13 @@ struct
   let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not   implemented"
 end
 
-
-(* The way we model linexpr for slacks as discussed in the meeting. We use a vector from sparseimplementation of affeq. 
-(i think this is the one we were meant to use) *)
-
-(* When changing from coeffvector to Var.t * Mpqf.t ai wrote the add_term and add_linexpr functions. *)
-(* it also touched linexpr of exp *)
-(*
-  QUESTION: why do we not use sparse Vector implementation for Linexpr_management?
-  Not sure if this needs to be changed to work with the new representation of a polyhedron.
-*)
-
 module Linexpr_managment = struct
+  include VarManagement
   include RatOps.ConvenienceOps (Mpqf)
 
   module V = RelationDomain.V
-  type linexpr = {
-    terms: (Var.t * Mpqf.t) list;
-    const: Mpqf.t; (*QUESTION: here again, are the constants not in the slack var anyways?*)
-  }
-
-
-  (* Helper functionts for linexpr management, specifically for linexpr of c expr *)
+  module CoeffVector = VarManagement.SubPolyDomain.CoeffVector
+  type linexpr = CoeffVector.t
 
   let monomials_from_texp (t: t) texp =
     let open Apron.Texpr1 in
@@ -75,18 +60,6 @@ module Linexpr_managment = struct
     let exception ScalarIsInfinity in 
     let negate coeff_var_list =
       List.map (fun (monom, offs) -> Z.(BatOption.map (fun (coeff, i) -> (neg coeff, i)) monom, neg offs)) coeff_var_list
-    in
-    let canonicalize (v,o,d) =
-      let gcd = Z.gcd o d in (* gcd of coefficients *)
-      let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
-      let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* canonical form dictates d being positive *)
-      (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
-    in
-    let multiply_with_Q dividend coeff_var_list = 
-      List.map (fun (monom, offs) ->
-        let (v, o, d) = canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, one) in
-        (v, o)
-      ) coeff_var_list
     in
     let multiply a b = (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
       match a, b with
@@ -140,10 +113,7 @@ end
 
 module Slack_managment = struct
   include Linexpr_managment
-  include VarManagement
   include RatOps.ConvenienceOps (Mpqf)
-
-  module CoeffVector = SubPolyDomain.CoeffVector
 
   (** [is_slack t col] is [true] iff column [col] is a slack column. *)
   let is_slack (t: t) (col: int) : bool =
@@ -184,18 +154,8 @@ module Slack_managment = struct
       | None -> t
       | Some d ->
         let slack_dim = Environment.dim_of_var t.env slack_var in
-        (* build the info coeffvector over the (now final) columns. *)
-        let width = Environment.size t.env + 1 in
-        let term_entries =
-          linexpr.terms
-          |> List.map (fun (var, coeff) -> (Environment.dim_of_var t.env var, coeff))
-          |> List.sort (fun (i, _) (j, _) -> Int.compare i j)
-        in
-        let entries =
-          if linexpr.const =: Mpqf.zero then term_entries
-          else term_entries @ [(width - 1, linexpr.const)]
-        in
-        let info = CoeffVector.of_sparse_list width entries in
+        (* shift the incoming linexpr: insert the new slack column at its position *)
+        let info = CoeffVector.insert_zero_at_indices linexpr [(slack_dim, 1)] 1 in
         let d = SubPolyDomain.set_info slack_dim info d in
         let d = SubPolyDomain.set_intv slack_dim interval d in
         { t with d = Some d }
@@ -270,10 +230,8 @@ struct
   let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
   let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
 
-  (*< Copy-pasted from ltve >*)
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
-  (*</ Copy-pasted from ltve >*)
-  
+
   let rec vars_of_exp (_exp: exp) : Var.t list = failwith "TODO"
 
   let interval_of_constraint_op (_op: binop) (_bound: Q.t) : RationalInterval.t = failwith "TODO"
