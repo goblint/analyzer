@@ -149,41 +149,67 @@ module Linexpr_managment = struct
         Some (linexpr', pivot)
   end
 
-(* chekc the subpoly trees branch for old (ai) implementation *)
 module Slack_managment = struct
   include Linexpr_managment
   include VarManagement
   include RatOps.ConvenienceOps (Mpqf)
 
-  (* Helper functions for slack management *)
+  module CoeffVector = SubPolyDomain.CoeffVector
 
-  let map_d (_f: SubPolyDomain.t -> SubPolyDomain.t) (_t: t) =
-    failwith "TODO!"
+  (** [is_slack t col] is [true] iff column [col] is a slack column, i.e. it carries
+      an interval bound (the slack columns are exactly the keys of the interval map). *)
+  let is_slack (t: t) (col: int) : bool =
+    (* Get the interval map from the domain, false if domain option is None *)
+    match t.d with
+    | None -> false
+    | Some d -> SubPolyDomain.mem_intv col d
 
-  let var_key (_var: Var.t) = failwith "TODO!"
+  (** [fold_slacks f t acc] folds [f col interval info] over every slack,
+      where [info] is the slack's linear definition over the real variables
+      ([None] if no definition is stored for that slack). *)
+  let fold_slacks (f: int -> RationalInterval.t -> SubPolyDomain.info option -> 'a -> 'a) (t: t) (acc: 'a) : 'a =
+    match t.d with
+    | None -> acc
+    | Some d ->
+      SubPolyDomain.VarMap.fold (fun col iv acc ->
+          f col iv (SubPolyDomain.VarMap.find_opt col d.infos) acc
+        ) d.intervals acc
 
-  let const_q_of_exp (_exp: exp) = failwith "TODO!"
+  (* returns the first slack variable name [__slack#k] (scanning k = 0, 1, ...) that is not yet present in the environment. *)
+  let fresh_slack_var (t: t) =
+    let rec find k =
+      let v = Var.of_string (Printf.sprintf "__slack#%d" k) in
+      if Environment.mem_var t.env v then find (k + 1) else v
+    in
+    find 0
 
-  let rec vars_of_exp (_exp: exp) = failwith "TODO!"
-
-  let interval_of_constraint_op (_op: binop) (_bound: Q.t) = failwith "TODO!"
-
-  let absorb_linexpr_const_into_interval (_linexpr: linexpr) (_interval: RationalInterval.t) =
-    failwith "TODO!"
-
-  let rec simple_constraint (_t: t) (_exp: exp) : (t * linexpr * RationalInterval.t) option =
-    failwith "TODO!"
-
-  let slack_var_of_constraint (_linexpr: linexpr) (_interval: RationalInterval.t) =
-    failwith "TODO!"
-
-  let row_of_slack (_env: Environment.t) (_slack: Var.t) (_linexpr: linexpr) =
-    failwith "TODO!"
-
-  let add_constant_interval (_t: t) (_var: Var.t) (_c: Q.t) = failwith "TODO!"
-
-  let add_slack_constraint (_t: t) (_linexpr: linexpr) (_interval: RationalInterval.t) =
-    failwith "TODO!"
+  (** [add_slack_constraint t linexpr interval] introduces a fresh slack [s] for the
+      linear expression [linexpr] and constrains [s] to [interval]. *)
+  let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) : t =
+    if is_bot_env t then t
+    else
+      (* first register the slack in the env, add_vars performs all index shifting. *)
+      let slack_var = fresh_slack_var t in
+      let t = add_vars t [slack_var] in
+      match t.d with
+      | None -> t
+      | Some d ->
+        let slack_dim = Environment.dim_of_var t.env slack_var in
+        (* build the info coeffvector over the (now final) columns. *)
+        let width = Environment.size t.env + 1 in
+        let term_entries =
+          linexpr.terms
+          |> List.map (fun (var, coeff) -> (Environment.dim_of_var t.env var, coeff))
+          |> List.sort (fun (i, _) (j, _) -> Int.compare i j)
+        in
+        let entries =
+          if linexpr.const =: Mpqf.zero then term_entries
+          else term_entries @ [(width - 1, linexpr.const)]
+        in
+        let info = CoeffVector.of_sparse_list width entries in
+        let d = SubPolyDomain.set_info slack_dim info d in
+        let d = SubPolyDomain.set_intv slack_dim interval d in
+        { t with d = Some d }
 end
 
 module D =
@@ -258,6 +284,28 @@ struct
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
+  (* Constraint parsing: turn a CIL comparison expression into the linear expression
+     being constrained plus the interval it must fall into. Used by assert_constraint. *)
+
+  (** [const_q_of_exp exp] returns the rational value of [exp] if it is a constant. *)
+  let const_q_of_exp (_exp: exp) : Q.t option = failwith "TODO"
+
+  (** [vars_of_exp exp] collects the program variables occurring in [exp]. *)
+  let rec vars_of_exp (_exp: exp) : Var.t list = failwith "TODO"
+
+  (** [interval_of_constraint_op op bound] turns a comparison operator [op] against
+      [bound] into the interval that the constrained expression must lie in
+      (e.g. [<= bound] -> [(-inf, bound)]). *)
+  let interval_of_constraint_op (_op: binop) (_bound: Q.t) : RationalInterval.t = failwith "TODO"
+
+  (** [simple_constraint t exp] parses a linear comparison [exp] into the linear
+      expression being constrained and the interval it has to fall into.
+      Returns [None] if [exp] is not a supported linear comparison.
+
+      Per design: the constant is NOT absorbed into the interval here; it stays as
+      part of the returned [linexpr]. *)
+  let rec simple_constraint (_t: t) (_exp: exp) : (t * linexpr * RationalInterval.t) option = failwith "TODO"
+
   (* Module AssertionRels demands: *)
     let assert_constraint (_ask: Queries.ask) (d: t) (e: exp) (negate: bool) (_no_ov: bool Lazy.t) =
     let res =
@@ -270,8 +318,7 @@ struct
           here linexpr and intercal *)
         match simple_constraint d e with
         | Some (d, linexpr, interval) ->
-          (* Absorb constant from expression into interval tied to expression, like in paper*)
-          let linexpr, interval = absorb_linexpr_const_into_interval linexpr interval in
+          (* Per design: the constant stays in the linexpr (not absorbed into the interval). *)
           (*normalize linexpr liek discussed in meeting*)
           begin match normalize_linexpr linexpr with
             | Some (normalized_linexpr, pivot) ->

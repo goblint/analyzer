@@ -31,8 +31,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   type affeq = Matrix.t [@@deriving eq, ord, hash] (*Our affine equality matrix.*)
   type interval_map = I.t VarMap.t [@@deriving eq, ord] (*Map from Var to Interval*)
-  type info = (Var.t * Mpqf.t) list [@@deriving eq, ord, hash] (*similar to sparse vector, might acutally use sparse vector here? QUESTION*)
-  type info_map = info VarMap.t [@@deriving eq, ord] (*Map from Var to info (maybe sparse vector)*)
+  type info = CoeffVector.t [@@deriving eq, ord, hash] (*Coefficient vector over the matrix columns (constant in the last position)*)
+  type info_map = info VarMap.t [@@deriving eq, ord] (*Map from Var to info*)
 
   let hash_interval_map (m: interval_map) =
     VarMap.fold (fun var interval acc ->
@@ -93,7 +93,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     Used in forget_vars.
   *) 
   let rem_infos_containing_var (slacks : info_map) (var : Var.t) : info_map = 
-     VarMap.filter (fun _ (info : info) -> not (List.mem var (List.map fst info))) slacks 
+     VarMap.filter (fun _ (info : info) -> CoeffVector.nth info (Var.to_int var) =: Mpqf.zero) slacks 
 
   (**
     [forget_vars vars t] forgets a list of variables in the polyhedron.
@@ -127,15 +127,15 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     in Var.to_t new_index)
 
     (** Replacements for new_slack_add and new_slack_remove for the new datatype: *)
-  let new_infos_add (infos : info_map) occ_cols : info_map = 
+  let new_infos_add (infos : info_map) occ_cols num_added : info_map = 
     VarMap.fold(fun var info acc ->
       let new_var = shift_index_add var occ_cols in
-      let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_add v occ_cols, c) :: acc) [] info) in
+      let new_info = CoeffVector.insert_zero_at_indices info occ_cols num_added in
       VarMap.add new_var new_info acc) infos VarMap.empty
   let new_infos_remove (infos : info_map) dim_list : info_map = 
     VarMap.fold (fun var info acc ->
       let new_var = shift_index_remove var dim_list in
-      let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] info) in
+      let new_info = CoeffVector.remove_at_indices info dim_list in
       VarMap.add new_var new_info acc) infos VarMap.empty
   let new_intervals_add (intervals : interval_map) occ_cols : interval_map = 
     VarMap.fold( fun var interval acc ->
@@ -152,7 +152,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     let grouped_indices = List.group Int.compare list in 
     let occ_cols = List.map (fun group -> ((List.hd group, List.length group))) grouped_indices in 
     (* Approach from listMatrix.ml: add_empty_columns; Example: cols_list = [1; 3; 3; 5] -> grouped_indices = [[1]; [3; 3]; [5]] -> occ_cols = [(1, 1); (3, 2); (5, 1)] *)
-    let new_infos = new_infos_add t.infos occ_cols in 
+    let new_infos = new_infos_add t.infos occ_cols (Array.length ch.dim) in 
     let new_intervals = new_intervals_add t.intervals occ_cols in
     {affeq = new_affeq; infos = new_infos; intervals = new_intervals}
 
@@ -171,11 +171,11 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     |> String.concat "; "
 
   let string_of_info (e: info) =
-      match e with
+      match CoeffVector.to_sparse_list e with
       | [] -> ""
       | terms ->
         terms
-        |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
+        |> List.map (fun (i, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of (Var.to_t i))
         |> String.concat " + "
   let string_of_infos (infos: info_map) = 
     VarMap.bindings infos
