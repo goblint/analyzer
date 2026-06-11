@@ -246,13 +246,8 @@ struct
         (*TODO: add the negated branch fo the assert constraint*)
         d 
       else
-        (* parse cil expression into form we can work with,
-          here linexpr and intercal *)
         match simple_constraint d e with
-        | Some (d, linexpr, interval) ->
-          (* Per design: the constant stays in the linexpr (not absorbed into the interval). *)
-          (*normalize linexpr liek discussed in meeting*)
-              add_slack_constraint d linexpr interval
+        | Some (d, linexpr, interval) -> add_slack_constraint d linexpr interval
         | None -> d
     in
     if M.tracing then M.tracel "relation" "subpoly assert_constraint %a -> %s" d_exp e (show res);
