@@ -66,88 +66,77 @@ module Linexpr_managment = struct
     const: Mpqf.t; (*QUESTION: here again, are the constants not in the slack var anyways?*)
   }
 
+
   (* Helper functionts for linexpr management, specifically for linexpr of c expr *)
-  let mpqf_of_z (z: Z.t) =
-    Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z z
 
-  let const_mpqf_of_exp (exp: exp) = match exp with
-    | Const (CInt (i, _, _)) -> Some (mpqf_of_z i)
-    | _ -> None
-
-  let option_map2 (f: 'a -> 'b -> 'c) (a: 'a option) (b: 'b option) =
-    match a, b with
-    | Some a, Some b -> Some (f a b)
-    | _ -> None
-
-  let zero_linexpr = { terms = []; const = Mpqf.zero }
-
-  let add_term var coeff terms =
-    let rec add_term_aux acc = function
-      | [] ->
-        if coeff =: Mpqf.zero then List.rev acc
-        else List.rev ((var, coeff) :: acc)
-      | (v, c) :: rest when Var.equal v var ->
-        let c' = c +: coeff in
-        if c' =: Mpqf.zero then List.rev_append acc rest
-        else List.rev_append acc ((v, c') :: rest)
-      | term :: rest ->
-        add_term_aux (term :: acc) rest
+  let monomials_from_texp (t: t) texp =
+    let open Apron.Texpr1 in
+    let exception NotLinearExpr in 
+    let exception ScalarIsInfinity in 
+    let negate coeff_var_list =
+      List.map (fun (monom, offs) -> Z.(BatOption.map (fun (coeff, i) -> (neg coeff, i)) monom, neg offs)) coeff_var_list
     in
-    add_term_aux [] terms
+    let canonicalize (v,o,d) =
+      let gcd = Z.gcd o d in (* gcd of coefficients *)
+      let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
+      let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* canonical form dictates d being positive *)
+      (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
+    in
+    let multiply_with_Q dividend coeff_var_list = 
+      List.map (fun (monom, offs) ->
+        let (v, o, d) = canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, one) in
+        (v, o)
+      ) coeff_var_list
+    in
+    let multiply a b = (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
+      match a, b with
+      | [(None,coeff)], c
+      | c, [(None,coeff)] -> multiply_with_Q coeff c
+      | _ -> raise NotLinearExpr
+    in 
+    let rec convert_texpr texp =
+      begin match texp with
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
+        | Cst (Scalar x) -> 
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> [(None, x)]
+            | None -> raise ScalarIsInfinity end (* bedeutet, dass es keine exakte ganze zahl ist *)
+        | Var x -> 
+          let var_dim = Environment.dim_of_var t.env x in
+          [(Some (Z.one, var_dim), Z.zero)] 
+        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+        | Unop  (Cast, e, _, _) -> convert_texpr e 
+        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
+        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
+        | Binop (Mul, e1, e2, _, _ ) -> multiply (convert_texpr e1) (convert_texpr e2) 
+        | Binop (Div, e1, e2, _, _ ) -> failwith "todo: brauchen wir diesen fall?"
+        | _  -> raise NotLinearExpr end
+    in match convert_texpr texp with
+    | exception NotLinearExpr -> None
+    | exception ScalarIsInfinity -> None
+    | x -> Some(x)
 
-  let add_linexpr (a: linexpr) (b: linexpr) =
-    {
-      terms = List.fold_left (fun terms (var, coeff) ->
-          add_term var coeff terms
-        ) a.terms b.terms;
-      const = a.const +: b.const;
-    }
-
-  let neg_linexpr (a: linexpr) =
-    { terms = List.map (fun (var, coeff) -> var, Mpqf.neg coeff) a.terms; const = Mpqf.neg a.const }
-
-  let scale_linexpr (c: Mpqf.t) (a: linexpr) =
-    {
-      terms = List.map (fun (var, coeff) -> var, c *: coeff) a.terms;
-      const = c *: a.const;
-    }
-
-  let sub_linexpr (a: linexpr) (b: linexpr) =
-    add_linexpr a (neg_linexpr b)
-
-  (* Special functions for linexpr of exp management *)
-  (* When parsing a C exp like 5x + y, we need a way to convert that to linexpr *)
-  let rec linexpr_of_exp (exp: exp) = match exp with
-  | Const (CInt (i, _, _)) ->
-    Some { zero_linexpr with const = mpqf_of_z i }
-  | Lval (Var v, NoOffset) ->
-    Some { zero_linexpr with terms = [V.local v, Mpqf.one] }
-  | UnOp (Neg, e, _) -> Option.map neg_linexpr (linexpr_of_exp e)
-  | CastE (_, _, e) -> linexpr_of_exp e
-  | BinOp (PlusA, e1, e2, _) ->
-    option_map2 add_linexpr (linexpr_of_exp e1) (linexpr_of_exp e2)
-  | BinOp (MinusA, e1, e2, _) ->
-    option_map2 sub_linexpr (linexpr_of_exp e1) (linexpr_of_exp e2)
-  | BinOp (Mult, e1, e2, _) ->
-    begin match const_mpqf_of_exp e1, const_mpqf_of_exp e2 with
-      | Some c, _ -> Option.map (scale_linexpr c) (linexpr_of_exp e2)
-      | _, Some c -> Option.map (scale_linexpr c) (linexpr_of_exp e1)
-      | _ -> None
-    end
-  | _ -> None
-
-  let linexpr_var_count (linexpr: linexpr) =
-    List.length linexpr.terms
-
-    let normalize_linexpr (linexpr: linexpr) : (linexpr * Mpqf.t) option =
-      match linexpr.terms with
-      | [] -> None
-      | (_, pivot) :: _ ->
-        let linexpr' =
-          scale_linexpr (Mpqf.one /: pivot) linexpr
-        in
-        Some (linexpr', pivot)
-  end
+  (* aus LTVE, aber überarbeitet. *)
+  (** convert and simplify a texpr into a list of monomials (coeff,varidx) and a constant offset *)
+  let simplified_monomials_from_texp (t: t) texp =
+    BatOption.bind (monomials_from_texp t texp) (* wenn None, dann return None, sonst so weitermachen: *)
+      (fun monomiallist ->
+        let module IMap = Map.Make(Int) in
+        let accumulate_constants (exprcache, aconst) (v, offs) =
+           let constant = Z.add aconst offs in
+           match v with
+           | None -> (exprcache, constant)
+           | Some (coeff, idx) ->
+             let old_coeff = BatOption.default Z.zero (IMap.find_opt idx exprcache) in
+             let new_coeff = Z.add old_coeff coeff in
+             let newcache =
+               if Z.equal new_coeff Z.zero then IMap.remove idx exprcache
+               else IMap.add idx new_coeff exprcache
+             in (newcache, constant)
+        in 
+        let (expr, constant) = List.fold_left accumulate_constants (IMap.empty, Z.zero) monomiallist in
+        Some (IMap.fold (fun v c acc -> if Z.equal c Z.zero then acc else (c, v) :: acc) expr [], constant))
+end
 
 module Slack_managment = struct
   include Linexpr_managment
@@ -175,7 +164,8 @@ module Slack_managment = struct
           f col iv (SubPolyDomain.VarMap.find_opt col d.infos) acc
         ) d.intervals acc
 
-  (* returns the first slack variable name [__slack#k] (scanning k = 0, 1, ...) that is not yet present in the environment. *)
+  (** [fresh_slack_var t] returns the first slack variable name [__slack#k]
+      (scanning k = 0, 1, ...) that is not yet present in the environment. *)
   let fresh_slack_var (t: t) =
     let rec find k =
       let v = Var.of_string (Printf.sprintf "__slack#%d" k) in
@@ -184,18 +174,26 @@ module Slack_managment = struct
     find 0
 
   (** [add_slack_constraint t linexpr interval] introduces a fresh slack [s] for the
-      linear expression [linexpr] and constrains [s] to [interval]. *)
+      linear expression [linexpr] and constrains [s] to [interval]. Single write entry
+      point used by [assert_constraint] and assignments to record a bounded linear
+      expression.
+
+      Order matters: the slack is first registered in the Apron environment, which
+      shifts the matrix and the existing info/interval keys (via [dim_add]). Only
+      then is the new info written, so it already sees the final column indices. *)
   let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) : t =
     if is_bot_env t then t
     else
-      (* first register the slack in the env, add_vars performs all index shifting. *)
+      (* 1. Register the slack in the env; add_vars performs all index shifting. *)
       let slack_var = fresh_slack_var t in
       let t = add_vars t [slack_var] in
       match t.d with
       | None -> t
       | Some d ->
         let slack_dim = Environment.dim_of_var t.env slack_var in
-        (* build the info coeffvector over the (now final) columns. *)
+        (* 2. Build the info coeffvector over the (now final) columns.
+           Width matches the matrix rows: one column per env dimension plus the
+           constant in the last position (constant kept here, not absorbed into the interval). *)
         let width = Environment.size t.env + 1 in
         let term_entries =
           linexpr.terms
@@ -282,14 +280,6 @@ struct
   let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
   let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
 
-  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
-
-  (* Constraint parsing: turn a CIL comparison expression into the linear expression
-     being constrained plus the interval it must fall into. Used by assert_constraint. *)
-
-  (** [const_q_of_exp exp] returns the rational value of [exp] if it is a constant. *)
-  let const_q_of_exp (_exp: exp) : Q.t option = failwith "TODO"
-
   (** [vars_of_exp exp] collects the program variables occurring in [exp]. *)
   let rec vars_of_exp (_exp: exp) : Var.t list = failwith "TODO"
 
@@ -320,16 +310,7 @@ struct
         | Some (d, linexpr, interval) ->
           (* Per design: the constant stays in the linexpr (not absorbed into the interval). *)
           (*normalize linexpr liek discussed in meeting*)
-          begin match normalize_linexpr linexpr with
-            | Some (normalized_linexpr, pivot) ->
-              (* convert pivot to q, which is what we do the relational interval with *)
-              let pivot_q = Q.make (Mpqf.get_num pivot) (Mpqf.get_den pivot) in
-              let inv_piv = Q.div Q.one pivot_q in
-              let new_interval = RationalInterval.scale inv_piv interval in
-              (*add slack and normalized expr, and adjusted interval by constant*)
-              add_slack_constraint d normalized_linexpr new_interval
-            | None -> d
-          end
+              add_slack_constraint d linexpr interval
         | None -> d
     in
     if M.tracing then M.tracel "relation" "subpoly assert_constraint %a -> %s" d_exp e (show res);
