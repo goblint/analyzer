@@ -36,12 +36,6 @@ module VarManagement = struct
 
   let dim_add = SubPolyDomain.dim_add
   (*potentially add dim_remove here, not sure though*)  
-  let size _t = failwith "SubPolyhedraDomain.size: not   implemented"
-end
-
-module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) = struct
-  include VarManagement
-  let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not   implemented"
 end
 
 module Linexpr_managment = struct
@@ -59,7 +53,7 @@ module Linexpr_managment = struct
     | Mpqf q -> q
     | Mpfrf m -> Mpfr.to_mpq m
 
-  (* [to_constant_opt v] is [Some c] iff [v] has no variable coefficients, i.e. it
+  (** [to_constant_opt v] is [Some c] iff [v] has no variable coefficients, i.e. it
      represents just the constant [c] (the first non-zero entry is the last slot). *)
   let to_constant_opt (v: linexpr) : Mpqf.t option =
     match CoeffVector.find_first_non_zero v with
@@ -161,6 +155,20 @@ module Slack_managment = struct
         { t with d = Some d }
 end
 
+module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) = struct
+  include Linexpr_managment
+
+  (* TODO: this only answers for constant expressions (min = max = c). Once the lattice ops are implemented we can get more advanced  *)
+  (* Again inspired by the LTVE and Affeq implementations *)
+  let bound_texpr t texpr =
+    match Option.bind (get_coeff_vec t (Texpr1.to_expr texpr)) to_constant_opt with
+    (* get den just chekcs denominator = 1, if so we have whole number and we just return that as bound, else npothing *)
+    | Some c when Z.equal (Mpqf.get_den c) Z.one ->
+      let n = Mpqf.get_num c in
+      Some n, Some n
+    | _ -> None, None
+end
+
 module D =
 struct
   include Printable.Std
@@ -178,7 +186,7 @@ struct
 
   let name () = "subpoly"
 
-  let to_yojson _ = failwith "SubPolyhedraDomain.to_yojson: not implemented"
+  let to_yojson _ = failwith "doesn't exist"
 
     (* pretty printing *)
   let show (t: t) =
