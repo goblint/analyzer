@@ -21,8 +21,7 @@ module type Var = sig
   val string_of : t -> string
 end
 
-module VarManagement =
-struct
+module VarManagement = struct
   module Int = struct
     type t = int
     let equal = Int.equal
@@ -40,8 +39,7 @@ struct
   let size _t = failwith "SubPolyhedraDomain.size: not   implemented"
 end
 
-module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
-struct
+module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) = struct
   include VarManagement
   let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not   implemented"
 end
@@ -54,61 +52,61 @@ module Linexpr_managment = struct
   module CoeffVector = VarManagement.SubPolyDomain.CoeffVector
   type linexpr = CoeffVector.t
 
-  let monomials_from_texp (t: t) texp =
+  (* Adapted version of Leonie's Texpr parsing from her SparseOctagon domain. Instead of monomials we now use coeff vector. *)
+  let mpqf_of_scalar (x: Scalar.t) =
+    match x with
+    | Float f -> Mpqf.of_float f
+    | Mpqf q -> q
+    | Mpfrf m -> Mpfr.to_mpq m
+
+  (* [to_constant_opt v] is [Some c] iff [v] has no variable coefficients, i.e. it
+     represents just the constant [c] (the first non-zero entry is the last slot). *)
+  let to_constant_opt (v: linexpr) : Mpqf.t option =
+    match CoeffVector.find_first_non_zero v with
+    | None -> Some Mpqf.zero
+    | Some (i, value) when i = CoeffVector.length v - 1 -> Some value
+    | _ -> None
+
+  let negate v = CoeffVector.map_f_preserves_zero Mpqf.neg v
+
+  (* if one of them is a constant, then multiply. Otherwise, the expression is not linear, return None *)
+  let multiply a b =
+    match to_constant_opt a, to_constant_opt b with
+    | _, Some c -> Some (CoeffVector.map_f_preserves_zero (fun x -> c *: x) a)
+    | Some c, _ -> Some (CoeffVector.map_f_preserves_zero (fun x -> c *: x) b)
+    | _ -> None
+  let get_coeff_vec (t: t) texp =
     let open Apron.Texpr1 in
-    let exception NotLinearExpr in 
-    let exception ScalarIsInfinity in 
-    let negate coeff_var_list =
-      List.map (fun (monom, offs) -> Z.(BatOption.map (fun (coeff, i) -> (neg coeff, i)) monom, neg offs)) coeff_var_list
-    in
-    let multiply a b = (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
-      match a, b with
-      | [(None,coeff)], c
-      | c, [(None,coeff)] -> multiply_with_Q coeff c
-      | _ -> raise NotLinearExpr
-    in 
+    let exception NotLinearExpr in
+    let zero_vec = CoeffVector.zero_vec (Environment.size t.env + 1) in
+    let const_idx = CoeffVector.length zero_vec - 1 in
     let rec convert_texpr texp =
       begin match texp with
-        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
-        | Cst (Scalar x) -> 
-          begin match SharedFunctions.int_of_scalar ?round:None x with
-            | Some x -> [(None, x)]
-            | None -> raise ScalarIsInfinity end (* bedeutet, dass es keine exakte ganze zahl ist *)
-        | Var x -> 
-          let var_dim = Environment.dim_of_var t.env x in
-          [(Some (Z.one, var_dim), Z.zero)] 
+        | Cst (Interval _) -> 
+          (* interval constants are not supported *)
+          raise NotLinearExpr
+        | Cst (Scalar x) ->
+          (* convert the scalar to an Mpqf *)
+          let c = mpqf_of_scalar x in
+          CoeffVector.set_nth zero_vec const_idx c
+        | Var x -> CoeffVector.set_nth zero_vec (Environment.dim_of_var t.env x) Mpqf.one
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
-        | Unop  (Cast, e, _, _) -> convert_texpr e 
-        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
-        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
-        | Binop (Mul, e1, e2, _, _ ) -> multiply (convert_texpr e1) (convert_texpr e2) 
-        | Binop (Div, e1, e2, _, _ ) -> failwith "todo: brauchen wir diesen fall?"
+        | Unop  (Cast, e, _, _) -> convert_texpr e
+        | Binop (Add, e1, e2, _, _) -> CoeffVector.map2_f_preserves_zero (+:) (convert_texpr e1) (convert_texpr e2)
+        | Binop (Sub, e1, e2, _, _) -> CoeffVector.map2_f_preserves_zero (+:) (convert_texpr e1) (negate (convert_texpr e2))
+        | Binop (Mul, e1, e2, _, _) -> 
+          begin match multiply (convert_texpr e1) (convert_texpr e2) with
+            | Some v -> v
+            | None -> raise NotLinearExpr end
+        | Binop (Div, e1, e2, _, _) ->
+          let v1 = convert_texpr e1 in
+          begin match to_constant_opt (convert_texpr e2) with
+            | Some c when not (c =: Mpqf.zero) -> CoeffVector.map_f_preserves_zero (fun x -> x /: c) v1
+            | _ -> raise NotLinearExpr end
         | _  -> raise NotLinearExpr end
     in match convert_texpr texp with
     | exception NotLinearExpr -> None
-    | exception ScalarIsInfinity -> None
     | x -> Some(x)
-
-  (* aus LTVE, aber überarbeitet. *)
-  (** convert and simplify a texpr into a list of monomials (coeff,varidx) and a constant offset *)
-  let simplified_monomials_from_texp (t: t) texp =
-    BatOption.bind (monomials_from_texp t texp) (* wenn None, dann return None, sonst so weitermachen: *)
-      (fun monomiallist ->
-        let module IMap = Map.Make(Int) in
-        let accumulate_constants (exprcache, aconst) (v, offs) =
-           let constant = Z.add aconst offs in
-           match v with
-           | None -> (exprcache, constant)
-           | Some (coeff, idx) ->
-             let old_coeff = BatOption.default Z.zero (IMap.find_opt idx exprcache) in
-             let new_coeff = Z.add old_coeff coeff in
-             let newcache =
-               if Z.equal new_coeff Z.zero then IMap.remove idx exprcache
-               else IMap.add idx new_coeff exprcache
-             in (newcache, constant)
-        in 
-        let (expr, constant) = List.fold_left accumulate_constants (IMap.empty, Z.zero) monomiallist in
-        Some (IMap.fold (fun v c acc -> if Z.equal c Z.zero then acc else (c, v) :: acc) expr [], constant))
 end
 
 module Slack_managment = struct
@@ -142,6 +140,8 @@ module Slack_managment = struct
     in
     find 0
 
+
+    (* Is it fine to add slack variables to apron? can we just not do it? :) *)
   (** [add_slack_constraint t linexpr interval] introduces a fresh slack [s] for the
       linear expression [linexpr] and constrains [s] to [interval]. *)
   let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) : t =
@@ -232,26 +232,32 @@ struct
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
-  let rec vars_of_exp (_exp: exp) : Var.t list = failwith "TODO"
-
-  let interval_of_constraint_op (_op: binop) (_bound: Q.t) : RationalInterval.t = failwith "TODO"
-
-  let rec simple_constraint (_t: t) (_exp: exp) : (t * linexpr * RationalInterval.t) option = failwith "TODO"
+  (* tried to adapt something from LTVE, dont quite get what is, to my understandinf its checking if some expr holds.
+    We either have true, go through control flow with new constraint, or false and go with negated? *)
+  let meet_tcons _ask (t: t) tcons1 _e _no_ov =
+    if is_bot_env t then t
+    else
+      match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) with
+      | None -> t (* non-linear expression: no information gained *)
+      | Some v ->
+        begin match to_constant_opt v, Tcons1.get_typ tcons1 with
+          (* expr collapses to a constant c: pure feasibility check, nothing to store *)
+          | Some _c, EQ    -> failwith "TODO meet_tcons: const EQ    -> bot_env if c <> 0, else t"
+          | Some _c, SUPEQ -> failwith "TODO meet_tcons: const SUPEQ -> bot_env if c <  0, else t"
+          | Some _c, SUP   -> failwith "TODO meet_tcons: const SUP   -> bot_env if c <= 0, else t"
+          | Some _c, DISEQ -> failwith "TODO meet_tcons: const DISEQ -> bot_env if c =  0, else t"
+          (* expr has variables: record it *)
+          | None, EQ            -> failwith "TODO meet_tcons: EQ -> add equality row to affeq matrix (rref_vec, sign-flipped const), bot_env if inconsistent"
+          | None, (SUPEQ | SUP) -> failwith "TODO meet_tcons: inequality -> add_slack_constraint t v [0, +inf)"
+          | _ -> t (* DISEQ / EQMOD over variables: not representable, give up (sound) *)
+        end
 
   (* Module AssertionRels demands: *)
-    let assert_constraint (_ask: Queries.ask) (d: t) (e: exp) (negate: bool) (_no_ov: bool Lazy.t) =
-    let res =
-      (*check if constraint is negated*)
-      if negate then 
-        (*TODO: add the negated branch fo the assert constraint*)
-        d 
-      else
-        match simple_constraint d e with
-        | Some (d, linexpr, interval) -> add_slack_constraint d linexpr interval
-        | None -> d
-    in
-    if M.tracing then M.tracel "relation" "subpoly assert_constraint %a -> %s" d_exp e (show res);
-    res
+  (* cehck if constraints hold. Copied from LTVE *)
+    let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
+    match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
+    | tcons1 -> meet_tcons ask d tcons1 e no_ov
+    | exception Convert.Unsupported_CilExp _ -> d
 
   let env t = t.env
   let eval_interval _ask = Bounds.bound_texpr
