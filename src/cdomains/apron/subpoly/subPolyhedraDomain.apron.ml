@@ -64,7 +64,8 @@ module Linexpr_managment = struct
   let negate v = CoeffVector.map_f_preserves_zero Mpqf.neg v
 
   (* if one of them is a constant, then multiply. Otherwise, the expression is not linear, return None *)
-  let multiply a b =
+(** [multiply], multiplies two [linexpr]s. Return s Some [value] iff. exactly one of the two [linexpr]s is a constant.*)
+  let multiply (a : linexpr) (b : linexpr) =
     match to_constant_opt a, to_constant_opt b with
     | _, Some c -> Some (CoeffVector.map_f_preserves_zero (fun x -> c *: x) a)
     | Some c, _ -> Some (CoeffVector.map_f_preserves_zero (fun x -> c *: x) b)
