@@ -79,49 +79,42 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with base (this uses IsAllocVar) *)
+  let get_addr_size man ptr (addr: Queries.AD.elt) = (* TODO: remove ptr argument *) (* TODO: deduplicate with base (this uses IsAllocVar) *)
+    match addr with
+    | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
+      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+      man.ask (Queries.BlobSize {exp = ptr; base_address = true}) (* TODO: only query for addr/v *)
+    | Addr (v, _) ->
+      if hasAttribute "goblint_cil_nested" v.vattr then (
+        set_mem_safety_flag InvalidDeref;
+        M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
+      );
+      begin match Cil.unrollType v.vtype with
+        | TArray (item_typ, _, _) ->
+          let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+          begin match man.ask (Queries.EvalLength ptr) with (* TODO: only query for addr/v *)
+            | `Lifted arr_len ->
+              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
+              begin
+                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+              end
+            | `Bot -> `Bot
+            | `Top -> `Top
+          end
+        | _ ->
+          let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+          `Lifted type_size_in_bytes
+      end
+    | _ -> `Top
+
+  let get_size_of_ptr_target man ptr =
     match man.ask (Queries.MayPointTo ptr) with
     | a when not (Queries.AD.is_top a) ->
-      let pts_list = Queries.AD.elements a in
-      let pts_elems_to_sizes (addr: Queries.AD.elt) =
-        begin match addr with
-          | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
-            (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-            man.ask (Queries.BlobSize {exp = ptr; base_address = true}) (* TODO: only query for addr/v *)
-          | Addr (v, _) ->
-            if hasAttribute "goblint_cil_nested" v.vattr then (
-              set_mem_safety_flag InvalidDeref;
-              M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v;
-              Checks.warn Checks.Category.InvalidMemoryAccess "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
-            );
-            begin match Cil.unrollType v.vtype with
-              | TArray (item_typ, _, _) ->
-                let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                begin match man.ask (Queries.EvalLength ptr) with (* TODO: only query for addr/v *)
-                  | `Lifted arr_len ->
-                    let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-                    begin
-                      try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                      with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-                    end
-                  | `Bot -> `Bot
-                  | `Top -> `Top
-                end
-              | _ ->
-                let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-                `Lifted type_size_in_bytes
-            end
-          | _ -> `Top
-        end
-      in
-      (* Map each points-to-set element to its size *)
-      let pts_sizes = List.map pts_elems_to_sizes pts_list in
-      (* Take the smallest of all sizes that ptr's contents may have *)
-      begin match pts_sizes with
-        | [] -> `Bot
-        | [x] -> x
-        | x::xs -> List.fold_left VDQ.ID.join x xs
-      end
+      Queries.AD.to_seq a
+      |> Seq.map (get_addr_size man ptr)
+      |> Seq.fold_left VDQ.ID.join `Bot
     | _ ->
       (set_mem_safety_flag InvalidDeref;
        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
