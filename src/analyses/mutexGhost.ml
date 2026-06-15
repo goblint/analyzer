@@ -94,27 +94,23 @@ struct
     | Events.Lock (addr, _) -> 
       ( match LockDomain.MustLock.of_addr addr with
         | Some lock -> 
-          M.warn "%a is definite" LockDomain.Addr.pretty addr;
           if not is_atomic then man.sideg (V.mutex lock) (G.create_ghost_set (G.MustGhostSet.top()));
           if is_atomic then
             (D.join man.local (D.create_lock_mutex lock))
           else 
             man.local
         | None -> 
-          M.warn "%a is not definite" LockDomain.Addr.pretty addr;
           man.local
       )
     | Events.Unlock addr -> 
       ( match LockDomain.MustLock.of_addr addr with
         | Some lock -> 
-          M.warn "%a is definite" LockDomain.Addr.pretty addr;
           if not is_atomic then man.sideg (V.mutex lock) (G.create_ghost_set (G.MustGhostSet.top()));
           if is_atomic then
             D.join man.local (D.create_unlock_mutex lock)
           else 
             man.local
         | None -> 
-          M.warn "%a is not definite" LockDomain.Addr.pretty addr;
           man.local
       )
     | _ ->
@@ -138,21 +134,12 @@ struct
         if valid then 
           ( (match lock with 
                 | Some lock -> 
-                  M.warn "lock %a, ghost %a" LockDomain.MustLock.pretty lock Basetype.Variables.pretty var;
-                  (man.sideg (V.ghost var) (G.create_mutex (`Lifted lock)))
+                  man.sideg (V.ghost var) (G.create_mutex (`Lifted lock))
                 | None -> ());
             (D.join man.local (D.create_ghosts var)))
         else
-          ( if not (is_one || is_zero) then 
-              M.warn "Ghost variable %a should be only one or zero" Basetype.Variables.pretty var;
-            if (is_zero && is_lock) then 
-              M.warn "Ghost variable %a should be set as one when annotating lock" Basetype.Variables.pretty var; 
-            if (is_one && is_unlock) then 
-              M.warn "Ghost variable %a should be set as zero when annotating unlock" Basetype.Variables.pretty var;
-            if not (is_lock || is_unlock) then 
-              M.warn "Ghost variable %a marks a non-lock event" Basetype.Variables.pretty var;
-            man.sideg (V.ghost var) (G.create_mutex (G.MutexDomain.top()));
-            man.local)
+          (man.sideg (V.ghost var) (G.create_mutex (G.MutexDomain.top()));
+           man.local)
       | _ ->
         man.local
 

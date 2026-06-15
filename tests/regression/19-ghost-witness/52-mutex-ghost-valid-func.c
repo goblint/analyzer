@@ -1,7 +1,7 @@
 #include <pthread.h>
 #include <stdio.h>
 
-int myglobal;
+int myglobal = 42;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void lock() {
@@ -15,7 +15,8 @@ void unlock() {
 
 void *t_fun(void *arg) {
   lock();
-  myglobal++; // NORACE
+  myglobal = 37; 
+  myglobal = 42;
   unlock();
   return NULL;
 }
@@ -25,7 +26,8 @@ int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   lock();
-  myglobal++; // NORACE
+  myglobal = 37; 
+  myglobal = 42;
   unlock();
   pthread_join (id, NULL);
   return 0;

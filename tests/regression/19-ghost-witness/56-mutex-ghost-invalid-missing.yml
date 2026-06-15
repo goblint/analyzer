@@ -8,9 +8,9 @@
       version: "0.0"
     task:
       input_files:
-      - 59-mutex-ghost-ptr.c
+      - 56-mutex-ghost-invalid-missing.c
       input_file_hashes:
-        59-mutex-ghost-ptr.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        56-mutex-ghost-invalid-missing.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -29,72 +29,72 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 11
-        column: 3
-        function: t_fun
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 9
+        column: 5
+        function: fun
       updates:
       - variable: ghost_1
         value: "1"
         format: c_expression
     - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 13
-        column: 3
-        function: t_fun
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 15
+        column: 5
+        function: fun
       updates:
       - variable: ghost_1
         value: "0"
         format: c_expression
     - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 14
-        column: 3
-        function: t_fun
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 20
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 22
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 40
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 10
+        column: 5
+        function: fun
       updates:
       - variable: ghost_2
         value: "1"
         format: c_expression
     - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 16
-        column: 3
-        function: t_fun
-      updates:
-      - variable: ghost_2
-        value: "0"
-        format: c_expression
-    - location:
-        file_name: 59-mutex-ghost-ptr.c
+        file_name: 56-mutex-ghost-invalid-missing.c
         line: 24
-        column: 3
-        function: main
-      updates:
-      - variable: ghost_1
-        value: "1"
-        format: c_expression
-    - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 26
-        column: 3
-        function: main
-      updates:
-      - variable: ghost_1
-        value: "0"
-        format: c_expression
-    - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 30
-        column: 3
+        column: 5
         function: main
       updates:
       - variable: ghost_2
         value: "1"
         format: c_expression
     - location:
-        file_name: 59-mutex-ghost-ptr.c
-        line: 32
-        column: 3
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 26
+        column: 5
         function: main
       updates:
       - variable: ghost_2

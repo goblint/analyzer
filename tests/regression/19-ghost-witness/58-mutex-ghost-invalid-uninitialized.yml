@@ -8,9 +8,9 @@
       version: "0.0"
     task:
       input_files:
-      - 56-mutex-ghost-branch.c
+      - 58-mutex-ghost-invalid-uninitialized.c
       input_file_hashes:
-        56-mutex-ghost-branch.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        58-mutex-ghost-invalid-uninitialized.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -23,8 +23,8 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 56-mutex-ghost-branch.c
-        line: 10
+        file_name: 58-mutex-ghost-invalid-uninitialized.c
+        line: 8
         column: 3
         function: t_fun
       updates:
@@ -32,8 +32,8 @@
         value: "1"
         format: c_expression
     - location:
-        file_name: 56-mutex-ghost-branch.c
-        line: 12
+        file_name: 58-mutex-ghost-invalid-uninitialized.c
+        line: 10
         column: 3
         function: t_fun
       updates:
@@ -41,18 +41,18 @@
         value: "0"
         format: c_expression
     - location:
-        file_name: 56-mutex-ghost-branch.c
-        line: 25
-        column: 5
+        file_name: 58-mutex-ghost-invalid-uninitialized.c
+        line: 19
+        column: 3
         function: main
       updates:
       - variable: ghost_1
         value: "1"
         format: c_expression
     - location:
-        file_name: 56-mutex-ghost-branch.c
-        line: 31
-        column: 5
+        file_name: 58-mutex-ghost-invalid-uninitialized.c
+        line: 21
+        column: 3
         function: main
       updates:
       - variable: ghost_1
