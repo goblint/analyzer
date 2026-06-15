@@ -205,6 +205,23 @@ struct
     (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
     | _ -> false
 
+  let get_mval_offset ptr t (_, o) =
+    let x = offs_to_idx t o in
+    if ID.is_bot x then (
+      set_mem_safety_flag InvalidDeref;
+      M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
+    )
+    else if ID.is_top_of (Cilfacade.ptrdiff_ikind ()) x then (
+      set_mem_safety_flag InvalidDeref;
+      M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
+    )
+    else (
+      Checks.safe Checks.Category.InvalidMemoryAccess
+    );
+    x
+
   let rec get_addr_offs man ptr =
     match man.ask (Queries.MayPointTo ptr) with
     | a when not (VDQ.AD.is_top a) ->
@@ -217,34 +234,11 @@ struct
               Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has an empty points-to-set" d_exp ptr;
               ID.top_of @@ Cilfacade.ptrdiff_ikind ()
             | false ->
-              if VDQ.AD.exists (function
-                  | Addr (_, o) -> ID.is_bot @@ offs_to_idx t o
-                  | _ -> false
-                ) a then (
-                set_mem_safety_flag InvalidDeref;
-                M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr;
-                Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
-              ) else if VDQ.AD.exists (function
-                  | Addr (_, o) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) (offs_to_idx t o)
-                  | _ -> false
-                ) a then (
-                set_mem_safety_flag InvalidDeref;
-                M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr;
-                Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
-              ) else (
-                Checks.safe Checks.Category.InvalidMemoryAccess
-              );
               (* Get the address offsets of all points-to set elements *)
-              let addr_offsets =
-                VDQ.AD.filter (function Addr (v, o) -> true | _ -> false) a
-                |> VDQ.AD.to_mval
-                |> List.map (fun (_, o) -> offs_to_idx t o)
-              in
-              begin match addr_offsets with
-                | [] -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-                | [x] -> x
-                | x::xs -> List.fold_left ID.join x xs
-              end
+              VDQ.AD.to_mval a
+              |> List.to_seq
+              |> Seq.map (get_mval_offset ptr t)
+              |> Seq.fold_left ID.join (ID.bot_of @@ Cilfacade.ptrdiff_ikind ())
           end
         | None ->
           M.error "Expression %a doesn't have pointer type" d_exp ptr;
