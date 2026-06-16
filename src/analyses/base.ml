@@ -1554,7 +1554,7 @@ struct
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
-          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
+          (* If there's a non-alloc var or an offset in the lval set, we answer with bottom *)
           if AD.exists (function
               | Addr (v,o) -> is_not_alloc_var man v || o <> `NoOffset
               | _ -> false) a then
@@ -2341,7 +2341,7 @@ struct
       let pts_elems_to_sizes (addr: Queries.AD.elt) =
         begin match addr with
           | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
-            (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+            (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
             man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
           | Addr (v, _) ->
             begin match Cil.unrollType v.vtype with
