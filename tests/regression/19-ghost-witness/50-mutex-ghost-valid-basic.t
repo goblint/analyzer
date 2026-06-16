@@ -7,7 +7,7 @@ every critical section that writes g1 leaves it at 0 before unlocking.
     live: 28
     dead: 0
     total lines: 28
-  [Warning][Deadcode][CWE-570] condition 'g1 < 0' is always false (50-mutex-ghost-valid-basic.c:21:5-21:26)
+  [Warning][Deadcode][CWE-570] condition 'g1 < 0' is always false (50-mutex-ghost-valid-basic.c:22:5-22:26)
   [Info][Witness] mutexGhost: global ghost_1 is only used to mark the boundary of all of the critical sections protected by mutex mutex1
   [Info][Witness] mutexGhost: global ghost_2 is only used to mark the boundary of all of the critical sections protected by mutex mutex2
   [Info][Witness] mutexGhost: global ghost_3 is only used to mark the boundary of all of the critical sections protected by mutex mutex2
@@ -20,4 +20,4 @@ every critical section that writes g1 leaves it at 0 before unlocking.
     unsupported: 0
     disabled: 0
     total validation entries: 1
-  [Success][Witness] invariant confirmed: ghost_1 == 1 || g1 == 0 (50-mutex-ghost-valid-basic.c:43:5)
+  [Success][Witness] invariant confirmed: ghost_1 == 1 || g1 == 0 (50-mutex-ghost-valid-basic.c:44:5)

@@ -16,5 +16,5 @@ Ghost instrumentation when mutexes are accessed through pointers.
     unsupported: 0
     disabled: 0
     total validation entries: 2
-  [Success][Witness] invariant confirmed: ghost_1 == 1 || g1 == 37 (54-mutex-ghost-valid-ptr.c:34:3)
-  [Success][Witness] invariant confirmed: ghost_2 == 1 || g2 == 42 (54-mutex-ghost-valid-ptr.c:34:3)
+  [Success][Witness] invariant confirmed: ghost_1 == 1 || g1 == 37 (54-mutex-ghost-valid-ptr.c:35:3)
+  [Success][Witness] invariant confirmed: ghost_2 == 1 || g2 == 42 (54-mutex-ghost-valid-ptr.c:35:3)

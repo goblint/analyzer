@@ -30,21 +30,12 @@
     ghost_updates:
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 11
+        line: 12
         column: 3
         function: t_fun
       updates:
       - variable: ghost_1
         value: "1"
-        format: c_expression
-    - location:
-        file_name: 54-mutex-ghost-valid-ptr.c
-        line: 13
-        column: 3
-        function: t_fun
-      updates:
-      - variable: ghost_1
-        value: "0"
         format: c_expression
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
@@ -52,12 +43,21 @@
         column: 3
         function: t_fun
       updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 15
+        column: 3
+        function: t_fun
+      updates:
       - variable: ghost_2
         value: "1"
         format: c_expression
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 16
+        line: 17
         column: 3
         function: t_fun
       updates:
@@ -66,7 +66,7 @@
         format: c_expression
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 24
+        line: 25
         column: 3
         function: main
       updates:
@@ -75,7 +75,7 @@
         format: c_expression
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 26
+        line: 27
         column: 3
         function: main
       updates:
@@ -84,7 +84,7 @@
         format: c_expression
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 30
+        line: 31
         column: 3
         function: main
       updates:
@@ -93,7 +93,7 @@
         format: c_expression
     - location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 32
+        line: 33
         column: 3
         function: main
       updates:
@@ -120,7 +120,7 @@
       type: location_invariant
       location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 34
+        line: 35
         column: 3
         function: main
       value: "ghost_1 == 1 || g1 == 37"
@@ -129,7 +129,7 @@
       type: location_invariant
       location:
         file_name: 54-mutex-ghost-valid-ptr.c
-        line: 34
+        line: 35
         column: 3
         function: main
       value: "ghost_2 == 1 || g2 == 42"

@@ -5,14 +5,14 @@ Ghost instrumentation with uninitialized mutex pointers.
     live: 11
     dead: 0
     total lines: 11
-  [Warning][Unknown] locking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:8:3-8:24)
-  [Warning][Unknown] unlocking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:10:3-10:26)
-  [Warning][Unknown] unlocking mutex ([__VERIFIER_atomic_instrument]) which may not be held (58-mutex-ghost-invalid-uninitialized.c:10:3-10:26)
-  [Warning][Unknown] unlocking unknown mutex which may not be held (58-mutex-ghost-invalid-uninitialized.c:10:3-10:26)
-  [Warning][Unknown] locking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:19:3-19:24)
-  [Warning][Unknown] unlocking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:21:3-21:26)
-  [Warning][Unknown] unlocking mutex ([__VERIFIER_atomic_instrument]) which may not be held (58-mutex-ghost-invalid-uninitialized.c:21:3-21:26)
-  [Warning][Unknown] unlocking unknown mutex which may not be held (58-mutex-ghost-invalid-uninitialized.c:21:3-21:26)
+  [Warning][Unknown] locking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:9:3-9:24)
+  [Warning][Unknown] unlocking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:11:3-11:26)
+  [Warning][Unknown] unlocking mutex ([__VERIFIER_atomic_instrument]) which may not be held (58-mutex-ghost-invalid-uninitialized.c:11:3-11:26)
+  [Warning][Unknown] unlocking unknown mutex which may not be held (58-mutex-ghost-invalid-uninitialized.c:11:3-11:26)
+  [Warning][Unknown] locking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:20:3-20:24)
+  [Warning][Unknown] unlocking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:22:3-22:26)
+  [Warning][Unknown] unlocking mutex ([__VERIFIER_atomic_instrument]) which may not be held (58-mutex-ghost-invalid-uninitialized.c:22:3-22:26)
+  [Warning][Unknown] unlocking unknown mutex which may not be held (58-mutex-ghost-invalid-uninitialized.c:22:3-22:26)
   [Info][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
   [Info][Witness] witness validation summary:
     confirmed: 0

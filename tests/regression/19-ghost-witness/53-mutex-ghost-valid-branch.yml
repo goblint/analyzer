@@ -24,7 +24,7 @@
     ghost_updates:
     - location:
         file_name: 53-mutex-ghost-valid-branch.c
-        line: 10
+        line: 11
         column: 3
         function: t_fun
       updates:
@@ -33,7 +33,7 @@
         format: c_expression
     - location:
         file_name: 53-mutex-ghost-valid-branch.c
-        line: 12
+        line: 13
         column: 3
         function: t_fun
       updates:
@@ -42,7 +42,7 @@
         format: c_expression
     - location:
         file_name: 53-mutex-ghost-valid-branch.c
-        line: 25
+        line: 26
         column: 5
         function: main
       updates:
@@ -51,7 +51,7 @@
         format: c_expression
     - location:
         file_name: 53-mutex-ghost-valid-branch.c
-        line: 33
+        line: 34
         column: 5
         function: main
       updates:
@@ -78,7 +78,7 @@
       type: location_invariant
       location:
         file_name: 53-mutex-ghost-valid-branch.c
-        line: 35
+        line: 36
         column: 3
         function: main
       value: "ghost_1 == 1 || glob == 42"

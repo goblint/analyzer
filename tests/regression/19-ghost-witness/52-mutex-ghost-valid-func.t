@@ -15,4 +15,4 @@ Ghost instrumentation where lock and unlock are wrapped in their own functions.
     unsupported: 0
     disabled: 0
     total validation entries: 1
-  [Success][Witness] invariant confirmed: ghost_1 == 1 || myglobal == 42 (52-mutex-ghost-valid-func.c:33:3)
+  [Success][Witness] invariant confirmed: ghost_1 == 1 || myglobal == 42 (52-mutex-ghost-valid-func.c:34:3)

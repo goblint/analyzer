@@ -16,6 +16,10 @@ struct
   struct 
     module Mutex = Lattice.Flat (Printable.Prod (LockDomain.MustLock) (BoolDomain.Bool))
     module MayGhostVarSet = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
+    (* Triple:
+        1. if the current location is inside an instrument atomic block,
+        2. if locking/unlocking a mutex is instrumented here,
+        3. set of ghost variable updates in this instrument atomic block  *)
     include Lattice.Prod3 (BoolDomain.MustBool) (Mutex) (MayGhostVarSet)
 
     let isGhostAtomic (x, _, _) = x
@@ -29,8 +33,14 @@ struct
   end  
   include ValueContexts (D)
   module P = UnitP
-  (* lock -> Variable Set, intersection as join *)
-  (* variable -> Flat (Lock) *)
+
+  (* Global Unknowns: a pair of maps *)
+  (* mutex -> set of ghost variables
+          When locking or unlocking this mutex, 
+          these ghost variables are **always** correctly updated. *)
+  (* variable -> mutex
+          When this ghost variable is updated, it marks this mutex.
+          Result is bot when ghost variable marks wrongly (1-unlock or 0-lock) or marks a non-mutex operation *)
   module V = 
   struct
     include Printable.Either 
@@ -68,19 +78,12 @@ struct
     | `Lifted n -> IntDomain.IntDomTuple.to_int n
     | _ -> None
 
-  let is_one man rval = 
-    match eval_const man rval with 
-    | Some value -> Z.equal value (Z.one)
-    | _ -> false
+  let is_one man rval = GobOption.exists (Z.equal Z.one) (eval_const man rval)
 
-  let is_zero man rval = 
-    match eval_const man rval with 
-    | Some value -> Z.equal value (Z.zero)
-    | _ -> false
+  let is_zero man rval = GobOption.exists (Z.equal Z.zero) (eval_const man rval)
 
   let event (man : (D.t, G.t, C.t, V.t) man) e oman : D.t =
     let verifier_atomic_instrument_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_instrument_var in
-    (* TODO: MustBeGhostAtomic *)
     let is_atomic = D.isGhostAtomic man.local in
     match e with
     | Events.Lock (addr, _) when (LockDomain.Addr.equal addr verifier_atomic_instrument_addr) ->
@@ -94,22 +97,22 @@ struct
     | Events.Lock (addr, _) -> 
       ( match LockDomain.MustLock.of_addr addr with
         | Some lock -> 
-          if not is_atomic then man.sideg (V.mutex lock) (G.create_ghost_set (G.MustGhostSet.top()));
           if is_atomic then
             (D.join man.local (D.create_lock_mutex lock))
           else 
-            man.local
+            (man.sideg (V.mutex lock) (G.create_ghost_set (G.MustGhostSet.top()));
+             man.local)
         | None -> 
           man.local
       )
     | Events.Unlock addr -> 
       ( match LockDomain.MustLock.of_addr addr with
         | Some lock -> 
-          if not is_atomic then man.sideg (V.mutex lock) (G.create_ghost_set (G.MustGhostSet.top()));
           if is_atomic then
             D.join man.local (D.create_unlock_mutex lock)
           else 
-            man.local
+            (man.sideg (V.mutex lock) (G.create_ghost_set (G.MustGhostSet.top()));
+             man.local)
         | None -> 
           man.local
       )
@@ -121,25 +124,21 @@ struct
       man.local
     else
       match lval with
+      (* These ghost variables only appear in this shape. *)
       | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
         let is_one = is_one man rval in 
         let is_zero = is_zero man rval in
-        let lock, is_lock, is_unlock = match (D.mutex man.local) with 
-          | `Lifted (lock, true) -> Some lock, true, false 
-          | `Lifted (lock, false) -> Some lock, false, true
-          | _ -> None, false, false
+        (* whether it marks a mutex locking/unlocking *)
+        (* This relies on that intrumentations are placed after the annotated instruction. *)
+        let mutex_arg, new_local =
+          match D.mutex man.local with
+          | `Lifted (lock, b) when (b && is_one) || (not b && is_zero) ->
+            `Lifted lock, D.join man.local (D.create_ghosts var)
+          | _ ->
+            G.MutexDomain.top(), man.local
         in
-        let valid = (D.isGhostAtomic man.local) && (is_one || is_zero) &&
-                    ((is_zero && is_unlock) || (is_one && is_lock)) in 
-        if valid then 
-          ( (match lock with 
-                | Some lock -> 
-                  man.sideg (V.ghost var) (G.create_mutex (`Lifted lock))
-                | None -> ());
-            (D.join man.local (D.create_ghosts var)))
-        else
-          (man.sideg (V.ghost var) (G.create_mutex (G.MutexDomain.top()));
-           man.local)
+        man.sideg (V.ghost var) (G.create_mutex mutex_arg);
+        new_local
       | _ ->
         man.local
 

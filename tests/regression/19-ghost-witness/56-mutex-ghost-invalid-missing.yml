@@ -30,52 +30,52 @@
     ghost_updates:
     - location:
         file_name: 56-mutex-ghost-invalid-missing.c
-        line: 9
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "1"
-        format: c_expression
-    - location:
-        file_name: 56-mutex-ghost-invalid-missing.c
-        line: 15
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "0"
-        format: c_expression
-    - location:
-        file_name: 56-mutex-ghost-invalid-missing.c
-        line: 20
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "1"
-        format: c_expression
-    - location:
-        file_name: 56-mutex-ghost-invalid-missing.c
-        line: 22
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "0"
-        format: c_expression
-    - location:
-        file_name: 56-mutex-ghost-invalid-missing.c
-        line: 40
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "0"
-        format: c_expression
-    - location:
-        file_name: 56-mutex-ghost-invalid-missing.c
         line: 10
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 16
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 21
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 23
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 41
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 56-mutex-ghost-invalid-missing.c
+        line: 11
         column: 5
         function: fun
       updates:
@@ -84,7 +84,7 @@
         format: c_expression
     - location:
         file_name: 56-mutex-ghost-invalid-missing.c
-        line: 24
+        line: 25
         column: 5
         function: main
       updates:
@@ -93,7 +93,7 @@
         format: c_expression
     - location:
         file_name: 56-mutex-ghost-invalid-missing.c
-        line: 26
+        line: 27
         column: 5
         function: main
       updates:

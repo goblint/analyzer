@@ -24,7 +24,7 @@
     ghost_updates:
     - location:
         file_name: 52-mutex-ghost-valid-func.c
-        line: 8
+        line: 9
         column: 3
         function: lock
       updates:
@@ -33,7 +33,7 @@
         format: c_expression
     - location:
         file_name: 52-mutex-ghost-valid-func.c
-        line: 12
+        line: 13
         column: 3
         function: unlock
       updates:
@@ -60,7 +60,7 @@
       type: location_invariant
       location:
         file_name: 52-mutex-ghost-valid-func.c
-        line: 33
+        line: 34
         column: 3
         function: main
       value: "ghost_1 == 1 || myglobal == 42"

@@ -15,4 +15,4 @@ Ghost instrumentation where locking is guarded by a nondeterministic branch.
     unsupported: 0
     disabled: 0
     total validation entries: 1
-  [Success][Witness] invariant confirmed: ghost_1 == 1 || glob == 42 (53-mutex-ghost-valid-branch.c:35:3)
+  [Success][Witness] invariant confirmed: ghost_1 == 1 || glob == 42 (53-mutex-ghost-valid-branch.c:36:3)

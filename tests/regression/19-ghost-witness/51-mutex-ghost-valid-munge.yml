@@ -30,7 +30,7 @@
     ghost_updates:
     - location:
         file_name: 51-mutex-ghost-valid-munge.c
-        line: 10
+        line: 11
         column: 3
         function: munge1
       updates:
@@ -39,7 +39,7 @@
         format: c_expression
     - location:
         file_name: 51-mutex-ghost-valid-munge.c
-        line: 13
+        line: 14
         column: 3
         function: munge1
       updates:
@@ -48,7 +48,7 @@
         format: c_expression
     - location:
         file_name: 51-mutex-ghost-valid-munge.c
-        line: 17
+        line: 18
         column: 3
         function: munge2
       updates:
@@ -57,7 +57,7 @@
         format: c_expression
     - location:
         file_name: 51-mutex-ghost-valid-munge.c
-        line: 20
+        line: 21
         column: 3
         function: munge2
       updates:
@@ -84,7 +84,7 @@
       type: location_invariant
       location:
         file_name: 51-mutex-ghost-valid-munge.c
-        line: 36
+        line: 37
         column: 3
         function: main
       value: "ghost_2 == 1 || g2 == 37"
@@ -93,7 +93,7 @@
       type: location_invariant
       location:
         file_name: 51-mutex-ghost-valid-munge.c
-        line: 36
+        line: 37
         column: 3
         function: main
       value: "ghost_1 == 1 || g1 == 42"

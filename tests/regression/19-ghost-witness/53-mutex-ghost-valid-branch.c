@@ -1,3 +1,4 @@
+// CRAM
 extern int __VERIFIER_nondet_int();
 
 #include<stdio.h>
