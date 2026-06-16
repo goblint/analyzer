@@ -1,4 +1,4 @@
-(** Analysis for checking whether ghost globals are only accessed by one unique thread ([phaseGhostSplit]). *)
+(** Analysis for propagating phase changes of ghost globals accepted by [phaseGhost]. *)
 
 open Analyses
 open GoblintCil
@@ -41,28 +41,47 @@ struct
     include Lattice.Prod (MHPs) (MCPPhaseInfo)
   end
 
+  module PhaseChange =
+  struct
+    include Printable.Prod (Const) (MHPsPlusMCPPhaseInfo)
+    let name () = "ghost-phase-change"
+  end
+
+  module OutgoingPhaseChanges =
+  struct
+    include SetDomain.Make (PhaseChange)
+    let name () = "ghost-outgoing-phase-changes"
+  end
+
   module PhaseChanges =
   struct
-    include MapDomain.MapBot (Const) (MHPsPlusMCPPhaseInfo)
+    include MapDomain.MapBot (Const) (OutgoingPhaseChanges)
     let name () = "ghost-phase-changes"
   end
 
   module G =
   struct
     (* fist component: constant value when the thread returns *)
-    (* second component: map from target of phase change to MHP information under which this change can happen  *)
+    (* second component: map from origin of phase change to targets with MHP information under which this change can happen  *)
     include Lattice.Prod (Const) (PhaseChanges)
     let const_at_thread_end (const, _) = const
     let changes (_, changes) = changes
     let create_const_at_thread_end const = (const, PhaseChanges.bot ())
-    let create_change phase mhp pinfo = (Const.bot (), (PhaseChanges.singleton phase (MHPs.singleton mhp, pinfo)))
+    let create_change origin target mhp pinfo =
+      (Const.bot (), (PhaseChanges.singleton origin (OutgoingPhaseChanges.singleton (target, (MHPs.singleton mhp, pinfo)))))
 
-    let can_change_to (_, changes) target currmhp =
-      match PhaseChanges.find_opt (`Lifted target) changes with
-      | Some (accesses, pinfo) when MHPs.can_any_mhp currmhp accesses ->
-        Some pinfo
-      | _ ->
-        None
+    let possible_changes_after (_, changes) current currmhp =
+      match PhaseChanges.find_opt (`Lifted current) changes with
+      | Some outgoing ->
+        OutgoingPhaseChanges.fold (fun (target, (accesses, pinfo)) acc ->
+            match target with
+            | `Lifted target when Z.lt current target && MHPs.can_any_mhp currmhp accesses ->
+              (target, pinfo) :: acc
+            | _ ->
+              acc
+          ) outgoing []
+      | None ->
+        []
   end
 
   let initial_ghost_values () =
@@ -105,28 +124,6 @@ struct
     | `Lifted tid when TID.is_unique tid -> TIDs.singleton tid
     | _ -> TIDs.top ()
 
-  let increment_constant lval rval =
-    let is_same_lval e =
-      match Cil.stripCasts e with
-      | Lval lval' -> CilType.Lval.equal lval lval'
-      | _ -> false
-    in
-    let is_one_constant e =
-      match Cil.getInteger (Cil.constFold true e) with
-      | Some k -> Z.equal k Z.one
-      | None -> false
-    in
-    match Cil.stripCasts rval with
-    | BinOp (PlusA, e1, e2, _) ->
-      if is_same_lval e1 then
-        is_one_constant e2
-      else if is_same_lval e2 then
-        is_one_constant e1
-      else
-        false
-    | _ ->
-      false
-
   (* This local constant folding intentionally disregards writes from other threads.
      It is only for the phaseGhost checker itself. *)
   (* This information must **not** be used to refine other analyses,
@@ -160,14 +157,6 @@ struct
     | _ ->
       None
 
-  let is_increment_by_one state lval rval =
-    increment_constant lval rval ||
-    match eval_const state (Lval lval), eval_const state rval with
-    | Some old_value, Some new_value ->
-      Z.equal new_value (Z.succ old_value)
-    | _ ->
-      false
-
   let current_mhp man: MCPAccess.A.t =
     Obj.obj (man.ask (PartAccess Point))
 
@@ -181,17 +170,17 @@ struct
       man.local
     else
       let local = top_non_phase_ghosts man man.local in
-      let may_be_advanced_here m var =
+      let possible_advances_here m var =
         if man.ask Queries.MustBeAtomic then
           (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
-          (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; None)
+          (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; [])
         else
           match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId, D.find var m  with
           | `Bot, _, _
           | _, `Bot, _ ->
-            None
+            []
           | `Lifted owner, _ , `Lifted z ->
-            G.can_change_to (man.global var) (Z.succ z) (current_mhp man)
+            G.possible_changes_after (man.global var) z (current_mhp man)
           | _ ->
             failwith "assumption about ghost owner violated"
       in
@@ -199,24 +188,18 @@ struct
         | []  ->
           man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
         | var :: vars ->
-          match may_be_advanced_here m var with
-          | Some curr_pinfo ->
-            (let v' = (match (D.find var m) with
-                 | `Lifted x -> Z.succ x
-                 | _ -> failwith "assumption")
-             in
-             let advanced = D.add var (`Lifted v') m in
-             let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
-             handle_vars (advanced, pinfo') (var::vars);
-             handle_vars (m, pinfo) vars)
-          | None ->
-            handle_vars (m, pinfo) vars
+          List.iter (fun (target, curr_pinfo) ->
+              let advanced = D.add var (`Lifted target) m in
+              let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
+              handle_vars (advanced, pinfo') (var::vars)
+            ) (possible_advances_here m var);
+          handle_vars (m, pinfo) vars
       in
       let traceEvolution () =
         YamlWitness.VarSet.iter (fun var ->
             let owner = man.ask (Queries.Owner var) in
             let phase_ghost = is_phase_ghost man var in
-            let may_advance = phase_ghost && Option.is_some (may_be_advanced_here local var) in
+            let may_advance = phase_ghost && possible_advances_here local var <> [] in
             M.tracel "phaseGhost" "Ghost %a is %sa phase ghost, has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
               CilType.Varinfo.pretty var
               (if phase_ghost then "" else "not ")
@@ -238,17 +221,17 @@ struct
       | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) && not (is_phase_ghost man var) ->
         D.add var (Const.top ()) local
       | Var var, NoOffset when is_phase_ghost man var ->
-        (match eval_const local (Lval lval) with
-         | Some z ->
-           (let v = Z.succ z in
-            let local_new = D.add var (`Lifted v) local in
+        (match eval_const local (Lval lval), eval_const local rval with
+         | Some old_value, Some new_value when Z.lt old_value new_value ->
+           (let local_new = D.add var (`Lifted new_value) local in
             let local_pinfo = current_pinfo man in
-            man.sideg var (G.create_change (`Lifted v) (current_mhp man) (local_pinfo));
+            man.sideg var (G.create_change (`Lifted old_value) (`Lifted new_value) (current_mhp man) (local_pinfo));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then
               man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});
             local_new)
-         | None -> failwith "Failed to evaluate ghost to constant")
+         | _ ->
+           D.add var (Const.top ()) local)
       | _ ->
         local
 

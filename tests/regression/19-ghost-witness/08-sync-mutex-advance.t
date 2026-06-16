@@ -6,7 +6,7 @@ inside the same mutex which main holds at the checked statement.
     live: 12
     dead: 0
     total lines: 12
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@08-sync-mutex-advance.c:21:5-21:51] and is only ever increased by one
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@08-sync-mutex-advance.c:21:5-21:51] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 1
     unconfirmed: 0

@@ -7,9 +7,9 @@ would unsoundly confirm the invariant.
     live: 19
     dead: 0
     total lines: 19
-  [Warning][Witness] phaseGhost: global ghost_non_phase is only accessed by unique thread [main], but is not only ever increased by one
+  [Warning][Witness] phaseGhost: global ghost_non_phase is only accessed by unique thread [main], but is not monotonically increased to known bounds
   [Warning][Witness] invariant unconfirmed: ghost_non_phase == 10 (12-non-phase-ghost-propagation.c:45:5)
-  [Info][Witness] phaseGhost: global ghost_phase is only accessed by unique thread [main, fun@12-non-phase-ghost-propagation.c:31:5-31:51] and is only ever increased by one
+  [Info][Witness] phaseGhost: global ghost_phase is only accessed by unique thread [main, fun@12-non-phase-ghost-propagation.c:31:5-31:51] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 1

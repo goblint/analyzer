@@ -8,8 +8,8 @@ because ghost_a is accessed by multiple unique threads.
     live: 13
     dead: 0
     total lines: 13
-  [Warning][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main], but is not only ever increased by one
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@09-sync-copy-under-mutex.c:20:5-20:51] and is only ever increased by one
+  [Warning][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main], but is not monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@09-sync-copy-under-mutex.c:20:5-20:51] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 1
     unconfirmed: 0
