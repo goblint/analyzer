@@ -81,7 +81,7 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let get_addr_size man ptr (addr: Queries.AD.elt) = (* TODO: remove ptr argument *) (* TODO: deduplicate with base (this uses IsAllocVar) *)
+  let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with base (this uses IsAllocVar) *)
     match addr with
     | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
@@ -195,7 +195,7 @@ struct
     (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
     | _ -> false
 
-  let get_addr_offset ptr t (addr: ValueDomain.Addr.t) = (* TODO: remove ptr argument *)
+  let get_addr_offset t (addr: ValueDomain.Addr.t) =
     match addr with
     | Addr (_, o) -> offs_to_idx t o
     | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
@@ -218,7 +218,7 @@ struct
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
         end in
         let* addr = man.ask (Queries.MayPointTo e) in
-        let e_size = get_addr_size man e addr in
+        let e_size = get_addr_size man addr in
         begin match e_size with
           | `Top ->
             (set_mem_safety_flag InvalidDeref;
@@ -265,8 +265,8 @@ struct
     match ptr_contents_type with
     | Some t ->
       let* addr = man.ask (Queries.MayPointTo lval_exp) in
-      let ptr_size = get_addr_size man lval_exp addr in
-      let addr_offs = get_addr_offset lval_exp t addr in
+      let ptr_size = get_addr_size man addr in
+      let addr_offs = get_addr_offset t addr in
       begin match ptr_size, addr_offs with
         | `Top, _ ->
           set_mem_safety_flag InvalidDeref;
@@ -333,8 +333,8 @@ struct
       begin match ptr_contents_type with
         | Some t ->
           let* addr = man.ask (Queries.MayPointTo e1) in
-          let ptr_size = get_addr_size man e1 addr in
-          let addr_offs = get_addr_offset e1 t addr in
+          let ptr_size = get_addr_size man addr in
+          let addr_offs = get_addr_offset t addr in
           let offset_size = eval_ptr_offset_in_binop man e2 t in
           (* Make sure to add the address offset to the binop offset *)
           let offset_size_with_addr_size = match offset_size with
@@ -391,12 +391,12 @@ struct
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
     let* addr = man.ask (Queries.MayPointTo ptr) in
-    let ptr_size = get_addr_size man ptr addr in
+    let ptr_size = get_addr_size man addr in
     let eval_n = man.ask (Queries.EvalInt n) in
     let addr_offs =
       let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
       match ptr_deref_type with
-      | Some t -> get_addr_offset ptr t addr
+      | Some t -> get_addr_offset t addr
       | None ->
         M.error "Expression %a doesn't have pointer type" d_exp ptr;
         ID.top_of @@ Cilfacade.ptrdiff_ikind ()
