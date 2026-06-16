@@ -1575,10 +1575,10 @@ struct
              | Array a ->
                (* unroll into array for Calloc calls *)
                (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) with
-                | Blob (_,s,_) -> `Lifted s
+                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
                 | _ -> Queries.Result.top q
                )
-             | Blob (_,s,_) -> `Lifted s
+             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
              | _ -> Queries.Result.top q)
           )
         | _ -> Queries.Result.top q
