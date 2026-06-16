@@ -1549,26 +1549,17 @@ struct
       end
     | Q.EvalValue e ->
       eval_rv ~man man.local e
-    | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
+    | Q.BlobSize e -> begin
         let p = eval_rv_address ~man man.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_alloc_var man v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var man v || o <> `NoOffset
               | _ -> false) a then
             Queries.Result.bot q
           else (
-            (* If we need the BlobSize from the base address, then remove any offsets *)
-            let a =
-              if from_base_addr then AD.map (function
-                  | Addr (v, o) -> Addr (v, `NoOffset)
-                  | addr -> addr) a
-              else
-                a
-            in
             let r = get ~man ~full:true man.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
@@ -2351,7 +2342,7 @@ struct
         begin match addr with
           | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
             (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-            man.ask (Queries.BlobSize {exp = AddrOf (Var v, NoOffset); base_address = true}) (* TODO: is base_address necessary anymore? *)
+            man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
           | Addr (v, _) ->
             begin match Cil.unrollType v.vtype with
               | TArray (item_typ, _, _) ->
@@ -2501,7 +2492,7 @@ struct
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let size = man.ask (Q.BlobSize s1) in
           let s_id =
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
@@ -2510,7 +2501,7 @@ struct
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let size = man.ask (Q.BlobSize s1) in
           let s_id =
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in

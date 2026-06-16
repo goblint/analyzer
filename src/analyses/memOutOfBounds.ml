@@ -87,7 +87,7 @@ struct
         begin match addr with
           | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
             (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-            man.ask (Queries.BlobSize {exp = AddrOf (Var v, NoOffset); base_address = true}) (* TODO: is base_address necessary anymore? *)
+            man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
           | Addr (v, _) ->
             if hasAttribute "goblint_cil_nested" v.vattr then (
               set_mem_safety_flag InvalidDeref;
