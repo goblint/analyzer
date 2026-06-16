@@ -14,6 +14,6 @@ int main(void) {
   else
     p = &bar[99];
 
-  *p = 42; // TODO NOWARN
+  *p = 42; // NOWARN
   return 0;
 }

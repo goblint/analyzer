@@ -28,6 +28,8 @@ struct
 
   (* HELPER FUNCTIONS *)
 
+  let (let*) ad f = ValueDomain.AD.iter f ad
+
   let intdom_of_int x =
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
@@ -108,12 +110,6 @@ struct
           `Lifted type_size_in_bytes
       end
     | _ -> `Top
-
-  let get_size_of_ptr_target man ptr =
-    man.ask (Queries.MayPointTo ptr)
-    |> Queries.AD.to_seq
-    |> Seq.map (get_addr_size man ptr)
-    |> Seq.fold_left VDQ.ID.join `Bot
 
   let get_ptr_deref_type ptr_typ =
     match Cil.unrollType ptr_typ with
@@ -199,27 +195,14 @@ struct
     (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
     | _ -> false
 
-  let get_addr_offset ptr t (addr: ValueDomain.Addr.t) =
+  let get_addr_offset ptr t (addr: ValueDomain.Addr.t) = (* TODO: remove ptr argument *)
     match addr with
     | Addr (_, o) -> offs_to_idx t o
     | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
     | NullPtr
     | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
 
-  let rec get_addr_offs man ptr =
-    let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
-    match ptr_deref_type with
-    | Some t ->
-      (* Get the address offsets of all points-to set elements *)
-      man.ask (Queries.MayPointTo ptr)
-      |> VDQ.AD.to_seq
-      |> Seq.map (get_addr_offset ptr t)
-      |> Seq.fold_left ID.join (ID.bot_of @@ Cilfacade.ptrdiff_ikind ())
-    | None ->
-      M.error "Expression %a doesn't have pointer type" d_exp ptr;
-      ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-
-  and check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
+  let rec check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
     if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then ()
     else
@@ -234,7 +217,8 @@ struct
           | Some t -> cil_offs_to_idx man t o
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
         end in
-        let e_size = get_size_of_ptr_target man e in
+        let* addr = man.ask (Queries.MayPointTo e) in
+        let e_size = get_addr_size man e addr in
         begin match e_size with
           | `Top ->
             (set_mem_safety_flag InvalidDeref;
@@ -276,12 +260,13 @@ struct
     check_unknown_addr_deref man lval_exp;
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let ptr_size = get_size_of_ptr_target man lval_exp in
-    let addr_offs = get_addr_offs man lval_exp in
     let ptr_type = typeOf lval_exp in
     let ptr_contents_type = get_ptr_deref_type ptr_type in
     match ptr_contents_type with
     | Some t ->
+      let* addr = man.ask (Queries.MayPointTo lval_exp) in
+      let ptr_size = get_addr_size man lval_exp addr in
+      let addr_offs = get_addr_offset lval_exp t addr in
       begin match ptr_size, addr_offs with
         | `Top, _ ->
           set_mem_safety_flag InvalidDeref;
@@ -343,12 +328,13 @@ struct
     | PlusPI
     | IndexPI
     | MinusPI ->
-      let ptr_size = get_size_of_ptr_target man e1 in
-      let addr_offs = get_addr_offs man e1 in
       let ptr_type = typeOf e1 in
       let ptr_contents_type = get_ptr_deref_type ptr_type in
       begin match ptr_contents_type with
         | Some t ->
+          let* addr = man.ask (Queries.MayPointTo e1) in
+          let ptr_size = get_addr_size man e1 addr in
+          let addr_offs = get_addr_offset e1 t addr in
           let offset_size = eval_ptr_offset_in_binop man e2 t in
           (* Make sure to add the address offset to the binop offset *)
           let offset_size_with_addr_size = match offset_size with
@@ -404,9 +390,17 @@ struct
   let check_count man fun_name ptr n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let ptr_size = get_size_of_ptr_target man ptr in
+    let* addr = man.ask (Queries.MayPointTo ptr) in
+    let ptr_size = get_addr_size man ptr addr in
     let eval_n = man.ask (Queries.EvalInt n) in
-    let addr_offs = get_addr_offs man ptr in
+    let addr_offs =
+      let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
+      match ptr_deref_type with
+      | Some t -> get_addr_offset ptr t addr
+      | None ->
+        M.error "Expression %a doesn't have pointer type" d_exp ptr;
+        ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+    in
     match ptr_size, eval_n with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
