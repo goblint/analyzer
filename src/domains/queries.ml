@@ -105,7 +105,7 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
-  | BlobSize: {exp: Cil.exp; base_address: bool} -> ID.t t
+  | BlobSize: exp -> ID.t t
   (* Size of a dynamically allocated `Blob pointed to by exp. *)
   (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
   | CondVars: exp -> ES.t t
@@ -355,12 +355,7 @@ struct
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalValue e1), Any (EvalValue e2) -> CilType.Exp.compare e1 e2
-      | Any (BlobSize {exp = e1; base_address = b1}), Any (BlobSize {exp = e2; base_address = b2}) ->
-        let r = CilType.Exp.compare e1 e2 in
-        if r <> 0 then
-          r
-        else
-          Stdlib.compare b1 b2
+      | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
@@ -416,7 +411,7 @@ struct
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
     | Any (EvalValue e) -> CilType.Exp.hash e
-    | Any (BlobSize {exp = e; base_address = b}) -> CilType.Exp.hash e + Hashtbl.hash b
+    | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
@@ -474,7 +469,7 @@ struct
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
-    | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
+    | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
