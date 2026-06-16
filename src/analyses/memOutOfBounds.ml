@@ -200,21 +200,7 @@ struct
     | _ -> false
 
   let get_mval_offset ptr t (_, o) =
-    let x = offs_to_idx t o in
-    if ID.is_bot x then (
-      set_mem_safety_flag InvalidDeref;
-      M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
-    )
-    else if ID.is_top_of (Cilfacade.ptrdiff_ikind ()) x then (
-      set_mem_safety_flag InvalidDeref;
-      M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
-    )
-    else (
-      Checks.safe Checks.Category.InvalidMemoryAccess
-    );
-    x
+    offs_to_idx t o
 
   let rec get_addr_offs man ptr =
     match man.ask (Queries.MayPointTo ptr) with
