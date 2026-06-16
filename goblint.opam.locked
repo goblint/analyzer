@@ -108,8 +108,8 @@ depends: [
   "ppx_yojson_conv_lib" {= "v0.16.0" & with-dev-setup}
   "ppxlib" {= "0.35.0"}
   "ptime" {= "1.2.0" & with-doc}
-  "qcheck-core" {= "0.25"}
-  "qcheck-ounit" {= "0.25" & with-test}
+  "qcheck-core" {= "0.91"}
+  "qcheck-ounit" {= "0.91" & with-test}
   "re" {= "1.11.0" & with-doc}
   "result" {= "1.5" & with-doc}
   "rresult" {= "0.7.0"}

@@ -44,7 +44,7 @@ depends: [
   "patricia-tree" {>= "0.14.0"}
   "zarith" {>= "1.12"}
   "yojson" {>= "2.0.0" & < "3"}
-  "qcheck-core" {>= "0.19"}
+  "qcheck-core" {>= "0.90"}
   "ppx_deriving" {>= "6.0.2"}
   "ppx_deriving_hash" {>= "0.1.2"}
   "ppx_deriving_yojson" {>= "3.7.0"}
