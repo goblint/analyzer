@@ -2369,15 +2369,10 @@ struct
     | _ -> `Top
 
   let get_size_of_ptr_target man ptr =
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (Queries.AD.is_top a) ->
-      Queries.AD.to_seq a
-      |> Seq.map (get_addr_size man ptr)
-      |> Seq.fold_left ValueDomainQueries.ID.join `Bot
-    | _ ->
-      (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-       `Top)
+    man.ask (Queries.MayPointTo ptr)
+    |> Queries.AD.to_seq
+    |> Seq.map (get_addr_size man ptr)
+    |> Seq.fold_left ValueDomainQueries.ID.join `Bot
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
