@@ -12,7 +12,7 @@ void *t1(void *arg) {
     g2 = g1 + 37;
     pthread_mutex_unlock(&mutex2); // ghost_2 = 0; ghost_3 = 0
     g1 = 0;
-    pthread_mutex_unlock(&mutex1); // ghost_1 = 1
+    pthread_mutex_unlock(&mutex1); // ghost_1 = 0
     return NULL;
 }
 

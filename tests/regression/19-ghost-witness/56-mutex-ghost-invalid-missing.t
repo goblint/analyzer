@@ -7,8 +7,8 @@ analyzer should detect the incomplete ghost trace.
     live: 28
     dead: 0
     total lines: 28
-  [Warning][Witness] mutexGhost: global ghost_1 is only used to mark the boundary of part (not all) of the critical sections protected by mutex mutex1
-  [Info][Witness] mutexGhost: global ghost_2 is only used to mark the boundary of all of the critical sections protected by mutex mutex2
+  [Info][Witness] mutexGhost: global ghost_1 is only used to mark the boundary of part (not all) of the critical sections protected by mutex mutex1
+  [Info][Witness] mutexGhost: global ghost_2 is only used to mark the boundary of part (not all) of the critical sections protected by mutex mutex2
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0

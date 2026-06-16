@@ -7,10 +7,10 @@ variables are used incorrectly and refuse to confirm any related invariant.
     live: 28
     dead: 0
     total lines: 28
-  [Warning][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
-  [Warning][Witness] mutexGhost: global ghost_2 is used incorrectly, either matching several mutex, or non-mutex events
-  [Warning][Witness] mutexGhost: global ghost_3 is used incorrectly, either matching several mutex, or non-mutex events
-  [Warning][Witness] mutexGhost: global ghost_4 is used incorrectly, either matching several mutex, or non-mutex events
+  [Info][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
+  [Info][Witness] mutexGhost: global ghost_2 is used incorrectly, either matching several mutex, or non-mutex events
+  [Info][Witness] mutexGhost: global ghost_3 is used incorrectly, either matching several mutex, or non-mutex events
+  [Info][Witness] mutexGhost: global ghost_4 is used incorrectly, either matching several mutex, or non-mutex events
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0

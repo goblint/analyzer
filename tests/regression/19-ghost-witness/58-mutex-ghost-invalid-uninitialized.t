@@ -13,7 +13,7 @@ Ghost instrumentation with uninitialized mutex pointers.
   [Warning][Unknown] unlocking NULL mutex (58-mutex-ghost-invalid-uninitialized.c:21:3-21:26)
   [Warning][Unknown] unlocking mutex ([__VERIFIER_atomic_instrument]) which may not be held (58-mutex-ghost-invalid-uninitialized.c:21:3-21:26)
   [Warning][Unknown] unlocking unknown mutex which may not be held (58-mutex-ghost-invalid-uninitialized.c:21:3-21:26)
-  [Warning][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
+  [Info][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0

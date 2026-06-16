@@ -90,7 +90,7 @@ struct
           | `Lifted (lock, _) -> 
             (man.sideg (V.mutex lock) (G.create_ghost_set (D.ghosts man.local)))
           | _ -> ());
-       D.bot())
+       D.init)
     | Events.Lock (addr, _) -> 
       ( match LockDomain.MustLock.of_addr addr with
         | Some lock -> 
@@ -168,10 +168,10 @@ struct
                (if G.GhostSet.mem ghost gset then 
                   M.info_noloc ~category:Witness "mutexGhost: global %a is only used to mark the boundary of all of the critical sections protected by mutex %a" Basetype.Variables.pretty ghost LockDomain.MustLock.pretty l
                 else 
-                  M.warn_noloc ~category:Witness "mutexGhost: global %a is only used to mark the boundary of part (not all) of the critical sections protected by mutex %a" Basetype.Variables.pretty ghost LockDomain.MustLock.pretty l) 
-             | _ -> M.warn_noloc ~category:Witness "mutexGhost: global %a is only used to mark the boundary of part (not all) of the critical sections protected by mutex %a" Basetype.Variables.pretty ghost LockDomain.MustLock.pretty l)
+                  M.info_noloc ~category:Witness "mutexGhost: global %a is only used to mark the boundary of part (not all) of the critical sections protected by mutex %a" Basetype.Variables.pretty ghost LockDomain.MustLock.pretty l) 
+             | _ -> M.info_noloc ~category:Witness "mutexGhost: global %a is only used to mark the boundary of part (not all) of the critical sections protected by mutex %a" Basetype.Variables.pretty ghost LockDomain.MustLock.pretty l)
           | _ -> 
-            M.warn_noloc ~category:Witness "mutexGhost: global %a is used incorrectly, either matching several mutex, or non-mutex events" Basetype.Variables.pretty ghost
+            M.info_noloc ~category:Witness "mutexGhost: global %a is used incorrectly, either matching several mutex, or non-mutex events" Basetype.Variables.pretty ghost
          ))
     | _ ->
       Queries.Result.top q

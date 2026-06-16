@@ -5,8 +5,8 @@ Ghost instrumentation across helper functions called with different mutex argume
     live: 22
     dead: 0
     total lines: 22
-  [Warning][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
   [Warning][Witness] invariant unconfirmed: ghost_1 == 1 || g1 == 42 (51-mutex-ghost-valid-munge.c:36:3)
+  [Info][Witness] mutexGhost: global ghost_1 is used incorrectly, either matching several mutex, or non-mutex events
   [Info][Witness] mutexGhost: global ghost_2 is only used to mark the boundary of all of the critical sections protected by mutex mutex3
   [Info][Witness] witness validation summary:
     confirmed: 1
