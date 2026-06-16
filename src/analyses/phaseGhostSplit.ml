@@ -41,30 +41,47 @@ struct
     include Lattice.Prod (MHPs) (MCPPhaseInfo)
   end
 
+  module PhaseChange =
+  struct
+    include Printable.Prod (Const) (MHPsPlusMCPPhaseInfo)
+    let name () = "ghost-phase-change"
+  end
+
+  module OutgoingPhaseChanges =
+  struct
+    include SetDomain.Make (PhaseChange)
+    let name () = "ghost-outgoing-phase-changes"
+  end
+
   module PhaseChanges =
   struct
-    include MapDomain.MapBot (Const) (MHPsPlusMCPPhaseInfo)
+    include MapDomain.MapBot (Const) (OutgoingPhaseChanges)
     let name () = "ghost-phase-changes"
   end
 
   module G =
   struct
     (* fist component: constant value when the thread returns *)
-    (* second component: map from target of phase change to MHP information under which this change can happen  *)
+    (* second component: map from origin of phase change to targets with MHP information under which this change can happen  *)
     include Lattice.Prod (Const) (PhaseChanges)
     let const_at_thread_end (const, _) = const
     let changes (_, changes) = changes
     let create_const_at_thread_end const = (const, PhaseChanges.bot ())
-    let create_change phase mhp pinfo = (Const.bot (), (PhaseChanges.singleton phase (MHPs.singleton mhp, pinfo)))
+    let create_change origin target mhp pinfo =
+      (Const.bot (), (PhaseChanges.singleton origin (OutgoingPhaseChanges.singleton (target, (MHPs.singleton mhp, pinfo)))))
 
     let possible_changes_after (_, changes) current currmhp =
-      PhaseChanges.fold (fun target (accesses, pinfo) acc ->
-          match target with
-          | `Lifted target when Z.lt current target && MHPs.can_any_mhp currmhp accesses ->
-            (target, pinfo) :: acc
-          | _ ->
-            acc
-        ) changes []
+      match PhaseChanges.find_opt (`Lifted current) changes with
+      | Some outgoing ->
+        OutgoingPhaseChanges.fold (fun (target, (accesses, pinfo)) acc ->
+            match target with
+            | `Lifted target when Z.lt current target && MHPs.can_any_mhp currmhp accesses ->
+              (target, pinfo) :: acc
+            | _ ->
+              acc
+          ) outgoing []
+      | None ->
+        []
   end
 
   let initial_ghost_values () =
@@ -162,7 +179,7 @@ struct
           | `Bot, _, _
           | _, `Bot, _ ->
             []
-          | `Lifted _owner, _ , `Lifted z ->
+          | `Lifted owner, _ , `Lifted z ->
             G.possible_changes_after (man.global var) z (current_mhp man)
           | _ ->
             failwith "assumption about ghost owner violated"
@@ -208,7 +225,7 @@ struct
          | Some old_value, Some new_value when Z.lt old_value new_value ->
            (let local_new = D.add var (`Lifted new_value) local in
             let local_pinfo = current_pinfo man in
-            man.sideg var (G.create_change (`Lifted new_value) (current_mhp man) (local_pinfo));
+            man.sideg var (G.create_change (`Lifted old_value) (`Lifted new_value) (current_mhp man) (local_pinfo));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then
               man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});
