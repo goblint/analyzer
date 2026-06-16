@@ -199,35 +199,24 @@ struct
     (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
     | _ -> false
 
-  let get_mval_offset ptr t (_, o) =
-    offs_to_idx t o
+  let get_addr_offset ptr t (addr: ValueDomain.Addr.t) =
+    match addr with
+    | Addr (_, o) -> offs_to_idx t o
+    | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
+    | NullPtr
+    | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
 
   let rec get_addr_offs man ptr =
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (VDQ.AD.is_top a) ->
-      let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
-      begin match ptr_deref_type with
-        | Some t ->
-          begin match VDQ.AD.is_empty a with
-            | true ->
-              M.warn "Pointer %a has an empty points-to-set" d_exp ptr;
-              Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has an empty points-to-set" d_exp ptr;
-              ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-            | false ->
-              (* Get the address offsets of all points-to set elements *)
-              VDQ.AD.to_mval a
-              |> List.to_seq
-              |> Seq.map (get_mval_offset ptr t)
-              |> Seq.fold_left ID.join (ID.bot_of @@ Cilfacade.ptrdiff_ikind ())
-          end
-        | None ->
-          M.error "Expression %a doesn't have pointer type" d_exp ptr;
-          ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-      end
-    | _ ->
-      set_mem_safety_flag InvalidDeref;
-      M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+    let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
+    match ptr_deref_type with
+    | Some t ->
+      (* Get the address offsets of all points-to set elements *)
+      man.ask (Queries.MayPointTo ptr)
+      |> VDQ.AD.to_seq
+      |> Seq.map (get_addr_offset ptr t)
+      |> Seq.fold_left ID.join (ID.bot_of @@ Cilfacade.ptrdiff_ikind ())
+    | None ->
+      M.error "Expression %a doesn't have pointer type" d_exp ptr;
       ID.top_of @@ Cilfacade.ptrdiff_ikind ()
 
   and check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
