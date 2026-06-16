@@ -94,9 +94,9 @@ struct
       );
       begin match Cil.unrollType v.vtype with
         | TArray (item_typ, _, _) ->
-          let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
             | `Lifted arr_len ->
+              let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
               let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
               begin
                 try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
@@ -118,9 +118,9 @@ struct
 
   let eval_ptr_offset_in_binop man exp ptr_contents_typ =
     let eval_offset = man.ask (Queries.EvalInt exp) in
-    let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
     match eval_offset with
     | `Lifted eo ->
+      let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
       let casted_eo = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) eo in (* TODO: proper castkind *)
       begin
         try `Lifted (ID.mul casted_eo ptr_contents_typ_size_in_bytes)
@@ -213,10 +213,11 @@ struct
       | (Var v, _), true -> check_no_binop_deref man (Lval lval)
       | (Mem e, o), _ ->
         let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
-        let offs_intdom = begin match ptr_deref_type with
+        let offs_intdom = match ptr_deref_type with
           | Some t -> cil_offs_to_idx man t o
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-        end in
+        in
+        let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
         let* addr = man.ask (Queries.MayPointTo e) in
         let e_size = get_addr_size man addr in
         begin match e_size with
@@ -230,7 +231,6 @@ struct
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e
           | `Lifted es ->
             let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) es in (* TODO: proper castkind *)
-            let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
             begin match check_offset_bounds casted_es casted_offs with
@@ -332,10 +332,10 @@ struct
       let ptr_contents_type = get_ptr_deref_type ptr_type in
       begin match ptr_contents_type with
         | Some t ->
+          let offset_size = eval_ptr_offset_in_binop man e2 t in
           let* addr = man.ask (Queries.MayPointTo e1) in
           let ptr_size = get_addr_size man addr in
           let addr_offs = get_addr_offset t addr in
-          let offset_size = eval_ptr_offset_in_binop man e2 t in
           (* Make sure to add the address offset to the binop offset *)
           let offset_size_with_addr_size = match offset_size with
             | `Lifted os ->
@@ -390,9 +390,9 @@ struct
   let check_count man fun_name ptr n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
+    let eval_n = man.ask (Queries.EvalInt n) in
     let* addr = man.ask (Queries.MayPointTo ptr) in
     let ptr_size = get_addr_size man addr in
-    let eval_n = man.ask (Queries.EvalInt n) in
     let addr_offs =
       let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
       match ptr_deref_type with
