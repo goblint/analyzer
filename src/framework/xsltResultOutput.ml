@@ -78,7 +78,6 @@ struct
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
-    let out = Messages.get_out result_name !Messages.out in
     let module SH = BatHashtbl.Make (Basetype.RawStrings) in
     let file2funs = SH.create 100 in
     let funs2node = SH.create 100 in
@@ -121,7 +120,7 @@ struct
       do_html_output xml_file_name
     )
     else
-      let f = BatIO.output_channel out in
+      let f = BatIO.output_channel !Messages.out in
       ignore (write_file f (get_string "outfile"))
 end
 

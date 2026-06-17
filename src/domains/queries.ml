@@ -105,9 +105,7 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
-  | BlobSize: exp -> ID.t t
-  (* Size of a dynamically allocated `Blob pointed to by exp. *)
-  (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
+  | BlobSize: exp -> ID.t t (** Size of a dynamically allocated [`Blob] pointed to by [exp]. *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t

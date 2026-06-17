@@ -449,7 +449,7 @@ module Enums : S with type int_t = Z.t = struct
       | Exc (s, _) -> GobQCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> GobQCheck.shrink (BISet.arbitrary ()) s >|= pos
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map neg (BISet.arbitrary ());
       10, QCheck.map pos (BISet.arbitrary ());
     ] (* S TODO: decide frequencies *)

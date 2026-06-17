@@ -84,7 +84,7 @@ struct
   let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with base (this uses IsAllocVar) *)
     match addr with
     | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
-      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+      (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
       man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
     | Addr (v, _) ->
       if hasAttribute "goblint_cil_nested" v.vattr then (
