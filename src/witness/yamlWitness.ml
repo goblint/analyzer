@@ -800,10 +800,7 @@ struct
                     | None ->
                       local, inv_exp
                   in
-                  let ask =
-                    fun (type a) (q: a Queries.t) ->
-                      ask_local lvar ~local q
-                  in
+                  let ask = fun (type a) (q: a Queries.t) -> ask_local lvar ~local q in
                   begin match Queries.eval_bool {f = ask} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
                     | `Lifted true -> Confirmed
