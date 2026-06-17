@@ -700,6 +700,41 @@ struct
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
 
+  let local_event ((n, _) as lvar) local event =
+    let rec man =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query man q)
+      ; emit   = (fun _ -> ())
+      ; node   = n
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
+      ; context = (fun () -> snd lvar)
+      ; edge    = MyCFG.Skip
+      ; local
+      ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ())
+      ; spawn  = (fun ?(multiple=false) _ _ _ -> ())
+      ; split  = (fun _ _ -> ())
+      ; sideg  = (fun _ _ -> ())
+      }
+    in
+    Spec.event man event man
+
+  let mutex_ghost_lock lvar local inv_exp =
+    match constFold true inv_exp with
+    | BinOp (LOr, BinOp (Eq, Lval (Var v, _), e2, _), e3, _) ->
+      begin match ask_local lvar ~local (Queries.EvalInt e2), ask_local lvar ~local (Queries.IsMutexGhost v) with
+        | `Lifted n, `Lifted lock ->
+          begin match IntDomain.IntDomTuple.to_int n with
+            | Some value when Z.equal value Z.one ->
+              Some (lock, e3)
+            | _ ->
+              None
+          end
+        | _ ->
+          None
+      end
+    | _ ->
+      None
+
   let validate () =
     let location_locator = Locator.create () in
     let loop_locator = Locator.create () in
@@ -751,13 +786,25 @@ struct
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs when (not !ghost_usage_hypothesis_unconfirmed) && !unplaced_ghost_updates = []  ->
-
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let fundec = Node.find_fundec n in
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
-                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
+                  let local = try LHT.find lh lvar with Not_found -> Spec.D.bot () in
+                  let local, inv_exp =
+                    match mutex_ghost_lock lvar local inv_exp with
+                    | Some (lock, e3) ->
+                      let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval lock) in
+                      local_event lvar local (Events.Lock (addr, true)), e3
+                    | None ->
+                      local, inv_exp
+                  in
+                  let ask =
+                    fun (type a) (q: a Queries.t) ->
+                      ask_local lvar ~local q
+                  in
+                  begin match Queries.eval_bool {f = ask} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
                     | `Lifted true -> Confirmed
                     | `Lifted false -> Refuted
