@@ -86,8 +86,8 @@ struct
       let pts_elems_to_sizes (addr: Queries.AD.elt) =
         begin match addr with
           | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
-            (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-            man.ask (Queries.BlobSize {exp = ptr; base_address = true}) (* TODO: only query for addr/v *)
+            (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
+            man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
           | Addr (v, _) ->
             if hasAttribute "goblint_cil_nested" v.vattr then (
               set_mem_safety_flag InvalidDeref;
@@ -97,7 +97,7 @@ struct
             begin match Cil.unrollType v.vtype with
               | TArray (item_typ, _, _) ->
                 let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                begin match man.ask (Queries.EvalLength ptr) with (* TODO: only query for addr/v *)
+                begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
                   | `Lifted arr_len ->
                     let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
                     begin
