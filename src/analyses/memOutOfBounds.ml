@@ -28,6 +28,8 @@ struct
 
   (* HELPER FUNCTIONS *)
 
+  let (let*) ad f = ValueDomain.AD.iter f ad
+
   let intdom_of_int x =
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
@@ -79,54 +81,35 @@ struct
     in
     host_contains_a_ptr host || offset_contains_a_ptr offset
 
-  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with base (this uses IsAllocVar) *)
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (Queries.AD.is_top a) ->
-      let pts_list = Queries.AD.elements a in
-      let pts_elems_to_sizes (addr: Queries.AD.elt) =
-        begin match addr with
-          | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
-            (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
-            man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
-          | Addr (v, _) ->
-            if hasAttribute "goblint_cil_nested" v.vattr then (
-              set_mem_safety_flag InvalidDeref;
-              M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v;
-              Checks.warn Checks.Category.InvalidMemoryAccess "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
-            );
-            begin match Cil.unrollType v.vtype with
-              | TArray (item_typ, _, _) ->
-                let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
-                  | `Lifted arr_len ->
-                    let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-                    begin
-                      try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                      with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-                    end
-                  | `Bot -> `Bot
-                  | `Top -> `Top
-                end
-              | _ ->
-                let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-                `Lifted type_size_in_bytes
-            end
-          | _ -> `Top
-        end
-      in
-      (* Map each points-to-set element to its size *)
-      let pts_sizes = List.map pts_elems_to_sizes pts_list in
-      (* Take the smallest of all sizes that ptr's contents may have *)
-      begin match pts_sizes with
-        | [] -> `Bot
-        | [x] -> x
-        | x::xs -> List.fold_left VDQ.ID.join x xs
+  let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with base (this uses IsAllocVar) *)
+    match addr with
+    | Addr (v, _) when man.ask (Queries.IsAllocVar v) ->
+      (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
+      man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
+    | Addr (v, _) ->
+      if hasAttribute "goblint_cil_nested" v.vattr then (
+        set_mem_safety_flag InvalidDeref;
+        M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
+      );
+      begin match Cil.unrollType v.vtype with
+        | TArray (item_typ, _, _) ->
+          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
+            | `Lifted arr_len ->
+              let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
+              begin
+                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+              end
+            | `Bot -> `Bot
+            | `Top -> `Top
+          end
+        | _ ->
+          let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+          `Lifted type_size_in_bytes
       end
-    | _ ->
-      (set_mem_safety_flag InvalidDeref;
-       M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-       `Top)
+    | _ -> `Top
 
   let get_ptr_deref_type ptr_typ =
     match Cil.unrollType ptr_typ with
@@ -135,9 +118,9 @@ struct
 
   let eval_ptr_offset_in_binop man exp ptr_contents_typ =
     let eval_offset = man.ask (Queries.EvalInt exp) in
-    let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
     match eval_offset with
     | `Lifted eo ->
+      let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
       let casted_eo = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) eo in (* TODO: proper castkind *)
       begin
         try `Lifted (ID.mul casted_eo ptr_contents_typ_size_in_bytes)
@@ -212,58 +195,14 @@ struct
     (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
     | _ -> false
 
-  let rec get_addr_offs man ptr =
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (VDQ.AD.is_top a) ->
-      let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
-      begin match ptr_deref_type with
-        | Some t ->
-          begin match VDQ.AD.is_empty a with
-            | true ->
-              M.warn "Pointer %a has an empty points-to-set" d_exp ptr;
-              Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has an empty points-to-set" d_exp ptr;
-              ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-            | false ->
-              if VDQ.AD.exists (function
-                  | Addr (_, o) -> ID.is_bot @@ offs_to_idx t o
-                  | _ -> false
-                ) a then (
-                set_mem_safety_flag InvalidDeref;
-                M.warn "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr;
-                Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a bot address offset. An invalid memory access may occur" d_exp ptr
-              ) else if VDQ.AD.exists (function
-                  | Addr (_, o) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) (offs_to_idx t o)
-                  | _ -> false
-                ) a then (
-                set_mem_safety_flag InvalidDeref;
-                M.warn "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr;
-                Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a top address offset. An invalid memory access may occur" d_exp ptr
-              ) else (
-                Checks.safe Checks.Category.InvalidMemoryAccess
-              );
-              (* Get the address offsets of all points-to set elements *)
-              let addr_offsets =
-                VDQ.AD.filter (function Addr (v, o) -> true | _ -> false) a
-                |> VDQ.AD.to_mval
-                |> List.map (fun (_, o) -> offs_to_idx t o)
-              in
-              begin match addr_offsets with
-                | [] -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-                | [x] -> x
-                | x::xs -> List.fold_left ID.join x xs
-              end
-          end
-        | None ->
-          M.error "Expression %a doesn't have pointer type" d_exp ptr;
-          ID.top_of @@ Cilfacade.ptrdiff_ikind ()
-      end
-    | _ ->
-      set_mem_safety_flag InvalidDeref;
-      M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-      ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+  let get_addr_offset t (addr: ValueDomain.Addr.t) =
+    match addr with
+    | Addr (_, o) -> offs_to_idx t o
+    | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
+    | NullPtr
+    | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
 
-  and check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
+  let rec check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
     if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then ()
     else
@@ -274,11 +213,13 @@ struct
       | (Var v, _), true -> check_no_binop_deref man (Lval lval)
       | (Mem e, o), _ ->
         let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
-        let offs_intdom = begin match ptr_deref_type with
+        let offs_intdom = match ptr_deref_type with
           | Some t -> cil_offs_to_idx man t o
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-        end in
-        let e_size = get_size_of_ptr_target man e in
+        in
+        let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
+        let* addr = man.ask (Queries.MayPointTo e) in
+        let e_size = get_addr_size man addr in
         begin match e_size with
           | `Top ->
             (set_mem_safety_flag InvalidDeref;
@@ -290,7 +231,6 @@ struct
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e
           | `Lifted es ->
             let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) es in (* TODO: proper castkind *)
-            let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
             begin match check_offset_bounds casted_es casted_offs with
@@ -320,12 +260,13 @@ struct
     check_unknown_addr_deref man lval_exp;
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let ptr_size = get_size_of_ptr_target man lval_exp in
-    let addr_offs = get_addr_offs man lval_exp in
     let ptr_type = typeOf lval_exp in
     let ptr_contents_type = get_ptr_deref_type ptr_type in
     match ptr_contents_type with
     | Some t ->
+      let* addr = man.ask (Queries.MayPointTo lval_exp) in
+      let ptr_size = get_addr_size man addr in
+      let addr_offs = get_addr_offset t addr in
       begin match ptr_size, addr_offs with
         | `Top, _ ->
           set_mem_safety_flag InvalidDeref;
@@ -387,13 +328,14 @@ struct
     | PlusPI
     | IndexPI
     | MinusPI ->
-      let ptr_size = get_size_of_ptr_target man e1 in
-      let addr_offs = get_addr_offs man e1 in
       let ptr_type = typeOf e1 in
       let ptr_contents_type = get_ptr_deref_type ptr_type in
       begin match ptr_contents_type with
         | Some t ->
           let offset_size = eval_ptr_offset_in_binop man e2 t in
+          let* addr = man.ask (Queries.MayPointTo e1) in
+          let ptr_size = get_addr_size man addr in
+          let addr_offs = get_addr_offset t addr in
           (* Make sure to add the address offset to the binop offset *)
           let offset_size_with_addr_size = match offset_size with
             | `Lifted os ->
@@ -448,9 +390,17 @@ struct
   let check_count man fun_name ptr n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let ptr_size = get_size_of_ptr_target man ptr in
     let eval_n = man.ask (Queries.EvalInt n) in
-    let addr_offs = get_addr_offs man ptr in
+    let* addr = man.ask (Queries.MayPointTo ptr) in
+    let ptr_size = get_addr_size man addr in
+    let addr_offs =
+      let ptr_deref_type = get_ptr_deref_type @@ typeOf ptr in
+      match ptr_deref_type with
+      | Some t -> get_addr_offset t addr
+      | None ->
+        M.error "Expression %a doesn't have pointer type" d_exp ptr;
+        ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+    in
     match ptr_size, eval_n with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
