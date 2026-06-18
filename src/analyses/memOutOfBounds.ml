@@ -186,14 +186,7 @@ struct
       Checks.safe Checks.Category.InvalidMemoryAccess
 
   let ptr_only_has_str_addr man ptr =
-    match man.ask (Queries.EvalValue ptr) with
-    | a when not (Queries.VD.is_top a) ->
-      begin match a with
-        | Address a -> ValueDomain.AD.for_all (fun addr -> match addr with | StrPtr _ -> true | _ -> false) a
-        | _ -> false
-      end
-    (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
-    | _ -> false
+    ValueDomain.AD.for_all (function StrPtr _ -> true | _ -> false) (man.ask (Queries.MayPointTo ptr))
 
   let get_addr_offset t (addr: ValueDomain.Addr.t) =
     match addr with
@@ -204,7 +197,7 @@ struct
 
   let rec check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
-    if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then ()
+    if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then () (* TODO: why are StrPtrs special? *)
     else
       (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
       (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
