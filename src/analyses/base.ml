@@ -2328,7 +2328,7 @@ struct
       M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname;
       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
-  let get_addr_size man ptr (addr: Queries.AD.elt) = (* TODO: remove ptr argument *) (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
+  let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
@@ -2362,7 +2362,7 @@ struct
   let get_size_of_ptr_target man ptr =
     man.ask (Queries.MayPointTo ptr)
     |> Queries.AD.to_seq
-    |> Seq.map (get_addr_size man ptr)
+    |> Seq.map (get_addr_size man)
     |> Seq.fold_left ValueDomainQueries.ID.join `Bot
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
