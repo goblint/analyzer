@@ -17,6 +17,32 @@ let exp_replace_original_name =
   let visitor = new exp_replace_original_name_visitor in
   visitCilExpr visitor
 
+let fieldinfo_is_anon (fi: fieldinfo) =
+  String.starts_with ~prefix:"__annonCompField" fi.fname (* TODO: what if CIL-ed program explicitly has this? *)
+
+let rec offset_remove_anon_comp_offset = function
+  | NoOffset -> NoOffset
+  | Index (e, offs') -> Index (e, offset_remove_anon_comp_offset offs')
+  | Field (fi, offs') ->
+    let offs'' = offset_remove_anon_comp_offset offs' in
+    if fieldinfo_is_anon fi then (
+      match offs'' with
+      | Field _ -> offs''
+      | NoOffset
+      | Index _ -> failwith "offset_remove_anon_comp_offset: anon comp field not followed by field"
+    )
+    else
+      Field (fi, offs'')
+
+class exp_remove_anon_comp_offset_visitor = object
+  inherit nopCilVisitor
+  method! voffs (offs: offset) =
+    ChangeTo (offset_remove_anon_comp_offset offs)
+end
+let exp_remove_anon_comp_offset =
+  let visitor = new exp_remove_anon_comp_offset_visitor in
+  visitCilExpr visitor
+
 class exp_deep_unroll_types_visitor = object
   inherit nopCilVisitor
   method! vtype (t: typ) =
