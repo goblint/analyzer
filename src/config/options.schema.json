@@ -1633,6 +1633,14 @@
               "type": "string",
               "enum": ["assume_top", "assume_none", "assume_wraparound"],
               "default": "assume_top"
+            },
+            "div-by-zero": {
+              "title": "sem.int.div-by-zero",
+              "description":
+                "How to handle division by zero. Values: 'assume_top' (default): Assume division by zero results in a top value; 'assume_none': Assume program is free of division by zero",
+              "type": "string",
+              "enum": ["assume_top", "assume_none"],
+              "default": "assume_top"
             }
           },
           "additionalProperties": false
