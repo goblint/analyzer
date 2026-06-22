@@ -353,7 +353,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet", "ocaml2"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -1514,7 +1514,8 @@
               "pcre",
               "zlib",
               "liblzma",
-              "legacy"
+              "legacy",
+              "ocaml"
             ]
           },
           "default": [
@@ -1526,7 +1527,8 @@
             "linux-userspace",
             "goblint",
             "ncurses",
-            "legacy"
+            "legacy",
+            "ocaml"
           ]
         }
       },
