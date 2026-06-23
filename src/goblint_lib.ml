@@ -4,6 +4,8 @@
 
 module Maingoblint = Maingoblint
 module Control = Control
+module FwdControl = FwdControl
+module FwdSolver = FwdSolver
 module Server = Server
 
 (** {2 CFG}
@@ -22,6 +24,7 @@ module CfgTools = CfgTools
 
 module Analyses = Analyses
 module Constraints = Constraints
+module FwdConstraints = FwdConstraints
 module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
