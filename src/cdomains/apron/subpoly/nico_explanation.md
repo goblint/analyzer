@@ -14,50 +14,8 @@ When a variable x is 'forgotten' we perform the following steps:
 Later when doing Simplex, whenever there are multiple slack variables in a row it treats them as additional constraints like {0 <= b_1 <= 10} to solve the system and find closer bounds. Slack variables may be consolidated when they are redundant without loss of precision. So in a row like
 b1 - b2 = 5 we can substitute b1 in the matrix with b2 + 5 and reduce the dimensionality of the problem.
 
-** Important: The intervals can be valid while variables that helped create this constraint are no longer present. **
+**Important: The intervals can be valid while variables that helped create this constraint are no longer present.**
 
-** Important: We need constants in the matrix for precision! Because we will have multiple slack variables per constraint we need some other way to identify them from program variables. Then we could have the last column always be the constant one. **
+**Important: We need constants in the matrix for precision! Because we will have multiple slack variables per constraint we need some other way to identify them from program variables. Then we could have the last column always be the constant one.**
 
-** Important: The Matrix and the Intervals are Rational for maximum precision and because we need rationals for gaussian elimination. Therefore slack variables can have coefficients, these are not propagated into the intervals until the reduction step! **
-
-=> old comment from subpolycore, copied here to organize the code better:
-(********************
-    1 3 2   -1
-    0 5 4       -1
-
-    2 1 0   -2  1
-    0 5 4       -1
-
-
-    FINAL
-    2 1 0   -2   1
-
-
-    2 3 1  4 5 -1
-    0 2 5  2 5    -1
-    0 0 3  4 6        -1
-    2 0 0  5 1           -1
-    0 3 0  0 5               -1
-    4 0 0 10 2 -1
-
-    2 3 1  4 5 0 -1
-    0 2 5  2 5 0   -1
-    0 0 3  4 6 0       -1
-    0 0 0  5 1 0          -1
-    0 0 0  0 5 0              -1
-    0 0 0  0 0 0 -1         2
-    0 0 0  0 1 2                 -1
-
-
-    When inserting new constraints we should take care not to insert something linearly dependent on 
-    anything already in the constraints. => This is true
-    Thus there should be as many rows as there are variables. By this we should be able to derive 
-    the point where slack variables start. => This is not true
-
-    Need one function like normalize_affeq that puts constraints into row-echelon form 
-    and applies proper changes to intervals. (Normalize slacks to -1, thereby we essentially
-    get a protocol matrix which tells us which operations were carried our for normalization.)
-    Let's add the function to the domain for now and we can change it later if we realize that
-    we need to use it inside the core functionality =>This is not true
-
-***********************)
+**Important: The Matrix and the Intervals are Rational for maximum precision and because we need rationals for gaussian elimination. Therefore slack variables can have coefficients, these are not propagated into the intervals until the reduction step!**

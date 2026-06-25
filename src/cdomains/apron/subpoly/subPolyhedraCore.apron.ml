@@ -31,8 +31,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   type affeq = Matrix.t [@@deriving eq, ord, hash] (*Our affine equality matrix.*)
   type interval_map = I.t VarMap.t [@@deriving eq, ord] (*Map from Var to Interval*)
-  type info = CoeffVector.t [@@deriving eq, ord, hash] (*Coefficient vector over the matrix columns (constant in the last position)*)
-  type info_map = info VarMap.t [@@deriving eq, ord] (*Map from Var to info*)
+  type info = (Var.t * Mpqf.t) list [@@deriving eq, ord, hash] (*similar to sparse vector, might acutally use sparse vector here? QUESTION*)
+  type info_map = info VarMap.t [@@deriving eq, ord] (*Map from Var to info (maybe sparse vector)*)
 
   let hash_interval_map (m: interval_map) =
     VarMap.fold (fun var interval acc ->
@@ -75,20 +75,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   let add_affeq_row (row: CoeffVector.t) (t: t) =
     { t with affeq = Matrix.append_row t.affeq row }
-
-  (** Number of slack columns = size of the trailing slack block. Every slack has an
-      interval *)
-  let num_slacks (t: t) = VarMap.cardinal t.intervals
-
-  let insert_slack (slack_col: int) (expr: info) (interval: I.t) (t: t) : t =
-    let widen v = CoeffVector.insert_zero_at_indices v [(slack_col, 1)] 1 in
-    let affeq = Matrix.add_empty_columns t.affeq [| slack_col |] in
-    let expr  = widen expr in                                          (* slack col now 0, const shifted right *)
-    let row   = CoeffVector.set_nth expr slack_col (Mpqf.neg Mpqf.one) in (* expr - slack = 0 *)
-    let key   = Var.to_t slack_col in
-    { affeq     = Matrix.append_row affeq row;
-      infos     = VarMap.add key expr (VarMap.map widen t.infos);
-      intervals = VarMap.add key interval t.intervals }
+  
 
   (**
     [rem_row_containing_var affeq var] uses [Matrix.reduce_col] and [Matrix.remove_zero_rows] to remove all occurences of the variable from a matrix. 
@@ -106,7 +93,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     Used in forget_vars.
   *) 
   let rem_infos_containing_var (slacks : info_map) (var : Var.t) : info_map = 
-     VarMap.filter (fun _ (info : info) -> CoeffVector.nth info (Var.to_int var) =: Mpqf.zero) slacks 
+     VarMap.filter (fun _ (info : info) -> not (List.mem var (List.map fst info))) slacks 
 
   (**
     [forget_vars vars t] forgets a list of variables in the polyhedron.
@@ -127,49 +114,50 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   let forget_var (var : Var.t) (t: t) : t = 
     forget_vars [var] t
   
-  (* HELPER-FUNCTIONS FOR DIMENSIONAL OPERATIONS *)
-  let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
+  (**
+  [dim_add] Apron dimension change
+  *)
+  let dim_add (ch: Apron.Dim.change) (t: t) = 
+    let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
     (* find all entries that are less or equal to old_index in occ_cols, and count them (=k), then new_index = old_index + k , return new_index *)
     (let k = List.fold_left (fun acc (index, count) -> if index <= (Var.to_int old_index) then acc + count else acc) 0 occ_cols
     in let new_index = (Var.to_int old_index) + k 
-    in Var.to_t new_index)
-
-  let shift_index_remove (old_index : Var.t) (dim_list : int list) : Var.t = 
-    (let k = List.fold_left (fun acc index -> if index < (Var.to_int old_index) then acc + 1 else acc) 0 dim_list
-    in let new_index = (Var.to_int old_index) - k 
-    in Var.to_t new_index)
-
-    (** Replacements for new_slack_add and new_slack_remove for the new datatype: *)
-  let new_infos_add (infos : info_map) occ_cols num_added : info_map = 
+    in Var.to_t new_index) in
+    let new_infos_add (infos : info_map) occ_cols : info_map = 
     VarMap.fold(fun var info acc ->
       let new_var = shift_index_add var occ_cols in
-      let new_info = CoeffVector.insert_zero_at_indices info occ_cols num_added in
-      VarMap.add new_var new_info acc) infos VarMap.empty
-  let new_infos_remove (infos : info_map) dim_list : info_map = 
-    VarMap.fold (fun var info acc ->
-      let new_var = shift_index_remove var dim_list in
-      let new_info = CoeffVector.remove_at_indices info dim_list in
-      VarMap.add new_var new_info acc) infos VarMap.empty
-  let new_intervals_add (intervals : interval_map) occ_cols : interval_map = 
+      let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_add v occ_cols, c) :: acc) [] info) in
+      VarMap.add new_var new_info acc) infos VarMap.empty in
+    let new_intervals_add (intervals : interval_map) occ_cols : interval_map = 
     VarMap.fold( fun var interval acc ->
       let new_var = shift_index_add var occ_cols in
-      VarMap.add new_var interval acc) intervals VarMap.empty
-  let new_intervals_remove (intervals : interval_map) dim_list : interval_map =
-    VarMap.fold( fun var interval acc ->
-      let new_var = shift_index_remove var dim_list in
-      VarMap.add new_var interval acc) intervals VarMap.empty
-
-  let dim_add (ch: Apron.Dim.change) (t: t) = 
+      VarMap.add new_var interval acc) intervals VarMap.empty in
     let new_affeq = Matrix.dim_add ch t.affeq in
     let list = Array.to_list ch.dim in
     let grouped_indices = List.group Int.compare list in 
     let occ_cols = List.map (fun group -> ((List.hd group, List.length group))) grouped_indices in 
     (* Approach from listMatrix.ml: add_empty_columns; Example: cols_list = [1; 3; 3; 5] -> grouped_indices = [[1]; [3; 3]; [5]] -> occ_cols = [(1, 1); (3, 2); (5, 1)] *)
-    let new_infos = new_infos_add t.infos occ_cols (Array.length ch.dim) in 
+    let new_infos = new_infos_add t.infos occ_cols in 
     let new_intervals = new_intervals_add t.intervals occ_cols in
     {affeq = new_affeq; infos = new_infos; intervals = new_intervals}
 
-  let dim_remove (ch: Apron.Dim.change) (t: t) = 
+  (**
+  [dim_remove] Apron dimension change
+  *)
+  let dim_remove (ch: Apron.Dim.change) (t: t) =
+    let shift_index_remove (old_index : Var.t) (dim_list : int list) : Var.t = 
+    (let k = List.fold_left (fun acc index -> if index < (Var.to_int old_index) then acc + 1 else acc) 0 dim_list
+    in let new_index = (Var.to_int old_index) - k 
+    in Var.to_t new_index) in
+    let new_infos_remove (infos : info_map) dim_list : info_map = 
+    VarMap.fold (fun var info acc ->
+      let new_var = shift_index_remove var dim_list in
+      let new_info = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] info) in
+      VarMap.add new_var new_info acc) infos VarMap.empty in
+    let new_intervals_remove (intervals : interval_map) dim_list : interval_map =
+    VarMap.fold( fun var interval acc ->
+      let new_var = shift_index_remove var dim_list in
+      VarMap.add new_var interval acc) intervals VarMap.empty in
     let new_affeq = Matrix.dim_remove ch t.affeq in
     let dim_list = Array.to_list ch.dim in
     let new_t = forget_vars (List.map Var.to_t dim_list) t in
@@ -184,11 +172,11 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     |> String.concat "; "
 
   let string_of_info (e: info) =
-      match CoeffVector.to_sparse_list e with
+      match e with
       | [] -> ""
       | terms ->
         terms
-        |> List.map (fun (i, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of (Var.to_t i))
+        |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
         |> String.concat " + "
   let string_of_infos (infos: info_map) = 
     VarMap.bindings infos
