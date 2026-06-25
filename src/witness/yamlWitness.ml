@@ -720,11 +720,32 @@ struct
 
   let mutex_ghost_lock lvar local inv_exp =
     match constFold true inv_exp with
+    (* ! v1 || ( v2 || e3 ) *)
     | BinOp(LOr, UnOp (LNot, Lval (Var v1, ofs), _), BinOp (LOr, Lval (Var v2, _), e3, _), _) ->
-      M.info "Here %a" Basetype.Variables.pretty v2;
       begin match ask_local lvar ~local (Queries.IsMutexGhost v2) with
         | `Lifted lock ->
-          Some (Lval (Var v1, ofs), lock, e3)
+          Some (Some (Lval (Var v1, ofs)), lock, e3)
+        | _ ->
+          None
+      end
+    (* v2 || e1 *)
+    | BinOp (LOr, Lval (Var v1, _), e1, _) ->
+      begin match ask_local lvar ~local (Queries.IsMutexGhost v1) with
+        | `Lifted lock ->
+          Some (None, lock, e1)
+        | _ ->
+          None
+      end
+    (* v2 = e2 || e1 *)
+    | BinOp (LOr, BinOp (Eq, Lval (Var v, _), e2, _), e1, _) ->
+      begin match ask_local lvar ~local (Queries.EvalInt e2), ask_local lvar ~local (Queries.IsMutexGhost v) with
+        | `Lifted n, `Lifted lock ->
+          begin match IntDomain.IntDomTuple.to_int n with
+            | Some value when Z.equal value Z.one ->
+              Some (None, lock, e1)
+            | _ ->
+              None
+          end
         | _ ->
           None
       end
@@ -789,23 +810,31 @@ struct
                 | Ok inv_exp ->
                   let local = try LHT.find lh lvar with Not_found -> Spec.D.bot () in
                   let local, inv_exp =
-                    match mutex_ghost_lock lvar local inv_exp with
-                    | Some (lval', lock, e3) ->
-                      (match Queries.eval_bool {f = fun (type a) (q: a Queries.t) ->
-                           ask_local lvar ~local q} lval' with 
-                       | `Lifted false -> 
-                         M.info "Singlethreaded";
-                         local, Cil.Const (CInt (Z.one, Cil.IInt, None))
-                       | _ -> 
-                         (M.info "Here";
+                    begin match mutex_ghost_lock lvar local inv_exp with
+                      | Some (lval', lock, e3) ->
+                        let premise = 
+                          begin match lval' with
+                            | Some lval' -> 
+                              begin match Queries.eval_bool {f = fun (type a) (q: a Queries.t) ->
+                                  ask_local lvar ~local q} lval' with 
+                              | `Lifted false -> false
+                              | _ -> true
+                              end
+                            | _ -> true
+                          end   
+                        in
+                        if not premise then 
+                          local, Cil.Const (CInt (Z.one, Cil.IInt, None))
+                        else
                           let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval lock) in
-                          let mustLockSet = ask_local lvar ~local (Queries.MustLockset) in 
-                          if LockDomain.MustLockset.mem lock mustLockSet then
+                          let must_lockSet = ask_local lvar ~local (Queries.MustLockset) in 
+                          if LockDomain.MustLockset.mem lock must_lockSet then
                             local, Cil.Const (CInt (Z.one, Cil.IInt, None))
                           else
-                            local_event lvar local (Events.Lock (addr, true)), e3))
-                    | None ->
-                      local, inv_exp
+                            local_event lvar local (Events.Lock (addr, true)), e3
+                      | None ->
+                        local, inv_exp
+                    end
                   in
                   let ask =
                     fun (type a) (q: a Queries.t) ->
