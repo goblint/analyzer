@@ -61,6 +61,34 @@ module Linexpr_managment = struct
     | Some (i, value) when i = CoeffVector.length v - 1 -> Some value
     | _ -> None
 
+  let mpqf_of_z z = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z z
+
+  (** [gcd_list v] gcd of coeffvec. Gcd with all coefficients. *)
+  let gcd_list (v: linexpr) : Z.t =
+    (* fold Z.gcd over the numerators of every stored (non-zero) coefficient *)
+    let gcd =
+      CoeffVector.to_sparse_list v
+      |> List.fold_left (fun acc (_, c) -> Z.gcd acc (Mpqf.get_num c)) Z.zero
+    in
+    (* an all-zero vector has gcd 0, so fall back to 1 to make dividing a no-op *)
+    if Z.equal gcd Z.zero then Z.one else gcd
+
+  (** [normalize_info v] takes a. linear expression, calculates gcd, then proceeds
+      to normalize expression with gcd and sign normalization. 
+      Returns ([normalized_expr] * [factor])*)
+  let normalize_info (v: linexpr) : linexpr * Z.t =
+    let gcd = gcd_list v in
+    (* sign normalization, flip so the leading (lowest-index) coefficient is positive *)
+    let sign = match CoeffVector.find_first_non_zero v with
+      | Some (_, leading) when leading <: Mpqf.zero -> Z.minus_one
+      | _ -> Z.one
+    in
+    (* the factor we divide out carries both the magnitude (gcd) and the sign *)
+    let sign_factor = Z.mul sign gcd in
+    let factor_mpqf = mpqf_of_z sign_factor in
+    (* divide every (non-zero) coefficient, zeros are left untouched *)
+    CoeffVector.map_f_preserves_zero (fun c -> c /: factor_mpqf) v, sign_factor
+
   let negate v = CoeffVector.map_f_preserves_zero Mpqf.neg v
 
   (* if one of them is a constant, then multiply. Otherwise, the expression is not linear, return None *)
@@ -70,10 +98,13 @@ module Linexpr_managment = struct
     | _, Some c -> Some (CoeffVector.map_f_preserves_zero (fun x -> c *: x) a)
     | Some c, _ -> Some (CoeffVector.map_f_preserves_zero (fun x -> c *: x) b)
     | _ -> None
-  let get_coeff_vec (t: t) texp =
+
+    (** [get_coeff_vec], get a coeffvec from a linexpr.  *)
+  let get_coeff_vec (t: t) (texp : Texpr1.expr) : linexpr option =
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
-    let zero_vec = CoeffVector.zero_vec (Environment.size t.env + 1) in
+    let num_slacks = match t.d with Some d -> SubPolyDomain.num_slacks d | None -> 0 in
+    let zero_vec = CoeffVector.zero_vec (Environment.size t.env + num_slacks + 1) in
     let const_idx = CoeffVector.length zero_vec - 1 in
     let rec convert_texpr texp =
       begin match texp with
@@ -116,8 +147,7 @@ module Slack_managment = struct
     | Some d -> SubPolyDomain.mem_intv col d
 
   (** [fold_slacks f t acc] folds [f col interval info] over every slack,
-      where [info] is the slack's linear definition over the real variables
-      ([None] if no definition is stored for that slack). *)
+      where [info] is the slack's linear definition over the real variables*)
   let fold_slacks (f: int -> RationalInterval.t -> SubPolyDomain.info option -> 'a -> 'a) (t: t) (acc: 'a) : 'a =
     match t.d with
     | None -> acc
@@ -126,34 +156,21 @@ module Slack_managment = struct
           f col iv (SubPolyDomain.VarMap.find_opt col d.infos) acc
         ) d.intervals acc
 
-  (** [fresh_slack_var t] returns the first slack variable name [__slack#k]
-      (scanning k = 0, 1, ...) that is not yet present in the environment. *)
-  let fresh_slack_var (t: t) =
-    let rec find k =
-      let v = Var.of_string (Printf.sprintf "__slack#%d" k) in
-      if Environment.mem_var t.env v then find (k + 1) else v
-    in
-    find 0
-
-
-    (* Is it fine to add slack variables to apron? can we just not do it? :) *)
-  (** [add_slack_constraint t linexpr interval] introduces a fresh slack [s] for the
-      linear expression [linexpr] and constrains [s] to [interval]. *)
+  (** [add_slack_constraint t linexpr interval] introduces a fresh slack [s = linexpr]
+      constrained to [interval]. *)
   let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) : t =
     if is_bot_env t then t
     else
-      (* register the slack in the env; add_vars performs all index shifting. *)
-      let slack_var = fresh_slack_var t in
-      let t = add_vars t [slack_var] in
       match t.d with
       | None -> t
       | Some d ->
-        let slack_dim = Environment.dim_of_var t.env slack_var in
-        (* shift the incoming linexpr: insert the new slack column at its position *)
-        let info = CoeffVector.insert_zero_at_indices linexpr [(slack_dim, 1)] 1 in
-        let d = SubPolyDomain.set_info slack_dim info d in
-        let d = SubPolyDomain.set_intv slack_dim interval d in
-        { t with d = Some d }
+        (* normalize expr and then insert when adding slacks *)
+        let normalized, sign_factor = normalize_info linexpr in
+        (* Tweak interval *)
+        let interval = RationalInterval.scale (Mpqf.one /: mpqf_of_z sign_factor) interval in
+        (* the new slack goes at column n+m = the current constant-column index *)
+        let slack_col = Environment.size t.env + SubPolyDomain.num_slacks d in
+        { t with d = Some (SubPolyDomain.insert_slack slack_col normalized interval d) }
 end
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) = struct
@@ -250,14 +267,14 @@ struct
       | None -> t (* non-linear expression: no information gained *)
       | Some v ->
         begin match to_constant_opt v, Tcons1.get_typ tcons1 with
-          (* expr collapses to a constant c: pure feasibility check, nothing to store *)
-          | Some _c, EQ    -> failwith "TODO meet_tcons: const EQ    -> bot_env if c <> 0, else t"
-          | Some _c, SUPEQ -> failwith "TODO meet_tcons: const SUPEQ -> bot_env if c <  0, else t"
-          | Some _c, SUP   -> failwith "TODO meet_tcons: const SUP   -> bot_env if c <= 0, else t"
-          | Some _c, DISEQ -> failwith "TODO meet_tcons: const DISEQ -> bot_env if c =  0, else t"
-          (* expr has variables: record it *)
-          | None, EQ            -> failwith "TODO meet_tcons: EQ -> add equality row to affeq matrix (rref_vec, sign-flipped const), bot_env if inconsistent"
-          | None, (SUPEQ | SUP) -> failwith "TODO meet_tcons: inequality -> add_slack_constraint t v [0, +inf)"
+          (* expr collapses to a constant c: immediate feasibility check *)
+          | Some c, EQ    -> if c <>: Mpqf.zero then bot_env else t
+          | Some c, SUPEQ -> if c <:  Mpqf.zero then bot_env else t
+          | Some c, SUP   -> if c <=: Mpqf.zero then bot_env else t
+          | Some c, DISEQ -> if c =:  Mpqf.zero then bot_env else t
+          (* expr has variables: record it (inconsistency caught later, at rref) *)
+          | None, EQ            -> { t with d = Some (SubPolyDomain.add_affeq_row v (Option.get t.d)) }
+          | None, (SUPEQ | SUP) -> add_slack_constraint t v (RationalInterval.of_bounds ~lower:(Some Mpqf.zero) ~upper:None)
           | _ -> t (* DISEQ / EQMOD over variables: not representable, give up (sound) *)
         end
 

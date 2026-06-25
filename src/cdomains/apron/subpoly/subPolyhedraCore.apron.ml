@@ -75,7 +75,20 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   let add_affeq_row (row: CoeffVector.t) (t: t) =
     { t with affeq = Matrix.append_row t.affeq row }
-  
+
+  (** Number of slack columns = size of the trailing slack block. Every slack has an
+      interval *)
+  let num_slacks (t: t) = VarMap.cardinal t.intervals
+
+  let insert_slack (slack_col: int) (expr: info) (interval: I.t) (t: t) : t =
+    let widen v = CoeffVector.insert_zero_at_indices v [(slack_col, 1)] 1 in
+    let affeq = Matrix.add_empty_columns t.affeq [| slack_col |] in
+    let expr  = widen expr in                                          (* slack col now 0, const shifted right *)
+    let row   = CoeffVector.set_nth expr slack_col (Mpqf.neg Mpqf.one) in (* expr - slack = 0 *)
+    let key   = Var.to_t slack_col in
+    { affeq     = Matrix.append_row affeq row;
+      infos     = VarMap.add key expr (VarMap.map widen t.infos);
+      intervals = VarMap.add key interval t.intervals }
 
   (**
     [rem_row_containing_var affeq var] uses [Matrix.reduce_col] and [Matrix.remove_zero_rows] to remove all occurences of the variable from a matrix. 
