@@ -2,7 +2,7 @@ module Mpqf = SharedFunctions.Mpqf
 
 module RationalInterval : Intervalsig.IntervalSig with type bound = Mpqf.t = struct
   type bound = Mpqf.t
-  (* TODO: make optional *)
+  (* TODO: make optional maybe? *)
   type t = (Mpqf.t option * Mpqf.t option)
 
   let equal ((l1, u1) as interval_1 : t) ((l2, u2) as interval_2 : t) =
