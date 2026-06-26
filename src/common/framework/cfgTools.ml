@@ -205,6 +205,7 @@ let createCFG (file: file) =
           end
 
         | Instr _
+        | Asm _
         | If _
         | Return _ ->
           stmt, visited_stmts
@@ -280,11 +281,16 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
+          | Asm {template; outputs; inputs; loc; _} ->
+            let edge = (loc, ASM (template, outputs, inputs)) in
+            List.iter (fun (succ, skippedStatements) ->
+                addEdge ~skippedStatements (Statement stmt) edge (Statement succ)
+              ) (real_succs ())
+
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
               | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
               | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
-              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
