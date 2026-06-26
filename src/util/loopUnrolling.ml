@@ -380,27 +380,25 @@ class patchLabelsGotosVisitor(newtarget) = object
   inherit nopCilVisitor
 
   method! vstmt s =
+    (* TODO: why sometimes SkipChildren? *)
     match s.skind with
     | Goto (target,loc) ->
       (match newtarget !target with
        | None -> SkipChildren
        | Some nt -> s.skind <- Goto (ref nt, loc); DoChildren)
     | Asm a ->
-      (* TOOD: this seems wrong? *)
-      let gotos' = List.map (fun target ->
-        (match newtarget !target with
-          | None -> None
-          | Some nt -> Some(ref nt))) a.gotos in
-      let folded_gotos = List.fold_left (
-        fun acc (goto': stmt ref option) -> match (acc, goto') with
-          Some gs', Some g' -> Some (List.append gs' [g'])
-          | _ -> None
-      ) (Some []) gotos' in
-      (match folded_gotos with
-          Some gotos' ->
-            s.skind <- Asm {a with gotos = gotos'};
-            DoChildren
-        | None -> SkipChildren)
+      let (changed, gotos') = List.fold_left_map (fun acc target ->
+          match newtarget !target with
+          | None -> (acc, target) (* TODO: need to copy target ref as well? *)
+          | Some nt -> (true, ref nt)
+        ) false a.gotos
+      in
+      if changed then (
+        s.skind <- Asm {a with gotos = gotos'};
+        DoChildren
+      )
+      else
+        SkipChildren
     | _ -> DoChildren
 end
 
