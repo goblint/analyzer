@@ -44,6 +44,20 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
       let one = Const (CInt (Cilint.one_cilint, counter_ikind, None)) in
       constFold false (BinOp(bop, e, one, et)) in
 
+    let action_goto l sref =
+      let goto_jmp_stmt = sref.contents in
+      let loc_stmt = Cilfacade.get_stmtLoc goto_jmp_stmt in
+      if CilType.Location.compare l loc_stmt >= 0 then (
+        (* is pos if first loc is greater -> below the second loc *)
+        (* problem: the program might not terminate! *)
+        let open Cilfacade in
+        let current = FunLocH.find_opt funs_with_upjumping_gotos fd in
+        let current = BatOption.default (LocSet.create 13) current in
+        LocSet.replace current l ();
+        FunLocH.replace funs_with_upjumping_gotos fd current;
+      )
+    in
+
     let action s = match s.skind with
       | Loop (b, loc, eloc, _, _) ->
         let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "_id" ^ (string_of_int !vcounter) in
@@ -59,33 +73,10 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         s.skind <- Block nb;
         s
       | Goto (sref, l) ->
-        let goto_jmp_stmt = sref.contents in
-        let loc_stmt = Cilfacade.get_stmtLoc goto_jmp_stmt in
-        if CilType.Location.compare l loc_stmt >= 0 then (
-          (* is pos if first loc is greater -> below the second loc *)
-          (* problem: the program might not terminate! *)
-          let open Cilfacade in
-          let current = FunLocH.find_opt funs_with_upjumping_gotos fd in
-          let current = BatOption.default (LocSet.create 13) current in
-          LocSet.replace current l ();
-          FunLocH.replace funs_with_upjumping_gotos fd current;
-        );
+        action_goto l sref;
         s
-      | Asm {gotos; loc = l; _} ->
-        List.iter (fun sref ->
-            (* TODO: deduplicate with above *)
-            let goto_jmp_stmt = sref.contents in
-            let loc_stmt = Cilfacade.get_stmtLoc goto_jmp_stmt in
-            if CilType.Location.compare l loc_stmt >= 0 then (
-              (* is pos if first loc is greater -> below the second loc *)
-              (* problem: the program might not terminate! *)
-              let open Cilfacade in
-              let current = FunLocH.find_opt funs_with_upjumping_gotos fd in
-              let current = BatOption.default (LocSet.create 13) current in
-              LocSet.replace current l ();
-              FunLocH.replace funs_with_upjumping_gotos fd current;
-            )
-          ) gotos;
+      | Asm {gotos; loc; _} ->
+        List.iter (action_goto loc) gotos;
         s
       | _ -> s
     in ChangeDoChildrenPost (s, action);
