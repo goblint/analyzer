@@ -385,6 +385,22 @@ class patchLabelsGotosVisitor(newtarget) = object
       (match newtarget !target with
        | None -> SkipChildren
        | Some nt -> s.skind <- Goto (ref nt, loc); DoChildren)
+    | Asm (attr, templ, outs, ins, clobbers, gotos, loc) ->
+      (* TOOD: this seems wrong? *)
+      let gotos' = List.map (fun target ->
+        (match newtarget !target with
+          | None -> None
+          | Some nt -> Some(ref nt))) gotos in
+      let folded_gotos = List.fold_left (
+        fun acc (goto': stmt ref option) -> match (acc, goto') with
+          Some gs', Some g' -> Some (List.append gs' [g'])
+          | _ -> None
+      ) (Some []) gotos' in
+      (match folded_gotos with
+          Some gotos' ->
+            s.skind <- Asm (attr, templ, outs, ins, clobbers, gotos', loc);
+            DoChildren
+        | None -> SkipChildren)
     | _ -> DoChildren
 end
 

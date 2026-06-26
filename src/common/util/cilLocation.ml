@@ -20,7 +20,6 @@ let get_labelLoc = function
 let get_instrLoc = function
   | Set (_, _, loc, eloc) -> {loc; eloc}
   | Call (_, _, _, loc, eloc) -> {loc; eloc}
-  | Asm (_, _, _, _, _, loc) -> {loc; eloc = locUnknown}
   | VarDecl (_, loc) -> {loc; eloc = locUnknown}
 
 (** Get locations for {!Cil.stmt}. *)
@@ -43,3 +42,4 @@ let rec get_stmtLoc stmt: locs =
   | Switch (_, _, _, loc, eloc) -> {loc; eloc}
   | Loop (_, loc, eloc, _, _) -> {loc; eloc}
   | Block {bstmts = hd :: _; _} -> get_stmtLoc hd
+  | Asm (_, _, _, _, _, _, loc) -> {loc; eloc = locUnknown}

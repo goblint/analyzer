@@ -65,6 +65,7 @@ class collectComplexityFactorsVisitor(factors) = object
     | Switch _
     | Goto _
     | ComputedGoto _
+    | Asm _ (* TODO: only if has gotos? *)
     | Return _ -> factors.controlFlowStatements <- factors.controlFlowStatements + 1; DoChildren
     | Break _
     | Continue _ ->

@@ -204,6 +204,20 @@ let createCFG (file: file) =
               failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
           end
 
+        | Asm _ -> begin match stmt.succs with (* TODO: should this be here at all? we probably don't want to skip over Asm-s of any kind *)
+          | [] ->
+              if not_found then
+                raise Not_found
+              else
+                stmt, visited_stmts
+          | succs ->
+            let nested_succs = List.map (
+              fun next -> match (try find (stmt :: visited_stmts) next with Not_found -> stmt, []) with
+                stmt, stmts -> stmts
+            ) succs in
+            stmt, List.flatten(nested_succs)
+        end
+
         | Instr _
         | If _
         | Return _ ->
@@ -280,11 +294,19 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
+          | Asm (attr,tmpl,out,inp,regs,gotos,loc) -> (* TODO: check this, e.g. is self-loop possible? *)
+            let edges = [loc, ASM(tmpl, out, inp)] in
+            let add_succ_node ?skippedStatements succ_node = addEdges ?skippedStatements (Statement stmt) edges succ_node in
+            List.iter (fun (succ, skippedStatements) ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  addEdge ~skippedStatements (Statement stmt) (loc, Skip) (Statement succ);
+                add_succ_node ~skippedStatements (Statement succ)
+              ) (real_succs ())
+
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
               | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
               | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
-              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in

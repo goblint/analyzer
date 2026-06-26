@@ -2,7 +2,7 @@
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.1.0" "git+https://github.com/goblint/cil.git#76083d655d56e4c7791d457db57f0dd6461faf71" ]
+  [ "goblint-cil.2.1.0" "git+https://github.com/goblint/cil.git#2a661030e14619f0effdfc2654e5a0504e4de5c8" ]
   # pinned for performance (https://github.com/ocaml-batteries-team/batteries-included/pull/1149) via fork, remove after new batteries release (and then bump the batteries lower-bound accordingly)
   [ "batteries.3.11.0" "git+https://github.com/sim642/batteries-included.git#3920bdf614e4a12120fabfa2c97ee913cc246b13" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
