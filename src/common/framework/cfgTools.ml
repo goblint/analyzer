@@ -294,7 +294,7 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
-          | Asm (attr,tmpl,out,inp,regs,gotos,loc) -> (* TODO: check this, e.g. is self-loop possible? *)
+          | Asm {template = tmpl; outputs = out; inputs = inp; gotos; loc; _} -> (* TODO: check this, e.g. is self-loop possible? *)
             let edges = [loc, ASM(tmpl, out, inp)] in
             let add_succ_node ?skippedStatements succ_node = addEdges ?skippedStatements (Statement stmt) edges succ_node in
             List.iter (fun (succ, skippedStatements) ->

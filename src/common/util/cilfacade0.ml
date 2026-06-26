@@ -50,4 +50,4 @@ let rec get_stmtLoc stmt =
   | Switch (_, _, _, loc, eloc) -> eloc_fallback ~eloc ~loc
   | Loop (_, loc, eloc, _, _) -> eloc_fallback ~eloc ~loc
   | Block {bstmts = hd :: _; _} -> get_stmtLoc hd
-  | Asm (_, _, _, _, _, _, loc) -> loc
+  | Asm {loc; _} -> loc

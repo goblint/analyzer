@@ -347,7 +347,7 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | Switch (exp1, block1, stmts1, _l1, _el1), Switch (exp2, block2, stmts2, _l2, _el2) -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else eq_exp exp1 exp2 ~rename_mapping &&>> eq_block' block1 block2 &&>> forward_list_equal (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
   | Loop (block1, _l1, _el1, _con1, _br1), Loop (block2, _l2, _el2, _con2, _br2) -> eq_block' block1 block2 ~rename_mapping
   | Block block1, Block block2 -> eq_block' block1 block2 ~rename_mapping
-  | Asm (attr1, tmp1, ci1, dj1, rk1, gotos1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, gotos2, l2) ->
+  | Asm {template = tmp1; outputs = ci1; inputs = dj1; clobbers = rk1; gotos = gotos1; _}, Asm {template = tmp2; outputs = ci2; inputs = dj2; clobbers = rk2; gotos = gotos2; _} ->
     (GobList.equal String.equal tmp1 tmp2, rename_mapping) &&>>
     forward_list_equal (fun (x1,y1,z1) (x2,y2,z2) ~rename_mapping:x-> (x1 = x2, x) &&> (y1 = y2) &&>> eq_lval z1 z2) ci1 ci2 &&>>
     forward_list_equal (fun (x1,y1,z1) (x2,y2,z2) ~rename_mapping:x-> (x1 = x2, x) &&> (y1 = y2) &&>> eq_exp z1 z2) dj1 dj2 &&>>

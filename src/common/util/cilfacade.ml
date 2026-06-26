@@ -600,7 +600,7 @@ class countFnVisitor = object
     | If (_,_,_,loc,_)
     | Switch (_,_,_,loc,_)
     | Loop (_,loc,_,_,_)
-    | Asm (_,_,_,_,_,_,loc)
+    | Asm {loc; _}
       -> Hashtbl.replace locs loc.line (); DoChildren
     | _ ->
       DoChildren

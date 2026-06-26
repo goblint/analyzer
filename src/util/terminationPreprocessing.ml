@@ -71,7 +71,7 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
           FunLocH.replace funs_with_upjumping_gotos fd current;
         );
         s
-      | Asm (_, _, _, _, _, gotos, l) ->
+      | Asm {gotos; loc = l; _} ->
         List.iter (fun sref ->
             (* TODO: deduplicate with above *)
             let goto_jmp_stmt = sref.contents in

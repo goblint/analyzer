@@ -42,4 +42,4 @@ let rec get_stmtLoc stmt: locs =
   | Switch (_, _, _, loc, eloc) -> {loc; eloc}
   | Loop (_, loc, eloc, _, _) -> {loc; eloc}
   | Block {bstmts = hd :: _; _} -> get_stmtLoc hd
-  | Asm (_, _, _, _, _, _, loc) -> {loc; eloc = locUnknown}
+  | Asm {loc; _} -> {loc; eloc = locUnknown}
