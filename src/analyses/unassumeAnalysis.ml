@@ -23,6 +23,20 @@ struct
     token: WideningToken.t;
   }
 
+  let contains_ghost_variable exp =
+    let visitor = object
+      inherit Cil.nopCilVisitor
+
+      method! vvrbl var =
+        if YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) then
+          raise Stdlib.Exit;
+        SkipChildren
+    end
+    in
+    match Cil.visitCilExpr visitor exp with
+    | _ -> false
+    | exception Stdlib.Exit -> true
+
   let invs: inv NH.t = NH.create 100
 
   let init _ =
@@ -86,8 +100,12 @@ struct
 
               match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
-                M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
-                NH.add invs n {exp = inv_exp; token = (uuid, i)}
+                if contains_ghost_variable inv_exp then
+                  M.info ~category:Witness ~loc:msgLoc "not unassuming invariant containing ghost variables: %a" Cil.d_exp inv_exp
+                else begin
+                  M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
+                  NH.add invs n {exp = inv_exp; token = (uuid, i)}
+                end
               | Error e ->
                 M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
                 M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
