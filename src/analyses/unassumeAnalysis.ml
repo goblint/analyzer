@@ -154,6 +154,8 @@ struct
         unassume_invariant_set x
       | false, InvariantSet _ ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
+      | _, GhostInstrumentation _ ->
+        ()
       | _ ->
         M.warn_noloc ~category:Witness "cannot unassume entry of type %s" target_type
     in
