@@ -274,7 +274,7 @@ struct
     let open GobOption.Syntax in
     let* loc_es = FileH.find_option file_loc_es (Filename.basename loc.file) in
     let* (_, es) = LocM.find_first_opt (fun loc' ->
-        CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
+        LenientLocation.compare loc loc' <= 0 (* allow inexact match *)
       ) loc_es
     in
     if ES.is_empty es then
