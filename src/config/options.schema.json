@@ -2867,6 +2867,12 @@
               "description": "YAML witness input path",
               "type": "string",
               "default": ""
+            },
+            "verdict-witness-only" :{
+              "title" : "witness.yaml.verdict-witness-only",
+              "description" : "Determine the verdict solely from witness validation, ignoring whether the analyzed property holds.",
+              "type" : "boolean",
+              "default" : false
             }
           },
           "additionalProperties": false

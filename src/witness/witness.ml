@@ -249,12 +249,14 @@ struct
     | _, Some true -> Stdlib.Error "both branches dead"
     | Some false, _ -> Error "verify"
     | _, _ ->
-      match yaml_validate_result with
-      | Some (Stdlib.Error _ as result)
-      | Some (Ok (Svcomp.Result.False _ | Unknown) as result) ->
+      match GobConfig.get_bool "witness.yaml.verdict-witness-only", yaml_validate_result with
+      | true, Some result ->
         result
-      | Some (Ok True)
-      | None ->
+      | _, Some (Stdlib.Error _ as result)
+      | _, Some (Ok (Svcomp.Result.False _ | Unknown) as result) ->
+        result
+      | _, Some (Ok True)
+      | _, None ->
         write entrystates
 
   let print_result = function
