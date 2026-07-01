@@ -55,7 +55,8 @@
       "invariant": {
         "local": false,
         "global": true
-      }
+      },
+      "privatization" : "mutex-meet"
     },
     "relation": {
       "invariant": {
