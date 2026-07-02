@@ -6,7 +6,7 @@
 // SPDX-FileCopyrightText: The CSeq project
 //
 // SPDX-License-Identifier: Apache-2.0
-// From singleton_with-uninit-problems.yml
+// From pthread/sync01.yml
 #include <pthread.h>
 
 extern void abort(void);
