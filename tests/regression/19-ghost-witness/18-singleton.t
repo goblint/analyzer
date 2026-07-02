@@ -1,9 +1,8 @@
 Does not succeed without witness
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --sets ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --sets exp.architecture 32bit 18-singleton.c --disable witness.yaml.enabled
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --sets ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --sets exp.architecture 64bit 18-singleton.c --disable witness.yaml.enabled
   [Warning] --sets is deprecated, use --set instead.
   [Warning] --sets is deprecated, use --set instead.
-  [Error] Machine definition not available for selected architecture, defaulting to host
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
@@ -24,4 +23,3 @@ Does not succeed without witness
     vulnerable: 0
     unsafe: 0
     total memory locations: 2
-  [Error][Unsound] Machine definition not available for selected architecture

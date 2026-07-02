@@ -1,7 +1,6 @@
 Does not succeed without the counter ghosts.
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit 22-pthread-demo-datarace.c --disable witness.yaml.enabled
-  [Error] Machine definition not available for selected architecture, defaulting to host
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 22-pthread-demo-datarace.c --disable witness.yaml.enabled
   [Info] unrolling loop at 22-pthread-demo-datarace.c:39:5-48:5 with factor 3
   [Info] unrolling loop at 22-pthread-demo-datarace.c:68:5-73:5 with factor 3
   [Info] Enabled congruence domain.
@@ -29,14 +28,12 @@ Does not succeed without the counter ghosts.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
-  [Error][Unsound] Machine definition not available for selected architecture
 
 Track each increment at the corresponding `myglobal` assignment. With both
 counter ghosts, `protection-atomic-ghost` retains the exact accumulated value.
 The run with the full value of 20 takes around 12 minutes, so here we exercise it with three
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 22-pthread-demo-datarace.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences --disable witness.yaml.enabled 22-pthread-demo-datarace.c
-  [Error] Machine definition not available for selected architecture, defaulting to host
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences --disable witness.yaml.enabled 22-pthread-demo-datarace.c
   [Info] Enabled widening thresholds
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
@@ -65,12 +62,10 @@ The run with the full value of 20 takes around 12 minutes, so here we exercise i
     vulnerable: 0
     unsafe: 0
     total memory locations: 3
-  [Error][Unsound] Machine definition not available for selected architecture
 
 The second witness additionally contains final counter and value invariants.
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.c
-  [Error] Machine definition not available for selected architecture, defaulting to host
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.c
   [Info] unrolling loop at 22-pthread-demo-datarace.c:39:5-48:5 with factor 3
   [Info] unrolling loop at 22-pthread-demo-datarace.c:68:5-73:5 with factor 3
   [Info] Enabled congruence domain.
@@ -107,4 +102,3 @@ The second witness additionally contains final counter and value invariants.
     vulnerable: 0
     unsafe: 0
     total memory locations: 3
-  [Error][Unsound] Machine definition not available for selected architecture

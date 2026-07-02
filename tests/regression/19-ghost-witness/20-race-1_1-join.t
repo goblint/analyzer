@@ -1,7 +1,6 @@
 Does not succeed without witness
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit 20-race-1_1-join.c --disable witness.yaml.enabled
-  [Error] Machine definition not available for selected architecture, defaulting to host
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 20-race-1_1-join.c --disable witness.yaml.enabled
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
@@ -22,12 +21,10 @@ Does not succeed without witness
     vulnerable: 0
     unsafe: 0
     total memory locations: 2
-  [Error][Unsound] Machine definition not available for selected architecture
 
 Run with the second witness, which additionally contains phase/value invariants.
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
-  [Error] Machine definition not available for selected architecture, defaulting to host
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
@@ -65,13 +62,11 @@ Run with the second witness, which additionally contains phase/value invariants.
     vulnerable: 0
     unsafe: 0
     total memory locations: 3
-  [Error][Unsound] Machine definition not available for selected architecture
 
 The main and worker phase ghosts keep the values published in each phase
 separate, allowing all four assertions to be verified.
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 20-race-1_1-join.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
-  [Error] Machine definition not available for selected architecture, defaulting to host
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
@@ -105,4 +100,3 @@ separate, allowing all four assertions to be verified.
     vulnerable: 0
     unsafe: 0
     total memory locations: 3
-  [Error][Unsound] Machine definition not available for selected architecture
