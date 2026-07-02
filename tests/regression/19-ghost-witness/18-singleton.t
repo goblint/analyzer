@@ -9,11 +9,11 @@ Does not succeed without witness
   [Info] Enabled octagon domain ONLY for:
   [Info] i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, expression, __x, __x, __x
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:34:3-34:13)
-  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:42:3-42:13)
-  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:72:3-72:48)
-  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:72:3-72:48)
-  [Error][Assert] Assertion "0" will fail. (18-singleton.c:13:22-13:41)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:35:3-35:13)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:43:3-43:13)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:73:3-73:48)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:73:3-73:48)
+  [Error][Assert] Assertion "0" will fail. (18-singleton.c:14:22-14:41)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 32
     dead: 0
