@@ -9,12 +9,9 @@ Does not succeed without the phase ghost.
     vulnerable: 0
     unsafe: 0
     total memory locations: 2
-  [Warning][Deadcode] Function 'main' does not return
-  [Warning][Deadcode] Function 'main' has dead code:
-    on line 68 (25-test-easy8.c:68-68)
-  [Warning][Deadcode] Logical lines of code (LLoC) summary:
-    live: 28
-    dead: 1
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 29
+    dead: 0
     total lines: 29
 
 The phase change is atomic with thread 2 publishing `c = 1`.
@@ -29,7 +26,7 @@ The phase change is atomic with thread 2 publishing `c = 1`.
     unsafe: 0
     total memory locations: 3
   [Warning][Deadcode] Function 'main' does not return
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (25-test-easy8.c:21:1-21:101)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (25-test-easy8.c:21:1-21:22)
   [Warning][Deadcode] Function 'main' has dead code:
     on lines 67..68 (25-test-easy8.c:67-68)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
@@ -61,7 +58,7 @@ The second witness also states the final phase and published Boolean values.
     unsafe: 0
     total memory locations: 3
   [Warning][Deadcode] Function 'main' does not return
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (25-test-easy8.c:21:1-21:101)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (25-test-easy8.c:21:1-21:22)
   [Warning][Deadcode] Function 'main' has dead code:
     on lines 67..68 (25-test-easy8.c:67-68)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:

@@ -18,7 +18,7 @@ typedef union pthread_attr_t pthread_attr_t;
 extern void __assert_fail(const char *__assertion, const char *__file,
       unsigned int __line, const char *__function)
      __attribute__ ((__nothrow__, __leaf__)) __attribute__ ((__noreturn__));
-void reach_error() { __assert_fail("0", "test-easy8.wvr.c", 21, __extension__ __PRETTY_FUNCTION__); }
+void reach_error() {  }
 extern int pthread_create(pthread_t *__restrict __newthread,
       const pthread_attr_t *__restrict __attr,
       void *(*__start_routine)(void *),

@@ -14,7 +14,7 @@
 
 extern void abort(void);
 void reach_error(void) { }
-void __VERIFIER_assert(int cond) { if (!cond) { reach_error(); abort(); } }
+void __VERIFIER_assert(int cond) { if (!cond) { reach_error(); abort(); } } //TODO
 
 int num;
 unsigned long total;
@@ -66,6 +66,6 @@ int main(void) {
   pthread_join(t1, 0);
   pthread_join(t2, 0);
   if (flag)
-    __VERIFIER_assert(total == ((N * (N + 1)) / 2));
+    __VERIFIER_assert(total == ((N * (N + 1)) / 2)); // TODO
   return 0;
 }
