@@ -127,6 +127,8 @@ let check_arguments () =
     failwith "Option error"
   in
   let warn m = Logs.warn "%s" m in
+  if List.mem "phaseGhostSplit" (get_string_list "ana.activated") && not (List.mem "phaseGhostSplit" (get_string_list "ana.path_sens")) then
+    fail "The phaseGhostSplit analysis must be path sensitive; add it to ana.path_sens";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.");
   if not (get_bool "exp.single-threaded") && not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global! (Except when exp.single-threaded is enabled.)";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
