@@ -27,7 +27,7 @@ Does not succeed without witness
 
 Run with the second witness, which additionally contains invariants
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 19-sync-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 19-sync.c
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 19-sync-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 19-sync.c
   [Error] Machine definition not available for selected architecture, defaulting to host
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
@@ -44,15 +44,16 @@ Run with the second witness, which additionally contains invariants
   [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-sync.c:46:3-46:37] and is monotonically increased to known bounds
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-sync.c:49:7-49:28)
   [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-sync.c:45:3-45:37] and is monotonically increased to known bounds
-  [Info][Witness] disabled invariant of type location_invariant
+  [Success][Witness] invariant confirmed: ghost_thread1_phase == 2 && ghost_thread2_phase == 2 (19-sync.c:49:3)
+  [Success][Witness] invariant confirmed: data1 == 16 && data2 == 5 (19-sync.c:49:3)
   [Info][Witness] witness validation summary:
-    confirmed: 0
+    confirmed: 2
     unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0
-    disabled: 2
+    disabled: 0
     total validation entries: 2
   SV-COMP result: true
   [Info][Race] Memory locations race summary:

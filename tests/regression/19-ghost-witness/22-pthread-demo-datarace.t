@@ -69,7 +69,7 @@ The run with the full value of 20 takes around 12 minutes, so here we exercise i
 
 The second witness additionally contains final counter and value invariants.
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.c
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.c
   [Error] Machine definition not available for selected architecture, defaulting to host
   [Info] unrolling loop at 22-pthread-demo-datarace.c:39:5-48:5 with factor 3
   [Info] unrolling loop at 22-pthread-demo-datarace.c:68:5-73:5 with factor 3
@@ -89,15 +89,17 @@ The second witness additionally contains final counter and value invariants.
   [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and is monotonically increased to known bounds
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.c:28:40-28:47)
   [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] disabled invariant of type location_invariant
+  [Success][Witness] invariant confirmed: ghost_worker_increments == 3 && ghost_main_increments == 3 (22-pthread-demo-datarace.c:80:5)
+  [Success][Witness] invariant confirmed: myglobal == ghost_worker_increments + ghost_main_increments (22-pthread-demo-datarace.c:80:5)
+  [Success][Witness] invariant confirmed: myglobal == 6 (22-pthread-demo-datarace.c:80:5)
   [Info][Witness] witness validation summary:
-    confirmed: 0
+    confirmed: 3
     unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0
-    disabled: 3
+    disabled: 0
     total validation entries: 3
   SV-COMP result: true
   [Info][Race] Memory locations race summary:

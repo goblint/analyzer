@@ -26,7 +26,7 @@ Does not succeed without witness
 
 Run with the second witness, which additionally contains phase/value invariants.
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
+  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 32bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
   [Error] Machine definition not available for selected architecture, defaulting to host
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
@@ -46,15 +46,18 @@ Run with the second witness, which additionally contains phase/value invariants.
   [Warning][Deadcode][CWE-570] condition '! (pdev == 1)' is always false (20-race-1_1-join.c:30:8-30:18)
   [Warning][Deadcode][CWE-570] condition '! (pdev == 3)' is always false (20-race-1_1-join.c:41:8-41:18)
   [Warning][Deadcode][CWE-570] condition '! (pdev == 5)' is always false (20-race-1_1-join.c:55:8-55:18)
-  [Info][Witness] disabled invariant of type location_invariant
+  [Success][Witness] invariant confirmed: ghost_thread1_phase == 1 && pdev == 6 (20-race-1_1-join.c:21:4)
+  [Success][Witness] invariant confirmed: ghost_main_phase == 1 && pdev == 1 (20-race-1_1-join.c:30:4)
+  [Success][Witness] invariant confirmed: ghost_main_phase == 2 && pdev == 3 (20-race-1_1-join.c:41:4)
+  [Success][Witness] invariant confirmed: ghost_main_phase == 3 && pdev == 5 (20-race-1_1-join.c:55:4)
   [Info][Witness] witness validation summary:
-    confirmed: 0
+    confirmed: 4
     unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0
-    disabled: 4
+    disabled: 0
     total validation entries: 4
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
