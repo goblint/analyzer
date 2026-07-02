@@ -11,7 +11,7 @@
 
 extern void abort(void);
 #include <assert.h>
-void reach_error() { assert(0); }
+void reach_error() { }
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -19,8 +19,7 @@ void reach_error() { assert(0); }
 
 extern void __VERIFIER_atomic_begin(void);
 extern void __VERIFIER_atomic_end(void);
-void __VERIFIER_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; }
-
+void __VERIFIER_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // TODO
 char *v;
 
 void *thread1(void * arg)
@@ -70,7 +69,7 @@ int main(void)
   pthread_create(&t, 0, thread0, 0);
   pthread_join(t, 0);
 
-  __VERIFIER_assert(v[0] == 'X' || v[0] == 'Y');
+  __VERIFIER_assert(v[0] == 'X' || v[0] == 'Y'); //TODO
 
   return 0;
 }

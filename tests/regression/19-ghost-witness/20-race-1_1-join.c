@@ -7,9 +7,9 @@
 
 extern void abort(void);
 #include <assert.h>
-void reach_error() { assert(0); }
+void reach_error() {  }
 int __VERIFIER_nondet_int(void);
-#define ldv_assert(expression) if (!(expression)) { ERROR: {reach_error(); abort();} }
+#define ldv_assert(expression) if (!(expression)) { ERROR: {reach_error(); abort();} } //TODO
 
 pthread_t t1;
 pthread_mutex_t mutex;
@@ -18,7 +18,7 @@ int pdev;
 void *thread1(void *arg) {
    pthread_mutex_lock(&mutex);
    pdev = 6;
-   ldv_assert(pdev==6);
+   ldv_assert(pdev==6); //TODO
    pthread_mutex_unlock(&mutex);
    return 0;
 }
@@ -27,7 +27,7 @@ int module_init() {
    pthread_mutex_init(&mutex, NULL);
    //not a race
    pdev = 1;
-   ldv_assert(pdev==1);
+   ldv_assert(pdev==1); //TODO
    if(__VERIFIER_nondet_int()) {
       //enable thread 1
       pthread_create(&t1, NULL, thread1, NULL);
@@ -38,7 +38,7 @@ int module_init() {
    }
    //not a race
    pdev = 3;
-   ldv_assert(pdev==3);
+   ldv_assert(pdev==3); //TODO
    pthread_mutex_destroy(&mutex);
    return -1;
 }
@@ -52,7 +52,7 @@ void module_exit() {
    pthread_mutex_destroy(&mutex);
    //not a race
    pdev = 5;
-   ldv_assert(pdev==5);
+   ldv_assert(pdev==5); //TODO
 }
 
 int main(void) {

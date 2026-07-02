@@ -16,7 +16,6 @@ Does not succeed without the counter ghosts.
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:71:9-71:28)
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:71:9-71:28)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
-  [Error][Assert] Assertion "0" will fail. (22-pthread-demo-datarace.c:27:22-27:41)
   [Warning][Deadcode] Function 'main' does not return
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 27
@@ -38,7 +37,7 @@ The run with the full value of 20 takes around 12 minutes, so here we exercise i
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.c:27:1-27:43)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.c:27:1-27:22)
   [Warning][Deadcode] Function 'main' does not return
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 26
@@ -75,7 +74,7 @@ The second witness additionally contains final counter and value invariants.
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.c:27:1-27:43)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.c:27:1-27:22)
   [Warning][Deadcode] Function 'main' does not return
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 26

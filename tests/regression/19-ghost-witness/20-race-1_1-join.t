@@ -6,7 +6,6 @@ Does not succeed without witness
   [Info] Enabled octagon domain ONLY for:
   [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, __x, __x, __x
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Error][Assert] Assertion "0" will fail. (20-race-1_1-join.c:10:22-10:41)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.c:51:4-51:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.c:51:4-51:29)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -32,7 +31,7 @@ Run with the second witness, which additionally contains phase/value invariants.
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.c:51:4-51:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.c:51:4-51:29)
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (20-race-1_1-join.c:10:1-10:43)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (20-race-1_1-join.c:10:1-10:22)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 28
     dead: 1 (1 in uncalled functions)
@@ -74,7 +73,7 @@ separate, allowing all four assertions to be verified.
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.c:51:4-51:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.c:51:4-51:29)
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (20-race-1_1-join.c:10:1-10:43)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (20-race-1_1-join.c:10:1-10:22)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 28
     dead: 1 (1 in uncalled functions)

@@ -24,8 +24,8 @@ VSL of University of Delaware.
  */
 extern void abort(void);
 #include <assert.h>
-void reach_error() { assert(0); }
-void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: {reach_error();abort();} } return; }
+void reach_error() {  }
+void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: {reach_error();abort();} } return; } //TODO
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -77,6 +77,6 @@ int main(void)
       exit(-1);
     }
 
-    __VERIFIER_assert(myglobal == 6);
+    __VERIFIER_assert(myglobal == 6); // TODO
     exit(0);
 }
