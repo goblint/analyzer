@@ -1,20 +1,9 @@
 Does not succeed without the counter ghosts.
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 22-pthread-demo-datarace.c --disable witness.yaml.enabled
-  [Info] unrolling loop at 22-pthread-demo-datarace.c:39:5-48:5 with factor 3
-  [Info] unrolling loop at 22-pthread-demo-datarace.c:68:5-73:5 with factor 3
-  [Info] Enabled congruence domain.
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 22-pthread-demo-datarace.c --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences  --disable witness.yaml.enabled
   [Info] Enabled widening thresholds
-  [Info] Enabled octagon domain ONLY for:
-  [Info] myglobal, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, i, tmp, tmp___0, i, j, __x, __x, __x, cond
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:43:9-43:14)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:43:9-43:14)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:43:9-43:14)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:71:9-71:28)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:71:9-71:28)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (22-pthread-demo-datarace.c:71:9-71:28)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -64,13 +53,10 @@ The run with the full value of 20 takes around 12 minutes, so here we exercise i
 
 The second witness additionally contains final counter and value invariants.
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.c
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.c
   [Info] unrolling loop at 22-pthread-demo-datarace.c:39:5-48:5 with factor 3
   [Info] unrolling loop at 22-pthread-demo-datarace.c:68:5-73:5 with factor 3
-  [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
-  [Info] Enabled octagon domain ONLY for:
-  [Info] myglobal, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, i, tmp, tmp___0, i, j, __x, __x, __x, cond
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
