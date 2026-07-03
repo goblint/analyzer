@@ -87,3 +87,40 @@ The second witness additionally contains final counter and value invariants.
   [Success][Witness] invariant confirmed: ghost_worker_increments == 3 && ghost_main_increments == 3 (22-pthread-demo-datarace.c:80:5)
   [Success][Witness] invariant confirmed: myglobal == 6 (22-pthread-demo-datarace.c:80:5)
   [Success][Witness] invariant confirmed: myglobal == ghost_worker_increments + ghost_main_increments (22-pthread-demo-datarace.c:80:5)
+
+Run with the second witness, which additionally contains final counter and value invariants and unassume them.
+
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences --disable witness.yaml.enabled --enable ana.unassume.ghost --enable ana.unassume.precheck --set witness.yaml.unassume 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] unassume 22-pthread-demo-datarace.c
+  [Info] Enabled widening thresholds
+  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
+  SV-COMP result: true
+  [Info][Race] Memory locations race summary:
+    safe: 3
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 3
+  [Warning][Deadcode] Function 'main' does not return
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.c:27:1-27:22)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 26
+    dead: 1 (1 in uncalled functions)
+    total lines: 27
+  [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.c:28:40-28:47)
+  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
+  [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and is monotonically increased to known bounds
+  [Info][Witness] unassume invariant: (myglobal == 6 && myglobal == ghost_worker_increments + ghost_main_increments) && (ghost_worker_increments == 3 && ghost_main_increments == 3) (22-pthread-demo-datarace.c:75:10-75:41)
+  [Info][Witness] unassume invariant: (myglobal == 6 && myglobal == ghost_worker_increments + ghost_main_increments) && (ghost_worker_increments == 3 && ghost_main_increments == 3) (22-pthread-demo-datarace.c:77:7-77:15)
+  [Info][Witness] witness validation summary:
+    confirmed: 3
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 3
+  [Success][Witness] invariant confirmed: ghost_worker_increments == 3 && ghost_main_increments == 3 (22-pthread-demo-datarace.c:80:5)
+  [Success][Witness] invariant confirmed: myglobal == 6 (22-pthread-demo-datarace.c:80:5)
+  [Success][Witness] invariant confirmed: myglobal == ghost_worker_increments + ghost_main_increments (22-pthread-demo-datarace.c:80:5)
