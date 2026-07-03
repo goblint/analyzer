@@ -100,7 +100,7 @@ struct
 
               match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
-                if contains_ghost_variable inv_exp then
+                if (not (GobConfig.get_bool "ana.unassume.ghost")) && contains_ghost_variable inv_exp then
                   M.info ~category:Witness ~loc:msgLoc "not unassuming invariant containing ghost variables: %a" Cil.d_exp inv_exp
                 else begin
                   M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;

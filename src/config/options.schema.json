@@ -1270,6 +1270,12 @@
           "title": "ana.unassume",
           "type": "object",
           "properties": {
+            "ghost": {
+              "title": "ana.unassume.ghost",
+              "description": "Unassume also expressions containing ghost variables.",
+              "type": "boolean",
+              "default": false
+            },
             "precheck": {
               "title": "ana.unassume.precheck",
               "description": "Check if invariant contradicts reached state before unassuming.",
