@@ -1,16 +1,16 @@
 - entry_type: ghost_instrumentation
   metadata:
     format_version: "2.1-goblint"
-    uuid: 00000000-0000-0000-0000-000000000193
+    uuid: 00000000-0000-0000-0000-000000000191
     creation_time: 2026-07-02T00:00:00Z
     producer:
       name: Test
       version: "0.0"
     task:
       input_files:
-      - 19-sync.c
+      - 19-stateful01-2.c
       input_file_hashes:
-        19-sync.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        19-stateful01-2.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -29,7 +29,7 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 19-sync.c
+        file_name: 19-stateful01-2.c
         line: 21
         column: 3
         function: thread1
@@ -38,7 +38,7 @@
         value: "1"
         format: c_expression
     - location:
-        file_name: 19-sync.c
+        file_name: 19-stateful01-2.c
         line: 24
         column: 3
         function: thread1
@@ -47,7 +47,7 @@
         value: "2"
         format: c_expression
     - location:
-        file_name: 19-sync.c
+        file_name: 19-stateful01-2.c
         line: 31
         column: 3
         function: thread2
@@ -56,7 +56,7 @@
         value: "1"
         format: c_expression
     - location:
-        file_name: 19-sync.c
+        file_name: 19-stateful01-2.c
         line: 34
         column: 3
         function: thread2
@@ -64,37 +64,3 @@
       - variable: ghost_thread2_phase
         value: "2"
         format: c_expression
-- entry_type: invariant_set
-  metadata:
-    format_version: "2.0"
-    uuid: 00000000-0000-0000-0000-000000000194
-    creation_time: 2026-07-02T00:00:00Z
-    producer:
-      name: Test
-      version: "0.0"
-    task:
-      input_files:
-      - 19-sync.c
-      input_file_hashes:
-        19-sync.c: "0000000000000000000000000000000000000000000000000000000000000000"
-      data_model: LP64
-      language: C
-  content:
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 19-sync.c
-        line: 49
-        column: 3
-        function: main
-      value: ghost_thread1_phase == 2 && ghost_thread2_phase == 2
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 19-sync.c
-        line: 49
-        column: 3
-        function: main
-      value: data1 == 16 && data2 == 5
-      format: c_expression
