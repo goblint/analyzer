@@ -276,6 +276,7 @@ struct
                  | Some (`Lifted z')  when not (Z.equal z z') -> raise Deadcode
                  | _ -> ()
                end
+             | `Bot -> raise Deadcode
              | _ -> ())
           | _ -> ()
         in
