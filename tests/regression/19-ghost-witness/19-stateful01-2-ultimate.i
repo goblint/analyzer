@@ -7,6 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 extern void abort(void);
+extern void __VERIFIER_atomic_begin(void);
+extern void __VERIFIER_atomic_end(void);
 
 extern void __assert_fail (const char *__assertion, const char *__file,
       unsigned int __line, const char *__function)
@@ -697,11 +699,15 @@ void * thread1(void * arg)
   int data2_value;
   pthread_mutex_lock(&ma);
   data1_value = data1;
+  __VERIFIER_atomic_begin();
   data1 = data1_value + 1;
+  __VERIFIER_atomic_end();
   pthread_mutex_unlock(&ma);
   pthread_mutex_lock(&ma);
   data2_value = data2;
+  __VERIFIER_atomic_begin();
   data2 = data2_value + 1;
+  __VERIFIER_atomic_end();
   pthread_mutex_unlock(&ma);
   return 0;
 }
@@ -711,11 +717,15 @@ void * thread2(void * arg)
   int data2_value;
   pthread_mutex_lock(&ma);
   data1_value = data1;
+  __VERIFIER_atomic_begin();
   data1 = data1_value + 5;
+  __VERIFIER_atomic_end();
   pthread_mutex_unlock(&ma);
   pthread_mutex_lock(&ma);
   data2_value = data2;
+  __VERIFIER_atomic_begin();
   data2 = data2_value - 6;
+  __VERIFIER_atomic_end();
   pthread_mutex_unlock(&ma);
   return 0;
 }

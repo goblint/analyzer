@@ -30,7 +30,7 @@
     ghost_updates:
     - location:
         file_name: 19-stateful01-2-ultimate.i
-        line: 700
+        line: 704
         column: 3
         function: thread1
       updates:
@@ -39,7 +39,7 @@
         format: c_expression
     - location:
         file_name: 19-stateful01-2-ultimate.i
-        line: 704
+        line: 710
         column: 3
         function: thread1
       updates:
@@ -48,7 +48,7 @@
         format: c_expression
     - location:
         file_name: 19-stateful01-2-ultimate.i
-        line: 714
+        line: 722
         column: 3
         function: thread2
       updates:
@@ -57,7 +57,7 @@
         format: c_expression
     - location:
         file_name: 19-stateful01-2-ultimate.i
-        line: 718
+        line: 728
         column: 3
         function: thread2
       updates:
