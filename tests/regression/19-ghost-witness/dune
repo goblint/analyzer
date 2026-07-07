@@ -5,4 +5,5 @@
   (glob_files *.yml)
   ../../../conf/svcomp26/common.json
   ../../../conf/svcomp26/verify.json
+  ../../../conf/svcomp26/level00.json
   ../../../conf/svcomp26/level04.json))
