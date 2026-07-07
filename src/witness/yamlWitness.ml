@@ -687,7 +687,6 @@ let cnt_unsupported = ref 0
 let cnt_error = ref 0
 let cnt_disabled = ref 0
 
-let ghost_usage_hypothesis_unconfirmed = ref false
 
 module Validator (R: ResultQuery.SpecSysSol2) =
 struct
@@ -792,9 +791,6 @@ struct
       M.warn_noloc ~category:Witness "validation result cannot be successful: some ghost updates could not be placed"
     end;
 
-    if !ghost_usage_hypothesis_unconfirmed then begin
-      M.warn_noloc ~category:Witness "validation result cannot be successful: hypothesis about ghost usage could not be confirmed"
-    end;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
@@ -802,7 +798,7 @@ struct
       let validate_lvars_invariant ~loc ~lvars inv =
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
-        | Ok inv_cabs when (not !ghost_usage_hypothesis_unconfirmed) && !unplaced_ghost_updates = []  ->
+        | Ok inv_cabs when !unplaced_ghost_updates = []  ->
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let fundec = Node.find_fundec n in
 
@@ -812,22 +808,22 @@ struct
                   let local, inv_exp =
                     begin match mutex_ghost_lock lvar local inv_exp with
                       | Some (lval', lock, e3) ->
-                        let premise = 
+                        let premise =
                           begin match lval' with
-                            | Some lval' -> 
+                            | Some lval' ->
                               begin match Queries.eval_bool {f = fun (type a) (q: a Queries.t) ->
-                                  ask_local lvar ~local q} lval' with 
+                                  ask_local lvar ~local q} lval' with
                               | `Lifted false -> false
                               | _ -> true
                               end
                             | _ -> true
-                          end   
+                          end
                         in
-                        if not premise then 
+                        if not premise then
                           local, Cil.Const (CInt (Z.one, Cil.IInt, None))
                         else
                           let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval lock) in
-                          let must_lockSet = ask_local lvar ~local (Queries.MustLockset) in 
+                          let must_lockSet = ask_local lvar ~local (Queries.MustLockset) in
                           if LockDomain.MustLockset.mem lock must_lockSet then
                             local, Cil.Const (CInt (Z.one, Cil.IInt, None))
                           else
@@ -972,8 +968,6 @@ struct
     | _ when !unplaced_ghost_updates <> [] ->
       (* Some ghost updates could not be placed; validation cannot be confirmed. *)
       Error "some ghost updates could not be placed"
-    | _ when !ghost_usage_hypothesis_unconfirmed ->
-      Error "the hypothesis about how ghosts are used could not be confirmed"
     | true when !cnt_error > 0 ->
       Error "witness error"
     | true when !cnt_unsupported > 0 ->
