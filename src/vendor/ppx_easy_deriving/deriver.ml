@@ -68,8 +68,9 @@ struct
     let vbs = List.map (fun td ->
         let quoter = Expansion_helpers.Quoter.create () in
         let expr = expr_declaration ~loc ~quoter td in
-        let expr = Expansion_helpers.Quoter.sanitize quoter expr in
         let expr = Ppx_deriving.poly_fun_of_type_decl td expr in
+        (* TODO: eta-expansion *)
+        let expr = Expansion_helpers.Quoter.sanitize quoter expr in
         let ct = typ ~loc td in
         let pat = ppat_var ~loc {loc; txt = Expansion_helpers.mangle_type_decl (Prefix Arg.name) td} in
         let pat = ppat_constraint ~loc pat ct in
