@@ -88,6 +88,83 @@ The second witness additionally contains final counter and value invariants.
   [Success][Witness] invariant confirmed: myglobal == 6 (22-pthread-demo-datarace.c:80:5)
   [Success][Witness] invariant confirmed: myglobal == ghost_worker_increments + ghost_main_increments (22-pthread-demo-datarace.c:80:5)
 
+Validate the counter ghosts against the preprocessed input. The preprocessed
+file already declares bsearch and qsort, so their libc stubs are disabled for
+this run.
+
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set pre.cppflags[+] -DGOBLINT_NO_BSEARCH --set pre.cppflags[+] -DGOBLINT_NO_QSORT --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-i.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.i
+  [Info] unrolling loop at 22-pthread-demo-datarace.i:1323:5-1331:5 with factor 3
+  [Info] unrolling loop at 22-pthread-demo-datarace.i:1347:5-1352:5 with factor 3
+  [Info] Enabled widening thresholds
+  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
+  SV-COMP result: true
+  [Info][Race] Memory locations race summary:
+    safe: 3
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 3
+  [Warning][Deadcode] Function 'main' does not return
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.i:12:1-12:177)
+  [Warning][Deadcode] Function '__bswap_32' is uncalled: 1 LLoC (22-pthread-demo-datarace.i:66:1-70:1)
+  [Warning][Deadcode] Function '__bswap_64' is uncalled: 1 LLoC (22-pthread-demo-datarace.i:71:1-75:1)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 26
+    dead: 3 (3 in uncalled functions)
+    total lines: 29
+  [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.i:13:40-13:47)
+  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.i:1343:10-1343:86)
+  [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.i:1353:10-1353:49)
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.i:1343:10-1343:86] and is monotonically increased to known bounds
+  [Info][Witness] witness validation summary:
+    confirmed: 0
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 0
+
+The preprocessed input also accepts the final counter and value invariants.
+
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set pre.cppflags[+] -DGOBLINT_NO_BSEARCH --set pre.cppflags[+] -DGOBLINT_NO_QSORT --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-i-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 22-pthread-demo-datarace.i
+  [Info] unrolling loop at 22-pthread-demo-datarace.i:1323:5-1331:5 with factor 3
+  [Info] unrolling loop at 22-pthread-demo-datarace.i:1347:5-1352:5 with factor 3
+  [Info] Enabled widening thresholds
+  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
+  SV-COMP result: true
+  [Info][Race] Memory locations race summary:
+    safe: 3
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 3
+  [Warning][Deadcode] Function 'main' does not return
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (22-pthread-demo-datarace.i:12:1-12:177)
+  [Warning][Deadcode] Function '__bswap_32' is uncalled: 1 LLoC (22-pthread-demo-datarace.i:66:1-70:1)
+  [Warning][Deadcode] Function '__bswap_64' is uncalled: 1 LLoC (22-pthread-demo-datarace.i:71:1-75:1)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 26
+    dead: 3 (3 in uncalled functions)
+    total lines: 29
+  [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.i:13:40-13:47)
+  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.i:1343:10-1343:86)
+  [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.i:1353:10-1353:49)
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.i:1343:10-1343:86] and is monotonically increased to known bounds
+  [Info][Witness] witness validation summary:
+    confirmed: 3
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 3
+  [Success][Witness] invariant confirmed: ghost_worker_increments == 3 && ghost_main_increments == 3 (22-pthread-demo-datarace.i:1357:5)
+  [Success][Witness] invariant confirmed: myglobal == 6 (22-pthread-demo-datarace.i:1357:5)
+  [Success][Witness] invariant confirmed: myglobal == ghost_worker_increments + ghost_main_increments (22-pthread-demo-datarace.i:1357:5)
+
 Run with the second witness, which additionally contains final counter and value invariants and unassume them.
 
   $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences --disable witness.yaml.enabled --enable ana.unassume.ghost --enable ana.unassume.precheck --set witness.yaml.unassume 22-pthread-demo-datarace-invariants.yml --set ana.activated[+] unassume 22-pthread-demo-datarace.c
