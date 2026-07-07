@@ -62,7 +62,7 @@ struct
       td
       (Arg.typ ~loc ct)
 
-  let generate_impl ~ctxt (_rec_flag, type_declarations) =
+  let generate_impl ~ctxt (rec_flag, type_declarations) =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     Ast_helper.with_default_loc loc @@ fun () -> (* ppx_easy_deriving shouldn't be using default_loc, but some of the Ppx_deriving API calls might *)
     let vbs = List.map (fun td ->
@@ -77,7 +77,7 @@ struct
         Ast_helper.Vb.mk ~loc ~attrs:[Ppx_deriving.attr_warning [%expr "-39"]] pat expr
       ) type_declarations
     in
-    [Ast_helper.Str.value ~loc Recursive vbs]
+    [Ast_helper.Str.value ~loc (really_recursive rec_flag type_declarations) vbs]
 
   let generate_intf ~ctxt (_rec_flag, type_declarations) =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
