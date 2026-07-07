@@ -717,6 +717,19 @@ struct
     in
     Spec.event man event man
 
+  let lock_verifier_atomic_if_multithreaded lvar local =
+    let ask = fun (type a) (q: a Queries.t) -> ask_local lvar ~local q in
+    if ThreadFlag.has_ever_been_multi {f = ask} then (
+      let lock = LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var in
+      if LockDomain.MustLockset.mem lock (ask Queries.MustLockset) then
+        local
+      else
+        let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval lock) in
+        local_event lvar local (Events.Lock (addr, true))
+    )
+    else
+      local
+
   let mutex_ghost_lock lvar local inv_exp =
     match constFold true inv_exp with
     (* ! v1 || ( v2 || e3 ) *)
@@ -832,6 +845,7 @@ struct
                         local, inv_exp
                     end
                   in
+                  let local = lock_verifier_atomic_if_multithreaded lvar local in
                   let ask = fun (type a) (q: a Queries.t) -> ask_local lvar ~local q in
                   begin match Queries.eval_bool {f = ask} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
