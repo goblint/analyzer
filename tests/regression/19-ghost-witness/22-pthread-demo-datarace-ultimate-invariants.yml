@@ -1,0 +1,91 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000228
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 22-pthread-demo-datarace-ultimate.i
+      input_file_hashes:
+        22-pthread-demo-datarace-ultimate.i: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_worker_increments
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_main_increments
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 22-pthread-demo-datarace-ultimate.i
+        line: 1333
+        column: 9
+        function: thread_function_mutex
+      updates:
+      - variable: ghost_worker_increments
+        value: "ghost_worker_increments + 1"
+        format: c_expression
+    - location:
+        file_name: 22-pthread-demo-datarace-ultimate.i
+        line: 1356
+        column: 9
+        function: main
+      updates:
+      - variable: ghost_main_increments
+        value: "ghost_main_increments + 1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000229
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 22-pthread-demo-datarace-ultimate.i
+      input_file_hashes:
+        22-pthread-demo-datarace-ultimate.i: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 22-pthread-demo-datarace-ultimate.i
+        line: 1363
+        column: 5
+        function: main
+      value: ghost_worker_increments == 3 && ghost_main_increments == 3
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 22-pthread-demo-datarace-ultimate.i
+        line: 1363
+        column: 5
+        function: main
+      value: myglobal == ghost_worker_increments + ghost_main_increments
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 22-pthread-demo-datarace-ultimate.i
+        line: 1363
+        column: 5
+        function: main
+      value: myglobal == 6
+      format: c_expression
