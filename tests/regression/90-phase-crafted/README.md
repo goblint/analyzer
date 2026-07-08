@@ -1,39 +1,39 @@
 # Phase-crafted ghost witness tasks
 
-This directory contains 50 pthread-only regression programs for phase ghost witnesses.
-Each task is designed so Goblint is inconclusive without the witness, but succeeds once
-`phaseGhost`/`phaseGhostSplit` uses the witness phase information.
+This directory contains 50 pthread-only regression programs for evaluating
+phase ghost witnesses. Each task is inconclusive for WizWoz
+without witness guidance and provable when `phaseGhost`/`phaseGhostSplit` uses
+the supplied witness phase information.
 
-The programs are grouped by feature so that the directory is more than a
-renaming exercise:
+The suite is organized around different concurrent-programming features:
 
-- `01`-`20`: varied phase protocols over ledgers, queues, caches, sessions,
-  replicas, media pipelines, snapshots, and schedulers. These cover arrays,
-  structs, bitmasks, XOR fingerprints, boolean toggles, pointer-free arithmetic
-  relations, two/three-worker setups, and workers with one, two, or three phase
-  advances.
+- `01`-`20`: compact phase protocols inspired by ledgers, queues, caches,
+  sessions, replicas, media pipelines, snapshots, and schedulers. These tasks
+  use arrays, structs, bitmasks, XOR fingerprints, boolean state, arithmetic
+  relations, and two- or three-worker synchronization patterns with different
+  numbers of phase boundaries.
 - `21`-`25`: SV-COMP-style nondeterministic setup. A bounded nondeterministic
-  value controls how many ghost-free background workers are spawned and joined,
-  with deliberately non-regular create/join order. The asserted phase facts are
-  independent of those helper workers.
+  value controls how many ghost-free background workers are spawned. The
+  create/join order is intentionally non-uniform, while the checked facts depend
+  only on the phase-guided producer/consumer threads.
 - `26`-`30`: real-C-style mutex indirection. Workers lock and unlock mutexes
-  through pointer variables while updating shared records.
+  through pointer variables while updating shared records and checking
+  phase-sensitive facts.
 - `31`-`35`: points-to and nondeterministic loop bounds. Bounded
-  `__VERIFIER_nondet_int()` values control worker loop counts, and the final
-  assertions compare phase-sensitive values against pointer-derived expected
-  values while also checking points-to facts.
-- `36`-`45`: larger benchmark-shaped programs with real-world-ish preprocessing
-  helpers and only a few phase boundaries. These use lighter SV-COMP levels in
-  their Cram tests to keep runtime reasonable.
-- `46`-`50`: SCTBench-/systems-inspired idioms: work-stealing deque
-  bookkeeping, seqlock publication, token-bucket throttling, priority
-  inheritance, and RCU-style grace-period retirement. These keep the number of
-  relevant phases small while surrounding them with common concurrent C
-  control-flow shapes.
+  `__VERIFIER_nondet_int()` values control worker loop counts. The final
+  assertions combine phase-sensitive values with pointer-derived expectations
+  and explicit points-to checks.
+- `36`-`45`: larger benchmark-shaped programs inspired by real-world data
+  processing and service-maintenance code. These contain preprocessing helpers,
+  extra control flow, and larger shared state, but only a small number of phase
+  distinctions.
+- `46`-`50`: compact protocols inspired by SCTBench and systems idioms such as
+  work-stealing deque bookkeeping, seqlock publication, token-bucket throttling,
+  priority inheritance, and RCU-style grace-period retirement.
 
 Exactly half of the ordinary witnesses (`01`-`20` and `26`-`30`) also contain
-location invariants, so the suite exercises validation of both phase ghosts and
-ordinary invariant entries.
+location invariants. The remaining witnesses contain only ghost updates, so the
+suite covers both pure phase guidance and combined phase/invariant validation.
 
-There are no `__VERIFIER_atomic_begin` or `__VERIFIER_atomic_end` calls; synchronization
-is by pthread mutexes and joins only.
+All programs use pthreads directly. There are no `__VERIFIER_atomic_begin` or
+`__VERIFIER_atomic_end` calls; synchronization is by pthread mutexes and joins.
