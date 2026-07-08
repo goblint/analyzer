@@ -1,0 +1,47 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009015
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [15-build-queue.c]
+      input_file_hashes:
+        15-build-queue.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_compiler_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_packager_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_tester_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 15-build-queue.c, line: 21, column: 3, function: compiler}
+      updates:
+      - variable: ghost_compiler_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 15-build-queue.c, line: 31, column: 3, function: packager}
+      updates:
+      - variable: ghost_packager_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 15-build-queue.c, line: 34, column: 3, function: packager}
+      updates:
+      - variable: ghost_packager_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 15-build-queue.c, line: 44, column: 3, function: tester}
+      updates:
+      - variable: ghost_tester_phase
+        value: "1"
+        format: c_expression

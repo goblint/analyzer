@@ -1,0 +1,47 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009014
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [14-replica-progress.c]
+      input_file_hashes:
+        14-replica-progress.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_network_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_apply_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_snapshot_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 14-replica-progress.c, line: 16, column: 3, function: network_thread}
+      updates:
+      - variable: ghost_network_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 14-replica-progress.c, line: 26, column: 3, function: apply_thread}
+      updates:
+      - variable: ghost_apply_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 14-replica-progress.c, line: 29, column: 3, function: apply_thread}
+      updates:
+      - variable: ghost_apply_thread_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 14-replica-progress.c, line: 36, column: 3, function: snapshot_thread}
+      updates:
+      - variable: ghost_snapshot_thread_phase
+        value: "1"
+        format: c_expression

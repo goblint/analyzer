@@ -1,0 +1,38 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009016
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [16-order-fulfillment.c]
+      input_file_hashes:
+        16-order-fulfillment.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_picker_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_packer_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 16-order-fulfillment.c, line: 46, column: 3, function: picker_thread}
+      updates:
+      - variable: ghost_picker_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 16-order-fulfillment.c, line: 56, column: 3, function: packer_thread}
+      updates:
+      - variable: ghost_packer_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 16-order-fulfillment.c, line: 61, column: 3, function: packer_thread}
+      updates:
+      - variable: ghost_packer_thread_phase
+        value: "2"
+        format: c_expression

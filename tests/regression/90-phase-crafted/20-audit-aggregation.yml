@@ -1,0 +1,47 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009020
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [20-audit-aggregation.c]
+      input_file_hashes:
+        20-audit-aggregation.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_scanner_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_alerter_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_deduper_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 20-audit-aggregation.c, line: 16, column: 3, function: scanner}
+      updates:
+      - variable: ghost_scanner_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 20-audit-aggregation.c, line: 19, column: 3, function: scanner}
+      updates:
+      - variable: ghost_scanner_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 20-audit-aggregation.c, line: 29, column: 3, function: alerter}
+      updates:
+      - variable: ghost_alerter_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 20-audit-aggregation.c, line: 36, column: 3, function: deduper}
+      updates:
+      - variable: ghost_deduper_phase
+        value: "1"
+        format: c_expression
