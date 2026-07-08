@@ -249,7 +249,7 @@ struct
           }
         in
         (* TODO: more accurate man? *)
-        let synced = sync sync_man in
+        let synced = S.sync sync_man `NormalInCallTF in
         let rec fd_man =
           { sync_man with
             ask = (fun (type a) (q: a Queries.t) -> S.query fd_man q);
