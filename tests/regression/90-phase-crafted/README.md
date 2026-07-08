@@ -25,8 +25,15 @@ renaming exercise:
 - `36`-`45`: larger benchmark-shaped programs with real-world-ish preprocessing
   helpers and only a few phase boundaries. These use lighter SV-COMP levels in
   their Cram tests to keep runtime reasonable.
-- `46`-`50`: mixed table protocols with range loops, masks, while loops, and
-  three-worker update patterns.
+- `46`-`50`: SCTBench-/systems-inspired idioms: work-stealing deque
+  bookkeeping, seqlock publication, token-bucket throttling, priority
+  inheritance, and RCU-style grace-period retirement. These keep the number of
+  relevant phases small while surrounding them with common concurrent C
+  control-flow shapes.
+
+Exactly half of the ordinary witnesses (`01`-`20` and `26`-`30`) also contain
+location invariants, so the suite exercises validation of both phase ghosts and
+ordinary invariant entries.
 
 There are no `__VERIFIER_atomic_begin` or `__VERIFIER_atomic_end` calls; synchronization
 is by pthread mutexes and joins only.
