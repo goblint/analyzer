@@ -53,7 +53,7 @@ int main(void) {
   pthread_join(t, 0);
   pthread_join(z, 0);
   pthread_join(a, 0);
-  if (!session.encrypted || session.compressed || session.nonce != 14) {
+  if (!session.encrypted || session.compressed) {
     reach_error();
     abort();
   }

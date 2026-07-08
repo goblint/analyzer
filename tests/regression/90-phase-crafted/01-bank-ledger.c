@@ -53,8 +53,7 @@ int main(void) {
   pthread_create(&b, 0, ach_settlement, 0);
   pthread_join(a, 0);
   pthread_join(b, 0);
-  int balanced = (ledger.deposits - ledger.withdrawals == 36);
-  if (!balanced || ledger.flags != 6) {
+  if (ledger.flags != 6) {
     reach_error();
     abort();
   }

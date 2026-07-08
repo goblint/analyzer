@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 39-large-security-scan.c, line: 39, column: 3, function: planner}
+    - location: {file_name: 39-large-security-scan.c, line: 36, column: 3, function: planner}
       updates:
       - variable: ghost_planner_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 39-large-security-scan.c, line: 52, column: 3, function: auditor}
+    - location: {file_name: 39-large-security-scan.c, line: 47, column: 3, function: auditor}
       updates:
       - variable: ghost_auditor_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 39-large-security-scan.c, line: 55, column: 3, function: auditor}
+    - location: {file_name: 39-large-security-scan.c, line: 50, column: 3, function: auditor}
       updates:
       - variable: ghost_auditor_phase
         value: "2"

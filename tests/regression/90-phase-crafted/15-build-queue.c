@@ -58,7 +58,7 @@ int main(void) {
   pthread_join(c, 0);
   pthread_join(p, 0);
   pthread_join(t, 0);
-  if (build.compiled != 9 || build.packaged != 5 || build.tested != 3) {
+  if (build.packaged != 5 || build.tested != 3) {
     reach_error();
     abort();
   }

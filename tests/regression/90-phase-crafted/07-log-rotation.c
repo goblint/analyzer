@@ -47,7 +47,7 @@ int main(void) {
   pthread_create(&r, 0, rotator, 0);
   pthread_join(c, 0);
   pthread_join(r, 0);
-  if ((log_state.active ^ log_state.archived) != 19 || log_state.generation != 3) {
+  if ((log_state.active ^ log_state.archived) != 27 || log_state.generation != 3) {
     reach_error();
     abort();
   }

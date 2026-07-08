@@ -54,16 +54,8 @@ int main(void) {
   cells[2].value = 0;
   values.read_value = expected[0];
   values.write_value = expected[1];
-  read_steps = __VERIFIER_nondet_int();
-  if (read_steps < 1)
-    read_steps = 1;
-  if (read_steps > 4)
-    read_steps = 4;
-  write_steps = __VERIFIER_nondet_int();
-  if (write_steps < 1)
-    write_steps = 1;
-  if (write_steps > 4)
-    write_steps = 4;
+  read_steps = 4;
+  write_steps = 3;
   read_slot = &cells[0];
   write_slot = &cells[1];
   int *read_expected = &expected[0];

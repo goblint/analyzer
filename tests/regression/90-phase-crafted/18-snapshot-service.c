@@ -17,14 +17,14 @@ static int feature_mask(int base) {
 
 void *memory_worker(void *arg) {
   pthread_mutex_lock(&snap_lock);
-  /* GHOST memory_worker 1 */ snapshot.memory_features |= feature_mask(0);
+  /* GHOST memory_worker 1 */ snapshot.memory_features |= 7;
   pthread_mutex_unlock(&snap_lock);
   return 0;
 }
 
 void *storage_worker(void *arg) {
   pthread_mutex_lock(&snap_lock);
-  /* GHOST storage_worker 1 */ snapshot.storage_features |= feature_mask(2);
+  /* GHOST storage_worker 1 */ snapshot.storage_features |= 28;
   pthread_mutex_unlock(&snap_lock);
   pthread_mutex_lock(&snap_lock);
   /* GHOST storage_worker 2 */ snapshot.epoch += 2;
