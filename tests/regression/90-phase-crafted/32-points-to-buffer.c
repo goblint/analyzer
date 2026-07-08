@@ -1,7 +1,8 @@
 // CRAM
-// points to buffer: final assertion combines phase-sensitive values with points-to facts.
+// points-to buffer: nondeterministic loop bounds and pointer-valued expected facts.
 #include <pthread.h>
 
+extern int __VERIFIER_nondet_int(void);
 extern void abort(void);
 void reach_error(void) { }
 
@@ -9,11 +10,14 @@ struct Cell { int value; } cells[3];
 struct Cell *read_slot;
 struct Cell *write_slot;
 struct Values { int read_value; int write_value; } values;
+int expected[2];
+int read_steps;
+int write_steps;
 pthread_mutex_t point_lock;
 
 void *reader_thread(void *arg) {
   int d = 0;
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < read_steps; i++)
     d += 1;
   pthread_mutex_lock(&point_lock);
   read_slot = &cells[0];
@@ -26,7 +30,7 @@ void *reader_thread(void *arg) {
 
 void *writer_thread(void *arg) {
   int d = 0;
-  for (int i = 0; i < 2; i++)
+  for (int i = 0; i < write_steps; i++)
     d += 2;
   pthread_mutex_lock(&point_lock);
   write_slot = &cells[1];
@@ -43,18 +47,32 @@ void *writer_thread(void *arg) {
 int main(void) {
   pthread_t r, w;
   pthread_mutex_init(&point_lock, 0);
-  cells[0].value = 42;
-  cells[1].value = 52;
+  expected[0] = 42;
+  expected[1] = 52;
+  cells[0].value = expected[0];
+  cells[1].value = expected[1];
   cells[2].value = 2;
-  values.read_value = 42;
-  values.write_value = 52;
+  values.read_value = expected[0];
+  values.write_value = expected[1];
+  read_steps = __VERIFIER_nondet_int();
+  if (read_steps < 1)
+    read_steps = 1;
+  if (read_steps > 4)
+    read_steps = 4;
+  write_steps = __VERIFIER_nondet_int();
+  if (write_steps < 1)
+    write_steps = 1;
+  if (write_steps > 4)
+    write_steps = 4;
   read_slot = &cells[0];
   write_slot = &cells[1];
-  pthread_create(&r, 0, reader_thread, 0);
+  int *read_expected = &expected[0];
+  int *write_expected = &expected[1];
   pthread_create(&w, 0, writer_thread, 0);
+  pthread_create(&r, 0, reader_thread, 0);
   pthread_join(r, 0);
   pthread_join(w, 0);
-  if (read_slot != &cells[0] || write_slot != &cells[1] || values.read_value != 45 || values.write_value != 56) {
+  if (read_slot != &cells[0] || write_slot != &cells[1] || values.read_value != *read_expected + read_steps || values.write_value != *write_expected + 2 * write_steps) {
     reach_error();
     abort();
   }

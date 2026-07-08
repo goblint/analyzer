@@ -1,7 +1,8 @@
 // CRAM
-// dynamic index watchers: relevant phase workers plus dynamically spawned ghost-free background workers.
+// dynamic index watchers: nondeterministic number of ghost-free background workers, irregular joins.
 #include <pthread.h>
 
+extern int __VERIFIER_nondet_int(void);
 extern void abort(void);
 void reach_error(void) { }
 
@@ -9,6 +10,7 @@ pthread_mutex_t data_lock;
 pthread_mutex_t noise_lock;
 struct State { int a; int b; int tag; } state;
 int noise_total;
+int workers;
 
 void *noise_worker(void *arg) {
   int local = 0;
@@ -51,14 +53,28 @@ int main(void) {
   state.b = 64;
   state.tag = 4;
   noise_total = 0;
-  int workers = 2 + (24 % 3);
-  for (int i = 0; i < workers; i++)
-    pthread_create(&noise[i], 0, noise_worker, 0);
+  workers = __VERIFIER_nondet_int();
+  if (workers < 1)
+    workers = 1;
+  if (workers > 4)
+    workers = 4;
+  pthread_create(&noise[0], 0, noise_worker, 0);
   pthread_create(&p, 0, producer, 0);
+  if (workers > 1)
+    pthread_create(&noise[1], 0, noise_worker, 0);
   pthread_create(&c, 0, consumer, 0);
-  for (int i = 0; i < workers; i++)
-    pthread_join(noise[i], 0);
+  if (workers > 2)
+    pthread_create(&noise[2], 0, noise_worker, 0);
+  if (workers > 3)
+    pthread_create(&noise[3], 0, noise_worker, 0);
   pthread_join(p, 0);
+  if (workers > 3)
+    pthread_join(noise[3], 0);
+  if (workers > 1)
+    pthread_join(noise[1], 0);
+  pthread_join(noise[0], 0);
+  if (workers > 2)
+    pthread_join(noise[2], 0);
   pthread_join(c, 0);
   if (state.a != 56 || state.b != 68 || state.tag != 0) {
     reach_error();

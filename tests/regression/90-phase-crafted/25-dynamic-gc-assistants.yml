@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 25-dynamic-gc-assistants.c, line: 28, column: 3, function: producer}
+    - location: {file_name: 25-dynamic-gc-assistants.c, line: 30, column: 3, function: producer}
       updates:
       - variable: ghost_producer_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 25-dynamic-gc-assistants.c, line: 31, column: 3, function: producer}
+    - location: {file_name: 25-dynamic-gc-assistants.c, line: 33, column: 3, function: producer}
       updates:
       - variable: ghost_producer_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 25-dynamic-gc-assistants.c, line: 41, column: 3, function: consumer}
+    - location: {file_name: 25-dynamic-gc-assistants.c, line: 43, column: 3, function: consumer}
       updates:
       - variable: ghost_consumer_phase
         value: "1"

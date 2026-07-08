@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 34-points-to-routing.c, line: 22, column: 3, function: reader_thread}
+    - location: {file_name: 34-points-to-routing.c, line: 26, column: 3, function: reader_thread}
       updates:
       - variable: ghost_reader_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 34-points-to-routing.c, line: 35, column: 3, function: writer_thread}
+    - location: {file_name: 34-points-to-routing.c, line: 39, column: 3, function: writer_thread}
       updates:
       - variable: ghost_writer_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 34-points-to-routing.c, line: 38, column: 3, function: writer_thread}
+    - location: {file_name: 34-points-to-routing.c, line: 42, column: 3, function: writer_thread}
       updates:
       - variable: ghost_writer_thread_phase
         value: "2"
