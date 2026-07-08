@@ -46,7 +46,7 @@ sig
   val lock: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
   val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> BaseComponents (D).t
+  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread | `NormalInCallTF] -> BaseComponents (D).t
 
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
@@ -189,6 +189,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -388,6 +389,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -527,6 +529,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -916,6 +919,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -1143,6 +1147,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -1456,6 +1461,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1512,6 +1518,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1584,6 +1591,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1743,6 +1751,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1922,6 +1931,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -2105,6 +2115,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init

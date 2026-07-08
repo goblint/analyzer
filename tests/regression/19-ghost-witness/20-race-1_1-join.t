@@ -283,6 +283,11 @@ Run the preprocessed input with phase/value invariants and unassume them
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.i:1719:4-1719:29)
   [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
   [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and is monotonically increased to known bounds
+  [Info][Witness] unassume invariant: ghost_thread1_phase == 1 && pdev == 6 (20-race-1_1-join.i:1700:4-1700:23)
+  [Info][Witness] unassume invariant: ghost_main_phase == 1 && pdev == 1 (20-race-1_1-join.i:1707:4-1707:23)
+  [Info][Witness] unassume invariant: ghost_main_phase == 1 && pdev == 1 (20-race-1_1-join.i:1708:7-1708:30)
+  [Info][Witness] unassume invariant: ghost_main_phase == 2 && pdev == 3 (20-race-1_1-join.i:1713:4-1713:23)
+  [Info][Witness] unassume invariant: ghost_main_phase == 3 && pdev == 5 (20-race-1_1-join.i:1722:4-1722:23)
   [Info][Witness] witness validation summary:
     confirmed: 4
     unconfirmed: 0

@@ -196,7 +196,7 @@ sig
   val context: (D.t, G.t, C.t, V.t) man -> fundec -> D.t -> C.t
   val startcontext: unit -> C.t
 
-  val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
+  val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `NormalInCallTF | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) man -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,

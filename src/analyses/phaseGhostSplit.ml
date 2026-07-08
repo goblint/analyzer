@@ -164,52 +164,57 @@ struct
     Obj.obj (man.ask PhaseInfo)
 
   let sync man reason =
-    (* TODO:
-       Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
-    if !AnalysisState.global_initialization then
+    match reason with
+    | `NormalInCallTF ->
+      (* Do not change phase in the middle of the combine call! *)
       man.local
-    else
-      let local = top_non_phase_ghosts man man.local in
-      let possible_advances_here m var =
-        if man.ask Queries.MustBeAtomic then
-          (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
-          (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; [])
-        else
-          match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId, D.find var m  with
-          | `Bot, _, _
-          | _, `Bot, _ ->
-            []
-          | `Lifted owner, _ , `Lifted z ->
-            G.possible_changes_after (man.global var) z (current_mhp man)
-          | _ ->
-            failwith "assumption about ghost owner violated"
-      in
-      let rec handle_vars (m, (pinfo:MCPPhaseInfo.t)) = function
-        | []  ->
-          man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
-        | var :: vars ->
-          List.iter (fun (target, curr_pinfo) ->
-              let advanced = D.add var (`Lifted target) m in
-              let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
-              handle_vars (advanced, pinfo') (var::vars)
-            ) (possible_advances_here m var);
-          handle_vars (m, pinfo) vars
-      in
-      let traceEvolution () =
-        YamlWitness.VarSet.iter (fun var ->
-            let owner = man.ask (Queries.Owner var) in
-            let phase_ghost = is_phase_ghost man var in
-            let may_advance = phase_ghost && possible_advances_here local var <> [] in
-            M.tracel "phaseGhost" "Ghost %a is %sa phase ghost, has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
-              CilType.Varinfo.pretty var
-              (if phase_ghost then "" else "not ")
-              ThreadIdDomain.ThreadLifted.pretty owner
-              (if may_advance then "" else " not ")
-          ) !(YamlWitness.ghostVars)
-      in
-      if M.tracing then traceEvolution ();
-      handle_vars (local, MCPPhaseInfo.top ()) (phase_ghosts man);
-      raise Deadcode
+    | _ ->
+      (* TODO:
+         Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
+      if !AnalysisState.global_initialization then
+        man.local
+      else
+        let local = top_non_phase_ghosts man man.local in
+        let possible_advances_here m var =
+          if man.ask Queries.MustBeAtomic then
+            (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
+            (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; [])
+          else
+            match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId, D.find var m  with
+            | `Bot, _, _
+            | _, `Bot, _ ->
+              []
+            | `Lifted owner, _ , `Lifted z ->
+              G.possible_changes_after (man.global var) z (current_mhp man)
+            | _ ->
+              failwith "assumption about ghost owner violated"
+        in
+        let rec handle_vars (m, (pinfo:MCPPhaseInfo.t)) = function
+          | []  ->
+            man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
+          | var :: vars ->
+            List.iter (fun (target, curr_pinfo) ->
+                let advanced = D.add var (`Lifted target) m in
+                let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
+                handle_vars (advanced, pinfo') (var::vars)
+              ) (possible_advances_here m var);
+            handle_vars (m, pinfo) vars
+        in
+        let traceEvolution () =
+          YamlWitness.VarSet.iter (fun var ->
+              let owner = man.ask (Queries.Owner var) in
+              let phase_ghost = is_phase_ghost man var in
+              let may_advance = phase_ghost && possible_advances_here local var <> [] in
+              M.tracel "phaseGhost" "Ghost %a is %sa phase ghost, has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
+                CilType.Varinfo.pretty var
+                (if phase_ghost then "" else "not ")
+                ThreadIdDomain.ThreadLifted.pretty owner
+                (if may_advance then "" else " not ")
+            ) !(YamlWitness.ghostVars)
+        in
+        if M.tracing then traceEvolution ();
+        handle_vars (local, MCPPhaseInfo.top ()) (phase_ghosts man);
+        raise Deadcode
 
 
   let assign man lval rval =

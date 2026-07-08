@@ -39,7 +39,7 @@ module type S =
     val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
     val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
 
-    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> relation_components_t
+    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `NormalInCallTF | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> relation_components_t
 
     val escape: Node.t -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> EscapeDomain.EscapedVars.t -> relation_components_t
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
@@ -131,6 +131,7 @@ struct
     | `Join
     | `JoinCall _
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread
     | `Return ->
@@ -410,6 +411,7 @@ struct
     | `Join
     | `JoinCall _
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -706,6 +708,7 @@ struct
     | `Join
     | `JoinCall _
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -1323,6 +1326,7 @@ struct
     | `Join
     | `JoinCall _
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st

@@ -785,7 +785,7 @@ struct
       PCU.RH.replace results man.node new_value;
     end;
     WideningTokenLifter.with_local_side_tokens (fun () ->
-        Priv.sync (Analyses.ask_of_man man) man.global man.sideg man.local (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
+        Priv.sync (Analyses.ask_of_man man) man.global man.sideg man.local (reason :> [`Normal | `NormalInCallTF | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
       )
 
   let init marshal =
