@@ -36,3 +36,26 @@
       - variable: ghost_radio_phase
         value: "1"
         format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000019003
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [03-telemetry-rollup.c]
+      input_file_hashes:
+        03-telemetry-rollup.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: 03-telemetry-rollup.c, line: 48, column: 3, function: main}
+      value: ghost_sampler_phase >= 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 03-telemetry-rollup.c, line: 48, column: 3, function: main}
+      value: ghost_radio_phase >= 0
+      format: c_expression

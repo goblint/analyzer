@@ -12,36 +12,32 @@
       language: C
   content:
     ghost_variables:
-    - name: ghost_alpha_phase
+    - name: ghost_writer_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
-    - name: ghost_beta_phase
-      scope: global
-      type: int
-      initial: {value: "0", format: c_expression}
-    - name: ghost_gamma_phase
+    - name: ghost_sampler_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 47-mixed-mask-table.c, line: 17, column: 3, function: alpha}
+    - location: {file_name: 47-mixed-mask-table.c, line: 13, column: 3, function: writer_thread}
       updates:
-      - variable: ghost_alpha_phase
+      - variable: ghost_writer_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 47-mixed-mask-table.c, line: 20, column: 3, function: alpha}
+    - location: {file_name: 47-mixed-mask-table.c, line: 16, column: 3, function: writer_thread}
       updates:
-      - variable: ghost_alpha_phase
+      - variable: ghost_writer_thread_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 47-mixed-mask-table.c, line: 30, column: 3, function: beta}
+    - location: {file_name: 47-mixed-mask-table.c, line: 19, column: 3, function: writer_thread}
       updates:
-      - variable: ghost_beta_phase
-        value: "1"
+      - variable: ghost_writer_thread_phase
+        value: "3"
         format: c_expression
-    - location: {file_name: 47-mixed-mask-table.c, line: 40, column: 3, function: gamma}
+    - location: {file_name: 47-mixed-mask-table.c, line: 29, column: 3, function: sampler_thread}
       updates:
-      - variable: ghost_gamma_phase
+      - variable: ghost_sampler_thread_phase
         value: "1"
         format: c_expression

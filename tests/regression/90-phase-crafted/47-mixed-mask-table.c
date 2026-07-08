@@ -1,62 +1,47 @@
 // CRAM
-// mixed mask table: table update protocol with mixed arithmetic, ranges, and masks.
+// Seqlock-style publication: writer advances sequence, sampler records a stable read.
 #include <pthread.h>
 
 extern void abort(void);
 void reach_error(void) { }
 
-pthread_mutex_t table_lock;
-int table[4];
-int mode;
+pthread_mutex_t seq_lock;
+struct SeqData { int seq; int value; int samples; } data;
 
-void *alpha(void *arg) {
-  int s = 0;
-  for (int i = 0; i < 4; i++)
-    s += (i + 2);
-  pthread_mutex_lock(&table_lock);
-  /* GHOST alpha 1 */ table[0] += s;
-  pthread_mutex_unlock(&table_lock);
-  pthread_mutex_lock(&table_lock);
-  /* GHOST alpha 2 */ mode |= 4;
-  pthread_mutex_unlock(&table_lock);
+void *writer_thread(void *arg) {
+  pthread_mutex_lock(&seq_lock);
+  /* GHOST writer_thread 1 */ data.seq += 1;
+  pthread_mutex_unlock(&seq_lock);
+  pthread_mutex_lock(&seq_lock);
+  /* GHOST writer_thread 2 */ data.value += 7;
+  pthread_mutex_unlock(&seq_lock);
+  pthread_mutex_lock(&seq_lock);
+  /* GHOST writer_thread 3 */ data.seq += 1;
+  pthread_mutex_unlock(&seq_lock);
   return 0;
 }
 
-void *beta(void *arg) {
-  int s = 1;
-  for (int i = 0; i < 3; i++)
-    s *= 2;
-  pthread_mutex_lock(&table_lock);
-  /* GHOST beta 1 */ table[1] += s;
-  pthread_mutex_unlock(&table_lock);
-  return 0;
-}
-
-void *gamma(void *arg) {
-  int s = 0;
-  while (s < 2)
-    s++;
-  pthread_mutex_lock(&table_lock);
-  /* GHOST gamma 1 */ table[2] -= s;
-  pthread_mutex_unlock(&table_lock);
+void *sampler_thread(void *arg) {
+  int observations = 0;
+  for (int i = 0; i < 2; i++)
+    observations++;
+  pthread_mutex_lock(&seq_lock);
+  /* GHOST sampler_thread 1 */ data.samples += observations;
+  pthread_mutex_unlock(&seq_lock);
   return 0;
 }
 
 int main(void) {
-  pthread_t a, b, g;
-  pthread_mutex_init(&table_lock, 0);
-  table[0] = 47;
-  table[1] = 52;
-  table[2] = 57;
-  table[3] = 99;
-  mode = 0;
-  pthread_create(&a, 0, alpha, 0);
-  pthread_create(&b, 0, beta, 0);
-  pthread_create(&g, 0, gamma, 0);
-  pthread_join(a, 0);
-  pthread_join(b, 0);
-  pthread_join(g, 0);
-  if (table[0] != 61 || table[1] != 60 || table[2] != 55 || mode == 0) {
+  pthread_t writer, sampler;
+  pthread_mutex_init(&seq_lock, 0);
+  data.seq = 0;
+  data.value = 5;
+  data.samples = 0;
+  pthread_create(&sampler, 0, sampler_thread, 0);
+  pthread_create(&writer, 0, writer_thread, 0);
+  pthread_join(writer, 0);
+  pthread_join(sampler, 0);
+  if (data.seq != 2 || data.value != 12 || data.samples != 2) {
     reach_error();
     abort();
   }

@@ -12,36 +12,36 @@
       language: C
   content:
     ghost_variables:
-    - name: ghost_alpha_phase
+    - name: ghost_refill_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
-    - name: ghost_beta_phase
+    - name: ghost_consumer_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
-    - name: ghost_gamma_phase
+    - name: ghost_epoch_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 48-mixed-window-table.c, line: 17, column: 3, function: alpha}
+    - location: {file_name: 48-mixed-window-table.c, line: 16, column: 3, function: refill_thread}
       updates:
-      - variable: ghost_alpha_phase
+      - variable: ghost_refill_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 48-mixed-window-table.c, line: 20, column: 3, function: alpha}
+    - location: {file_name: 48-mixed-window-table.c, line: 24, column: 3, function: consumer_thread}
       updates:
-      - variable: ghost_alpha_phase
+      - variable: ghost_consumer_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 48-mixed-window-table.c, line: 27, column: 3, function: consumer_thread}
+      updates:
+      - variable: ghost_consumer_thread_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 48-mixed-window-table.c, line: 30, column: 3, function: beta}
+    - location: {file_name: 48-mixed-window-table.c, line: 34, column: 3, function: epoch_thread}
       updates:
-      - variable: ghost_beta_phase
-        value: "1"
-        format: c_expression
-    - location: {file_name: 48-mixed-window-table.c, line: 40, column: 3, function: gamma}
-      updates:
-      - variable: ghost_gamma_phase
+      - variable: ghost_epoch_thread_phase
         value: "1"
         format: c_expression

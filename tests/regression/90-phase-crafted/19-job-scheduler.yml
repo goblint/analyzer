@@ -50,3 +50,26 @@
       - variable: ghost_prioritizer_phase
         value: "1"
         format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000019019
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [19-job-scheduler.c]
+      input_file_hashes:
+        19-job-scheduler.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: 19-job-scheduler.c, line: 57, column: 3, function: main}
+      value: ghost_dispatcher_phase >= 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 19-job-scheduler.c, line: 57, column: 3, function: main}
+      value: ghost_retirer_phase >= 0
+      format: c_expression

@@ -1,62 +1,56 @@
 // CRAM
-// mixed range table: table update protocol with mixed arithmetic, ranges, and masks.
+// Work-stealing deque bookkeeping: owner pushes, thief steals, rebalancer advances head.
 #include <pthread.h>
 
 extern void abort(void);
 void reach_error(void) { }
 
-pthread_mutex_t table_lock;
-int table[4];
-int mode;
+pthread_mutex_t deque_lock;
+struct Deque { int head; int tail; int stolen; } deque;
 
-void *alpha(void *arg) {
-  int s = 0;
-  for (int i = 0; i < 4; i++)
-    s += (i + 1);
-  pthread_mutex_lock(&table_lock);
-  /* GHOST alpha 1 */ table[0] += s;
-  pthread_mutex_unlock(&table_lock);
-  pthread_mutex_lock(&table_lock);
-  /* GHOST alpha 2 */ mode |= 2;
-  pthread_mutex_unlock(&table_lock);
-  return 0;
-}
-
-void *beta(void *arg) {
-  int s = 1;
+void *owner_thread(void *arg) {
+  int pushed = 0;
   for (int i = 0; i < 3; i++)
-    s *= 2;
-  pthread_mutex_lock(&table_lock);
-  /* GHOST beta 1 */ table[1] += s;
-  pthread_mutex_unlock(&table_lock);
+    pushed++;
+  pthread_mutex_lock(&deque_lock);
+  /* GHOST owner_thread 1 */ deque.tail += pushed;
+  pthread_mutex_unlock(&deque_lock);
   return 0;
 }
 
-void *gamma(void *arg) {
-  int s = 0;
-  while (s < 2)
-    s++;
-  pthread_mutex_lock(&table_lock);
-  /* GHOST gamma 1 */ table[2] -= s;
-  pthread_mutex_unlock(&table_lock);
+void *thief_thread(void *arg) {
+  int taken = 0;
+  while (taken < 2)
+    taken++;
+  pthread_mutex_lock(&deque_lock);
+  /* GHOST thief_thread 1 */ deque.stolen += taken;
+  pthread_mutex_unlock(&deque_lock);
+  pthread_mutex_lock(&deque_lock);
+  /* GHOST thief_thread 2 */ deque.head += taken;
+  pthread_mutex_unlock(&deque_lock);
+  return 0;
+}
+
+void *rebalance_thread(void *arg) {
+  pthread_mutex_lock(&deque_lock);
+  /* GHOST rebalance_thread 1 */ deque.head += 1;
+  pthread_mutex_unlock(&deque_lock);
   return 0;
 }
 
 int main(void) {
-  pthread_t a, b, g;
-  pthread_mutex_init(&table_lock, 0);
-  table[0] = 46;
-  table[1] = 51;
-  table[2] = 56;
-  table[3] = 99;
-  mode = 0;
-  pthread_create(&a, 0, alpha, 0);
-  pthread_create(&b, 0, beta, 0);
-  pthread_create(&g, 0, gamma, 0);
-  pthread_join(a, 0);
-  pthread_join(b, 0);
-  pthread_join(g, 0);
-  if (table[0] != 56 || table[1] != 59 || table[2] != 54 || mode == 0) {
+  pthread_t owner, thief, rebalance;
+  pthread_mutex_init(&deque_lock, 0);
+  deque.head = 4;
+  deque.tail = 9;
+  deque.stolen = 1;
+  pthread_create(&owner, 0, owner_thread, 0);
+  pthread_create(&thief, 0, thief_thread, 0);
+  pthread_create(&rebalance, 0, rebalance_thread, 0);
+  pthread_join(thief, 0);
+  pthread_join(owner, 0);
+  pthread_join(rebalance, 0);
+  if (deque.head != 7 || deque.tail != 12 || deque.stolen != 3) {
     reach_error();
     abort();
   }

@@ -12,36 +12,36 @@
       language: C
   content:
     ghost_variables:
-    - name: ghost_alpha_phase
+    - name: ghost_owner_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
-    - name: ghost_beta_phase
+    - name: ghost_thief_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
-    - name: ghost_gamma_phase
+    - name: ghost_rebalance_thread_phase
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 46-mixed-range-table.c, line: 17, column: 3, function: alpha}
+    - location: {file_name: 46-mixed-range-table.c, line: 16, column: 3, function: owner_thread}
       updates:
-      - variable: ghost_alpha_phase
+      - variable: ghost_owner_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 46-mixed-range-table.c, line: 20, column: 3, function: alpha}
+    - location: {file_name: 46-mixed-range-table.c, line: 26, column: 3, function: thief_thread}
       updates:
-      - variable: ghost_alpha_phase
+      - variable: ghost_thief_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 46-mixed-range-table.c, line: 29, column: 3, function: thief_thread}
+      updates:
+      - variable: ghost_thief_thread_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 46-mixed-range-table.c, line: 30, column: 3, function: beta}
+    - location: {file_name: 46-mixed-range-table.c, line: 36, column: 3, function: rebalance_thread}
       updates:
-      - variable: ghost_beta_phase
-        value: "1"
-        format: c_expression
-    - location: {file_name: 46-mixed-range-table.c, line: 40, column: 3, function: gamma}
-      updates:
-      - variable: ghost_gamma_phase
+      - variable: ghost_rebalance_thread_phase
         value: "1"
         format: c_expression

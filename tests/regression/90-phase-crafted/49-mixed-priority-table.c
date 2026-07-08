@@ -1,62 +1,53 @@
 // CRAM
-// mixed priority table: table update protocol with mixed arithmetic, ranges, and masks.
+// Priority inheritance sketch: waiter raises priority, owner releases, monitor records handoff.
 #include <pthread.h>
 
 extern void abort(void);
 void reach_error(void) { }
 
-pthread_mutex_t table_lock;
-int table[4];
-int mode;
+pthread_mutex_t pi_lock;
+struct PiState { int owner_prio; int waiter_prio; int handoffs; } pi_state;
 
-void *alpha(void *arg) {
-  int s = 0;
-  for (int i = 0; i < 4; i++)
-    s += (i + 1);
-  pthread_mutex_lock(&table_lock);
-  /* GHOST alpha 1 */ table[0] += s;
-  pthread_mutex_unlock(&table_lock);
-  pthread_mutex_lock(&table_lock);
-  /* GHOST alpha 2 */ mode |= 2;
-  pthread_mutex_unlock(&table_lock);
+void *waiter_thread(void *arg) {
+  int boost = 0;
+  for (int i = 0; i < 2; i++)
+    boost += 3;
+  pthread_mutex_lock(&pi_lock);
+  /* GHOST waiter_thread 1 */ pi_state.waiter_prio += boost;
+  pthread_mutex_unlock(&pi_lock);
   return 0;
 }
 
-void *beta(void *arg) {
-  int s = 1;
-  for (int i = 0; i < 3; i++)
-    s *= 2;
-  pthread_mutex_lock(&table_lock);
-  /* GHOST beta 1 */ table[1] += s;
-  pthread_mutex_unlock(&table_lock);
+void *owner_thread(void *arg) {
+  pthread_mutex_lock(&pi_lock);
+  /* GHOST owner_thread 1 */ pi_state.owner_prio += 4;
+  pthread_mutex_unlock(&pi_lock);
+  pthread_mutex_lock(&pi_lock);
+  /* GHOST owner_thread 2 */ pi_state.handoffs += 1;
+  pthread_mutex_unlock(&pi_lock);
   return 0;
 }
 
-void *gamma(void *arg) {
-  int s = 0;
-  while (s < 2)
-    s++;
-  pthread_mutex_lock(&table_lock);
-  /* GHOST gamma 1 */ table[2] -= s;
-  pthread_mutex_unlock(&table_lock);
+void *monitor_thread(void *arg) {
+  pthread_mutex_lock(&pi_lock);
+  /* GHOST monitor_thread 1 */ pi_state.handoffs += 2;
+  pthread_mutex_unlock(&pi_lock);
   return 0;
 }
 
 int main(void) {
-  pthread_t a, b, g;
-  pthread_mutex_init(&table_lock, 0);
-  table[0] = 49;
-  table[1] = 54;
-  table[2] = 59;
-  table[3] = 99;
-  mode = 0;
-  pthread_create(&a, 0, alpha, 0);
-  pthread_create(&b, 0, beta, 0);
-  pthread_create(&g, 0, gamma, 0);
-  pthread_join(a, 0);
-  pthread_join(b, 0);
-  pthread_join(g, 0);
-  if (table[0] != 59 || table[1] != 62 || table[2] != 57 || mode == 0) {
+  pthread_t waiter, owner, monitor;
+  pthread_mutex_init(&pi_lock, 0);
+  pi_state.owner_prio = 10;
+  pi_state.waiter_prio = 5;
+  pi_state.handoffs = 0;
+  pthread_create(&owner, 0, owner_thread, 0);
+  pthread_create(&waiter, 0, waiter_thread, 0);
+  pthread_create(&monitor, 0, monitor_thread, 0);
+  pthread_join(waiter, 0);
+  pthread_join(monitor, 0);
+  pthread_join(owner, 0);
+  if (pi_state.owner_prio != 14 || pi_state.waiter_prio != 11 || pi_state.handoffs != 3) {
     reach_error();
     abort();
   }
