@@ -5,6 +5,7 @@
     The top-down solver family. *)
 
 module Td3 = Td3
+module Td3_record = Td3_record
 module Td_simplified = Td_simplified
 module Td_simplified_ref = Td_simplified_ref
 module TopDown = TopDown
