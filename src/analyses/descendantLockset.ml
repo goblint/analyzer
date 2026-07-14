@@ -109,7 +109,7 @@ module Spec = struct
     let happens_before (t1, dl1) (t2, lh2) =
       let locks_held_creating_t2 = D.find t2 dl1 in
       if Lockset.is_bot locks_held_creating_t2 then
-         false
+        false
       else
         let relevant_lh2_threads =
           Lockset.fold

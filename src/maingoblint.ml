@@ -192,13 +192,7 @@ let handle_flags () =
     set_auto "lib.activated[+]" "sv-comp";
 
   if get_bool "kernel" then
-    set_auto "lib.activated[+]" "linux-kernel";
-
-  match get_string "dbg.dump" with
-  | "" -> ()
-  | path ->
-    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
-    set_string "outfile" ""
+    set_auto "lib.activated[+]" "linux-kernel"
 
 let handle_options () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
@@ -490,7 +484,7 @@ let merge_parsed parsed =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  Errormsg.logChannel := Messages.get_out "cil" cilout;
+  Errormsg.logChannel := cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
@@ -523,7 +517,7 @@ let do_stats () =
     Goblint_solver.SolverStats.print ();
     Logs.newline ();
     Logs.info "Timings:";
-    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel Legacy.stderr);
     flush_all ()
   )
 

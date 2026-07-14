@@ -102,7 +102,7 @@ struct
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
-  module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module Result = AnalysisResult.Result (LT)
   module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)
@@ -361,9 +361,8 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out (Spec.name ()) !M.out in
       let print_one v st =
-        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
+        ignore (Pretty.fprintf !M.out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
       in
       GHT.iter print_one glob
     in

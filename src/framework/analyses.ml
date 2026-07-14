@@ -134,7 +134,7 @@ struct
     | _ -> raise Deadcode
 
   let printXml f = function
-    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape Printable.DefaultConf.top_name)
+    | `Top -> BatPrintf.fprintf f "<path><analysis name=\"deadcode\"><value>Totally unknown and messed up</value></analysis></path>"
     | `Bot -> ()
     | `Lifted x -> LD.printXml f x
 end

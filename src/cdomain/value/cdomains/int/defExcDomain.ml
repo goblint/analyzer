@@ -583,7 +583,7 @@ struct
       | `Definite x -> (return `Bot) <+> (GobQCheck.shrink (IntOps.BigIntOps.arbitrary ()) x >|= definite)
       | `Bot -> empty
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map excluded (S.arbitrary ());
       10, QCheck.map definite (IntOps.BigIntOps.arbitrary ());
       1, QCheck.always `Bot

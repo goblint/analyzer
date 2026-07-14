@@ -50,7 +50,7 @@ struct
   let printXmlWarning f () =
     List.iter (printXml_warn f) !Messages.Table.messages_list
 
-  let do_html_output () =
+  let do_html_output xml_file_name =
     let g2html_path = get_string "exp.g2html_path" in
     let g2html_path =
       if g2html_path = "" then
@@ -65,7 +65,7 @@ struct
           "--num-threads"; string_of_int (jobs ());
           "--dot-timeout"; "0";
           "--result-dir"; "result";
-          !Messages.xml_file_name
+          xml_file_name
         ]
       in
       match Timing.wrap "g2html" Unix.system command with
@@ -78,7 +78,6 @@ struct
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
-    let out = Messages.get_out result_name !Messages.out in
     let module SH = BatHashtbl.Make (Basetype.RawStrings) in
     let file2funs = SH.create 100 in
     let funs2node = SH.create 100 in
@@ -98,7 +97,6 @@ struct
       List.iter one_fun xs
     in
     let write_file f fn =
-      Messages.xml_file_name := fn;
       Logs.info "Writing xml to temp. file: %s" fn;
       BatPrintf.fprintf f "<run>";
       BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
@@ -113,16 +111,17 @@ struct
       gtfxml f gtable;
       printXmlWarning f ();
       BatPrintf.fprintf f "</result></run>\n";
-      BatPrintf.fprintf f "%!"
+      BatPrintf.fprintf f "%!";
+      fn
     in
     if get_string "result" = "g2html" then (
-      BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file;
+      let xml_file_name = BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file in
       CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) live;
-      do_html_output ()
+      do_html_output xml_file_name
     )
     else
-      let f = BatIO.output_channel out in
-      write_file f (get_string "outfile")
+      let f = BatIO.output_channel !Messages.out in
+      ignore (write_file f (get_string "outfile"))
 end
 
 module Make2 (Result: Result) =

@@ -1532,7 +1532,7 @@ struct
         | _ -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
-        match eval_rv_address ~man man.local e with
+        match eval_rv_address ~man man.local e with (* TODO: why doesn't this use length from ArrayDomain? *)
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf t =
@@ -1540,7 +1540,7 @@ struct
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in
+          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in (* TODO: shouldn't addr offset matter? *)
           let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Z.of_int) (Seq.append slen alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
@@ -1549,36 +1549,27 @@ struct
       end
     | Q.EvalValue e ->
       eval_rv ~man man.local e
-    | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
+    | Q.BlobSize e -> begin
         let p = eval_rv_address ~man man.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
-          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
+          (* If there's a non-alloc var or an offset in the lval set, we answer with bottom *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_alloc_var man v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var man v || o <> `NoOffset
               | _ -> false) a then
             Queries.Result.bot q
           else (
-            (* If we need the BlobSize from the base address, then remove any offsets *)
-            let a =
-              if from_base_addr then AD.map (function
-                  | Addr (v, o) -> Addr (v, `NoOffset)
-                  | addr -> addr) a
-              else
-                a
-            in
             let r = get ~man ~full:true man.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
                (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) with
-                | Blob (_,s,_) -> `Lifted s
+                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
                 | _ -> Queries.Result.top q
                )
-             | Blob (_,s,_) -> `Lifted s
+             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
              | _ -> Queries.Result.top q)
           )
         | _ -> Queries.Result.top q
@@ -1901,14 +1892,6 @@ struct
     let f s v = rem_partitioning a s v in
     List.fold_left f st v_list
 
-  (**************************************************************************
-    * Auxillary functions
-    **************************************************************************)
-
-  let is_some_bot (x:value) =
-    match x with
-    | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | _ -> VD.is_bot_value x
 
   module InvariantEval =
   struct
@@ -2345,64 +2328,42 @@ struct
       M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname;
       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
-  let points_to_heap_only man ptr =
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (Queries.AD.is_top a)->
-      Queries.AD.for_all (function
-          | Addr (v, _) -> man.ask (Queries.IsHeapVar v)
-          | _ -> false
-        ) a
-    | _ -> false
-
-  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds *)
+  let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
       intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
-    if points_to_heap_only man ptr then
-      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-      man.ask (Queries.BlobSize {exp = ptr; base_address = true})
-    else
-      match man.ask (Queries.MayPointTo ptr) with
-      | a when not (Queries.AD.is_top a) ->
-        let pts_list = Queries.AD.elements a in
-        let pts_elems_to_sizes (addr: Queries.AD.elt) =
-          begin match addr with
-            | Addr (v, _) ->
-              begin match Cil.unrollType v.vtype with
-                | TArray (item_typ, _, _) ->
-                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                  begin match man.ask (Queries.EvalLength ptr) with
-                    | `Lifted arr_len ->
-                      let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-                      begin
-                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-                      end
-                    | `Bot -> `Bot
-                    | `Top -> `Top
-                  end
-                | _ ->
-                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-                  `Lifted type_size_in_bytes
+    match addr with
+    | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
+      (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
+      man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
+    | Addr (v, _) ->
+      begin match Cil.unrollType v.vtype with
+        | TArray (item_typ, _, _) ->
+          let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
+            | `Lifted arr_len ->
+              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
+              begin
+                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
               end
-            | _ -> `Top
+            | `Bot -> `Bot
+            | `Top -> `Top
           end
-        in
-        (* Map each points-to-set element to its size *)
-        let pts_sizes = List.map pts_elems_to_sizes pts_list in
-        (* Take the smallest of all sizes that ptr's contents may have *)
-        begin match pts_sizes with
-          | [] -> `Bot
-          | [x] -> x
-          | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
-        end
-      | _ ->
-        (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-         Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-         `Top)
+        | _ ->
+          let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+          `Lifted type_size_in_bytes
+      end
+    | _ -> `Top
+
+  let get_size_of_ptr_target man ptr =
+    man.ask (Queries.MayPointTo ptr)
+    |> Queries.AD.to_seq
+    |> Seq.map (get_addr_size man)
+    |> Seq.fold_left ValueDomainQueries.ID.join `Bot
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
@@ -2519,7 +2480,7 @@ struct
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let size = man.ask (Q.BlobSize s1) in
           let s_id =
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
@@ -2528,7 +2489,7 @@ struct
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let size = man.ask (Q.BlobSize s1) in
           let s_id =
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
