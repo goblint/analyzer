@@ -5,28 +5,28 @@ open SimplifiedAnalysis
 
 module DefaultSpec =
 struct
-  let query _ _ (type a) (q: a Queries.t) : a Queries.result =
+  let query man state (type a) (q: a Queries.t) : a Queries.result =
     Queries.Result.top q
 
-  let assign _ state (_: lval) (_: exp) =
+  let assign man state (lval: lval) (rval: exp) =
     state
 
-  let branch _ state (_: exp) (_: bool) =
+  let branch man state (exp: exp) (tv: bool) =
     state
 
-  let body _ state (_: fundec) =
+  let body man state (f: fundec) =
     state
 
-  let return _ state (_: exp option) (_: fundec) =
+  let return man state (exp: exp option) (f: fundec) =
     state
 
-  let enter _ state (_: lval option) (_: fundec) (_: exp list) =
+  let enter man state (lval: lval option) (f: fundec) (args: exp list) =
     state
 
-  let combine _ _ callee_local (_: lval option) (_: fundec) (_: exp list) =
+  let combine man caller_state callee_local (lval: lval option) (f: fundec) (args: exp list) =
     callee_local
 
-  let special _ state (_: lval option) (_: varinfo) (_: exp list) =
+  let special man state (lval: lval option) (f: varinfo) (args: exp list) =
     state
 end
 
@@ -42,8 +42,8 @@ struct
 
   let startstate = D.bot ()
   let startcontext = ()
-  let context _ (_, c) _ _ = c
-  let threadenter _ _ _ _ = D.top ()
+  let context man (_, c) f callee_state = c
+  let threadenter man state f args = D.top ()
 end
 
 let _ =

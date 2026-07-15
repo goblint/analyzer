@@ -72,7 +72,7 @@ struct
 
   (* Transfer functions: we only implement assignments here.
    * You can leave this code alone... *)
-  let assign _ d (lval:lval) (rval:exp) : D.t =
+  let assign man d (lval:lval) (rval:exp) : D.t =
     match lval with
     | (Var x, NoOffset) when not x.vaddrof -> D.add x (eval d rval) d
     | _ -> D.top ()
@@ -83,7 +83,7 @@ struct
     | BinOp (Lt, e1, e2, _) -> SL.lt (eval d e1) (eval d e2)
     | _ -> false
 
-  let query _ state (type a) (q: a Queries.t): a Queries.result =
+  let query man state (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
     | EvalInt e when assert_holds state e ->
@@ -91,8 +91,8 @@ struct
       ID.of_bool ik true
     | _ -> Result.top q
 
-  let context _ ((state: D.t), _) _ _ = state
-  let threadenter _ state _ _ = state
+  let context man ((state: D.t), _) f callee_state = state
+  let threadenter man state f args = state
 end
 
 let _ =

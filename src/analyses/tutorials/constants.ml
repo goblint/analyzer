@@ -47,29 +47,29 @@ struct
     | _ -> I.top ()
 
   (* transfer functions *)
-  let query _ _ (type a) (q: a Queries.t): a Queries.result =
+  let query man state (type a) (q: a Queries.t): a Queries.result =
     Queries.Result.top q
 
-  let assign _ state (lval:lval) (rval:exp) : D.t =
+  let assign man state (lval:lval) (rval:exp) : D.t =
     match get_local lval with
     | Some loc -> D.add loc (eval state rval) state
     | None -> state
 
-  let branch _ state (exp:exp) (tv:bool) : D.t =
+  let branch man state (exp:exp) (tv:bool) : D.t =
     let v = eval state exp in
     match I.to_bool v with
       | Some b when b <> tv -> raise Deadcode (* if the expression evaluates to not tv, the tv branch is not reachable *)
       | _ -> state
 
-  let body _ state (f:fundec) : D.t =
+  let body man state (f:fundec) : D.t =
     (* Initialize locals to top *)
     List.fold_left (fun m l -> D.add l (I.top ()) m) state f.slocals
 
-  let return _ state (exp:exp option) (f:fundec) : D.t =
+  let return man state (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
     state
 
-  let enter _ (_: D.t) (_: lval option) (f:fundec) (_: exp list) : D.t =
+  let enter man caller_state (lval: lval option) (f:fundec) (args: exp list) : D.t =
     (* Set the formal int arguments to top *)
     List.fold_left (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals
 
@@ -82,20 +82,20 @@ struct
         )
       |_ -> state
 
-  let combine _ state (_: D.t) (lval:lval option) (_: fundec) (_: exp list): D.t =
+  let combine man state (callee_local: D.t) (lval:lval option) (f: fundec) (args: exp list): D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
       with a local int variable x on the left, we set it to top *)
     set_local_int_lval_top state lval
 
-  let special _ state (lval: lval option) (_:varinfo) (_:exp list) : D.t =
+  let special man state (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
     set_local_int_lval_top state lval
 
   let startstate = D.bot ()
   let startcontext = ()
-  let context _ (_, c) _ _ = c
-  let threadenter _ _ _ _ = D.top ()
+  let context man (_, c) f callee_state = c
+  let threadenter man state f args = D.top ()
 end
 
 let _ =

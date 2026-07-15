@@ -31,7 +31,7 @@ struct
   module C = Printable.Unit
 
   (* We are context insensitive in this analysis *)
-  let context _ _ _ _ = ()
+  let context man state f callee_state = ()
   let startcontext = ()
 
 
@@ -61,10 +61,10 @@ struct
   (* transfer functions *)
 
   (** Handles assignment of [rval] to [lval]. *)
-  let query _ _ (type a) (q: a Queries.t): a Queries.result =
+  let query man state (type a) (q: a Queries.t): a Queries.result =
     Queries.Result.top q
 
-  let assign _ (state: D.t) (lval:lval) (rval:exp) : D.t =
+  let assign man (state: D.t) (lval:lval) (rval:exp) : D.t =
     match lval with
     | Var v,_ ->
       (* TODO: Check whether rval is tainted, handle assignment to v accordingly *)
@@ -72,43 +72,39 @@ struct
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
-  let branch _ (state: D.t) (exp:exp) (tv:bool) : D.t =
+  let branch man (state: D.t) (exp:exp) (tv:bool) : D.t =
     (* Nothing needs to be done *)
-    ignore (exp, tv);
     state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call.
       For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
-  let special _ (caller_state: D.t) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (caller_state: D.t) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* TODO: Check if f is a sink / source and handle it appropriately *)
     (* To warn about a potential issue in the code, use M.warn. *)
     caller_state
 
   (** Handles going from start node of function [f] into the function body of [f].
       Meant to handle e.g. initialization of local variables. *)
-  let body _ (state: D.t) (f:fundec) : D.t =
+  let body man (state: D.t) (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
-    ignore f;
     state
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
-  let return _ (state: D.t) (exp:exp option) (f:fundec) : D.t =
+  let return man (state: D.t) (exp:exp option) (f:fundec) : D.t =
     match exp with
     | Some e ->
       (* TODO: Record whether a tainted value was returned. *)
       (* Hint: You may use return_varinfo in place of a variable. *)
-      ignore (e, f);
       state
     | None ->
-      ignore f;
       state
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
-  let enter _ (caller_state: D.t) (lval: lval option) (f:fundec) (args:exp list) : D.t =
+  let enter man (caller_state: D.t) (lval: lval option) (f:fundec) (args:exp list) : D.t =
     (* Create list of (formal, actual_exp)*)
     let zipped = List.combine f.sformals args in
     (* TODO: For the initial callee_state, collect formal parameters where the actual is tainted. *)
@@ -118,20 +114,18 @@ struct
         else ts)
         (D.bot ())
         zipped in
-    ignore lval;
     callee_state
 
   (** For a function call "lval = f(args)" or "f(args)",
       computes the global environment state of the caller after the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine _ (caller_state: D.t) (callee_local:D.t) (lval:lval option) (_: fundec) (_: exp list): D.t =
+  let combine man (caller_state: D.t) (callee_local:D.t) (lval:lval option) (f: fundec) (args: exp list): D.t =
     (* TODO: Record whether lval was tainted. *)
-    ignore callee_local;
     caller_state
 
   (* You may leave these alone *)
   let startstate = D.bot ()
-  let threadenter _ _ _ _ = D.top ()
+  let threadenter man state f args = D.top ()
 end
 
 let _ =
