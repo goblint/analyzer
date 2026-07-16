@@ -355,6 +355,13 @@
           "items": { "type": "string" },
           "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
         },
+        "ctx_insens": {
+          "title": "ana.ctx_insens",
+          "description": "List of context-insensitive analyses. This setting is ignored if `ana.ctx_sens` contains elements.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [ "stack_loc", "stack_trace_set" ]
+        },
         "ctx_sens": {
           "title": "ana.ctx_sens",
           "description": "List of context-sensitive analyses. In case this list is empty, `ana.ctx_insens` will be used to determine the set of context-insensitive analyses.",
