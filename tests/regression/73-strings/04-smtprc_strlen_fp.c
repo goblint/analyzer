@@ -1,4 +1,5 @@
 // FIXPOINT extracted from smtprc_comb
+#include <stdlib.h>
 #include <unistd.h> // for optarg
 
 typedef unsigned int size_t; // size_t from 32bit cilly

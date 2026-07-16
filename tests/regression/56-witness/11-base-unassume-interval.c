@@ -3,7 +3,7 @@
 
 int main() {
   int i = 0;
-  while (i < 100) {
+  while (i < 100) { // TODO: location invariant before loop doesn't work anymore
     i++;
   }
   assert(i == 100);

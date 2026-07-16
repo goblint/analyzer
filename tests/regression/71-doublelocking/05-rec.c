@@ -10,7 +10,9 @@ int g;
 
 pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+pthread_mutex_t mut2 = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+#else
 pthread_mutex_t mut2 = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 #endif
 
@@ -36,12 +38,10 @@ int main(int argc, char const *argv[])
     pthread_create(&t1,NULL,f1,NULL);
     pthread_join(t1, NULL);
 
-#ifndef __APPLE__
     pthread_mutex_lock(&mut2); //NOWARN
     pthread_mutex_lock(&mut2); //NOWARN
     pthread_mutex_unlock(&mut2);
     pthread_mutex_unlock(&mut2);
-#endif
 
     return 0;
 }

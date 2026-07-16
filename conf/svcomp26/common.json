@@ -1,0 +1,56 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true
+    },
+    "context": {
+      "widen": false
+    },
+    "race": {
+      "free": false,
+      "call": false
+    },
+    "autotune": {
+      "enabled": true
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3",
+  "solvers": {
+    "td3": {
+      "weak-deps": "lazy"
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    },
+    "malloc": {
+      "fail": false,
+      "zero": "either"
+    }
+  },
+  "witness": {
+    "yaml": {
+      "format-version": "2.1"
+    },
+    "invariant": {
+      "loop-head": true
+    }
+  },
+  "pre": {
+    "transform-paths": false
+  }
+}

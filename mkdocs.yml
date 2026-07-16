@@ -22,6 +22,7 @@ nav:
     - ▶️ Running: user-guide/running.md
     - 🔧 Configuring: user-guide/configuring.md
     - 🗂️ Options reference: jsfh/options.schema.html
+    - ⚠️ Assumptions: user-guide/assumptions.md
     - 🔍 Inspecting: user-guide/inspecting.md
     - 📝 Annotating: user-guide/annotating.md
     - 🐎 Benchmarking: user-guide/benchmarking.md
@@ -39,3 +40,7 @@ nav:
   - '📦 Artifact descriptions':
     - "🇸 SAS '21": artifact-descriptions/sas21.md
     - "🇪 ESOP '23": artifact-descriptions/esop23.md
+    - "🇻 VMCAI '24": artifact-descriptions/vmcai24.md
+    - "🇻 VMCAI '25": artifact-descriptions/vmcai25.md
+    - "🇵 PLDI '25": artifact-descriptions/pldi25.md
+    - "🇻 VMCAI '26": artifact-descriptions/vmcai26.md

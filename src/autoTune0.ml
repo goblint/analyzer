@@ -17,17 +17,16 @@ type complexityFactors = {
 }
 
 let printFactors f =
-  Printf.printf "functions: %d\n" f.functions;
-  Printf.printf "functionCalls: %d\n" f.functionCalls;
-  Printf.printf "loops: %d\n" f.loops;
-  Printf.printf "loopBreaks: %d\n" f.loopBreaks;
-  Printf.printf "controlFlowStatements: %d\n" f.controlFlowStatements;
-  Printf.printf "expressions: %d\n" f.expressions;
-  Printf.printf "instructions: %d\n" f.instructions;
-  Printf.printf "integralVars: (%d,%d)\n" (fst f.integralVars) (snd f.integralVars);
-  Printf.printf "arrayVars: (%d,%d)\n" (fst f.arrayVars) (snd f.arrayVars);
-  Printf.printf "pointerVars: (%d,%d)\n" (fst f.pointerVars) (snd f.pointerVars);
-  flush stdout;
+  Logs.debug "functions: %d" f.functions;
+  Logs.debug "functionCalls: %d" f.functionCalls;
+  Logs.debug "loops: %d" f.loops;
+  Logs.debug "loopBreaks: %d" f.loopBreaks;
+  Logs.debug "controlFlowStatements: %d" f.controlFlowStatements;
+  Logs.debug "expressions: %d" f.expressions;
+  Logs.debug "instructions: %d" f.instructions;
+  Logs.debug "integralVars: (%d,%d)" (fst f.integralVars) (snd f.integralVars);
+  Logs.debug "arrayVars: (%d,%d)" (fst f.arrayVars) (snd f.arrayVars);
+  Logs.debug "pointerVars: (%d,%d)" (fst f.pointerVars) (snd f.pointerVars)
 
 
 class collectComplexityFactorsVisitor(factors) = object
@@ -51,7 +50,7 @@ class collectComplexityFactorsVisitor(factors) = object
     | Set _ ->
       factors.instructions <- factors.instructions + 1; DoChildren
     | Call (Some _, _,_,_,_) ->
-      factors.instructions <- factors.instructions + 2; (*Count function call and assignment of the result seperately *)
+      factors.instructions <- factors.instructions + 2; (*Count function call and assignment of the result separately *)
       factors.functionCalls <- factors.functionCalls + 1; DoChildren
     | Call _ ->
       factors.instructions <- factors.instructions + 1;
@@ -92,6 +91,11 @@ let collectFactors visitAction visitedObject =
   ignore (visitAction visitor visitedObject);
   factors
 
-let is_large_array = function
-  | TArray (_,Some (Const (CInt (i,_,_))),_) -> i > Z.of_int @@ 10 * get_int "ana.base.arrays.unrolling-factor"
+let is_large_array t =
+  match Cil.unrollType t with
+  | TArray (_, e, _) ->
+    begin match Cil.lenOfArray e with (* TODO: Cil.lenOfArray but with Z.t? *)
+      | i -> i > 10 * get_int "ana.base.arrays.unrolling-factor"
+      | exception Cil.LenOfArray -> false
+    end
   | _ -> false

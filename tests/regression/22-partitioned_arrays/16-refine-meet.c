@@ -1,5 +1,8 @@
 // PARAM: --set ana.base.arrays.domain partitioned
+// NOCHECK
 int garr[7];
+
+void fundef_missing();
 
 int main(int argc, char **argv)
 {

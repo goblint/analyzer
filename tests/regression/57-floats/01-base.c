@@ -1,4 +1,4 @@
-// PARAM: --enable ana.float.interval
+// PARAM: --enable ana.float.interval --enable ana.int.interval
 #include <goblint.h>
 #include <float.h>
 #include <limits.h>
@@ -22,6 +22,11 @@ int main()
     __goblint_check(a == 2.); // SUCCESS
     __goblint_check(a < 10.); // SUCCESS
     __goblint_check(a > 10.); // FAIL
+
+    __goblint_check((a < 10.) == 1);
+    __goblint_check((a > 10.) == 0);
+    __goblint_check((x == 2.) >= 0);
+    __goblint_check((x == 2.) <= 1);
 
     __goblint_check(c == 2.f); // SUCCESS
     __goblint_check(c < 10.f); // SUCCESS

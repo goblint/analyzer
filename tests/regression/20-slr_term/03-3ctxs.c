@@ -1,4 +1,4 @@
-
+// NOCHECK
 int f(int j){
 	return j+1;
 }

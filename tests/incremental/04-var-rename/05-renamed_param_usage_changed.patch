@@ -2,7 +2,7 @@
 +++ tests/incremental/04-var-rename/05-renamed_param_usage_changed.c
 @@ -1,6 +1,6 @@
  //This test should mark foo and main as changed
-
+ // CRAM
 -void foo(int a, int b) {
 +void foo(int b, int a) {
      int x = a;

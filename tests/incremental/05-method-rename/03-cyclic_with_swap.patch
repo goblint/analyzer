@@ -1,7 +1,7 @@
 --- tests/incremental/05-method-rename/03-cyclic_with_swap.c
 +++ tests/incremental/05-method-rename/03-cyclic_with_swap.c
 @@ -2,13 +2,17 @@
-
+ // CRAM
 -void foo1(int c) {
 -    if (c < 10) foo2(c + 1);
 +void newFun(int c) {

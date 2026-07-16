@@ -1,3 +1,4 @@
+// NOCRASH
 #include <stdarg.h>
 
 int sum(int n, ...) {

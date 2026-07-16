@@ -1,3 +1,4 @@
+// NOCHECK
 #include <stdlib.h>
 
 extern void *malloc(size_t);

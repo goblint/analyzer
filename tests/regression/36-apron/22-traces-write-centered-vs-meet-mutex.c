@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --set ana.relation.privatization mutex-meet
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
@@ -22,11 +22,11 @@ void *t_fun(void *arg) {
     y = h;
     __goblint_check(y <= x);
     pthread_mutex_lock(&B);
-    __goblint_check(x == y); // TODO (mutex-meet succeeds, write unknown)
+    __goblint_check(x == y); // mutex-meet succeeds, (now-defunct) write unknown
     pthread_mutex_unlock(&B);
     i = x + 31;
     z = i;
-    __goblint_check(z >= x); // TODO (write succeeds, mutex-meet unknown)
+    __goblint_check(z >= x); // TODO ((now-defunct) write succeeds, mutex-meet unknown)
     pthread_mutex_unlock(&A);
     pthread_mutex_unlock(&C);
   }

@@ -73,7 +73,7 @@ let () =
         ]
       );
       "const" @> lazy (
-        let args = ((fun x -> 42), set1) in
+        let args = ((fun _ -> 42), set1) in
         throughputN 1 [
           ("map1", map1, args);
           ("map2", map2, args);

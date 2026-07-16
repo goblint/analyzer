@@ -16,7 +16,7 @@ void fun2() {
 int main() {
   int x = __VERIFIER_nondet_int();
 
-  void (*fp)();
+  void (*fp)(void);
 
   if (x) {
     pthread_mutex_lock(&mutex);

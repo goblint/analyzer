@@ -1,4 +1,5 @@
 //SKIP PARAM: --set ana.activated[+] affeq
+#include <goblint.h>
 
 int main() {
 

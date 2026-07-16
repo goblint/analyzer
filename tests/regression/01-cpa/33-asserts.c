@@ -1,6 +1,6 @@
-extern void __goblint_check(int); // NOWARN
-extern void __goblint_assume(int);
-extern void __goblint_assert(int);      // NOWARN
+extern void __goblint_check(_Bool); // NOWARN
+extern void __goblint_assume(_Bool);
+extern void __goblint_assert(_Bool);      // NOWARN
 extern void __goblint_unknown(void*);
 
 #define check(x)   __goblint_check(x) // NOWARN

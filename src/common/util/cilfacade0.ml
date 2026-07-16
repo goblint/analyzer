@@ -42,7 +42,7 @@ let rec get_stmtLoc stmt =
     get_labelsLoc stmt.labels
 
   | Instr (hd :: _) -> get_instrLoc hd
-  | Return (_, loc) -> loc
+  | Return (_, loc, eloc) -> eloc_fallback ~eloc ~loc
   | Goto (_, loc) -> loc
   | ComputedGoto (_, loc) -> loc
   | Break loc -> loc

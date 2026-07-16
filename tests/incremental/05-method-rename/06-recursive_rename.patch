@@ -1,6 +1,7 @@
 --- tests/incremental/05-method-rename/06-recursive_rename.c
 +++ tests/incremental/05-method-rename/06-recursive_rename.c
-@@ -1,7 +1,7 @@
+@@ -1,8 +1,8 @@
+ // CRAM
 -void foo(int x) {
 -    if(x > 1) foo(x - 1);
 +void bar(int x) {

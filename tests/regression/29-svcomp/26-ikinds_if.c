@@ -1,4 +1,5 @@
 //PARAM: --enable ana.int.interval
+// NOCHECK
 #include<stdlib.h>
 
 static long sound_ioctl(unsigned int cmd , unsigned long arg )

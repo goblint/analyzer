@@ -10,7 +10,7 @@ mkdir -p $OUTDIR
 for PRIV in "${PRIVS[@]}"; do
     echo $PRIV
     PRIVDUMP="$OUTDIR/$PRIV"
-    ./goblint --sets exp.privatization $PRIV --sets exp.priv-prec-dump $PRIVDUMP "$@"
+    ./goblint --set exp.privatization $PRIV --set exp.priv-prec-dump $PRIVDUMP "$@"
 done
 
 PRIVDUMPS=("${PRIVS[*]/#/$OUTDIR/}") # why [*] here?

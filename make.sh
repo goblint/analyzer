@@ -8,16 +8,21 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only --packages=ocaml-variants.4.14.0+options,ocaml-option-flambda --locked
+  # This is what we used to do and what we'd like to do:
+  # opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked
+  # But this fails on opam < 2.2 due to a bug (https://github.com/ocaml/opam/issues/6946).
+  # So this is the workaround from @kit-ty-kate (while we still want to support opam < 2.2):
+  opam switch -y create . --no-install --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda
+  opam install -y ./*.opam.locked --deps-only
 }
 
 rule() {
   case $1 in
     # new rules using dune
     clean)
+      eval $(opam env)
       git clean -X -f
       dune clean
-    ;; gen) gen
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
@@ -33,10 +38,9 @@ rule() {
       dune build --profile=release $TARGET.exe &&
       rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
-    # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
-    ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
-      dune build $TARGET.bc.js &&
-      node _build/default/$TARGET.bc.js
+    ;; view)
+      eval $(opam config env)
+      dune build gobview
     ;; watch)
       eval $(opam config env)
       # dune build -w $TARGET.exe
@@ -61,8 +65,6 @@ rule() {
       dune build goblint.byte &&
       rm -f goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
-    # ;; tag*)
-    #   otags -vi `find src/ -iregex [^.]*\.mli?`
 
     # setup, dependencies
     ;; deps)
@@ -77,36 +79,33 @@ rule() {
         opam upgrade -y $(opam list --pinned -s)
       }
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
-      echo "For the --html output you also need: javac, ant, dot (graphviz)"
-      echo "For running the regression tests you also need: ruby, gem, curl"
+      echo "Make sure you have the following installed: opam >= 2.2.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
+      echo "For the --html output you also need: graphviz and python3-pygments (optional)"
+      echo "For running the regression tests you also need: ruby, gem, curl, and the os gem"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
       eval $(opam env)
-      echo "Installing opam packages for development..."
-      opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2
-      # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
-      echo "Be sure to adjust your vim/emacs config!"
+      echo "Installing opam packages for test, doc and dev-setup..."
+      opam install -y . --deps-only --locked --with-test --with-doc --with-dev-setup
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -sf ../../scripts/hooks/pre-commit; cd -
       # Use `git commit -n` to temporarily bypass the hook if necessary.
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
+      sudo gem install os
     ;; headers)
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
       rm -rf linux-headers && mv linux-headers-master linux-headers
       for n in $(compgen -c gcc- | sed 's/gcc-//'); do if [ $n != 5 ]; then cp -n linux-headers/include/linux/compiler-gcc{5,$n}.h; fi; done
-    ;; lock)
-      opam lock
     ;; npm)
       if test ! -e "webapp/package.json"; then
         git submodule update --init --recursive webapp
       fi
       cd webapp && npm install && npm start
     ;; jar)
-      echo "Make sure you have the following installed: javac, ant"
+      echo "Make sure you have the following installed: javac, ant, dot (from graphviz)"
       if test ! -e "g2html/build.xml"; then
         git submodule update --init --recursive g2html
       fi
@@ -115,8 +114,6 @@ rule() {
     ;; setup_gobview )
       [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
       opam install --deps-only --locked gobview/
-    # ;; watch)
-    #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)
       eval $(opam config env)
       dune build @install
@@ -141,23 +138,13 @@ rule() {
       cp _opam/share/apron/lib/libboxD.so $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
-    # tests, CI
+    # tests
     ;; test)
-      chmod -R +w ./tests/ # dune runtest normally has everything read-only, but update_suite wants to write a lot of things
-      mkdir -p ./tests/suite_result
-      ./scripts/update_suite.rb # run regression tests
-    ;; testci)
-      ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
-    ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com
-      echo "run ./scripts/travis-ci.sh to setup ocaml"
-      # echo "bind-mount cwd: beware that cwd of host can be modified and IO is very slow!"
-      # docker run -it -u travis -v $(pwd):$(pwd):delegated -w $(pwd) travisci/ci-garnet:packer-1515445631-7dfb2e1 bash
-      echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
-      # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
-      docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
-    ;; server)
-      rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
-      ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
+      eval $(opam env)
+      dune runtest
+
+    ;; sanitytest)
+      ./scripts/update_suite.rb
 
     ;; *)
       echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;

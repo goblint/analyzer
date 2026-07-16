@@ -1,4 +1,5 @@
 // PARAM: --enable ana.sv-comp.enabled --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )"
+// NOCRASH
 #include <pthread.h>
 #include <goblint.h>
 

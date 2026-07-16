@@ -1,5 +1,6 @@
 // PARAM: --enable ana.sv-comp.functions
 // Adapted from: https://github.com/sosy-lab/sv-benchmarks/blob/master/c/ldv-regression/test27-2.c
+// NOTIMEOUT
 extern int __VERIFIER_nondet_int(void);
 
 struct dummy {

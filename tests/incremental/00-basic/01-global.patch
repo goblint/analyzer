@@ -3,6 +3,7 @@
 @@ -1,6 +1,6 @@
  // Previosuly, the function was erroneously not reanalyzed when the global initializer/the start state changed
  // when hash-consing is activated.
+ // NOCHECK
 -int g = 0;
 +int g = 35;
 

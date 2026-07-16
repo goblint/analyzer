@@ -1,5 +1,5 @@
 // PARAM: --set trans.activated[+] "assert"
-
+// NOCHECK
 // Running the assert transformation on this test used to yield code that cannot be compiled with gcc, due to superfluous offsets on a pointer
 struct s {
     int a;

@@ -2,7 +2,7 @@
 +++ tests/incremental/05-method-rename/01-dependent_rename.c
 @@ -1,14 +1,14 @@
  #include<stdio.h>
-
+ // CRAM
 -void fun1() {
 +void bar1() {
      printf("fun1");

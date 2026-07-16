@@ -71,4 +71,5 @@ For more information, see [Firefox Profiler's documentation](https://profiler.fi
 
 ## Memtrace
 `memtrace` is a library and tool for profiling OCaml memory usage.
+It is supported in Goblint via an optional dependency.
 For a tutorial, see [Jane Street Tech Blog](https://blog.janestreet.com/finding-memory-leaks-with-memtrace/).

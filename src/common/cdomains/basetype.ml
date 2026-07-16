@@ -20,8 +20,6 @@ struct
     | _ -> Local
   let name () = "variables"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-
-  let arbitrary () = MyCheck.Arbitrary.varinfo
 end
 
 module RawStrings: Printable.S with type t = string =
@@ -34,29 +32,6 @@ struct
   let name () = "raw strings"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
-
-module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
-  Lattice.Flat (RawStrings) (struct
-    let top_name = "?"
-    let bot_name = "-"
-  end)
-
-module RawBools: Printable.S with type t = bool =
-struct
-  include Printable.StdLeaf
-  open Pretty
-  type t = bool [@@deriving eq, ord, hash, to_yojson]
-  let show (x:t) =  if x then "true" else "false"
-  let pretty () x = text (show x)
-  let name () = "raw bools"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
-end
-
-module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
-  Lattice.Flat (RawBools) (struct
-    let top_name = "?"
-    let bot_name = "-"
-  end)
 
 module CilExp =
 struct
@@ -85,7 +60,7 @@ struct
     | SizeOfE e
     | AlignOfE e -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
-    | CastE (_,e) -> occurs x e
+    | CastE (_,_,e) -> occurs x e
     | Question (b, t, f, _) -> occurs x b || occurs x t || occurs x f
     | Const _
     | SizeOf _
@@ -111,7 +86,7 @@ struct
       | StartOf l -> StartOf (replace_lv l)
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
-      | CastE (t,e) -> CastE(t, replace_rv e)
+      | CastE (k,t,e) -> CastE(k, t, replace_rv e)
       | Real e -> Real (replace_rv e)
       | Imag e -> Imag (replace_rv e)
       | SizeOfE e -> SizeOfE (replace_rv e)
@@ -138,7 +113,7 @@ struct
     | AddrOf _
     | StartOf _ -> [] (* TODO: return not empty, some may contain vars! *)
     | UnOp (_, e, _ )
-    | CastE (_, e)
+    | CastE (_, _, e)
     | Real e
     | Imag e -> get_vars e
     | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)

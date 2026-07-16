@@ -3,15 +3,15 @@
 
 // Empty implementations (instead of asserts) because annotating documentation promises no-op right now.
 
-void __goblint_check(int exp) {
+void __goblint_check(_Bool exp) {
 
 }
 
-void __goblint_assume(int exp) {
+void __goblint_assume(_Bool exp) {
 
 }
 
-void __goblint_assert(int exp) {
+void __goblint_assert(_Bool exp) {
 
 }
 
@@ -26,5 +26,9 @@ void __goblint_split_begin(int exp) {
 }
 
 void __goblint_split_end(int exp) {
+
+}
+
+void __goblint_bounded(unsigned long long exp) {
 
 }

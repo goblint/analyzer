@@ -1,4 +1,5 @@
 //SKIP PARAM: --set ana.activated[+] abortUnless --set ana.activated[+] apron
+#include <stdlib.h>
 #include <goblint.h>
 
 int zero() { return 1; }

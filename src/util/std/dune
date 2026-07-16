@@ -9,9 +9,11 @@
    goblint-cil
    fpath
    yojson
-   yaml)
+   yaml
+   qcheck-core)
  (preprocess
   (pps
    ppx_deriving.std
    ppx_deriving_hash
-   ppx_deriving_yojson)))
+   ppx_deriving_yojson))
+ (instrumentation (backend bisect_ppx)))

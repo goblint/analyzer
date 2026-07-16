@@ -2,7 +2,7 @@
 
 open GoblintCil
 
-val single: name:string -> (unit -> varinfo)
+val single: name:string -> typ:typ -> (unit -> varinfo)
 
 module type VarinfoMap =
 sig
@@ -18,6 +18,7 @@ module type G =
 sig
   include Hashtbl.HashedType
   val name_varinfo: t -> string
+  val typ: t -> typ
 end
 
 module type H =

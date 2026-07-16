@@ -1,0 +1,9 @@
+rules:
+  - id: apron-linexp0-get_size
+    pattern-either:
+      - pattern: Linexpr0.get_size
+      - pattern: Apron.Linexpr0.get_size
+      - pattern: GobApron.Linexpr0.get_size
+    message: don't use (returns some internal size, not number of dimensions)
+    languages: [ocaml]
+    severity: ERROR

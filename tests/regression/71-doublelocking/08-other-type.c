@@ -10,13 +10,12 @@ int g;
 
 pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+pthread_mutex_t mut2 = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+pthread_mutex_t mut3 = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER;
+#else
 pthread_mutex_t mut2 = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 pthread_mutex_t mut3 = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
-#else
-// OS X does not define PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP
-// we thus use the default one there, which should also create warnings
-pthread_mutex_t mut3;
 #endif
 
 
@@ -55,12 +54,10 @@ int main(int argc, char const *argv[])
     pthread_create(&t2,NULL,f2,NULL);
     pthread_join(t1, NULL);
 
-#ifndef __APPLE__
     pthread_mutex_lock(&mut2); //NOWARN
     pthread_mutex_lock(&mut2); //NOWARN
     pthread_mutex_unlock(&mut2); //NOWARN
     pthread_mutex_unlock(&mut2);
-#endif
 
     return 0;
 }

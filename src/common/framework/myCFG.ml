@@ -42,19 +42,36 @@ sig
   include CfgForward
 end
 
+(** Type of CFG "edges": keyed by 'from' and 'to' nodes,
+    along with the list of connecting instructions. *)
+module CfgEdge = struct
+  type t = Node.t * edges * Node.t [@@deriving eq, hash]
+end
+
+module CfgEdgeH = BatHashtbl.Make (CfgEdge)
+
+module type CfgBidirSkip =
+sig
+  include CfgBidir
+  val skippedByEdge: node -> edges -> node -> stmt list
+  (** [skippedByEdge from edges to] returns the list of {{!GoblintCil.stmt} AST statements} skipped over by [find_real_stmt] in {!CfgTools.createCfg}.
+      This consists of statements which do not correspond to CFG nodes, but some surrounding AST constructions. *)
+end
+
 
 module NodeH = BatHashtbl.Make (Node)
 
 
 let current_node = Node.current_node
-let current_cfg : (module CfgBidir) ref =
+let current_cfg : (module CfgBidirSkip) ref =
   let module Cfg =
   struct
     let next _ = raise Not_found
     let prev _ = raise Not_found
+    let skippedByEdge _ _ _ = raise Not_found
   end
   in
-  ref (module Cfg: CfgBidir)
+  ref (module Cfg: CfgBidirSkip)
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
@@ -64,5 +81,5 @@ let dummy_node = FunctionEntry Cil.dummyFunDec
 module type FileCfg =
 sig
   val file: Cil.file
-  module Cfg: CfgBidir
+  module Cfg: CfgBidirSkip
 end

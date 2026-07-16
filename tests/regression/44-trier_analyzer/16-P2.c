@@ -1,3 +1,4 @@
+// NOCHECK
 main () {
   int y, a, b;
   int *p, *q;

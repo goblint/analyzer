@@ -1,2 +1,0 @@
-(ocamllex specLexer)
-(ocamlyacc specParser)

@@ -4,17 +4,14 @@ include Printable.Std
 
 let name () = "mhp"
 
-module TID = ThreadIdDomain.FlagConfiguredTID
+module TID = ThreadIdDomain.Thread
 module Pretty = GoblintCil.Pretty
 
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
-  must_joined: ConcDomain.ThreadSet.t;
-} [@@deriving eq, ord, hash]
-
-let relift {tid; created; must_joined} =
-  {tid = ThreadIdDomain.ThreadLifted.relift tid; created = ConcDomain.ThreadSet.relift created; must_joined = ConcDomain.ThreadSet.relift must_joined}
+  must_joined: ConcDomain.FiniteMustThreadSet.t;
+} [@@deriving eq, ord, hash, relift]
 
 let current (ask:Queries.ask) =
   {
@@ -24,7 +21,12 @@ let current (ask:Queries.ask) =
   }
 
 let pretty () {tid; created; must_joined} =
-  let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
+  let tid_doc =
+    if GobConfig.get_bool "dbg.full-output" then
+      Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
+    else
+      None
+  in
   (* avoid useless empty sets in race output *)
   let created_doc =
     if ConcDomain.ThreadSet.is_empty created then
@@ -33,10 +35,10 @@ let pretty () {tid; created; must_joined} =
       Some (Pretty.dprintf "created=%a" ConcDomain.ThreadSet.pretty created)
   in
   let must_joined_doc =
-    if ConcDomain.ThreadSet.is_empty must_joined then
+    if ConcDomain.FiniteMustThreadSet.is_empty must_joined then
       None
     else
-      Some (Pretty.dprintf "must_joined=%a" ConcDomain.ThreadSet.pretty must_joined)
+      Some (Pretty.dprintf "must_joined=%a" ConcDomain.FiniteMustThreadSet.pretty must_joined)
   in
   let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
   Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs
@@ -51,27 +53,20 @@ include Printable.SimplePretty (
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)
 let definitely_not_started (current, created) other =
-  if (not (TID.is_must_parent current other)) then
+  if (not (TID.must_be_ancestor current other)) then
     false
   else
-    let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
+    let ident_or_may_be_created creator = TID.equal creator other || TID.may_be_ancestor creator other in
     if ConcDomain.ThreadSet.is_top created then
       false
     else
       not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
 
 let exists_definitely_not_started_in_joined (current,created) other_joined =
-  if ConcDomain.ThreadSet.is_top other_joined then
-    false
-  else
-    ConcDomain.ThreadSet.exists (definitely_not_started (current,created)) other_joined
+  ConcDomain.FiniteMustThreadSet.exists (fun ft -> definitely_not_started (current, created) (ThreadIdDomain.Thread ft)) other_joined
 
-(** Must the thread with thread id other be already joined  *)
-let must_be_joined other joined =
-  if ConcDomain.ThreadSet.is_top joined then
-    true (* top means all threads are joined, so [other] must be as well *)
-  else
-    ConcDomain.ThreadSet.mem other joined
+(** Must the thread be already joined  *)
+let must_be_joined = ConcDomain.FiniteMustThreadSet.mem_lifted
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
@@ -90,3 +85,8 @@ let may_happen_in_parallel one two =
     else
       true
   | _ -> true
+
+let is_unique_thread mhp =
+  match mhp.tid with
+  | `Lifted tid -> TID.is_unique tid
+  | _ -> false

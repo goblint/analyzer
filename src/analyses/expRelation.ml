@@ -47,7 +47,7 @@ struct
 
   let isFloat e = Cilfacade.isFloatType (Cilfacade.typeOf e)
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     let lvalsEq l1 l2 = CilType.Lval.equal l1 l2 in (* == would be wrong here *)
     match q with
     | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) && Basetype.CilExp.equal (canonize e1) (canonize e2) ->

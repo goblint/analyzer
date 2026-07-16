@@ -1,5 +1,6 @@
 // PARAM: --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 #include <pthread.h>
+#include <goblint.h>
 
 struct s {
   int f;

@@ -1,6 +1,7 @@
 // PARAM: --enable ana.int.interval_set --disable exp.fast_global_inits --set ana.base.arrays.domain partitioned
 
 // This is just to test that the analysis does not cause problems for features that are not explicitly dealt with
+// NOCHECK: what problems?
 int main(void) {
   callok();
 }

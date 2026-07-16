@@ -10,6 +10,6 @@ int main() {
         __goblint_check(count < ARR_SIZE);
         count++;
     }
-    __goblint_check(count == ARR_SIZE); // TODO (requires threshold)
+    __goblint_check(count == ARR_SIZE); // requires narrowing
     return 0 ;
 }

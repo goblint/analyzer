@@ -1,7 +1,5 @@
-type t = Fpath.t [@@deriving show]
+type t = Fpath.t [@@deriving eq, ord, show]
 
-let equal = Fpath.equal
-let compare = Fpath.compare
 let hash p = Hashtbl.hash (Fpath.to_string p)
 
 let pretty () p = GoblintCil.Pretty.text (Fpath.to_string p)
@@ -18,7 +16,7 @@ let of_yojson = function
     Error "GobFpath.of_yojson: not string"
 
 let cwd () =
-  Fpath.v (Unix.getcwd ())
+  Fpath.v (Sys.getcwd ())
 
 let cwd_append p =
   Fpath.append (cwd ()) p (* eta-expanded to get cwd at use time, not define time *)

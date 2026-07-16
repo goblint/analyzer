@@ -1,5 +1,5 @@
 #include<stdio.h>
-
+// CRAM
 void foo1(int c) {
     if (c < 10) foo2(c + 1);
 }

@@ -1,4 +1,4 @@
-// PARAM: --disable sem.unknown_function.spawn
+// PARAM: --enable sem.atexit.ignore
 #include <stdlib.h>
 #include <goblint.h>
 

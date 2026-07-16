@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable ana.int.interval --sets sem.int.signed_overflow assume_none --set ana.activated[+] apron --enable ana.autotune.enabled
+//SKIP PARAM: --enable ana.int.interval --set sem.int.signed_overflow assume_none --set ana.activated[+] apron --enable ana.autotune.enabled
 // Check that autotuner disables context for apron as well for recursive calls
 #include <goblint.h>
 

@@ -2,7 +2,7 @@
 +++ tests/incremental/06-glob-var-rename/00-simple_rename.c
 @@ -1,9 +1,9 @@
  #include<stdio.h>
-
+ // CRAM
 -int foo = 1;
 +int bar = 1;
 

@@ -1,0 +1,7 @@
+rules:
+  - id: open-obj
+    patterns:
+      - pattern: open Obj
+    message: use Obj explicitly
+    languages: [ocaml]
+    severity: ERROR

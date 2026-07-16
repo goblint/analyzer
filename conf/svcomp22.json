@@ -64,13 +64,10 @@
     },
     "null-pointer": {
       "dereference": "assume_none"
-    }
-  },
-  "witness": {
-    "graphml": {
-      "enabled": true,
-      "id": "enumerate",
-      "unknown": false
+    },
+    "malloc": {
+      "fail": false,
+      "zero": "pointer"
     }
   }
 }

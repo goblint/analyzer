@@ -1,0 +1,9 @@
+(env
+ (_
+  (binaries ./util/cfgDot.exe)))
+
+(cram
+ (applies_to :whole_subtree)
+ (enabled_if %{bin-available:graph-easy})
+ (deps
+   %{bin:cfgDot}))

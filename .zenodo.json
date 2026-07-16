@@ -10,15 +10,33 @@
     },
     {
       "name": "Schwarz, Michael",
-      "affiliation": "Technische Universität München"
+      "affiliation": "National University of Singapore",
+      "orcid": "0000-0002-9828-0308"
     },
     {
       "name": "Erhard, Julian",
-      "affiliation": "Technische Universität München"
+      "affiliation": "Technische Universität München",
+      "orcid": "0000-0002-1729-3925"
     },
     {
       "name": "Tilscher, Sarah",
-      "affiliation": "Technische Universität München"
+      "affiliation": "Technische Universität München",
+      "orcid": "0009-0009-9644-7475"
+    },
+    {
+      "name": "Holter, Karoliine",
+      "affiliation": "University of Tartu",
+      "orcid": "0009-0008-3725-4131"
+    },
+    {
+      "name": "Petter, Michael",
+      "affiliation": "Technische Universität München",
+      "orcid": "0009-0009-7868-651X"
+    },
+    {
+      "name": "Kocal, Ali Rasim",
+      "affiliation": "Technische Universität München",
+      "orcid": "0009-0004-9019-0852"
     },
     {
       "name": "Vogler, Ralf",
@@ -30,14 +48,16 @@
     },
     {
       "name": "Vojdani, Vesal",
-      "affiliation": "University of Tartu"
+      "affiliation": "University of Tartu",
+      "orcid": "0000-0003-4336-7980"
     }
   ],
   "contributors": [
     {
       "name": "Seidl, Helmut",
       "type": "ProjectLeader",
-      "affiliation": "Technische Universität München"
+      "affiliation": "Technische Universität München",
+      "orcid": "0000-0002-2135-1593"
     },
     {
       "name": "Schwarz, Martin D.",

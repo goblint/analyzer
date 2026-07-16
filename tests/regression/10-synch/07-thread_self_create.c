@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] thread
-// Checks termination of thread analysis with a thread who is its own single parent.
+// NOTIMEOUT: Checks termination of thread analysis with a thread who is its own single parent.
 #include <pthread.h>
 
 void *t_fun(void *arg) {

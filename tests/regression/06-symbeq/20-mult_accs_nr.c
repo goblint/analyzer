@@ -15,7 +15,7 @@ void *t_fun(void *arg) {
   pthread_mutex_lock(&s->mutex);
   s->data = 5; // NORACE
   s->lore = 6; // NORACE
-  pthread_mutex_lock(&s->mutex);
+  pthread_mutex_unlock(&s->mutex);
   return NULL;
 }
 

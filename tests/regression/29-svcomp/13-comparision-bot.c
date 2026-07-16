@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.int.def_exc
+// NOCRASH
 #include <stdio.h>
 int main(){
   int a = 0;

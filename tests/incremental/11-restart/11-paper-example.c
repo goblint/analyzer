@@ -3,7 +3,7 @@
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int (*fp)() = NULL;
+int (*fp)(void) = NULL;
 
 int bad() {
     return -1;

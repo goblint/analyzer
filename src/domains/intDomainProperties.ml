@@ -1,20 +1,19 @@
 (** QCheck properties for {!IntDomain}. *)
 
 open GoblintCil
-module BI = IntOps.BigIntOps
 
 (* TODO: deduplicate with IntDomain *)
 module type OldS =
 sig
   include Lattice.S
   include IntDomain.Arith with type t := t
-  val of_int: BI.t -> t
-  val to_int: t -> BI.t option
+  val of_int: Z.t -> t
+  val to_int: t -> Z.t option
   val of_bool: bool -> t
   val to_bool: t -> bool option
-  val of_excl_list: Cil.ikind -> BI.t list -> t
+  val of_excl_list: Cil.ikind -> Z.t list -> t
   val is_excl_list: t -> bool
-  val to_excl_list: t -> (BI.t list * (int64 * int64)) option
+  val to_excl_list: t -> (Z.t list * (int * int)) option
 end
 
 module type OldSWithIkind =
@@ -23,10 +22,21 @@ sig
   module Ikind: IntDomain.Ikind
 end
 
-module type S = IntDomain.S with type int_t = BI.t
+module type S = IntDomain.S with type int_t = Z.t
+module type S2 = IntDomain.S2 with type int_t = Z.t
+
+module MakeS2 (I: S): S2 =
+struct
+  include I
+
+  let of_int ?suppress_ovwarn ik x = of_int ik x
+  let starting ?suppress_ovwarn ik x = starting ik x
+  let ending ?suppress_ovwarn ik x = ending ik x
+  let of_interval ?suppress_ovwarn ik x = of_interval ik x
+end
 
 (* TODO: deduplicate with IntDomain, extension of IntDomWithDefaultIkind, inverse of OldDomainFacade? *)
-module WithIkind (I: S) (Ik: IntDomain.Ikind): OldSWithIkind =
+module WithIkind (I: S2) (Ik: IntDomain.Ikind): OldSWithIkind =
 struct
   include I
   module Ikind = Ik
@@ -46,15 +56,12 @@ struct
   let ge = ge (Ik.ikind ())
   let eq = eq (Ik.ikind ())
   let ne = ne (Ik.ikind ())
-  let bitnot = bitnot (Ik.ikind ())
-  let bitand = bitand (Ik.ikind ())
-  let bitor = bitor (Ik.ikind ())
-  let bitxor = bitxor (Ik.ikind ())
-  let shift_left = shift_left (Ik.ikind ())
-  let shift_right = shift_right (Ik.ikind ())
   let lognot = lognot (Ik.ikind ())
   let logand = logand (Ik.ikind ())
   let logor = logor (Ik.ikind ())
+  let logxor = logxor (Ik.ikind ())
+  let shift_left = shift_left (Ik.ikind ())
+  let shift_right = shift_right (Ik.ikind ())
 
   let of_int = of_int (Ik.ikind ())
   let of_bool = of_bool (Ik.ikind ())
@@ -74,7 +81,7 @@ struct
   module Base =
   struct
     include IntDomain.Integers(IntOps.BigIntOps)
-    let arbitrary () = QCheck.map_same_type (IntDomain.BigInt.cast_to (Ikind.ikind ())) (arbitrary ())
+    let arbitrary () = QCheck.map_same_type (IntDomain.Size.cast (Ikind.ikind ())) (arbitrary ())
   end
 
   include SetDomain.Make(Base)
@@ -82,7 +89,20 @@ struct
   let name () = "integerset"
 
   let lift1 = map
-  let lift2 f x y = BatList.cartesian_product (elements x) (elements y) |> List.map (Batteries.uncurry f) |> of_list
+  let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
+
+  let join_bool_option x y =
+    match x, y with
+    | None, _
+    | _, None -> None
+    | Some true, Some false
+    | Some false, Some true -> None
+    | Some true, Some true -> Some true
+    | Some false, Some false -> Some false
+  let lift2bool f x y =
+    match GobList.cartesian_map f (elements x) (elements y) with
+    | [] -> None (* TODO: strange: bot is top, but that's already how ID.to_bool behaves *)
+    | xs -> BatList.reduce join_bool_option xs
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -91,23 +111,19 @@ struct
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
 
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
-
-  let bitnot = lift1 Base.bitnot
-  let bitand = lift2 Base.bitand
-  let bitor  = lift2 Base.bitor
-  let bitxor = lift2 Base.bitxor
-  let shift_left  = lift2 Base.shift_left
-  let shift_right = lift2 Base.shift_right
+  let lt = lift2bool Base.lt
+  let gt = lift2bool Base.gt
+  let le = lift2bool Base.le
+  let ge = lift2bool Base.ge
+  let eq = lift2bool Base.eq
+  let ne = lift2bool Base.ne
 
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+  let logxor = lift2 Base.logxor
+  let shift_left  = lift2 Base.shift_left
+  let shift_right = lift2 Base.shift_right
 end
 
 
@@ -127,28 +143,37 @@ struct
   let valid_div = make_valid2 ~name:"div" ~cond:snd_not_0 CD.div AD.div
   let valid_rem = make_valid2 ~name:"rem" ~cond:snd_not_0 CD.rem AD.rem
 
-  let valid_lt = make_valid2 ~name:"lt" ~cond:none_bot CD.lt AD.lt
-  let valid_gt = make_valid2 ~name:"gt" ~cond:none_bot CD.gt AD.gt
-  let valid_le = make_valid2 ~name:"le" ~cond:none_bot CD.le AD.le
-  let valid_ge = make_valid2 ~name:"ge" ~cond:none_bot CD.ge AD.ge
-  let valid_eq = make_valid2 ~name:"eq" ~cond:none_bot CD.eq AD.eq
-  let valid_ne = make_valid2 ~name:"ne" ~cond:none_bot CD.ne AD.ne
+  let make_valid2_bool ~name ?(cond=fun _ -> true) cf af =
+    let full_name = "valid " ^ name in
+    make ~name:full_name (QCheck.pair arb arb) QCheck.(fun a ->
+        assume (cond a); (* assume is lazy, ==> is eager *)
+        match Batteries.uncurry cf a, Batteries.uncurry af (BatTuple.Tuple2.mapn AF.abstract a) with
+        | _, None -> true
+        | Some true, Some true -> true
+        | Some false, Some false -> true
+        | Some true, Some false
+        | Some false, Some true -> false
+        | None, Some _ -> false
+      )
 
-  let valid_bitnot = make_valid1 ~name:"bitnot" ~cond:not_bot CD.bitnot AD.bitnot
-  let valid_bitand = make_valid2 ~name:"bitand" ~cond:none_bot CD.bitand AD.bitand
-  let valid_bitor = make_valid2 ~name:"bitor" ~cond:none_bot CD.bitor AD.bitor
-  let valid_bitxor = make_valid2 ~name:"bitxor" ~cond:none_bot CD.bitxor AD.bitxor
-
-  let defined_shift (a, b) =
-    let max_shift = BI.of_int @@ snd @@ IntDomain.Size.bits (AD.Ikind.ikind ()) in
-    CD.for_all (fun x -> BI.compare BI.zero x <= 0 && BI.compare x max_shift <= 0) b
-  let shift_cond p = none_bot p && defined_shift p
-  let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
-  let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
+  let valid_lt = make_valid2_bool ~name:"lt" ~cond:none_bot CD.lt AD.lt
+  let valid_gt = make_valid2_bool ~name:"gt" ~cond:none_bot CD.gt AD.gt
+  let valid_le = make_valid2_bool ~name:"le" ~cond:none_bot CD.le AD.le
+  let valid_ge = make_valid2_bool ~name:"ge" ~cond:none_bot CD.ge AD.ge
+  let valid_eq = make_valid2_bool ~name:"eq" ~cond:none_bot CD.eq AD.eq
+  let valid_ne = make_valid2_bool ~name:"ne" ~cond:none_bot CD.ne AD.ne
 
   let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
   let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
   let valid_logor = make_valid2 ~name:"logor" ~cond:none_bot CD.logor AD.logor
+  let valid_logxor = make_valid2 ~name:"logxor" ~cond:none_bot CD.logxor AD.logxor
+
+  let defined_shift (a, b) =
+    let max_shift = Z.of_int @@ snd @@ IntDomain.Size.bits (AD.Ikind.ikind ()) in
+    CD.for_all (fun x -> Z.compare Z.zero x <= 0 && Z.compare x max_shift <= 0) b
+  let shift_cond p = none_bot p && defined_shift p
+  let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
+  let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
 
   let tests = [
     valid_neg;
@@ -165,16 +190,12 @@ struct
     valid_eq;
     valid_ne;
 
-    valid_bitnot;
-    valid_bitand;
-    valid_bitor;
-    valid_bitxor;
-    valid_shift_left;
-    valid_shift_right;
-
     valid_lognot;
     valid_logand;
-    valid_logor
+    valid_logor;
+    valid_logxor;
+    valid_shift_left;
+    valid_shift_right;
   ]
 end
 

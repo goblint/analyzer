@@ -1,4 +1,5 @@
 // PARAM: --set ana.activated[+] abortUnless
+#include <stdlib.h>
 #include <goblint.h>
 
 int zero() { return 1; }

@@ -1,4 +1,5 @@
 // PARAM: --set ana.activated[+] thread --set ana.base.arrays.domain partitioned
+// NOCRASH
 #include <pthread.h>
 
 pthread_t t_ids[10000];
