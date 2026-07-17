@@ -11,35 +11,35 @@ struct
 
   let rec canonize (e:exp) =
     match e with
-      | BinOp (MinusA, BinOp(PlusA, e1, e2, typ1), e3, typ2)  when typ1 = typ2 -> (* (e1+e2)-e3 --> (e1-e3)+e2 *)
-        begin                                                                     (* where + is arithmetic +   *)
-          let ce1 = canonize e1 in
-          let ce2 = canonize e2 in
-          let ce3 = canonize e3 in
-          BinOp(PlusA, BinOp(MinusA, ce1, ce3, typ1), ce2, typ2)
-        end
-      | BinOp (MinusA, e1, BinOp(PlusA, e2, e3, typ1), typ2)  when typ1 = typ2 -> (* e1-(e2+e3) --> (e1-e2)-e3 *)
-        begin                                                                     (* where + is arithmetic +   *)
-          let ce1 = canonize e1 in
-          let ce2 = canonize e2 in
-          let ce3 = canonize e3 in
-          BinOp(MinusA, BinOp(MinusA, ce1, ce2, typ1), ce3, typ2)
-        end
-      | BinOp (MinusPP, BinOp(PlusPI, e1, e2, typ1), e3, typ2) -> (*                                                  *)
-        begin                                                     (*          MinusPP                     PlusA       *)
-          let ce1 = canonize e1 in                                (*         /      \      =>            /     \      *)
-          let ce2 = canonize e2 in                                (*     PlusPI      \              MinusPP     \     *)
-          let ce3 = canonize e3 in                                (*    /   \         \            /      \      \    *)
-          BinOp(PlusA, BinOp(MinusPP, ce1, ce3, typ2), ce2, typ2) (*  ptr    i     array1        ptr    array1    i   *)
-        end
-      | BinOp (MinusPP, BinOp(MinusPI, e1, e2, typ1), e3, typ2) -> (*                                                 *)
-        begin                                                      (*          MinusPP                     MinusA     *)
-          let ce1 = canonize e1 in                                 (*         /      \      =>            /     \     *)
-          let ce2 = canonize e2 in                                 (*     MinusPI     \              MinusPP     \    *)
-          let ce3 = canonize e3 in                                 (*    /   \         \            /      \      \   *)
-          BinOp(MinusA, BinOp(MinusPP, ce1, ce3, typ2), ce2, typ2) (*  ptr    i     array1        ptr    array1    i  *)
-        end
-      | x -> x
+    | BinOp (MinusA, BinOp(PlusA, e1, e2, typ1), e3, typ2)  when typ1 = typ2 -> (* (e1+e2)-e3 --> (e1-e3)+e2 *)
+      begin                                                                     (* where + is arithmetic +   *)
+        let ce1 = canonize e1 in
+        let ce2 = canonize e2 in
+        let ce3 = canonize e3 in
+        BinOp(PlusA, BinOp(MinusA, ce1, ce3, typ1), ce2, typ2)
+      end
+    | BinOp (MinusA, e1, BinOp(PlusA, e2, e3, typ1), typ2)  when typ1 = typ2 -> (* e1-(e2+e3) --> (e1-e2)-e3 *)
+      begin                                                                     (* where + is arithmetic +   *)
+        let ce1 = canonize e1 in
+        let ce2 = canonize e2 in
+        let ce3 = canonize e3 in
+        BinOp(MinusA, BinOp(MinusA, ce1, ce2, typ1), ce3, typ2)
+      end
+    | BinOp (MinusPP, BinOp(PlusPI, e1, e2, typ1), e3, typ2) -> (*                                                  *)
+      begin                                                     (*          MinusPP                     PlusA       *)
+        let ce1 = canonize e1 in                                (*         /      \      =>            /     \      *)
+        let ce2 = canonize e2 in                                (*     PlusPI      \              MinusPP     \     *)
+        let ce3 = canonize e3 in                                (*    /   \         \            /      \      \    *)
+        BinOp(PlusA, BinOp(MinusPP, ce1, ce3, typ2), ce2, typ2) (*  ptr    i     array1        ptr    array1    i   *)
+      end
+    | BinOp (MinusPP, BinOp(MinusPI, e1, e2, typ1), e3, typ2) -> (*                                                 *)
+      begin                                                      (*          MinusPP                     MinusA     *)
+        let ce1 = canonize e1 in                                 (*         /      \      =>            /     \     *)
+        let ce2 = canonize e2 in                                 (*     MinusPI     \              MinusPP     \    *)
+        let ce3 = canonize e3 in                                 (*    /   \         \            /      \      \   *)
+        BinOp(MinusA, BinOp(MinusPP, ce1, ce3, typ2), ce2, typ2) (*  ptr    i     array1        ptr    array1    i  *)
+      end
+    | x -> x
 
   let isFloat e = Cilfacade.isFloatType (Cilfacade.typeOf e)
 
