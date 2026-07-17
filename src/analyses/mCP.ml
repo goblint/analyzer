@@ -328,7 +328,19 @@ struct
               (* Abort to avoid infinite recursion *)
               false
           | _ ->
-            let r = fold_left (f ~q) (Result.top ()) @@ spec_list man.local in
+            let providers =
+              if get_bool "ana.queryproviders.exprelation" then
+                [(module ExpRelation.Provider : QueryProvider.S)]
+              else
+                []
+            in
+            let r = fold_left (fun r (module P: QueryProvider.S) ->
+                let res = P.query q in
+                if M.tracing then M.trace "queryanswers" "query provider %s query %a -> answer %a" (P.name ()) Queries.Any.pretty anyq Result.pretty res;
+                Result.meet r res
+              ) (Result.top ()) providers
+            in
+            let r = fold_left (f ~q) r @@ spec_list man.local in
             do_sideg man !sides;
             Queries.Hashtbl.replace querycache anyq (Obj.repr r);
             r

@@ -339,14 +339,28 @@
       "properties": {
         "activated": {
           "title": "ana.activated",
-          "description": "Lists of activated analyses.",
+          "description": "List of activated analyses.",
           "type": "array",
           "items": { "type": "string" },
           "default": [
-            "expRelation", "base", "threadid", "threadflag", "threadreturn",
+            "base", "threadid", "threadflag", "threadreturn",
             "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp",
             "assert", "pthreadMutexType"
           ]
+        },
+        "queryproviders": {
+          "title": "ana.queryproviders",
+          "description": "Options for stateless query providers.",
+          "type": "object",
+          "properties": {
+            "exprelation": {
+              "title": "ana.queryproviders.exprelation",
+              "description": "Enable syntactic expression-relation queries.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         },
         "path_sens": {
           "title": "ana.path_sens",
@@ -716,7 +730,7 @@
                 "domain": {
                   "title": "ana.base.arrays.domain",
                   "description":
-                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable ana.queryproviders.exprelation as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
                   "type": "string",
                   "enum": ["trivial", "partitioned", "unroll"],
                   "default": "trivial"

@@ -1,16 +1,12 @@
-(** Stateless symbolic comparison expression analysis ([expRelation]). *)
+(** Stateless symbolic comparison expression query provider ([expRelation]). *)
 
-(** An analysis specification to answer questions about how two expressions relate to each other.   *)
+(** A query provider to answer questions about how two expressions relate to each other.   *)
 (** Currently this works purely syntactically on the expressions, and only for {m =_{must}}. *)
-(** Does not keep state, this is only formulated as an analysis to integrate well into the framework.  *)
 
 open GoblintCil
-open Analyses
 
-module Spec : Analyses.MCPSpec =
+module Provider : QueryProvider.S =
 struct
-  include UnitAnalysis.Spec
-
   let name () = "expRelation"
 
   let rec canonize (e:exp) =
@@ -47,7 +43,7 @@ struct
 
   let isFloat e = Cilfacade.isFloatType (Cilfacade.typeOf e)
 
-  let query man (type a) (q: a Queries.t): a Queries.result =
+  let query (type a) (q: a Queries.t): a Queries.result =
     let lvalsEq l1 l2 = CilType.Lval.equal l1 l2 in (* == would be wrong here *)
     match q with
     | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) && Basetype.CilExp.equal (canonize e1) (canonize e2) ->
@@ -80,6 +76,3 @@ struct
       end
     | _ -> Queries.Result.top q
 end
-
-let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
