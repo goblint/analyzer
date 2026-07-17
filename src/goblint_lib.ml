@@ -315,7 +315,6 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module StackDomain = StackDomain
 
 (** {2 Testing}
 
