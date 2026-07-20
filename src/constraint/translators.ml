@@ -1,5 +1,6 @@
 open Batteries
 
+module M = Messages
 open ConstrSys
 open SolverTypes
 
@@ -150,3 +151,30 @@ module GlobSolverFromEqSolver (Sol:DemandEqIncrSolverBase)
         Splitter.split_solution hm, solver_data
     end
 
+module DemandEqConstrSysDoubleSideCheck (S: DemandEqConstrSys) 
+  : DemandEqConstrSys with type v = S.v and type d = S.d = 
+struct
+  type v = S.v
+  type d = S.d
+  module Var = S.Var
+  module Dom = S.Dom
+  let sys_change = S.sys_change
+  let postmortem = S.postmortem
+  let system v = 
+    match S.system v with
+    | None -> None 
+    | Some rhs -> 
+      let sides : (v,unit) Hashtbl.t = Hashtbl.create 6 in
+      let set' set x d = 
+        if Hashtbl.mem sides x then 
+          (M.error "double side-effect: %a" S.Var.pretty_trace x ;
+           set x d) 
+        else 
+          (Hashtbl.replace sides x (); 
+           set x d) 
+      in  
+      let f get set spawn =  
+        rhs get (set' set) spawn
+      in
+      Some f
+end

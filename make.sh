@@ -12,7 +12,7 @@ opam_setup() {
   # opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked
   # But this fails on opam < 2.2 due to a bug (https://github.com/ocaml/opam/issues/6946).
   # So this is the workaround from @kit-ty-kate (while we still want to support opam < 2.2):
-  opam switch -y create . --no-install --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda
+  opam switch -y create . --no-install --packages=ocaml-variants.5.5.0+options,ocaml-option-flambda
   opam install -y ./*.opam.locked --deps-only
 }
 

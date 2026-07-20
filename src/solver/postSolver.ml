@@ -349,3 +349,30 @@ module DemandEqIncrSolverFromEqSolver (Sol: GenericEqSolver): DemandEqIncrSolver
       Post.post xs vs vh;
       (vh, ())
   end
+
+module AddPost (Sol : DemandEqIncrSolver) = functor (Arg : IncrSolverArg)
+  (S : DemandEqConstrSys)
+  (VH : Hashtbl.S with type key = S.v) ->
+struct
+  module S' = DemandEqConstrSysDoubleSideCheck (S)
+  module Sol = Sol (Arg) (S') (VH) 
+  type marshal = Sol.marshal
+  let copy_marshal = Sol.copy_marshal
+  let relift_marshal = Sol.relift_marshal
+
+
+  let solve xs vs qs = 
+    let (rho, m) = Sol.solve xs vs qs in
+    let module EqS = EqConstrSysFromDemandConstrSys (S) in
+    let module MakeIncrListArg =
+    struct
+      module Arg = Arg
+      include ListArgFromStdArg (EqS) (VH) (Arg)
+      let init_reachable ~vh = VH.create (VH.length vh)
+    end
+    in
+
+    let module Post = MakeIncrList (MakeIncrListArg) in
+    Post.post xs vs rho;
+    (rho, m)
+end

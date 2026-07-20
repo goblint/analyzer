@@ -5,7 +5,8 @@ open Maingoblint
 let () =
   (* Activate memtrace during module initialization (before at_exit).
      Doesn't guarantee all module initialization is traced though. *)
-  Goblint_memtrace.trace_if_requested ()
+  (* Goblint_memtrace.trace_if_requested () *)
+  ()
 
 (** the main function *)
 let main () =
