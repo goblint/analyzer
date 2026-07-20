@@ -40,7 +40,7 @@ struct
   module V =
   struct
     include Printable.Either (VG1.V) (VG2.V)
-    include StdV
+    include StdV (* TODO: delegate is_write_only *)
   end
   module G = Lattice.Lift2 (VG1.G) (VG2.G)
 
