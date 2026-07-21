@@ -116,25 +116,8 @@ struct
     | TPtr (t, _) -> Some t
     | _ -> None
 
-  let rec offs_to_idx typ offs =
-    match offs with
-    | `NoOffset -> intdom_of_int 0
-    | `Field (field, o) ->
-      let bytes_offset = Cilfacade.fieldBytesOffsetOnly field in
-      let bytes_offset = intdom_of_int bytes_offset in
-      let remaining_offset = offs_to_idx field.ftype o in
-      begin
-        try ID.add bytes_offset remaining_offset
-        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-      end
-    | `Index (x, o) ->
-      begin try
-          let typ_size_in_bytes = size_of_type_in_bytes typ in
-          let bytes_offset = ID.mul typ_size_in_bytes x in
-          let remaining_offset = offs_to_idx typ o in
-          ID.add bytes_offset remaining_offset
-        with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-      end
+  let offs_to_idx typ offs =
+    PreValueDomain.Offs.to_index ~typ:(TPtr (typ, [])) offs
 
   let cil_offs_to_idx man typ offs =
     (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
