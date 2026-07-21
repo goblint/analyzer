@@ -111,9 +111,6 @@ struct
       end
     | _ -> `Top
 
-  let offs_to_idx typ offs =
-    PreValueDomain.Offs.to_index ~typ offs
-
   let cil_offs_to_idx man typ offs =
     (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
     let rec convert_offset (ofs: offset) =
@@ -135,9 +132,9 @@ struct
   let ptr_only_has_str_addr man ptr =
     ValueDomain.AD.for_all (function StrPtr _ -> true | _ -> false) (man.ask (Queries.MayPointTo ptr))
 
-  let get_addr_offset t (addr: ValueDomain.Addr.t) =
+  let get_addr_offset typ (addr: ValueDomain.Addr.t) =
     match addr with
-    | Addr (_, o) -> offs_to_idx t o
+    | Addr (_, offs) -> PreValueDomain.Offs.to_index ~typ offs
     | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
     | NullPtr
     | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
