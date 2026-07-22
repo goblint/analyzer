@@ -228,6 +228,7 @@ struct
       | `Index (x, o) ->
         let (item_typ, item_size_in_bytes) =
           match Option.map unrollType typ with
+          | Some TPtr(item_typ, _) (* for memOutOfBounds *)
           | Some TArray(item_typ, _, _) ->
             let item_size_in_bytes = Cilfacade.bytesSizeOf item_typ in
             (Some item_typ, idx_of_int item_size_in_bytes)
