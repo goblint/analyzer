@@ -507,7 +507,7 @@ module InterferenceGraph = struct
     loop accs;
     graph
 
-  module Coloring = AccessColoring.Make (G)
+  module Coloring = Goblint_ocamlgraph.Coloring.Make (G)
 
   let of_accesses (accs : AS.t) =
     let graph = G.create () in

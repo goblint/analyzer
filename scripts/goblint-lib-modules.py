@@ -12,6 +12,7 @@ goblint_lib_paths = [
     src_root_path / "util" / "parallel" / "goblint_parallel.ml",
     src_root_path / "solver" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
+    src_root_path / "util" / "ocamlgraph" / "goblint_ocamlgraph.ml",
 ]
 goblint_lib_modules = set()
 
@@ -39,6 +40,7 @@ exclude_module_names = set([
 
     # libraries
     "Goblint_std",
+    "Goblint_ocamlgraph",
     "Goblint_constraint",
     "Goblint_parallel",
     "Goblint_solver",
