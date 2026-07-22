@@ -484,28 +484,6 @@ struct
       AS.pretty w.node AS.pretty w.prefix AS.pretty w.type_suffix AS.pretty w.type_suffix_prefix
 end
 
-module InterferenceGraph =
-struct
-  include Graph.Imperative.Graph.Concrete (A)
-
-  let of_accesses (accs : AS.t) =
-    let graph = create () in
-    AS.iter (fun acc -> add_vertex graph acc) accs;
-    let accs_list = AS.elements accs in
-    let rec loop = function
-      | [] -> ()
-      | a :: rest ->
-        List.iter (fun b ->
-            if may_race a b then
-              add_edge graph a b
-          ) rest;
-        loop rest
-    in
-    loop accs_list;
-    graph
-end
-module InterferenceGraphColoring = Goblint_ocamlgraph.Coloring.Make (InterferenceGraph)
-
 let group_may_race (warn_accs:WarnAccs.t) =
   if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
@@ -615,6 +593,28 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
   | None -> incr safe
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
+
+module InterferenceGraph =
+struct
+  include Graph.Imperative.Graph.Concrete (A)
+
+  let of_accesses (accs : AS.t) =
+    let graph = create () in
+    AS.iter (fun acc -> add_vertex graph acc) accs;
+    let accs_list = AS.elements accs in
+    let rec loop = function
+      | [] -> ()
+      | a :: rest ->
+        List.iter (fun b ->
+            if may_race a b then
+              add_edge graph a b
+          ) rest;
+        loop rest
+    in
+    loop accs_list;
+    graph
+end
+module InterferenceGraphColoring = Goblint_ocamlgraph.Coloring.Make (InterferenceGraph)
 
 let coloring_module =
   lazy (
