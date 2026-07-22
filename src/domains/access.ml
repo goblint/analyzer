@@ -619,30 +619,35 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses ?coloring_mode memo grouped_accs =
+let coloring_module =
+  lazy (
+    match get_string "warn.race-coloring" with
+    | "none" -> None
+    | "greedy" ->
+      Some (module InterferenceGraph.Coloring.Greedy: InterferenceGraph.Coloring.ALGORITHM)
+    | "dsatur" ->
+      Some (module InterferenceGraph.Coloring.Dsatur)
+    | "rlf" ->
+      Some (module InterferenceGraph.Coloring.Rlf)
+    | "optimal" ->
+      Some (module InterferenceGraph.Coloring.Optimal)
+    | _ -> assert false
+  )
+
+let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
-  let coloring_for accs =
-    match coloring_mode with
-    | None -> None
-    | Some "greedy" ->
-      let graph = InterferenceGraph.of_accesses accs in
-      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Greedy) graph)
-    | Some "dsatur" ->
-      let graph = InterferenceGraph.of_accesses accs in
-      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Dsatur) graph)
-    | Some "rlf" ->
-      let graph = InterferenceGraph.of_accesses accs in
-      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Rlf) graph)
-    | Some "optimal" ->
-      let graph = InterferenceGraph.of_accesses accs in
-      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Optimal) graph)
-    | Some _ -> None
-  in
-  let msgs ?coloring race_accs =
+  let msgs race_accs =
     let h A.{conf; kind; node; exp; acc} =
       let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
+    in
+    let coloring =
+      match coloring_module with
+      | lazy None -> None
+      | lazy (Some (module A: InterferenceGraph.Coloring.ALGORITHM)) ->
+        let graph = InterferenceGraph.of_accesses race_accs in
+        Some (A.color graph)
     in
     match coloring with
     | None ->
@@ -684,8 +689,7 @@ let print_accesses ?coloring_mode memo grouped_accs =
           else
             Info
         in
-        let coloring = coloring_for accs in
-        M.msg_group severity ?loc:group_loc ~category:Race "Memory location %a (race with conf. %d)" Memo.pretty memo conf (msgs ?coloring accs);
+        M.msg_group severity ?loc:group_loc ~category:Race "Memory location %a (race with conf. %d)" Memo.pretty memo conf (msgs accs);
         safe_accs
     ) (AS.empty ())
   |> (fun safe_accs ->
@@ -694,12 +698,6 @@ let print_accesses ?coloring_mode memo grouped_accs =
     )
 
 let warn_global ~safe ~vulnerable ~unsafe warn_accs memo =
-  let coloring_mode =
-    match get_string "warn.race-coloring" with
-    | "" | "none" -> None
-    | "greedy" | "dsatur" | "rlf" | "optimal" as mode -> Some mode
-    | _ -> None
-  in
   let grouped_accs = group_may_race warn_accs in (* do expensive component finding only once *)
   incr_summary ~safe ~vulnerable ~unsafe grouped_accs;
-  print_accesses ?coloring_mode memo grouped_accs
+  print_accesses memo grouped_accs
