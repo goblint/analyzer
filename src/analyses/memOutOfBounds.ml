@@ -99,6 +99,7 @@ struct
               let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
               let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
               begin
+                let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
                 try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
                 with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
               end
@@ -271,7 +272,10 @@ struct
       let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ds in (* TODO: proper castkind *)
       let casted_en = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) en in (* TODO: proper castkind *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
-      let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
+      let dest_size_lt_count =
+        let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+        ID.lt casted_ds (ID.add casted_en casted_ao)
+      in
       match dest_size_lt_count with
       | Some true ->
         set_mem_safety_flag InvalidDeref;
