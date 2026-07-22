@@ -485,15 +485,8 @@ struct
 end
 
 module InterferenceGraph = struct
-  module Vertex = struct
-    type t = A.t
 
-    let compare = A.compare
-    let hash = A.hash
-    let equal = A.equal
-  end
-
-  module G = Graph.Imperative.Graph.Concrete (Vertex)
+  module G = Graph.Imperative.Graph.Concrete (A)
 
   type t = G.t
 
