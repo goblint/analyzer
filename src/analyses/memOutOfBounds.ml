@@ -181,7 +181,9 @@ struct
                 Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs
             end
         end;
-        check_no_binop_deref man e
+        check_no_binop_deref man e; (* TODO: the above check and the one in check_no_binop_deref should probably be combined into one *)
+        (* TODO: accesses in index expressions don't seem to be checked anywhere (unlike with access events) *)
+        check_exp_for_oob_access man ~is_implicitly_derefed e (* See 74-invalid_deref/42-oob-mem-nested *)
 
   and check_no_binop_deref man lval_exp =
     let behavior = Undefined MemoryOutOfBoundsAccess in
@@ -237,7 +239,7 @@ struct
       check_exp_for_oob_access man ~is_implicitly_derefed e3
     | Lval lval
     | StartOf lval
-    | AddrOf lval -> check_lval_for_oob_access man ~is_implicitly_derefed lval
+    | AddrOf lval -> check_lval_for_oob_access man ~is_implicitly_derefed lval (* TODO: StartOf and AddrOf don't actually access, so this does spurious checks (moving over to access events would fix this) *)
 
   (* For memset() and memcpy() *)
   let check_count man fun_name ptr n =
