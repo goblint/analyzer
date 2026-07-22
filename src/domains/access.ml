@@ -636,18 +636,13 @@ let print_accesses memo grouped_accs =
       let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
-    let coloring =
-      match coloring_module with
-      | lazy None -> None
-      | lazy (Some (module A: InterferenceGraphColoring.ALGORITHM)) ->
-        let graph = InterferenceGraph.of_accesses race_accs in
-        Some (A.color graph)
-    in
-    match coloring with
-    | None ->
+    match coloring_module with
+    | lazy None ->
       AS.elements race_accs
       |> List.map h
-    | Some coloring ->
+    | lazy (Some (module Coloring: InterferenceGraphColoring.ALGORITHM)) ->
+      let graph = InterferenceGraph.of_accesses race_accs in
+      let coloring = Coloring.color graph in
       let module IntMap = Map.Make (Int) in
       let add_to_map acc map =
         match InterferenceGraphColoring.color_of coloring acc with
