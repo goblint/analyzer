@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval
+// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info
+// TODO: The "--disable warn.info" part is a temporary fix and needs to be removed once the MacOS CI job is fixed
 #include <stdlib.h>
 #include <string.h>
 
