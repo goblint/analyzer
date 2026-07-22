@@ -42,7 +42,7 @@ module Extracted = struct
 
   type ('v, 'd) monadic_callback =
     'v -> (('v -> 'd m) -> ('v -> 'd -> unit m) -> ('v -> unit m) -> 'd m)
-    option
+      option
 
   type ('v, 'd) erased_callback =
     'v -> (('v -> 'd) -> ('v -> 'd -> unit) -> ('v -> unit) -> 'd) option
@@ -67,13 +67,13 @@ module Extracted = struct
 
   let[@inline always] monadic_solve_one bot start_evaluation get side spawn set_value drain_owner tf owner =
     bind (start_evaluation owner) (fun _ ->
-      bind
-        (match tf owner with
-         | Some body ->
-           monadic_eval_rhs (get owner) (side owner) (spawn owner) body
-         | None -> ret bot)
-        (fun direct ->
-        bind (set_value owner direct) (fun _ -> drain_owner owner)))
+        bind
+          (match tf owner with
+           | Some body ->
+             monadic_eval_rhs (get owner) (side owner) (spawn owner) body
+           | None -> ret bot)
+          (fun direct ->
+             bind (set_value owner direct) (fun _ -> drain_owner owner)))
 
   (** val monadic_solve_loop_fuel :
       int -> (unit -> 'a1 option m) -> ('a1 -> unit m) -> bool m **)
@@ -82,12 +82,12 @@ module Extracted = struct
     (fun fO fS n -> if n=0 then fO () else fS (n-1))
       (fun _ -> ret false)
       (fun fuel' ->
-      bind (pop_owner ()) (fun picked ->
-        match picked with
-        | Some owner ->
-          bind (solve_owner owner) (fun _ ->
-            monadic_solve_loop_fuel fuel' pop_owner solve_owner)
-        | None -> ret true))
+         bind (pop_owner ()) (fun picked ->
+             match picked with
+             | Some owner ->
+               bind (solve_owner owner) (fun _ ->
+                   monadic_solve_loop_fuel fuel' pop_owner solve_owner)
+             | None -> ret true))
       fuel
 
   (** val monadic_solve_fuel :
@@ -96,7 +96,7 @@ module Extracted = struct
 
   let[@inline always] monadic_solve_fuel fuel initialize pop_owner solve_owner initial =
     bind (initialize initial) (fun _ ->
-      monadic_solve_loop_fuel fuel pop_owner solve_owner)
+        monadic_solve_loop_fuel fuel pop_owner solve_owner)
 
   (** val expose_callback :
       ('a1 -> (('a1 -> 'a2) -> ('a1 -> 'a2 -> unit) -> ('a1 -> unit) -> 'a2)
@@ -131,11 +131,11 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
     type side_cell_row = side_cell VH.t
 
     module RankedQueue = Pqueue.MakeMaxPoly (struct
-      type 'a t = int * 'a
+        type 'a t = int * 'a
 
-      let compare (left_rank, _) (right_rank, _) =
-        Int.compare left_rank right_rank
-    end)
+        let compare (left_rank, _) (right_rank, _) =
+          Int.compare left_rank right_rank
+      end)
 
     type queue = {
       heap : S.v RankedQueue.t;
@@ -327,14 +327,14 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
           match queue_max_rank state.queue with
           | Some next_rank when owner_rank <= next_rank ->
             begin match queue_pop state.queue with
-            | None -> assert false
-            | Some next ->
-              if S.Var.equal next owner then
-                evaluate_owner ()
-              else begin
-                solve_episode next;
-                drain_episode ()
-              end
+              | None -> assert false
+              | Some next ->
+                if S.Var.equal next owner then
+                  evaluate_owner ()
+                else begin
+                  solve_episode next;
+                  drain_episode ()
+                end
             end
           | Some _ | None -> ()
         in
@@ -355,15 +355,15 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
         register_dependency state owner owner_rank target_rank;
         frame.min_read <-
           begin match frame.min_read with
-          | None -> Some (target, target_rank)
-          | Some (_, old_rank) when target_rank < old_rank ->
-            Some (target, target_rank)
-          | old -> old
+            | None -> Some (target, target_rank)
+            | Some (_, old_rank) when target_rank < old_rank ->
+              Some (target, target_rank)
+            | old -> old
           end;
         frame.max_read_rank <-
           begin match frame.max_read_rank with
-          | None -> Some target_rank
-          | Some old_rank -> Some (max old_rank target_rank)
+            | None -> Some target_rank
+            | Some old_rank -> Some (max old_rank target_rank)
           end;
         let readers = get_or_create state.infl target 4 in
         VH.replace readers owner ();
@@ -375,9 +375,9 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
         let owner_rank = frame.owner_rank in
         let target_rank = rank state.queue target in
         begin match frame.max_read_rank with
-        | Some dependency_rank ->
-          register_dependency state target target_rank dependency_rank
-        | None -> ()
+          | Some dependency_rank ->
+            register_dependency state target target_rank dependency_rank
+          | None -> ()
         end;
         let old_aggregate = side_aggregate state target in
         let contributions = get_or_create state.sides target 4 in
@@ -407,8 +407,8 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
               match cell.reset_scope with
               | Some old_scope
                 when rank state.queue scope < target_rank
-                     && S.Var.equal old_scope scope
-                     && cell.seen_closed_version < closed ->
+                  && S.Var.equal old_scope scope
+                  && cell.seen_closed_version < closed ->
                 U.initial_phase
               | _ -> cell.phase
             in
@@ -432,7 +432,7 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
           VH.replace state.side_aggregates target new_aggregate;
         if not (S.Dom.leq new_aggregate old_aggregate) then begin
           if owner_rank < target_rank
-             && not (VH.mem state.sigma target)
+          && not (VH.mem state.sigma target)
           then
             solve_episode target
           else
@@ -454,11 +454,11 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
 
       List.iter
         (fun (variable, input) ->
-          let old_start = start_value state variable in
-          let start = S.Dom.join old_start input in
-          VH.replace state.starts variable start;
-          VH.replace state.sigma variable start;
-          enqueue state variable)
+           let old_start = start_value state variable in
+           let start = S.Dom.join old_start input in
+           VH.replace state.starts variable start;
+           VH.replace state.sigma variable start;
+           enqueue state variable)
         xs;
       let finished =
         Extracted.monadic_solve_fuel Stdlib.max_int

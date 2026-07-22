@@ -367,13 +367,13 @@ struct
       let set' set x d = 
         match Hashtbl.mem sides x with
         | true ->
-            let d' = Hashtbl.find sides x in
-            if not (Dom.leq d d') then begin
-              Logs.error "double side-effect with different values: %a" S.Var.pretty_trace x;
-              let d'' = Dom.join d d' in
-              Hashtbl.replace sides x d''; 
-              set x d''
-            end
+          let d' = Hashtbl.find sides x in
+          if not (Dom.leq d d') then begin
+            Logs.error "double side-effect with different values: %a" S.Var.pretty_trace x;
+            let d'' = Dom.join d d' in
+            Hashtbl.replace sides x d''; 
+            set x d''
+          end
         | false -> begin
             Hashtbl.add sides x d; 
             set x d 
