@@ -490,23 +490,6 @@ module InterferenceGraph = struct
 
   type t = G.t
 
-  let of_warn_accs (warn_accs : WarnAccs.t) =
-    let graph = G.create () in
-    let all = WarnAccs.union_all warn_accs in
-    AS.iter (fun acc -> G.add_vertex graph acc) all;
-    let accs = AS.elements all in
-    let rec loop = function
-      | [] -> ()
-      | a :: rest ->
-        List.iter (fun b ->
-            if may_race a b then
-              G.add_edge graph a b
-          ) rest;
-        loop rest
-    in
-    loop accs;
-    graph
-
   module Coloring = Goblint_ocamlgraph.Coloring.Make (G)
 
   let of_accesses (accs : AS.t) =
