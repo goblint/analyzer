@@ -209,7 +209,8 @@ struct
                 Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs
             end
         end;
-        check_no_binop_deref man e
+        check_no_binop_deref man e;
+        check_exp_for_oob_access man ~is_implicitly_derefed e (* See 74-invalid_deref/42-oob-mem-nested *)
 
   and check_no_binop_deref man lval_exp =
     let behavior = Undefined MemoryOutOfBoundsAccess in
