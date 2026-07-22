@@ -484,30 +484,27 @@ struct
       AS.pretty w.node AS.pretty w.prefix AS.pretty w.type_suffix AS.pretty w.type_suffix_prefix
 end
 
-module InterferenceGraph = struct
-
-  module G = Graph.Imperative.Graph.Concrete (A)
-
-  type t = G.t
-
-  module Coloring = Goblint_ocamlgraph.Coloring.Make (G)
+module InterferenceGraph =
+struct
+  include Graph.Imperative.Graph.Concrete (A)
 
   let of_accesses (accs : AS.t) =
-    let graph = G.create () in
-    AS.iter (fun acc -> G.add_vertex graph acc) accs;
+    let graph = create () in
+    AS.iter (fun acc -> add_vertex graph acc) accs;
     let accs_list = AS.elements accs in
     let rec loop = function
       | [] -> ()
       | a :: rest ->
         List.iter (fun b ->
             if may_race a b then
-              G.add_edge graph a b
+              add_edge graph a b
           ) rest;
         loop rest
     in
     loop accs_list;
     graph
 end
+module InterferenceGraphColoring = Goblint_ocamlgraph.Coloring.Make (InterferenceGraph)
 
 let group_may_race (warn_accs:WarnAccs.t) =
   if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pretty warn_accs;
@@ -621,16 +618,13 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
 
 let coloring_module =
   lazy (
+    let open InterferenceGraphColoring in
     match get_string "warn.race-coloring" with
     | "none" -> None
-    | "greedy" ->
-      Some (module InterferenceGraph.Coloring.Greedy: InterferenceGraph.Coloring.ALGORITHM)
-    | "dsatur" ->
-      Some (module InterferenceGraph.Coloring.Dsatur)
-    | "rlf" ->
-      Some (module InterferenceGraph.Coloring.Rlf)
-    | "optimal" ->
-      Some (module InterferenceGraph.Coloring.Optimal)
+    | "greedy" -> Some (module Greedy: ALGORITHM)
+    | "dsatur" -> Some (module Dsatur)
+    | "rlf" -> Some (module Rlf)
+    | "optimal" -> Some (module Optimal)
     | _ -> assert false
   )
 
@@ -645,7 +639,7 @@ let print_accesses memo grouped_accs =
     let coloring =
       match coloring_module with
       | lazy None -> None
-      | lazy (Some (module A: InterferenceGraph.Coloring.ALGORITHM)) ->
+      | lazy (Some (module A: InterferenceGraphColoring.ALGORITHM)) ->
         let graph = InterferenceGraph.of_accesses race_accs in
         Some (A.color graph)
     in
@@ -655,9 +649,8 @@ let print_accesses memo grouped_accs =
       |> List.map h
     | Some coloring ->
       let module IntMap = Map.Make (Int) in
-      let module C = InterferenceGraph.Coloring in
       let add_to_map acc map =
-        match C.color_of coloring acc with
+        match InterferenceGraphColoring.color_of coloring acc with
         | None -> map
         | Some c ->
           IntMap.update c (function
