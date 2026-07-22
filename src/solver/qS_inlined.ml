@@ -1,6 +1,5 @@
 (* GENERATED FILE. DO NOT EDIT.
-   Sources: extraction/MonadErasureExperiment.v and
-            extraction/goblint_qsolver.ml.in
+   Source: extraction/goblint_qsolver_inlined.ml.in
    Regenerate with: make goblint-reset-extraction *)
 (**
    Mutable Goblint adapter template for episode-resetting QSolver.
@@ -22,6 +21,8 @@
 open Batteries
 open Goblint_constraint.ConstrSys
 open Goblint_constraint.SolverTypes
+
+open QS_update
 
 module Extracted = struct
 
@@ -55,80 +56,6 @@ module Extracted = struct
   let expose_callback system =
     system
 end
-
-module type UPDATE =
-  functor (S : DemandEqConstrSys) -> sig
-    type phase
-    val initial_phase : phase
-    val update : phase -> S.d -> S.d -> phase * S.d
-  end
-
-module WideningUpdate (S : DemandEqConstrSys) = struct
-  type phase = unit
-
-  let initial_phase = ()
-
-  let[@inline always] update () old input =
-    (), S.Dom.widen old (S.Dom.join old input)
-end
-
-module type BOX_UPDATE_CONFIG = sig
-  val k : int
-  val l : int
-end
-
-module BoxUpdate
-    (Config : BOX_UPDATE_CONFIG)
-    (S : DemandEqConstrSys) =
-struct
-  type phase =
-    | Copy of int
-    | BoxW of int
-    | BoxN of int
-    | Widen
-
-  let initial_phase = Copy Config.k
-
-  let[@inline always] update phase old input =
-    match phase with
-    | Copy remaining ->
-      if remaining = 0 then BoxW Config.l, input
-      else Copy (remaining - 1), input
-    | BoxW remaining ->
-      if S.Dom.leq input old then
-        BoxN remaining, S.Dom.narrow old input
-      else
-        BoxW remaining, S.Dom.widen old input
-    | BoxN remaining ->
-      if S.Dom.leq input old then
-        BoxN remaining, S.Dom.narrow old input
-      else if remaining = 0 then
-        Widen, S.Dom.widen old input
-      else
-        BoxW (remaining - 1), S.Dom.widen old input
-    | Widen ->
-      Widen, S.Dom.widen old input
-end
-
-(** Compile-time strategy selection.  [k = 0] performs one copy; [l = 0]
-    permits the initial BoxW/BoxN pair and then commits to Widen on reopening. *)
-module CopyUpdate = BoxUpdate (struct
-    let k = 0
-    let l = 0
-  end)
-
-module WNUpdate (S : DemandEqConstrSys) = 
-struct
-  module M = BoxUpdate (struct
-      let k = 0
-      let l = 0
-    end) (S)
-
-  type phase = M.phase
-  let update = M.update
-  let initial_phase = M.BoxW 0
-end
-
 
 module QSolver (Update : UPDATE) : DemandEqIncrSolver =
   functor (Arg : IncrSolverArg)
@@ -335,6 +262,7 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
         let rec evaluate_owner () =
           frame.min_read <- None;
           frame.max_read_rank <- None;
+          incr SolverStats.evals;
           let direct =
             match S.system owner with
             | Some body ->
@@ -492,14 +420,6 @@ module QSolver (Update : UPDATE) : DemandEqIncrSolver =
           solve_loop ()
       in
       solve_loop ();
+      SolverStats.vars := !SolverStats.vars + VH.length state.sigma;
       (state.sigma, ())
   end
-
-module QSolverW    = QSolver (WideningUpdate)
-module QSolverWNW  = QSolver (WNUpdate)
-module QSolverCWNW = QSolver (CopyUpdate)
-
-let _ =
-  Selector.add_solver ("qsi_w",    (module PostSolver.AddPost  (QSolverW)));
-  Selector.add_solver ("qsi_wnw",  (module PostSolver.AddPost  (QSolverWNW)));
-  Selector.add_solver ("qsi_cwnw", (module PostSolver.AddPost  (QSolverCWNW)))

@@ -276,5 +276,3 @@ module QSolver : DemandEqIncrSolver =
       (state.sigma, ())
   end
 
-let _ =
-  Selector.add_solver ("qs_trivial", (module QSolver))
