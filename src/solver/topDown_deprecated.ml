@@ -56,7 +56,7 @@ module TD3 =
           let tmp = S.Dom.join tmp (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
-          let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else if wpx then box old tmp else tmp in (* TODO: remove join *)
+          let tmp = if is_side x then S.Dom.widen old tmp else if wpx then box old tmp else tmp in
           HM.remove called x;
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;

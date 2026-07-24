@@ -61,10 +61,10 @@ module WP =
           let tmp = S.Dom.join tmp' (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
-          let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else if wpx then box old tmp else tmp in (* TODO: remove join *)
+          let tmp = if is_side x then S.Dom.widen old tmp else if wpx then box old tmp else tmp in
           HM.remove called x;
           if not (S.Dom.equal old tmp) then (
-            if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); (* TODO: remove join *)
+            if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old tmp);
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) is %a. Old value was %a" S.Var.pretty_trace x (HM.mem rho x) (is_side x) S.Dom.pretty tmp S.Dom.pretty old;

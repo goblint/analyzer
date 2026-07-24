@@ -12,12 +12,12 @@ struct
     if D.leq y x then
       D.narrow x y
     else
-      D.widen x (D.join x y) (* TODO: remove join *)
+      D.widen x y
 end
 
 module Widen: S = functor (D: Lattice.S) ->
 struct
-  let box x y = D.widen x (D.join x y) (* TODO: remove join *)
+  let box x y = D.widen x y
 end
 
 module NarrowOption: S = functor (D: Lattice.S) ->
