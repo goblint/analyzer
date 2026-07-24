@@ -36,19 +36,19 @@ let var_may_be_shadowed scope vi =
 
 let var_is_in_scope scope vi =
   let var_nested () =
-    not (GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr))
+    not (GobConfig.get_bool "witness.invariant.all-locals") && hasAttribute "goblint_cil_nested" vi.vattr
   in
   match Cilfacade.find_scope_fundec vi with
   | None ->
     (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
-    not (vi.vstorage = Static &&
-         match Cilfacade.findAttribute "goblint_cil_pulledup" vi.vattr with
-         | Some [AStr static_fun_name] ->
-           static_fun_name <> scope.svar.vname ||
-           var_nested ()
-         | Some _ -> failwith "InvariantCil.var_is_in_scope: invalid goblint_cil_pulledup attribute parameters"
-         | None -> false (* normal static global *)
-        ) &&
+    (vi.vstorage <> Static ||
+     match Cilfacade.findAttribute "goblint_cil_pulledup" vi.vattr with
+     | Some [AStr static_fun_name] ->
+       static_fun_name = scope.svar.vname &&
+       not (var_nested ())
+     | Some _ -> failwith "InvariantCil.var_is_in_scope: invalid goblint_cil_pulledup attribute parameters"
+     | None -> true (* normal static global *)
+    ) &&
     not (var_may_be_shadowed scope vi)
   | Some fd ->
     CilType.Fundec.equal fd scope &&
