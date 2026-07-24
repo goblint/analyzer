@@ -146,12 +146,12 @@ struct
       let (min_ik, max_ik) = range ik in
       let threshold = get_interval_threshold_widening () in
       let l2 =
-        if Ints_t.compare l0 l1 = 0 then l0
+        if Ints_t.compare l0 l1 <= 0 then l0
         else if threshold then IArith.lower_threshold l1 min_ik
         else min_ik
       in
       let u2 =
-        if Ints_t.compare u0 u1 = 0 then u0
+        if Ints_t.compare u0 u1 >= 0 then u0
         else if threshold then IArith.upper_threshold u1 max_ik
         else max_ik
       in
@@ -159,9 +159,7 @@ struct
   let widen ik x y =
     let r = widen ik x y in
     if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a" pretty x pretty y pretty r;
-    assert (leq x y); (* TODO: remove for performance reasons? *)
     r
-  let widen ik x y = widen ik x (join ik x y) (* TODO: inline *)
 
   let narrow ik x y =
     match x, y with
