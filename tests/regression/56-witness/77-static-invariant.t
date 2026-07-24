@@ -4,11 +4,38 @@
     dead: 0
     total lines: 5
   [Info][Witness] witness generation summary:
-    location invariants: 0
+    location invariants: 3
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: invariant_set
-    content: []
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 77-static-invariant.c
+          line: 7
+          column: 1
+          function: foo
+        value: static_global == 1
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 77-static-invariant.c
+          line: 10
+          column: 3
+          function: main
+        value: static_global == 1
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 77-static-invariant.c
+          line: 11
+          column: 3
+          function: main
+        value: static_global == 1
+        format: c_expression

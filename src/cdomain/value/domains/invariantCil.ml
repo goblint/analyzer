@@ -37,7 +37,7 @@ let var_may_be_shadowed scope vi =
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
   | None ->
-    vi.vstorage <> Static && (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+    not (vi.vstorage = Static && hasAttribute "goblint_cil_pulledup" vi.vattr) && (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
     not (var_may_be_shadowed scope vi)
   | Some fd ->
     CilType.Fundec.equal fd scope &&
