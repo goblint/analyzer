@@ -37,7 +37,13 @@ let var_may_be_shadowed scope vi =
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
   | None ->
-    not (vi.vstorage = Static && hasAttribute "goblint_cil_pulledup" vi.vattr) && (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+    (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+    not (vi.vstorage = Static &&
+         match Cilfacade.findAttribute "goblint_cil_pulledup" vi.vattr with
+         | Some [AStr static_fun_name] -> static_fun_name <> scope.svar.vname
+         | Some _ -> failwith "InvariantCil.var_is_in_scope: invalid goblint_cil_pulledup attribute parameters"
+         | None -> false (* normal static global *)
+        ) &&
     not (var_may_be_shadowed scope vi)
   | Some fd ->
     CilType.Fundec.equal fd scope &&

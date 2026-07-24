@@ -4,7 +4,7 @@
     dead: 0
     total lines: 5
   [Info][Witness] witness generation summary:
-    location invariants: 3
+    location invariants: 4
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -20,6 +20,15 @@
           column: 1
           function: foo
         value: static_global == 1
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 77-static-invariant.c
+          line: 7
+          column: 1
+          function: foo
+        value: static_local == 2
         format: c_expression
     - invariant:
         type: location_invariant
