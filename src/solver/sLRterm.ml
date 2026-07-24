@@ -164,7 +164,7 @@ module SLR3term =
               nar, true
             )
             else (
-              let wid = S.Dom.widen old (S.Dom.join old tmp) in
+              let wid = S.Dom.widen old (S.Dom.join old tmp) in (* TODO: remove join *)
               if tracing then trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
               wid, false
             )

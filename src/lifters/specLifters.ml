@@ -514,7 +514,7 @@ struct
     let d' v_cur =
       if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
         let v_old = M.find f.svar m in (* S.D.bot () if not found *)
-        let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
+        let v_new = S.D.widen v_old (S.D.join v_old v_cur) in (* TODO: remove join? *)
         Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s" f.svar.vname);
         v_new, M.add f.svar v_new m
       )

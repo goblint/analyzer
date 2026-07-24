@@ -134,6 +134,8 @@ module C2PODomain = struct
     | _ ->
       widen_eq_classes a b
 
+  let widen x y = widen x (join x y) (* TODO: needed? *)
+
 
   let meet x y  =
     let cc1 = x.data in

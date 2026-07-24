@@ -105,7 +105,7 @@ module Base : GenericEqSolver =
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
         let widen a b =
           if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
-          S.Dom.widen a (S.Dom.join a b)
+          S.Dom.widen a (S.Dom.join a b) (* TODO: remove join *)
         in
         let op a b = if !y_ref.wpoint then widen a b else S.Dom.join a b
         in

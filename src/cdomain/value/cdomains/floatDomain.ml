@@ -307,6 +307,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | PlusInfinity, PlusInfinity -> PlusInfinity
     | _ -> Top
 
+  let widen x y = widen x (join x y) (* TODO: inline *)
+
   let narrow v1 v2 =
     match v1, v2 with (* we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
     | Bot, _ | _, Bot -> Bot

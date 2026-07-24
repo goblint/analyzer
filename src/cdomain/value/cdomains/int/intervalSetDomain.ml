@@ -545,6 +545,8 @@ struct
     in
     interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd
 
+  let widen ik x y = widen ik x (join ik x y) (* TODO: inline *)
+
   let starting ik n = norm_interval ik (n, snd (range ik))
 
   let ending ik n = norm_interval ik (fst (range ik), n)

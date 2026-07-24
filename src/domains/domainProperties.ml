@@ -167,7 +167,7 @@ struct
   include DomainTest (D)
 
   (* let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a b)) *)
-  (* solvers always use (D.join a b) as second argument *)
+  (* solvers always use (D.join a b) as second argument *) (* TODO: remove join *)
   let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a (D.join a b))) (* assume join idem, assoc *)
 
   let tests = [

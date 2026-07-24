@@ -121,6 +121,8 @@ struct
     Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
     M.widen m1 m2
 
+  let widen x y = widen x (join x y) (* TODO: inline *)
+
   let meet m1 m2 =
     M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
         match B.meet b1 b2 with
@@ -374,6 +376,8 @@ struct
     assert (is_empty s1'); (* since [leq s1 s2], folding over s2 should remove all s1 *)
     acc (* TODO: extra union s2 needed? *)
 
+  let widen x y = widen x (join x y) (* TODO: inline *)
+
   let meet s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
@@ -614,6 +618,8 @@ struct
   let widen m1 m2 =
     Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
     M.widen m1 m2
+
+  let widen x y = widen x (join x y) (* TODO: inline *)
 
   let meet m1 m2 =
     M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
@@ -856,6 +862,8 @@ struct
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     assert (is_empty s1'); (* since [leq s1 s2], folding over s2 should remove all s1 *)
     acc (* TODO: extra union s2 needed? *)
+
+  let widen x y = widen x (join x y) (* TODO: inline *)
 
   let meet s1 s2 =
     let f b2 (s1, acc) =

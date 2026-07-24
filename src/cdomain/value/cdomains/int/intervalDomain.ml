@@ -161,6 +161,7 @@ struct
     if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a" pretty x pretty y pretty r;
     assert (leq x y); (* TODO: remove for performance reasons? *)
     r
+  let widen ik x y = widen ik x (join ik x y) (* TODO: inline *)
 
   let narrow ik x y =
     match x, y with
