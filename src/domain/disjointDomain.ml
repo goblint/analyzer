@@ -117,11 +117,7 @@ struct
       add (f e) acc
     ) m (empty ()) (* no intermediate lists *)
 
-  let widen m1 m2 =
-    Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
-    M.widen m1 m2
-
-  let widen x y = widen x (join x y) (* TODO: inline *)
+  let widen = M.widen
 
   let meet m1 m2 =
     M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
@@ -615,11 +611,7 @@ struct
         Some b'
     ) m1 m2
 
-  let widen m1 m2 =
-    Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
-    M.widen m1 m2
-
-  let widen x y = widen x (join x y) (* TODO: inline *)
+  let widen = M.widen
 
   let meet m1 m2 =
     M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
