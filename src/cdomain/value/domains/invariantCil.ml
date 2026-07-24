@@ -40,7 +40,9 @@ let var_is_in_scope scope vi =
     (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
     not (vi.vstorage = Static &&
          match Cilfacade.findAttribute "goblint_cil_pulledup" vi.vattr with
-         | Some [AStr static_fun_name] -> static_fun_name <> scope.svar.vname
+         | Some [AStr static_fun_name] ->
+          static_fun_name <> scope.svar.vname ||
+          not (GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr))
          | Some _ -> failwith "InvariantCil.var_is_in_scope: invalid goblint_cil_pulledup attribute parameters"
          | None -> false (* normal static global *)
         ) &&
