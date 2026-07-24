@@ -779,7 +779,7 @@ struct
     if M.tracing then M.traceu "apron" "-> %a" pretty w;
     w
 
-  let widen x y = widen x (join x y) (* TODO: inline *)
+  let widen x y = widen x (join x y) (* TODO: inline? *)
 
   let narrow x y =
     let x_env = A.env x in

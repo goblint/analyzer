@@ -457,9 +457,7 @@ struct
   let widen x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
-    | _ -> y
-
-  let widen x y = widen x (join x y) (* TODO: needed? *)
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with

@@ -381,12 +381,11 @@ struct
     | `Top, _ -> `Top
     | _, `Top -> `Top
     | `Lifted x, `Lifted y -> `Lifted (S.join x y)
-  let widen x y = (* assumes y to be bigger than x *)
+  let widen x y =
     match x, y with
     | `Top, _
     | _, `Top -> `Top
     | `Lifted x, `Lifted y -> `Lifted (S.widen x y)
-  let widen x y = widen x (join x y) (* TODO: inline *)
   let meet x y =
     match x, y with
     | `Top, y -> y
