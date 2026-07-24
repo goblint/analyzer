@@ -1,23 +1,22 @@
 (* GENERATED FILE. DO NOT EDIT.
    Source: extraction/goblint_qsolver_update.ml
-   Regenerate with: make goblint-reset-extraction *)
-open Batteries
+   Regenerate with: make goblint-solvers *)
 open Goblint_constraint.ConstrSys
-open Goblint_constraint.SolverTypes
 
 module type UPDATE =
   functor (S : DemandEqConstrSys) -> sig
     type phase
-    val initial_phase : phase
-    val update : phase -> S.d -> S.d -> phase * S.d
+
+    val initial_phase : bool -> S.v -> phase
+    val update : bool -> S.v -> phase -> S.d -> S.d -> phase * S.d
   end
 
 module WideningUpdate (S : DemandEqConstrSys) = struct
   type phase = unit
 
-  let initial_phase = ()
+  let initial_phase _is_side_effect _variable = ()
 
-  let[@inline always] update () old input =
+  let[@inline always] update _is_side_effect _variable () old input =
     (), S.Dom.widen old (S.Dom.join old input)
 end
 
@@ -36,9 +35,9 @@ struct
     | BoxN of int
     | Widen
 
-  let initial_phase = Copy Config.k
+  let initial_phase _is_side_effect _variable = Copy Config.k
 
-  let[@inline always] update phase old input =
+  let[@inline always] update _is_side_effect _variable phase old input =
     match phase with
     | Copy remaining ->
       if remaining = 0 then BoxW Config.l, input
@@ -59,8 +58,8 @@ struct
       Widen, S.Dom.widen old input
 end
 
-(** Box update for Goblint's current widening convention: every call to
-    [widen] receives [join old input] as its second argument. *)
+(** Box update for Goblint's current widening convention: the second argument
+    of [widen] is the join of the old value and the new input. *)
 module JoinedBoxUpdate
     (Config : BOX_UPDATE_CONFIG)
     (S : DemandEqConstrSys) =
@@ -71,12 +70,12 @@ struct
     | BoxN of int
     | Widen
 
-  let initial_phase = Copy Config.k
+  let initial_phase _is_side_effect _variable = Copy Config.k
 
   let[@inline always] widen old input =
     S.Dom.widen old (S.Dom.join old input)
 
-  let[@inline always] update phase old input =
+  let[@inline always] update _is_side_effect _variable phase old input =
     match phase with
     | Copy remaining ->
       if remaining = 0 then BoxW Config.l, input
@@ -97,14 +96,14 @@ struct
       Widen, widen old input
 end
 
-(** Compile-time strategy selection.  [k = 0] performs one copy; [l = 0]
-    permits the initial BoxW/BoxN pair and then commits to Widen on reopening. *)
+(** [k = 0] performs one direct copy.  [l = 0] permits the first
+    widening/narrowing box before committing to widening when it reopens. *)
 module CopyUpdate = JoinedBoxUpdate (struct
     let k = 0
     let l = 0
   end)
 
-module WNUpdate (S : DemandEqConstrSys) = 
+module WNUpdate (S : DemandEqConstrSys) =
 struct
   module M = JoinedBoxUpdate (struct
       let k = 0
@@ -112,6 +111,7 @@ struct
     end) (S)
 
   type phase = M.phase
+
+  let initial_phase _is_side_effect _variable = M.BoxW 0
   let update = M.update
-  let initial_phase = M.BoxW 0
 end

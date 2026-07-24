@@ -350,47 +350,11 @@ module DemandEqIncrSolverFromEqSolver (Sol: GenericEqSolver): DemandEqIncrSolver
       (vh, ())
   end
 
-module DemandEqConstrSysDoubleSideCheck (S: DemandEqConstrSys) 
-  : DemandEqConstrSys with type v = S.v and type d = S.d = 
-struct
-  type v = S.v
-  type d = S.d
-  module Var = S.Var
-  module Dom = S.Dom
-  let sys_change = S.sys_change
-  let postmortem = S.postmortem
-  let system v = 
-    match S.system v with
-    | None -> None 
-    | Some rhs -> 
-      let sides : (v,d) Hashtbl.t = Hashtbl.create 6 in
-      let set' set x d = 
-        match Hashtbl.mem sides x with
-        | true ->
-          let d' = Hashtbl.find sides x in
-          if not (Dom.leq d d') then begin
-            Logs.error "double side-effect with different values: %a" S.Var.pretty_trace x;
-            let d'' = Dom.join d d' in
-            Hashtbl.replace sides x d''; 
-            set x d''
-          end
-        | false -> begin
-            Hashtbl.add sides x d; 
-            set x d 
-          end
-      in  
-      let f get set spawn =  
-        rhs get (set' set) spawn
-      in
-      Some f
-end
-
 module AddPost (Sol : DemandEqIncrSolver) = functor (Arg : IncrSolverArg)
   (S : DemandEqConstrSys)
   (VH : Hashtbl.S with type key = S.v) ->
 struct
-  module S' = DemandEqConstrSysDoubleSideCheck (S)
-  module Sol = Sol (Arg) (S') (VH) 
+  module Sol = Sol (Arg) (S) (VH) 
   type marshal = Sol.marshal
   let copy_marshal = Sol.copy_marshal
   let relift_marshal = Sol.relift_marshal
