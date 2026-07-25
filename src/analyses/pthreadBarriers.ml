@@ -108,13 +108,15 @@ struct
                     in
                     let can_proceed = exists_k can_proceed_pred (min_cap - 1) relevant_waiters in
                     if not can_proceed then raise Analyses.Deadcode;
+                    (* All TIDs are definite here, they may have other MCPA stuff but that is irrelevant. *)
+                    let tids = waiters |> List.map snd |> List.sort_uniq TID.compare in
                     (* limit to this case to avoid having to construct all permutations above *)
-                    if BatList.compare_length_with waiters (min_cap - 1) = 0 then
-                      List.fold_left (fun acc (_,tid) ->
+                    if BatList.compare_length_with tids (min_cap - 1) = 0 then
+                      List.fold_left (fun acc tid ->
                           let curr = MustObserved.find tid acc in
                           let must' = MustObserved.add tid (Barriers.add addr curr) acc in
                           must'
-                        ) must waiters
+                        ) must tids
                     else
                       must
                   in
