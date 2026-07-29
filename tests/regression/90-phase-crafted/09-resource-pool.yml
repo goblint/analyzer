@@ -1,0 +1,80 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009009
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [09-resource-pool.c]
+      input_file_hashes:
+        09-resource-pool.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_borrower_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_cleaner_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_returner_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 09-resource-pool.c, line: 16, column: 3, function: borrower}
+      updates:
+      - variable: ghost_borrower_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 09-resource-pool.c, line: 19, column: 3, function: borrower}
+      updates:
+      - variable: ghost_borrower_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 09-resource-pool.c, line: 22, column: 3, function: borrower}
+      updates:
+      - variable: ghost_borrower_phase
+        value: "3"
+        format: c_expression
+    - location: {file_name: 09-resource-pool.c, line: 32, column: 3, function: cleaner}
+      updates:
+      - variable: ghost_cleaner_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 09-resource-pool.c, line: 39, column: 3, function: returner}
+      updates:
+      - variable: ghost_returner_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 09-resource-pool.c, line: 42, column: 3, function: returner}
+      updates:
+      - variable: ghost_returner_phase
+        value: "2"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000019009
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [09-resource-pool.c]
+      input_file_hashes:
+        09-resource-pool.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: 09-resource-pool.c, line: 59, column: 3, function: main}
+      value: ghost_borrower_phase >= 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 09-resource-pool.c, line: 59, column: 3, function: main}
+      value: ghost_cleaner_phase >= 0
+      format: c_expression
