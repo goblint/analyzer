@@ -24,10 +24,28 @@
     ghost_updates:
     - location:
         file_name: ghost-update.c
-        line: 3
+        line: 5
         column: 3
         function: foo
       updates:
       - variable: g_var
         value: "1"
+        format: c_expression
+    - location:
+        file_name: ghost-update.c
+        line: 6
+        column: 3
+        function: foo
+      updates:
+      - variable: g_var
+        value: "2"
+        format: c_expression
+    - location:
+        file_name: ghost-update.c
+        line: 7
+        column: 3
+        function: foo
+      updates:
+      - variable: g_var
+        value: "3"
         format: c_expression

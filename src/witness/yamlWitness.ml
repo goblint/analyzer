@@ -431,6 +431,30 @@ let show_ghost_update_location (loc: Cil.location) =
 module GhostUpdateLocator = WitnessUtil.Locator (CilType.Location)
 module GhostUpdateLocationH = Hashtbl.Make (CilType.Location)
 
+let rhs_needs_separate_evaluation rhs =
+  let needs_separate_evaluation = ref false in
+  let visitor = object
+    inherit nopCilVisitor
+
+    method! vvrbl v =
+      if v.vglob || v.vaddrof then
+        needs_separate_evaluation := true;
+      SkipChildren
+
+    method! vexpr e =
+      match e with
+      | Lval (Mem _, _)
+      | AddrOf (Mem _, _)
+      | StartOf (Mem _, _) ->
+        needs_separate_evaluation := true;
+        SkipChildren
+      | _ ->
+        DoChildren
+  end
+  in
+  ignore (visitCilExpr visitor rhs);
+  !needs_separate_evaluation
+
 class ghostUpdateLocationVisitor (locations : GhostUpdateLocator.t) = object
   inherit nopCilVisitor
 
@@ -488,7 +512,7 @@ class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (plac
                   let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_instrument_end();" loc
                       [("__VERIFIER_atomic_instrument_end", Cil.Fv atomic_end)] in
                   (match instr with
-                   | Set (lhs, rhs, loc, eloc) ->
+                   | Set (lhs, rhs, loc, eloc) when rhs_needs_separate_evaluation rhs ->
                      let fundec = Option.get fundec in
                      let tmp = GoblintCil.makeTempVar fundec ~name:"__goblint_ghost_rhs" (Cilfacade.typeOf rhs) in
                      let evaluate_rhs = Set (GoblintCil.var tmp, rhs, loc, eloc) in
