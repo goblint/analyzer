@@ -1,6 +1,10 @@
 (** Mutex locking and unlocking analysis ([mutexEvents]).
 
-    Emits {!Events.Lock} and {!Events.Unlock} to other analyses. *)
+    Emits {!Events.Lock} and {!Events.Unlock} to other analyses.
+    It also globally collects a set of mutexes that appear in the program.
+    This accumulation only becomes costly, when this unknown is queried, as it may introduce many
+    dependencies.
+*)
 
 module M = Messages
 module Addr = ValueDomain.Addr
