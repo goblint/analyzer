@@ -547,14 +547,6 @@ let init () =
         | _ -> None
       ) file.globals
   in
-  GobConfig.get_string_list "witness.yaml.extraGhosts"
-  |> List.iter (fun name ->
-      match find_global_var name with
-      | Some v ->
-        ghostVars := VarSet.add v !ghostVars
-      | None ->
-        M.warn_noloc ~category:Witness "extra ghost variable not found: %s" name
-    );
   match GobConfig.get_string "witness.yaml.validate" with
   | "" -> ()
   | path ->

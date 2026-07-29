@@ -2853,15 +2853,6 @@
               "type": "string",
               "default": ""
             },
-            "extraGhosts": {
-              "title": "witness.yaml.extraGhosts",
-              "description": "Existing global variables to additionally treat as ghost variables during YAML witness handling. N.B. This will assume the global is used in a way that is consistent with the rules for ghosts in witnesses.",
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            },
             "strict": {
               "title": "witness.yaml.strict",
               "description": "Fail YAML witness validation if there's an error/unsupported/disabled entry.",

@@ -1,15 +1,11 @@
-// PARAM: --set ana.activated[+] phaseGhostSplit --set ana.activated[+] threadJoins --set ana.activated[+] phaseGhost --set ana.base.privatization protection-atomic-ghost  --set witness.yaml.extraGhosts[+] ghost_a --set witness.yaml.extraGhosts[+] ghost_b --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval
+// PARAM: --set ana.activated[+] phaseGhostSplit --set ana.activated[+] threadJoins --set ana.activated[+] phaseGhost --set ana.base.privatization protection-atomic-ghost --set witness.yaml.validate 04-ghost-split.yml --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval
 #include<pthread.h>
 #include<goblint.h>
 int x;
 
-int ghost_a;
-int ghost_b;
-
 void fun() {
     __VERIFIER_atomic_begin();
     x++;
-    ghost_a = 1;
     __VERIFIER_atomic_end();
 }
 
@@ -25,7 +21,6 @@ int main(void) {
 
     __VERIFIER_atomic_begin();
     x++;
-    ghost_b = 1;
     __VERIFIER_atomic_end();
 
     pthread_join(thread, NULL);
