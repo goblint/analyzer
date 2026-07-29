@@ -3,11 +3,14 @@ Ghost variables declared in a YAML witness are injected into the CIL file before
   $ goblint --enable justcil --set dbg.justcil-printer clean --set witness.yaml.validate ghost.yml ghost.c | grep -E "m_locked"
   int m_locked  =    0;
 
-Ghost updates from a YAML witness are inserted after the matching statement, wrapped in atomic blocks:
+For assignments with ghost updates, the right-hand side is evaluated into a
+fresh local before the atomic block. The assignment from that local and the
+ghost update are inserted together inside the atomic block:
 
-  $ goblint --enable justcil --set dbg.justcil-printer clean --set witness.yaml.validate ghost-update.yml ghost-update.c | grep -E "atomic_instrument_begin|x = 1|g_var = 1|atomic_instrument_end|x = 2"
+  $ goblint --enable justcil --set dbg.justcil-printer clean --set witness.yaml.validate ghost-update.yml ghost-update.c | grep -E "__goblint_ghost_rhs[0-9]+ = 1|atomic_instrument_begin|x = __goblint_ghost_rhs[0-9]+|g_var = 1|atomic_instrument_end|x = 2" | sed -E 's/__goblint_ghost_rhs[0-9]+/__goblint_ghost_rhsN/g'
+    __goblint_ghost_rhsN = 1;
     __VERIFIER_atomic_instrument_begin();
-    x = 1;
+    x = __goblint_ghost_rhsN;
     g_var = 1;
     __VERIFIER_atomic_instrument_end();
     x = 2;

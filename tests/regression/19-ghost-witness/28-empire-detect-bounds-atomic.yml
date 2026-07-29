@@ -8,9 +8,9 @@
       version: "0.0"
     task:
       input_files:
-      - 26-empire-detect-bounds-atomic.c
+      - 28-empire-detect-bounds-atomic.c
       input_file_hashes:
-        26-empire-detect-bounds-atomic.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        28-empire-detect-bounds-atomic.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -29,7 +29,7 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 26-empire-detect-bounds-atomic.c
+        file_name: 28-empire-detect-bounds-atomic.c
         line: 17
         column: 5
         function: fun
@@ -38,7 +38,7 @@
         value: "ghost_a + 1"
         format: c_expression
     - location:
-        file_name: 26-empire-detect-bounds-atomic.c
+        file_name: 28-empire-detect-bounds-atomic.c
         line: 33
         column: 5
         function: main
@@ -56,16 +56,16 @@
       version: "0.0"
     task:
       input_files:
-      - 26-empire-detect-bounds-atomic.c
+      - 28-empire-detect-bounds-atomic.c
       input_file_hashes:
-        26-empire-detect-bounds-atomic.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        28-empire-detect-bounds-atomic.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
   - invariant:
       type: location_invariant
       location:
-        file_name: 26-empire-detect-bounds-atomic.c
+        file_name: 28-empire-detect-bounds-atomic.c
         line: 18
         column: 1
         function: fun
@@ -74,7 +74,7 @@
   - invariant:
       type: location_invariant
       location:
-        file_name: 26-empire-detect-bounds-atomic.c
+        file_name: 28-empire-detect-bounds-atomic.c
         line: 37
         column: 5
         function: main
@@ -83,7 +83,7 @@
   - invariant:
       type: location_invariant
       location:
-        file_name: 26-empire-detect-bounds-atomic.c
+        file_name: 28-empire-detect-bounds-atomic.c
         line: 37
         column: 5
         function: main
