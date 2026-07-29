@@ -108,12 +108,18 @@ Run with the second witness, which additionally contains invariants and unassume
 
 Run with witness validation and recognize both thread-owned phase ghosts
 
-  $ goblint --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 19-stateful01-2.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 19-stateful01-2.c
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 19-stateful01-2.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 19-stateful01-2.c
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
   [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
+  SV-COMP result: true
+  [Info][Race] Memory locations race summary:
+    safe: 4
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 4
   [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (19-stateful01-2.c:13:1-13:22)
   [Warning][Deadcode] Function 'main' has dead code:
     on line 51 (19-stateful01-2.c:51-51)
@@ -121,9 +127,9 @@ Run with witness validation and recognize both thread-owned phase ghosts
     live: 27
     dead: 2 (1 in uncalled functions)
     total lines: 29
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and is monotonically increased to known bounds
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.c:49:7-49:28)
   [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -133,12 +139,6 @@ Run with witness validation and recognize both thread-owned phase ghosts
     unsupported: 0
     disabled: 0
     total validation entries: 0
-  SV-COMP result: true
-  [Info][Race] Memory locations race summary:
-    safe: 4
-    vulnerable: 0
-    unsafe: 0
-    total memory locations: 4
 
 The preprocessed input does not succeed without witness
 
