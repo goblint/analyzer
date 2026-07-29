@@ -179,7 +179,6 @@ module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module BranchSet = BranchSet
-module StackTrace = StackTrace
 
 (** {2 Helper}
 
@@ -319,7 +318,6 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module StackDomain = StackDomain
 
 (** {2 Testing}
 

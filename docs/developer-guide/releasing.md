@@ -44,7 +44,7 @@
     4. Update opam-repository from git: `opam-2.2 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.2 update`.
     5. Navigate to distribution archive inside Docker container: `cd /goblint`.
     6. Install and test package from distribution archive: `opam-2.2 install --with-test .`.
-    7. Activate opam environment: `eval $(opam env)`.
+    7. Activate opam environment: `eval $(opam-2.2 env)`.
     8. Check version: `goblint --version`.
     9. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
     10. Exit Docker container.

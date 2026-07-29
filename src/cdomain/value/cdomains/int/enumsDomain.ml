@@ -228,7 +228,7 @@ module Enums : S with type int_t = Z.t = struct
   let rem = lift2 Z.rem
 
   (* TODO: should be used by lognot? *)
-  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+  let[@warning "-unused-value-declaration"] apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
     let rf m = (size % Size.min_for % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
@@ -449,7 +449,7 @@ module Enums : S with type int_t = Z.t = struct
       | Exc (s, _) -> GobQCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> GobQCheck.shrink (BISet.arbitrary ()) s >|= pos
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map neg (BISet.arbitrary ());
       10, QCheck.map pos (BISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
