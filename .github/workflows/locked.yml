@@ -22,6 +22,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
+          - macos-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
