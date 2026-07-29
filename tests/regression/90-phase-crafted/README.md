@@ -1,7 +1,7 @@
 # Phase-crafted ghost witness tasks
 
 This directory contains 50 pthread-only regression programs for evaluating
-phase ghost witnesses. Each task is inconclusive for WizWoz
+phase ghost witnesses. Each task is inconclusive for Goblint
 without witness guidance and provable when `phaseGhost`/`phaseGhostSplit` uses
 the supplied witness phase information.
 
