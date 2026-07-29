@@ -449,12 +449,14 @@ end
 (** CIL visitor that inserts ghost updates around matching statements.
     [updates] maps exact resolved instruction locations to the list of
     assignment instructions to insert after the original instruction at that
-    location. The original
-    instruction together with the ghost update assignments are wrapped in
+    location. For an assignment, the right-hand side is first evaluated into a
+    fresh local outside the atomic instrumentation. Only assigning that local
+    to the left-hand side together with the ghost updates is wrapped in
     [__VERIFIER_atomic_instrument_begin()] / [__VERIFIER_atomic_instrument_end()]:
     {[
+      tmp = rhs;
       __VERIFIER_atomic_instrument_begin();
-      originalstatement;
+      lhs = tmp;
       ghostupdate;
       __VERIFIER_atomic_instrument_end();
     ]}
@@ -462,6 +464,12 @@ end
     matched; callers can use this to warn about unmatched keys. *)
 class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (placed : unit GhostUpdateLocationH.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
   inherit nopCilVisitor
+
+  val mutable fundec = None
+
+  method! vfunc f =
+    fundec <- Some f;
+    DoChildren
 
   method! vstmt s =
     let instrument s =
@@ -479,7 +487,15 @@ class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (plac
                       [("__VERIFIER_atomic_instrument_begin", Cil.Fv atomic_begin)] in
                   let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_instrument_end();" loc
                       [("__VERIFIER_atomic_instrument_end", Cil.Fv atomic_end)] in
-                  abegin :: instr :: update_instrs @ [aend])
+                  (match instr with
+                   | Set (lhs, rhs, loc, eloc) ->
+                     let fundec = Option.get fundec in
+                     let tmp = Cil.makeTempVar fundec ~name:"__goblint_ghost_rhs" (Cil.typeOf rhs) in
+                     let evaluate_rhs = Set ((Var tmp, NoOffset), rhs, loc, eloc) in
+                     let atomic_assign = Set (lhs, Lval (Var tmp, NoOffset), loc, eloc) in
+                     evaluate_rhs :: abegin :: atomic_assign :: update_instrs @ [aend]
+                   | _ ->
+                     abegin :: instr :: update_instrs @ [aend]))
            ) il in
          s.skind <- Instr new_il
        | _ -> ());
