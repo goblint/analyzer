@@ -6,6 +6,7 @@ extern void __VERIFIER_atomic_begin();
 extern void __VERIFIER_atomic_end();
 
 int x;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 void fun() {
@@ -14,7 +15,9 @@ void fun() {
         y--;
     }
 
+    pthread_mutex_lock(&mutex);
     x++;
+    pthread_mutex_unlock(&mutex);
 }
 
 int main(void) {
@@ -30,7 +33,9 @@ int main(void) {
         z--;
     }
 
+    pthread_mutex_lock(&mutex);
     x++;
+    pthread_mutex_unlock(&mutex);
 
     pthread_join(thread, NULL);
 
