@@ -1,10 +1,10 @@
 Does not succeed without witness
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 20-race-1_1-join.c --disable witness.yaml.enabled
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 20-race-1_1-join.c --disable witness.yaml.enabled 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Info][Race] Memory locations race summary:
@@ -23,11 +23,11 @@ Does not succeed without witness
 
 Run with the second witness, which additionally contains phase/value invariants.
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -65,11 +65,11 @@ Run with the second witness, which additionally contains phase/value invariants.
 The main and worker phase ghosts keep the values published in each phase
 separate, allowing all four assertions to be verified.
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -102,11 +102,11 @@ separate, allowing all four assertions to be verified.
 
 Run with the second witness, which additionally contains phase/value invariants and unassume them
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled --enable ana.unassume.ghost --enable ana.unassume.precheck --set witness.yaml.unassume 20-race-1_1-join-invariants.yml --set ana.activated[+] unassume 20-race-1_1-join.c
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled --enable ana.unassume.ghost --enable ana.unassume.precheck --set witness.yaml.unassume 20-race-1_1-join-invariants.yml --set ana.activated[+] unassume 20-race-1_1-join.c 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -147,11 +147,11 @@ Run with the second witness, which additionally contains phase/value invariants 
 
 The preprocessed input does not succeed without witness
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 20-race-1_1-join.i --disable witness.yaml.enabled
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit 20-race-1_1-join.i --disable witness.yaml.enabled 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Info][Race] Memory locations race summary:
@@ -174,11 +174,11 @@ The preprocessed input does not succeed without witness
 
 Run the preprocessed input with the second witness, which additionally contains phase/value invariants
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-i-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.i
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-i-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.i 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -217,11 +217,11 @@ Run the preprocessed input with the second witness, which additionally contains 
 
 Run the preprocessed input with the phase ghost witness
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-i.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.i
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-i.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.i 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -256,11 +256,11 @@ Run the preprocessed input with the phase ghost witness
 
 Run the preprocessed input with phase/value invariants and unassume them
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-i-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled --enable ana.unassume.ghost --enable ana.unassume.precheck --set witness.yaml.unassume 20-race-1_1-join-i-invariants.yml --set ana.activated[+] unassume 20-race-1_1-join.i
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-i-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled --enable ana.unassume.ghost --enable ana.unassume.precheck --set witness.yaml.unassume 20-race-1_1-join-i-invariants.yml --set ana.activated[+] unassume 20-race-1_1-join.i 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] pdev, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, tmp, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:

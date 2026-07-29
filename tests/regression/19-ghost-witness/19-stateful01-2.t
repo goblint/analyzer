@@ -1,3 +1,10 @@
+Normalize the configuration-dependent list of variables tracked by the octagon
+domain.
+
+  $ goblint () {
+  >   command goblint "$@" 2>&1 | sed -E 's/^\[Info\] data1, data2,.*/[Info] <octagon variables>/'
+  > }
+
 Does not succeed without witness
 
   $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --sets ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions  --set ana.base.privatization protection-atomic-ghost --sets exp.architecture 64bit 19-stateful01-2.c --disable witness.yaml.enabled
@@ -6,7 +13,7 @@ Does not succeed without witness
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2.c:21:3-21:10)
@@ -29,7 +36,7 @@ Run with the second witness, which additionally contains invariants
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -67,7 +74,7 @@ Run with the second witness, which additionally contains invariants and unassume
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -105,7 +112,7 @@ Run with witness validation and recognize both thread-owned phase ghosts
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (19-stateful01-2.c:13:1-13:22)
   [Warning][Deadcode] Function 'main' has dead code:
@@ -141,7 +148,7 @@ The preprocessed input does not succeed without witness
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2.i:697:3-697:10)
@@ -170,7 +177,7 @@ Run the preprocessed input with the second witness, which additionally contains 
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -211,7 +218,7 @@ Run the preprocessed input with the second witness and unassume the invariants
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
   [Info][Race] Memory locations race summary:
@@ -256,7 +263,7 @@ The Ultimate-style preprocessed input does not succeed without witness
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, data1_value, data2_value, data1_value, data2_value, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2-ultimate.i:703:3-703:26)
@@ -285,7 +292,7 @@ Run the Ultimate-style input with the second witness, which additionally contain
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, data1_value, data2_value, data1_value, data2_value, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2-ultimate.i:703:3-703:26)
@@ -327,7 +334,7 @@ Run the Ultimate-style input with the second witness and unassume the invariants
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, data1_value, data2_value, data1_value, data2_value, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2-ultimate.i:703:3-703:26)
@@ -371,7 +378,7 @@ Run the Ultimate-style input with witness validation and recognize both thread-o
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, data1_value, data2_value, data1_value, data2_value, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2-ultimate.i:703:3-703:26)
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (19-stateful01-2-ultimate.i:709:3-709:26)
@@ -411,7 +418,7 @@ Run the preprocessed input with witness validation and recognize both thread-own
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] data1, data2, i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (19-stateful01-2.i:20:1-20:165)
   [Warning][Deadcode] Function '__bswap_32' is uncalled: 1 LLoC (19-stateful01-2.i:75:1-79:1)

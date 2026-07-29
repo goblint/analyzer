@@ -1,12 +1,12 @@
 Does not succeed without witness
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --sets ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --sets exp.architecture 64bit 18-singleton.c --disable witness.yaml.enabled
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --sets ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --set ana.base.privatization protection-atomic-ghost --sets exp.architecture 64bit 18-singleton.c --disable witness.yaml.enabled 2>&1 | sed -E 's/^\[Info\] i,.*/[Info] <octagon variables>/'
   [Warning] --sets is deprecated, use --set instead.
   [Warning] --sets is deprecated, use --set instead.
   [Info] Enabled congruence domain.
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
-  [Info] i, count, tmp, count, i, j, i___0, j___0, k, size, r, expression, tmp, expression, __x, __x, __x
+  [Info] <octagon variables>
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: unknown
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (18-singleton.c:34:3-34:13)
