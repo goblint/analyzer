@@ -22,7 +22,7 @@ Does not succeed without witness
 
 Run with the second witness, which additionally contains phase/value invariants.
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c --set ana.autotune.activated[-] congruence 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
+  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level04.json --disable warn.imprecise --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 20-race-1_1-join-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --disable witness.yaml.enabled 20-race-1_1-join.c --set ana.autotune.activated[-] congruence 2>&1 | sed -E 's/^\[Info\] pdev,.*/[Info] <octagon variables>/'
   [Info] Enabled widening thresholds
   [Info] Enabled octagon domain ONLY for:
   [Info] <octagon variables>
