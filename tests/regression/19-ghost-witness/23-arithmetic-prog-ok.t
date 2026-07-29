@@ -48,7 +48,7 @@ Validate the phase ghost associated with assignments to `total` using the level-
 
 The second witness additionally states the final phase, value, and their relation.
 
-  $ goblint --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 23-arithmetic-prog-ok-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences --disable witness.yaml.enabled 23-arithmetic-prog-ok.c
+  $ goblint --disable warn.imprecise --enable warn.deterministic --conf ../../../conf/svcomp26/common.json --conf ../../../conf/svcomp26/verify.json --conf ../../../conf/svcomp26/level00.json --set witness.yaml.invariant-types[+] location_invariant --set ana.path_sens[+] phaseGhostSplit --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic-ghost --set exp.architecture 64bit --set witness.yaml.validate 23-arithmetic-prog-ok-invariants.yml --set ana.activated[+] phaseGhost --set ana.activated[+] phaseGhostSplit --set ana.autotune.activated[-] loopUnrollHeuristic --set ana.autotune.activated[-] congruences --disable witness.yaml.enabled 23-arithmetic-prog-ok.c
   [Info] Enabled widening thresholds
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   SV-COMP result: true
@@ -63,8 +63,6 @@ The second witness additionally states the final phase, value, and their relatio
     dead: 1 (1 in uncalled functions)
     total lines: 40
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (23-arithmetic-prog-ok.c:17:40-17:45)
-  [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& empty) (23-arithmetic-prog-ok.c:62:3-62:31)
-  [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& full) (23-arithmetic-prog-ok.c:63:3-63:30)
   [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
