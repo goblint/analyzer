@@ -169,8 +169,7 @@ struct
       (* Do not change phase in the middle of the combine call! *)
       man.local
     | _ ->
-      (* TODO:
-         Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
+      (* We cannot get away with doing this after release-like operations, we may save values into ghosts and then assert that they are unchanged across lines which is false. *)
       if !AnalysisState.global_initialization then
         man.local
       else
