@@ -95,8 +95,6 @@ The second witness additionally states the final phase, value, and their relatio
     dead: 1 (1 in uncalled functions)
     total lines: 40
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (23-arithmetic-prog-ok.c:17:40-17:45)
-  [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& empty) (23-arithmetic-prog-ok.c:62:3-62:31)
-  [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& full) (23-arithmetic-prog-ok.c:63:3-63:30)
   [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and is monotonically increased to known bounds
   [Info][Witness] unassume invariant: (total == (unsigned long )(2 * ghost_total_phase) && total == 10UL) && ghost_total_phase == 5 (23-arithmetic-prog-ok.c:67:3-67:22)
   [Info][Witness] witness validation summary:
