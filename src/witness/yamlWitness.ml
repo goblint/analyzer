@@ -490,9 +490,9 @@ class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (plac
                   (match instr with
                    | Set (lhs, rhs, loc, eloc) ->
                      let fundec = Option.get fundec in
-                     let tmp = Cil.makeTempVar fundec ~name:"__goblint_ghost_rhs" (Cil.typeOf rhs) in
-                     let evaluate_rhs = Set ((Var tmp, NoOffset), rhs, loc, eloc) in
-                     let atomic_assign = Set (lhs, Lval (Var tmp, NoOffset), loc, eloc) in
+                     let tmp = GoblintCil.makeTempVar fundec ~name:"__goblint_ghost_rhs" (Cilfacade.typeOf rhs) in
+                     let evaluate_rhs = Set (GoblintCil.var tmp, rhs, loc, eloc) in
+                     let atomic_assign = Set (lhs, Lval (GoblintCil.var tmp), loc, eloc) in
                      evaluate_rhs :: abegin :: atomic_assign :: update_instrs @ [aend]
                    | _ ->
                      abegin :: instr :: update_instrs @ [aend]))
