@@ -65,6 +65,14 @@ module type S =
     val finalize: unit -> unit
   end
 
+(* Helper module that can be included when no phases are needed. *)
+module NoPhases = struct
+  module AuxiliaryPhaseInfo = Lattice.Unit
+  let phase_change _ _ _ _ _ st = st
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info (st:'a) _ = (st:'a)
+end
+
 (** Top privatization, which doesn't track globals at all.
     This is unlike base's "none" privatization. which does track globals, but doesn't privatize them. *)
 module Top: S = functor (RD: RelationDomain.RD) ->
@@ -74,7 +82,7 @@ struct
   module V = EmptyV
   module AV = RD.V
   module P = UnitP
-  module AuxiliaryPhaseInfo = Lattice.Unit
+  include NoPhases
 
   type relation_components_t = RelComponents (RD) (D).t
 
@@ -154,10 +162,6 @@ struct
   let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = []
 
-  let phase_change _ _ _ _ _ st = st
-  let aux_phase_info _ = ()
-  let consume_aux_phase_info (st: relation_components_t) _ = st
-
   let init () = ()
   let finalize () = ()
 end
@@ -172,6 +176,7 @@ end
 module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (RD: RelationDomain.RD) ->
 struct
   include ConfCheck.RequireMutexActivatedInit
+  include NoPhases
   open Protection
 
   (** Locally must-written protected globals that have been continuously protected since writing. *)
@@ -204,8 +209,6 @@ struct
       else
         None
   end
-
-  module AuxiliaryPhaseInfo = Lattice.Unit
 
   type relation_components_t = RelationComponents (RD) (D).t
 
@@ -449,10 +452,6 @@ struct
   let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
-  let phase_change _ _ _ _ _ st = st
-  let aux_phase_info _ = ()
-  let consume_aux_phase_info (st: relation_components_t) _ = st
-
   let finalize () = ()
 
   module P = PS
@@ -497,12 +496,11 @@ struct
   open CommonPerMutex(RD)
   include MutexGlobals
   include PerMutexMeetPrivBase (RD)
+  include NoPhases
 
   module D = Lattice.Unit
   module G = RD
   module P = UnitP
-
-  module AuxiliaryPhaseInfo = Lattice.Unit
 
   type relation_components_t = RelationDomain.RelComponents (RD) (D).t
 
@@ -773,10 +771,6 @@ struct
         Invariant.none
     | g -> (* global *)
       Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
-
-  let phase_change _ _ _ _ _ st = st
-  let aux_phase_info _ = ()
-  let consume_aux_phase_info st _ = st
 
 end
 
