@@ -43,7 +43,7 @@ void *t1_fun(void *arg) {
 void *t2_fun(void *arg) {
   struct s *p = take(A);
   pthread_mutex_lock(&data_mutex);
-  access_or_assert_racefree(p->datum); // UNKNOWN!
+  access_or_assert_racefree(p->datum); // UNKNOWN
   pthread_mutex_unlock(&data_mutex);
   return NULL;
 }
