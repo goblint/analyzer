@@ -3,36 +3,9 @@
 open GoblintCil
 open SimplifiedAnalysis
 
-module DefaultSpec =
-struct
-  let query man state (type a) (q: a Queries.t) : a Queries.result =
-    Queries.Result.top q
-
-  let assign man state (lval: lval) (rval: exp) =
-    state
-
-  let branch man state (exp: exp) (tv: bool) =
-    state
-
-  let body man state (f: fundec) =
-    state
-
-  let return man state (exp: exp option) (f: fundec) =
-    state
-
-  let enter man state (lval: lval option) (f: fundec) (args: exp list) =
-    state
-
-  let combine man caller_state callee_local (lval: lval option) (f: fundec) (args: exp list) =
-    callee_local
-
-  let special man state (lval: lval option) (f: varinfo) (args: exp list) =
-    state
-end
-
 module Spec : SimplifiedSpec =
 struct
-  include DefaultSpec
+  include SimplifiedAnalysis.DefaultSpec
 
   let name = "simplifiedUnit"
   module V = Printable.Unit

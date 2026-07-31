@@ -72,3 +72,30 @@ module type SimplifiedSpec = sig
   (** Compute the start state of a new thread starting with the function given by fundec *)
   val threadenter: (G.t, C.t, V.t) man -> D.t -> fundec -> exp list -> D.t
 end
+
+module DefaultSpec =
+struct
+  let query man state (type a) (q: a Queries.t) : a Queries.result =
+    Queries.Result.top q
+
+  let assign man state (lval: lval) (rval: exp) =
+    state
+
+  let branch man state (exp: exp) (tv: bool) =
+    state
+
+  let body man state (f: fundec) =
+    state
+
+  let return man state (exp: exp option) (f: fundec) =
+    state
+
+  let enter man state (lval: lval option) (f: fundec) (args: exp list) =
+    state
+
+  let combine man caller_state callee_local (lval: lval option) (f: fundec) (args: exp list) =
+    callee_local
+
+  let special man state (lval: lval option) (f: varinfo) (args: exp list) =
+    state
+end

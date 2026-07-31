@@ -49,7 +49,7 @@ end
 
 module Spec : SimplifiedSpec =
 struct
-  include SimplifiedUnitAnalysis.DefaultSpec
+  include SimplifiedAnalysis.DefaultSpec
 
   let name = "signsExtendSol"
   module V = Printable.Unit
