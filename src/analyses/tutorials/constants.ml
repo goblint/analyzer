@@ -9,6 +9,8 @@ open SimplifiedAnalysis
  We do not pass information interprocedurally. *)
 module Spec : SimplifiedSpec =
 struct
+  include SimplifiedAnalysis.DefaultSpec
+
   let name = "constants"
   module V = Printable.Unit
   module G = Lattice.Unit
@@ -47,8 +49,6 @@ struct
     | _ -> I.top ()
 
   (* transfer functions *)
-  let query man state (type a) (q: a Queries.t): a Queries.result =
-    Queries.Result.top q
 
   let assign man state (lval:lval) (rval:exp) : D.t =
     match get_local lval with
