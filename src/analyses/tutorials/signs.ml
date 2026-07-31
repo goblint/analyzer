@@ -81,6 +81,9 @@ struct
     | BinOp (Lt, e1, e2, _) -> SL.lt (eval d e1) (eval d e2)
     | _ -> false
 
+  (* We should now provide this information to Goblint. Assertions are integer expressions,
+   * so we implement here a response to EvalInt queries.
+   * You should definitely leave this alone... *)
   let query man state (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
