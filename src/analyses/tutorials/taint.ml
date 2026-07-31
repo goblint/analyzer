@@ -24,7 +24,10 @@ let return_varinfo = dummyFunDec.svar
 
 module Spec : SimplifiedSpec =
 struct
+  include SimplifiedAnalysis.DefaultSpec
+
   let name = "taint"
+
   module V = Printable.Unit
   module G = Lattice.Unit
   module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain *)
@@ -61,9 +64,6 @@ struct
   (* transfer functions *)
 
   (** Handles assignment of [rval] to [lval]. *)
-  let query man state (type a) (q: a Queries.t): a Queries.result =
-    Queries.Result.top q
-
   let assign man (state: D.t) (lval:lval) (rval:exp) : D.t =
     match lval with
     | Var v,_ ->
@@ -117,7 +117,7 @@ struct
     callee_state
 
   (** For a function call "lval = f(args)" or "f(args)",
-      computes the global environment state of the caller after the call.
+      computes the global environment state of the caller after the call and assigning the return value from the call.
       Argument [callee_local] is the state of [f] at its return node. *)
   let combine man (caller_state: D.t) (callee_local:D.t) (lval:lval option) (f: fundec) (args: exp list): D.t =
     (* TODO: Record whether lval was tainted. *)
