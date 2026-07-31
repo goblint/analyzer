@@ -93,8 +93,6 @@ struct
     set_local_int_lval_top state lval
 
   let startstate = D.bot ()
-  let startcontext = ()
-  let context man (_, c) f callee_state = c
   let threadenter man state f args = D.top ()
 end
 

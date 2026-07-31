@@ -98,4 +98,7 @@ struct
 
   let special man state (lval: lval option) (f: varinfo) (args: exp list) =
     state
+
+  let startcontext = ()
+  let context man (_, c) f callee_state = c
 end
