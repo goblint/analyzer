@@ -12,8 +12,8 @@ The ghost invariants from the witness are confirmed.
 
 Both witness ghosts are recognized as phase ghosts.
 
-  $ grep -E "phaseGhost: global ghost_a is only accessed by unique thread .* and is monotonically increased to known bounds" 02-empire-detect.out | sed -E 's/unique thread .*/unique thread <tid> and is monotonically increased to known bounds/'
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread <tid> and is monotonically increased to known bounds
+  $ grep -E "phaseGhost: global ghost_a is only accessed by unique thread .* and has known lower and upper bounds" 02-empire-detect.out | sed -E 's/unique thread .*/unique thread <tid> and has known lower and upper bounds/'
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread <tid> and has known lower and upper bounds
 
-  $ grep -E "phaseGhost: global ghost_b is only accessed by unique thread .* and is monotonically increased to known bounds" 02-empire-detect.out | sed -E 's/unique thread .*/unique thread <tid> and is monotonically increased to known bounds/'
-  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread <tid> and is monotonically increased to known bounds
+  $ grep -E "phaseGhost: global ghost_b is only accessed by unique thread .* and has known lower and upper bounds" 02-empire-detect.out | sed -E 's/unique thread .*/unique thread <tid> and has known lower and upper bounds/'
+  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread <tid> and has known lower and upper bounds

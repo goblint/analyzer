@@ -75,7 +75,7 @@ struct
       | Some outgoing ->
         OutgoingPhaseChanges.fold (fun (target, (accesses, pinfo)) acc ->
             match target with
-            | `Lifted target when Z.lt current target && MHPs.can_any_mhp currmhp accesses ->
+            | `Lifted target when not (Z.equal current target) && MHPs.can_any_mhp currmhp accesses ->
               (target, pinfo) :: acc
             | _ ->
               acc
@@ -192,12 +192,22 @@ struct
           | []  ->
             man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
           | var :: vars ->
-            List.iter (fun (target, curr_pinfo) ->
-                let advanced = D.add var (`Lifted target) m in
-                let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
-                handle_vars (advanced, pinfo') (var::vars)
-              ) (possible_advances_here m var);
-            handle_vars (m, pinfo) vars
+            let rec handle_var_changes m pinfo seen =
+              List.iter (fun (target, curr_pinfo) ->
+                  if not (List.exists (Z.equal target) seen) then begin
+                    let changed = D.add var (`Lifted target) m in
+                    let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
+                    handle_var_changes changed pinfo' (target :: seen)
+                  end
+                ) (possible_advances_here m var);
+              handle_vars (m, pinfo) vars
+            in
+            let current =
+              match D.find var m with
+              | `Lifted z -> [z]
+              | _ -> []
+            in
+            handle_var_changes m pinfo current
         in
         let traceEvolution () =
           YamlWitness.VarSet.iter (fun var ->
@@ -226,10 +236,11 @@ struct
         D.add var (Const.top ()) local
       | Var var, NoOffset when is_phase_ghost man var ->
         (match eval_const local (Lval lval), eval_const local rval with
-         | Some old_value, Some new_value when Z.lt old_value new_value ->
+         | Some old_value, Some new_value ->
            (let local_new = D.add var (`Lifted new_value) local in
             let local_pinfo = current_pinfo man in
-            man.sideg var (G.create_change (`Lifted old_value) (`Lifted new_value) (current_mhp man) (local_pinfo));
+            if not (Z.equal old_value new_value) then
+              man.sideg var (G.create_change (`Lifted old_value) (`Lifted new_value) (current_mhp man) (local_pinfo));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then
               man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});

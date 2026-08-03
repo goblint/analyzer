@@ -5,8 +5,8 @@ Run witness validation with `phaseGhost` on the empire example and confirm the e
     live: 20
     dead: 0
     total lines: 20
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@05-empire-detect-bounds.c:30:5-30:51] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@05-empire-detect-bounds.c:30:5-30:51] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
