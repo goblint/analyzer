@@ -70,7 +70,9 @@ struct
     | Events.Longjmped {lval} ->
       let modified_locals = man.ask (MayBeModifiedSinceSetjmp (man.prev_node, man.control_context ())) in
       let modified_locals = match lval with
-        | Some (Var v, NoOffset) -> Queries.VS.remove v modified_locals
+        | Some (Var v, NoOffset) ->
+          if man.ask (Queries.IsMultiple v) then modified_locals
+          else Queries.VS.remove v modified_locals
         | _ -> modified_locals (* Does usually not really occur, if it does, this is sound *)
       in
       let (_, longjmp_nodes) = man.ask ActiveJumpBuf in
@@ -96,10 +98,13 @@ struct
       begin match ad with
         | ad when Queries.AD.is_top ad ->
           man.local
-        | ad ->
-          Queries.AD.fold (fun addr vs ->
-              rem_mval vs addr
-            ) ad man.local
+        | ad when Queries.AD.cardinal ad = 1 ->
+          let addr = Queries.AD.choose ad in
+          begin match addr with
+            | Queries.AD.Addr.Addr (v, _) when not (man.ask (Queries.IsMultiple v)) -> rem_mval man.local addr
+            | _ -> man.local
+          end
+        | _ -> man.local
       end
     | _ -> man.local
 
