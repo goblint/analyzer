@@ -146,32 +146,26 @@ struct
     match q with
     | Queries.IsPhaseGhost var when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
       let unique_owner tids =
-        if TIDs.is_top tids then
+        match TIDs.elements tids with
+        | [] ->
+          true
+        | [tid] when TID.is_unique tid ->
+          true
+        | _ ->
           false
-        else
-          match TIDs.elements tids with
-          | [] ->
-            true
-          | [tid] when TID.is_unique tid ->
-            true
-          | _ ->
-            false
       in
       let (tids, monotone_bounded) = man.global var in
       monotone_bounded && unique_owner tids
     | Queries.Owner var when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
       let tidset = G.tids (man.global var) in
-      if TIDs.is_top tidset then
-        `Top
-      else
-        begin match TIDs.elements tidset with
-          | [] ->
-            `Bot
-          | [tid] when TID.is_unique tid ->
-            `Lifted tid
-          | _ ->
-            `Top
-        end
+      begin match TIDs.elements tidset with
+        | [] ->
+          `Bot
+        | [tid] when TID.is_unique tid ->
+          `Lifted tid
+        | _ ->
+          `Top
+      end
     | Queries.WarnGlobal g ->
       let g: V.t = Obj.obj g in
       let (tidset, monotone_bounded) = man.global g in
