@@ -251,17 +251,27 @@ struct
   module LocM = BatMap.Make (CilType.Location)
   module ES = BatSet.Make (E)
 
+  let lenient_location_matching = GobConfig.get_bool "witness.yaml.lenient-location-matching"
+
+  let normalize_location_file (loc: Cil.location): Cil.location =
+    if lenient_location_matching then
+      {loc with file = Filename.basename loc.file}
+    else
+      loc
+
   (* for each file, locations have total order, so LocM essentially does binary search *)
   type t = ES.t LocM.t FileH.t
 
   let create () = FileH.create 100
 
   let add (file_loc_es: t) (loc: Cil.location) (e: E.t): unit =
+    let loc = normalize_location_file loc in
     FileH.modify_def LocM.empty loc.file (
       LocM.modify_def ES.empty loc (ES.add e)
     ) file_loc_es
 
   let find_opt (file_loc_es: t) (loc: Cil.location): ES.t option =
+    let loc = normalize_location_file loc in
     let open GobOption.Syntax in
     let* loc_es = FileH.find_option file_loc_es loc.file in
     let* (_, es) = LocM.find_first_opt (fun loc' ->

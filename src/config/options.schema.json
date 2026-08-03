@@ -2853,6 +2853,12 @@
               "type": "boolean",
               "default": false
             },
+            "lenient-location-matching": {
+              "title": "witness.yaml.lenient-location-matching",
+              "description": "Match witness locations by basename instead of full path.",
+              "type": "boolean",
+              "default": false
+            },
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
