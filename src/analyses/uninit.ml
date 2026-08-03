@@ -170,7 +170,8 @@ struct
     match a.f (Queries.MayPointTo (AddrOf lv)) with
     | ad when Queries.AD.cardinal ad = 1 ->
       begin match Queries.AD.Addr.to_mval (Queries.AD.choose ad) with
-        | Some (var, ofs) -> init_vo var ofs
+        | Some (var, ofs) when not (a.f (Queries.IsMultiple var)) -> init_vo var ofs
+        | Some _ -> st
         | None -> st
       end
     | _ -> st
@@ -233,7 +234,8 @@ struct
 
   let return man (exp:exp option) (f:fundec) : trans_out =
     let remove_var x v =
-      List.fold_right D.remove (to_addrs v) x in
+      if man.ask (Queries.IsMultiple v) then x
+      else List.fold_right D.remove (to_addrs v) x in
     let nst = List.fold_left remove_var man.local (f.slocals @ f.sformals) in
     match exp with
     | Some exp -> ignore (is_expr_initd (Analyses.ask_of_man man) exp man.local); nst
