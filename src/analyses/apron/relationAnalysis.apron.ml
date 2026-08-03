@@ -353,7 +353,17 @@ struct
       ) new_rel (formals @ locals)
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
-    RD.assign_var_parallel_with new_rel local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
+    let strong, weak = List.partition (fun (v, _) ->
+        match RV.find_metadata v with
+        | Some (Local v) -> not (ask.f (Queries.IsMultiple v))
+        | _ -> true
+      ) local_assigns
+    in
+    RD.assign_var_parallel_with new_rel strong;
+    let new_rel = List.fold_left (fun rel (v, arg) ->
+        RD.join rel (RD.assign_var rel v arg)
+      ) new_rel weak
+    in
     {st with rel = new_rel}
 
   let return man e f =
