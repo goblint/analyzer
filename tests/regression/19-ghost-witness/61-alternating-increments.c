@@ -9,7 +9,7 @@ void reach_error(void) { }
 
 int i = 3, j = 6;
 
-#define NUM 5
+#define NUM 2
 #define LIMIT (2 * NUM + 6)
 
 void *t1(void *arg) {
