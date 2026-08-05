@@ -26,7 +26,7 @@ struct
 
   let meet x y = merge join meet x y
 
-  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y (* TODO: remove join? *)
 
   let diff_mustset x (y: FiniteMustThreadSet.t) =
     FiniteMustThreadSet.fold (fun t -> remove (ThreadIdDomain.Thread t)) y x

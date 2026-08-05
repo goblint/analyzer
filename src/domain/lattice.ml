@@ -289,7 +289,7 @@ struct
         try `Lifted (Base.widen x y)
         with TopValue | Uncomparable -> `Top
       end
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -367,7 +367,7 @@ struct
     match (x,y) with
     | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.widen x y)
     | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.widen x y)
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -457,7 +457,7 @@ struct
   let widen x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -509,7 +509,7 @@ struct
         try `Lifted (Base.widen x y)
         with TopValue -> `Top
       end
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with

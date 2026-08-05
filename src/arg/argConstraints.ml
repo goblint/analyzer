@@ -30,6 +30,7 @@ struct
   module VI = Printable.Prod3 (Node) (CC) (I)
   module VIE = Printable.Prod (VI) (MyARG.InlineEdgePrintable)
   module VIES = SetDomain.Make (VIE)
+  (* TODO: outdated comment? *)
   (* even though R is just a set and in solver's [widen old (join old new)] would join the sets of predecessors
      instead of keeping just the last, we are saved by set's narrow bringing that back down to the latest predecessors *)
   module R =

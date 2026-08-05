@@ -151,7 +151,7 @@ module Narrow:S =
                     if narrow_globs_conservative_widen && S.Dom.leq tmp (HM.find rho y) then
                       tmp
                     else
-                      S.Dom.widen old_side tmp
+                      S.Dom.widen old_side tmp (* TODO: remove join from widen only *)
                   in
                   let new_gas = Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas in
                   (new_side, new_gas)

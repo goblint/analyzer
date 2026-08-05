@@ -231,6 +231,8 @@ struct
 
   let join = join_with_fct Val.join
 
+  let widen x y = widen x (join x y) (* TODO: inline *)
+
   (* let invariant = HS.invariant *)
   let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
 
@@ -438,6 +440,8 @@ struct
     res
 
   let join = join_with_fct Val.join
+
+  let widen x y = widen x (join x y) (* TODO: inline *)
 
   (* let invariant c (x,_) = HS.invariant c x *)
   let invariant ~value_invariant ~offset ~lval _ = Invariant.none (* TODO *)
