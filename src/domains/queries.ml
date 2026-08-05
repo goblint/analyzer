@@ -22,6 +22,24 @@ module VI = Lattice.Flat (Basetype.Variables)
 
 module VarQuery = Goblint_constraint.VarQuery
 
+module PhaseDigestConst =
+struct
+  include Lattice.Flat (IntOps.BigIntOps)
+  let name () = "phase-digest-constant"
+end
+
+module PhaseDigestState =
+struct
+  include MapDomain.MapBot (Basetype.Variables) (PhaseDigestConst)
+  let name () = "phase-digest-state"
+end
+
+module PhaseDigest =
+struct
+  include Lattice.LiftTop (PhaseDigestState)
+  let name () = "phase-digest"
+end
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0
@@ -33,6 +51,8 @@ module SD: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
   Lattice.Flat (Basetype.RawStrings)
 module VD = ValueDomain.Compound
 module AD = ValueDomain.AD
+
+module MutexGhost = Lattice.Flat (LockDomain.MustLock)
 
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
@@ -81,6 +101,12 @@ module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLoc
 
 module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
 
+module LLock =
+struct
+  include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
+  let mutex m = `Left m
+  let global x = `Right x
+end
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -94,10 +120,12 @@ type _ t =
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LockDomain.MustLockset.t t
+  | AppearingMutexes: LockDomain.AppearingMutexesQuery.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t (** Use via {!ThreadFlag.is_currently_multi} and {!ThreadFlag.has_ever_been_multi}. *)
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
+  | Owner: varinfo -> ThreadIdDomain.ThreadLifted.t t
   | ThreadCreateIndexedNode: ThreadNodeLattice.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> AD.t t
@@ -107,7 +135,8 @@ type _ t =
   | EvalValue: exp -> VD.t t
   | BlobSize: exp -> ID.t t (** Size of a dynamically allocated [`Blob] pointed to by [exp]. *)
   | CondVars: exp -> ES.t t
-  | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
+  | PartAccess: access -> Obj.t t (** Only queried by access, deadlock, and phaseGhostSplit analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
+  | PhaseInfo: Obj.t t (** Only queried by phaseGhostSplit analysis. [Obj.t] represents [MCPAccess.PInfo.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
@@ -115,6 +144,7 @@ type _ t =
   | AllocVar: AllocationLocation.t -> VI.t t
   (* Create a variable representing a dynamic allocation-site *)
   (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
+  | AllocVars: VS.t t (* Variables representing dynamic allocation-sites *)
   | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t
@@ -129,6 +159,7 @@ type _ t =
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.FiniteMustThreadSet.t t
+  | PhaseDigest: PhaseDigest.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
@@ -147,6 +178,8 @@ type _ t =
   | GasExhausted: CilType.Fundec.t ->  MustBool.t t
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
+  | IsPhaseGhost: varinfo -> MustBool.t t
+  | IsMutexGhost: varinfo -> MutexGhost.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
@@ -174,6 +207,7 @@ struct
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LockDomain.MustLockset)
+    | AppearingMutexes -> (module LockDomain.AppearingMutexesQuery)
     | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -192,14 +226,17 @@ struct
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
+    | Owner _ -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | AllocVar _ -> (module VI)
+    | AllocVars -> (module VS)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PathQuery (_, q) -> lattice q
     | DYojson -> (module FlatYojson)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
+    | PhaseInfo -> Obj.magic (module Unit: Lattice.S) (* Never used, but needed for MCP to return some result for PhaseInfo queries. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | MutexType _ -> (module MutexAttrDomain)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
@@ -208,6 +245,7 @@ struct
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.FiniteMustThreadSet)
+    | PhaseDigest -> (module PhaseDigest)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
@@ -226,6 +264,8 @@ struct
     | GasExhausted _ -> (module MustBool)
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
+    | IsPhaseGhost _ -> (module MustBool)
+    | IsMutexGhost _ -> (module MutexGhost)
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
@@ -252,6 +292,7 @@ struct
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LockDomain.MustLockset.top ()
+    | AppearingMutexes -> LockDomain.AppearingMutexesQuery.top ()
     | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -271,14 +312,17 @@ struct
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
+    | Owner _ -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | AllocVar _ -> VI.top ()
+    | AllocVars -> VS.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PathQuery (_, q) -> top q
     | DYojson -> FlatYojson.top ()
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
+    | PhaseInfo -> failwith "Queries.Result.top: PhaseInfo" (* Never used, but needed for MCP to return some result for PhaseInfo queries. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
@@ -286,6 +330,7 @@ struct
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.FiniteMustThreadSet.top ()
+    | PhaseDigest -> PhaseDigest.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
@@ -304,6 +349,8 @@ struct
     | GasExhausted _ -> MustBool.top ()
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
+    | IsPhaseGhost _ -> MustBool.top ()
+    | IsMutexGhost _ -> MutexGhost.top ()
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()
@@ -348,6 +395,7 @@ struct
       | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
+      | Any (Owner v1), Any (Owner v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
@@ -385,6 +433,8 @@ struct
       | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (GasExhausted f1), Any (GasExhausted f2) -> CilType.Fundec.compare f1 f2
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
+      | Any (IsPhaseGhost v1), Any (IsPhaseGhost v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsMutexGhost v1), Any (IsMutexGhost v2) -> CilType.Varinfo.compare v1 v2
       | Any (DescendantThreads t1), Any (DescendantThreads t2) -> ThreadIdDomain.Thread.compare t1 t2
       | Any (CreationLockset t1), Any (CreationLockset t2) -> ThreadIdDomain.Thread.compare t1 t2
       | Any (TutorialEffectivelyLocal v1), Any (TutorialEffectivelyLocal v2) -> CilType.Varinfo.compare v1 v2
@@ -404,6 +454,7 @@ struct
     | Any (MayBePublicWithout x) -> hash_maybepublicwithout x
     | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x
     | Any (EvalFunvar e) -> CilType.Exp.hash e
+    | Any (Owner v) -> CilType.Varinfo.hash v
     | Any (EvalInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
@@ -415,6 +466,7 @@ struct
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
     | Any (AllocVar location) -> AllocationLocation.hash location
+    | Any AllocVars -> 0
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (MustTermLoop s) -> CilType.Stmt.hash s
@@ -435,6 +487,8 @@ struct
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
+    | Any (IsPhaseGhost v) -> CilType.Varinfo.hash v
+    | Any (IsMutexGhost v) -> CilType.Varinfo.hash v
     | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
     | Any (CreationLockset t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
@@ -456,10 +510,12 @@ struct
     | Any (MayBePublicWithout x) -> Pretty.dprintf "MayBePublicWithout _"
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
     | Any MustLockset -> Pretty.dprintf "MustLockset"
+    | Any AppearingMutexes -> Pretty.dprintf "AppearingMutexes"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
     | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
+    | Any (Owner v) -> Pretty.dprintf "Owner %a" CilType.Varinfo.pretty v
     | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
@@ -470,10 +526,12 @@ struct
     | Any (BlobSize e) -> Pretty.dprintf "BlobSize %a" CilType.Exp.pretty e
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
+    | Any PhaseInfo -> Pretty.dprintf "PhaseInfo"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
     | Any (AllocVar location) -> Pretty.dprintf "AllocVar _"
+    | Any AllocVars -> Pretty.dprintf "AllocVars"
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
@@ -504,8 +562,11 @@ struct
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
     | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
+    | Any (IsPhaseGhost v) -> Pretty.dprintf "IsPhaseGhost %a" CilType.Varinfo.pretty v
+    | Any (IsMutexGhost v) -> Pretty.dprintf "IsMutexGhost %a" CilType.Varinfo.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
+    | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
     | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
     | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
     | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v

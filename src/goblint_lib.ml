@@ -185,6 +185,9 @@ module BranchSet = BranchSet
     Analyses which only support other analyses. *)
 
 module AccessAnalysis = AccessAnalysis
+module PhaseGhost = PhaseGhost
+module PhaseGhostSplit = PhaseGhostSplit
+module MutexGhost = MutexGhost
 module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
