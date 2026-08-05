@@ -15,7 +15,7 @@
     - {name: ghost_t1_phase, scope: global, type: int, initial: {value: "0", format: c_expression}}
     - {name: ghost_t2_phase, scope: global, type: int, initial: {value: "0", format: c_expression}}
     ghost_updates:
-    - location: {file_name: 61-alternating-increments.c, line: 16, column: 3, function: t1}
+    - location: {file_name: 61-alternating-increments.c, line: 17, column: 5, function: t1}
       updates: [{variable: ghost_t1_phase, value: "ghost_t1_phase + 1", format: c_expression}]
-    - location: {file_name: 61-alternating-increments.c, line: 25, column: 3, function: t2}
+    - location: {file_name: 61-alternating-increments.c, line: 26, column: 5, function: t2}
       updates: [{variable: ghost_t2_phase, value: "ghost_t2_phase + 1", format: c_expression}]
