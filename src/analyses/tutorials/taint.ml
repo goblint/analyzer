@@ -10,6 +10,7 @@
 
 open GoblintCil
 open Analyses
+open SimplifiedAnalysis
 
 module VarinfoSet = SetDomain.Make(CilType.Varinfo)
 
@@ -21,17 +22,20 @@ let is_source varinfo = Cil.hasAttribute "taint_source" varinfo.vattr
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 
-module Spec : Analyses.MCPSpec =
+module Spec : SimplifiedSpec =
 struct
-  include Analyses.DefaultSpec
+  include SimplifiedAnalysis.DefaultSpec
 
-  let name () = "taint"
+  let name = "taint"
+
+  module V = Printable.Unit
+  module G = Lattice.Unit
   module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain *)
   module C = Printable.Unit
 
   (* We are context insensitive in this analysis *)
-  let context man _ _ = ()
-  let startcontext () = ()
+  let context man state f callee_state = ()
+  let startcontext = ()
 
 
   (** Determines whether an expression [e] is tainted, given a [state]. *)
@@ -60,8 +64,7 @@ struct
   (* transfer functions *)
 
   (** Handles assignment of [rval] to [lval]. *)
-  let assign man (lval:lval) (rval:exp) : D.t =
-    let state = man.local in
+  let assign man (state: D.t) (lval:lval) (rval:exp) : D.t =
     match lval with
     | Var v,_ ->
       (* TODO: Check whether rval is tainted, handle assignment to v accordingly *)
@@ -69,41 +72,39 @@ struct
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
-  let branch man (exp:exp) (tv:bool) : D.t =
+  let branch man (state: D.t) (exp:exp) (tv:bool) : D.t =
     (* Nothing needs to be done *)
-    man.local
+    state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call.
       For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
-  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let caller_state = man.local in
+  let special man (caller_state: D.t) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* TODO: Check if f is a sink / source and handle it appropriately *)
     (* To warn about a potential issue in the code, use M.warn. *)
     caller_state
 
   (** Handles going from start node of function [f] into the function body of [f].
       Meant to handle e.g. initialization of local variables. *)
-  let body man (f:fundec) : D.t =
+  let body man (state: D.t) (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
-    man.local
+    state
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
-  let return man (exp:exp option) (f:fundec) : D.t =
-    let state = man.local in
+  let return man (state: D.t) (exp:exp option) (f:fundec) : D.t =
     match exp with
     | Some e ->
       (* TODO: Record whether a tainted value was returned. *)
       (* Hint: You may use return_varinfo in place of a variable. *)
       state
-    | None -> state
+    | None ->
+      state
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
-  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    let caller_state = man.local in
+  let enter man (caller_state: D.t) (lval: lval option) (f:fundec) (args:exp list) : D.t =
     (* Create list of (formal, actual_exp)*)
     let zipped = List.combine f.sformals args in
     (* TODO: For the initial callee_state, collect formal parameters where the actual is tainted. *)
@@ -113,30 +114,19 @@ struct
         else ts)
         (D.bot ())
         zipped in
-    (* first component is state of caller, second component is state of callee *)
-    [caller_state, callee_state]
+    callee_state
 
   (** For a function call "lval = f(args)" or "f(args)",
-      computes the global environment state of the caller after the call.
+      computes the global environment state of the caller after the call and assigning the return value from the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine_env man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    (* Nothing needs to be done *)
-    man.local
-
-  (** For a function call "lval = f(args)" or "f(args)",
-      computes the state of the caller after assigning the return value from the call.
-      Argument [callee_local] is the state of [f] at its return node. *)
-  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    let caller_state = man.local in
+  let combine man (caller_state: D.t) (callee_local:D.t) (lval:lval option) (f: fundec) (args: exp list): D.t =
     (* TODO: Record whether lval was tainted. *)
     caller_state
 
   (* You may leave these alone *)
-  let startstate v = D.bot ()
-  let threadenter man ~multiple lval f args = [D.top ()]
-  let threadspawn man ~multiple lval f args fman = man.local
-  let exitstate  v = D.top ()
+  let startstate = D.bot ()
+  let threadenter man state f args = D.top ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCPRegistry.registered_simplified_analysis (module Spec : SimplifiedSpec)

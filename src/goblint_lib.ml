@@ -154,6 +154,7 @@ module Constants = Constants
 module Signs = Signs
 module Taint = Taint
 module UnitAnalysis = UnitAnalysis
+module SimplifiedUnitAnalysis = SimplifiedUnitAnalysis
 
 module GStoreWidening = GStoreWidening
 module GStoreWideningHelper = GStoreWideningHelper
