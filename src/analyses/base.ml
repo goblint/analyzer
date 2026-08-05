@@ -2347,6 +2347,7 @@ struct
             | `Lifted arr_len ->
               let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
               begin
+                let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
                 try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
                 with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
               end
