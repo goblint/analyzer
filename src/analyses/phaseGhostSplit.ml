@@ -157,6 +157,14 @@ struct
     | _ ->
       None
 
+  let eval_rval man state e =
+    match eval_const state e with
+    | Some z -> Some z
+    | None ->
+      match man.ask (Queries.EvalInt e) with
+      | `Lifted value -> IntDomain.IntDomTuple.to_int value
+      | _ -> None
+
   let current_mhp man: MCPAccess.A.t =
     Obj.obj (man.ask (PartAccess Point))
 
@@ -235,7 +243,7 @@ struct
       | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) && not (is_phase_ghost man var) ->
         D.add var (Const.top ()) local
       | Var var, NoOffset when is_phase_ghost man var ->
-        (match eval_const local (Lval lval), eval_const local rval with
+        (match eval_const local (Lval lval), eval_rval man local rval with
          | Some old_value, Some new_value ->
            (let local_new = D.add var (`Lifted new_value) local in
             let local_pinfo = current_pinfo man in
@@ -315,11 +323,14 @@ struct
     | PhaseDigest ->
       `Lifted (top_non_phase_ghosts man man.local)
     | EvalInt e ->
-      begin match eval_const (top_non_phase_ghosts man man.local) e with
-        | Some z ->
-          ID.of_int (Cilfacade.get_ikind_exp e) z
-        | None ->
-          Result.top q
+      let local = top_non_phase_ghosts man man.local in
+      begin match Cil.stripCasts e with
+        | Lval (Var var, NoOffset) when is_phase_ghost man var ->
+          begin match D.find_opt var local with
+            | Some (`Lifted z) -> ID.of_int (Cilfacade.get_ikind_exp e) z
+            | _ -> Result.top q
+          end
+        | _ -> Result.top q
       end
     | _ ->
       Result.top q

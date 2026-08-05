@@ -100,12 +100,17 @@ struct
     | _ ->
       None
 
-  let is_bounded_update state lval rval =
-    match eval_const state (Lval lval), eval_const state rval with
-    | Some _, Some _ ->
-      true
+  let is_bounded_update man lval rval =
+    match eval_const man.local rval with
+    | Some _ -> true
     | _ ->
-      false
+      match man.ask (Queries.EvalInt rval) with
+      | `Lifted value ->
+        let module ID = IntDomain.IntDomTuple in
+        not (ID.is_top_of (ID.ikind value) value)
+        && Option.is_some (ID.minimal value)
+        && Option.is_some (ID.maximal value)
+      | _ -> false
 
   let event man e oman =
     match e with
@@ -131,7 +136,7 @@ struct
     else
       match lval with
       | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
-        let bounded = is_bounded_update man.local lval rval in
+        let bounded = is_bounded_update man lval rval in
         let local =
           match bounded, eval_const man.local rval with
           | true, Some z -> D.add var (`Lifted z) man.local
