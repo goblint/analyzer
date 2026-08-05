@@ -16,6 +16,18 @@ module VarQuery = Goblint_constraint.VarQuery
 
 open CommonPriv
 
+let is_verifier_atomic_lock m =
+  LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var)
+  || LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var)
+
+let is_last_verifier_atomic_unlock (ask: Q.ask) m =
+  if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+    not (LockDomain.MustLockset.mem (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var) (ask.f Q.MustLockset))
+  else if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var) then
+    not (LockDomain.MustLockset.mem (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) (ask.f Q.MustLockset))
+  else
+    true
+
 
 module type S =
   functor (RD: RelationDomain.RD) ->
@@ -616,7 +628,7 @@ struct
   let write_escape = write_global_internal ~skip_meet:true
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
+    let atomic = Param.handle_atomic && is_verifier_atomic_lock m in
     (* TODO: somehow actually unneeded here? *)
     if not atomic && Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
@@ -631,9 +643,11 @@ struct
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
+    let atomic = Param.handle_atomic && is_verifier_atomic_lock m in
     let rel = st.rel in
-    if not atomic then (
+    if atomic && not (is_last_verifier_atomic_unlock ask m) then
+      st
+    else if not atomic then (
       let rel_side = keep_only_protected_globals ask m rel in
       sideg (V.mutex m) rel_side;
       let rel_local = remove_globals_unprotected_after_unlock ask m rel in
@@ -1189,7 +1203,7 @@ struct
       {rel = rel_local; priv = (W.add g w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
+    let atomic = Param.handle_atomic && is_verifier_atomic_lock m in
     if not atomic && Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let _,lmust,l = st.priv in
@@ -1213,10 +1227,12 @@ struct
     RD.keep_filter oct protected
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
+    let atomic = Param.handle_atomic && is_verifier_atomic_lock m in
     let rel = st.rel in
     let w,lmust,l = st.priv in
-    if not atomic then (
+    if atomic && not (is_last_verifier_atomic_unlock ask m) then
+      st
+    else if not atomic then (
       let rel_local = remove_globals_unprotected_after_unlock ask m rel in
       let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
       let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
