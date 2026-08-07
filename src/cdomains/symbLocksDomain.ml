@@ -357,11 +357,28 @@ struct
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st
-  let remove ask e st =
-    (* TODO: Removing based on must-equality sets is not sound! *)
-    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
-    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
-    S.diff st addrs
+
+  let remove (ask: Queries.ask) e st =
+    (* No stripCastsDeepForPtrArith needed: MayPointTo handles casts semantically. *)
+    let pt_e = ask.f (Queries.MayPointTo e) in
+    S.filter (fun l ->
+        match l with
+        | AddrOf (Var v, o) ->
+          (* For concrete variable addresses, use semantic_equal directly without
+             a MayPointTo query on l.
+             Offset.Exp.of_cil converts the CIL offset to an exp-indexed offset;
+             ValueDomain.Offs.of_exp then abstracts it (non-constant indices become
+             top), which is sound: an unknown index may alias anything.
+             We keep l iff every address in pt_e is *definitely* not addr_l
+             (semantic_equal = Some false); when equality is unknown (None) or
+             definite (Some true), l is conservatively removed. *)
+          let addr_l = Queries.AD.Addr.of_mval (v, ValueDomain.Offs.of_exp (Offset.Exp.of_cil o)) in
+          Queries.AD.for_all (fun ae ->
+              Queries.AD.Addr.semantic_equal ae addr_l = Some false
+            ) pt_e
+        | _ ->
+          Queries.AD.is_bot (Queries.AD.meet pt_e (ask.f (Queries.MayPointTo l)))
+      ) st
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
 
   let filter = S.filter
