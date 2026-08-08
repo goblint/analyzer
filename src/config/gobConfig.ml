@@ -395,6 +395,11 @@ struct
       Printexc.raise_with_backtrace e bt
 
   let merge json =
+    (* $schema is an editor annotation, not a Goblint option. *)
+    let json = match json with
+      | `Assoc fields -> `Assoc (List.filter (fun (name, _) -> name <> "$schema") fields)
+      | json -> json
+    in
     Validator.validate_exn json;
     set_conf (GobYojson.merge !json_conf json)
 
