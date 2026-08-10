@@ -283,15 +283,28 @@ module Make
       | Grow
       | Narrow
 
+    (** Target-local state lives beside its dense rank so callbacks hash a
+        variable only once, when obtaining that rank. *)
     type rank_info = {
       mutable queued : bool;
       mutable started : bool;
       mutable variable : S.v;
       mutable controlled : bool;
+      mutable readers : set option;
+      mutable side_aggregate : S.d;
+      mutable contributions : side_row option;
     }
 
     let[@inline always] make_rank_info variable =
-      { queued = false; started = false; variable; controlled = false }
+      {
+        queued = false;
+        started = false;
+        variable;
+        controlled = false;
+        readers = None;
+        side_aggregate = bottom;
+        contributions = None;
+      }
 
     (** Default online order for callback-based solvers. Variables receive
         dense, increasing ranks when first encountered. Existing ranks never
@@ -328,8 +341,12 @@ module Make
         trace_node queue.trace result variable;
         result
 
+    (** Queue ranks are nonnegative, so [-1] denotes an empty heap without
+        allocating an [option] in the episode-draining hot path. *)
     let[@inline always] queue_max_rank queue =
-      RankQueue.max_elt queue.heap
+      if RankQueue.is_empty queue.heap
+      then -1
+      else RankQueue.get_max_elt queue.heap
 
     let[@inline always] queue_insert queue variable =
       let variable_rank = rank queue variable in
@@ -341,14 +358,21 @@ module Make
         trace_queue queue.trace "push" variable_rank
       end
 
+    let[@inline always] finish_queue_pop queue result_rank =
+      let info = Dynarray.get queue.infos result_rank in
+      info.queued <- false;
+      trace_queue queue.trace "pop" result_rank;
+      info.variable
+
+    let[@inline always] queue_remove_max queue result_rank =
+      RankQueue.remove_max queue.heap;
+      finish_queue_pop queue result_rank
+
     let[@inline always] queue_pop queue =
       match RankQueue.pop_max queue.heap with
       | None -> None
       | Some result_rank ->
-        let info = Dynarray.get queue.infos result_rank in
-        info.queued <- false;
-        trace_queue queue.trace "pop" result_rank;
-        Some info.variable
+        Some (finish_queue_pop queue result_rank)
 
     let[@inline always] trace_get queue source_rank target_rank =
       match queue.trace with
@@ -408,9 +432,6 @@ module Make
     type state = {
       sigma : S.d VH.t;
       starts : S.d VH.t;
-      readers : set VH.t;
-      contributions : side_row VH.t;
-      side_aggregates : S.d VH.t;
       side_cells : side_cell_row VH.t;
       mutable reset_at_close : reset_sources VH.t option;
       mutable last_targets : set VH.t option;
@@ -420,6 +441,7 @@ module Make
     type episode = {
       owner : S.v;
       owner_rank : int;
+      owner_info : rank_info;
       mutable owner_phase : U.phase;
       mutable mode : episode_mode;
       mutable outgoing_cells : side_cell_row option;
@@ -437,9 +459,6 @@ module Make
       {
         sigma = VH.create 32;
         starts = VH.create 16;
-        readers = VH.create 32;
-        contributions = VH.create 32;
-        side_aggregates = VH.create 32;
         side_cells = VH.create 32;
         reset_at_close = None;
         last_targets = None;
@@ -454,9 +473,6 @@ module Make
 
     let[@inline always] start_value state variable =
       VH.find_default state.starts variable bottom
-
-    let[@inline always] side_aggregate state target =
-      VH.find_default state.side_aggregates target bottom
 
     let[@inline always] materialize state variable =
       if not (VH.mem state.sigma variable) then
@@ -474,9 +490,9 @@ module Make
       queue_insert state.queue variable
 
     let[@inline always] mark_controlled
-        state dependent_rank dependency_rank =
+        dependent_info dependent_rank dependency_rank =
       if dependency_rank >= dependent_rank then
-        (Dynarray.get state.queue.infos dependent_rank).controlled <- true
+        dependent_info.controlled <- true
     let[@inline always] remove_registration state scope source target =
       match state.reset_at_close with
       | None -> ()
@@ -555,10 +571,11 @@ module Make
             sources;
           VH.remove reset_at_close scope
 
-    let[@inline always] write_changed_value state owner_rank owner value =
+    let[@inline always] write_changed_value
+        state owner_rank owner_info owner value =
       VH.replace state.sigma owner value;
       trace_value state.queue.trace owner_rank true;
-      begin match VH.find_option state.readers owner with
+      begin match owner_info.readers with
         | None -> ()
         | Some readers ->
           VH.iter (fun reader () -> enqueue state reader) readers;
@@ -567,16 +584,17 @@ module Make
 
     let[@inline always] set_value state frame direct =
       let owner = frame.owner in
+      let owner_info = frame.owner_info in
       let candidate =
         S.Dom.join direct
-          (S.Dom.join (start_value state owner) (side_aggregate state owner))
+          (S.Dom.join (start_value state owner) owner_info.side_aggregate)
       in
       let old = VH.find state.sigma owner in
       let candidate_le_old = S.Dom.leq candidate old in
       let () =
         if not (candidate_le_old && S.Dom.leq old candidate) then begin
           let controlled =
-            (Dynarray.get state.queue.infos frame.owner_rank).controlled
+            owner_info.controlled
           in
           if controlled
           && frame.mode = Grow
@@ -588,9 +606,10 @@ module Make
             in
             frame.owner_phase <- next_phase;
             if not (lattice_equal next old) then
-              write_changed_value state frame.owner_rank owner next
+              write_changed_value state frame.owner_rank owner_info owner next
           end else
-            write_changed_value state frame.owner_rank owner candidate
+            write_changed_value
+              state frame.owner_rank owner_info owner candidate
         end
       in
       match state.queue.trace with
@@ -605,7 +624,8 @@ module Make
 
       let rec solve_episode owner =
         let owner_rank = rank state.queue owner in
-        (Dynarray.get state.queue.infos owner_rank).started <- true;
+        let owner_info = Dynarray.get state.queue.infos owner_rank in
+        owner_info.started <- true;
         let owner_system = S.system owner in
         let owner_system_lookup _ = owner_system in
         let owner_phase = U.initial_phase false owner in
@@ -613,6 +633,7 @@ module Make
           {
             owner;
             owner_rank;
+            owner_info;
             owner_phase;
             mode = Grow;
             outgoing_cells = None;
@@ -677,26 +698,23 @@ module Make
             owner_system_lookup owner
 
         and drain_episode () =
-          match queue_max_rank state.queue with
-          | Some next_rank when owner_rank <= next_rank ->
-            begin match queue_pop state.queue with
-              | None -> assert false
-              | Some next ->
-                if next_rank = owner_rank then
-                  evaluate_owner ()
-                else begin
-                  solve_episode next;
-                  drain_episode ()
-                end
-            end
-          | Some _ | None ->
-            if frame.mode = Grow
-            && ((Dynarray.get state.queue.infos owner_rank).controlled
-                || frame.touched_side)
-            then begin
-              frame.mode <- Narrow;
+          let next_rank = queue_max_rank state.queue in
+          if owner_rank <= next_rank then
+            let next = queue_remove_max state.queue next_rank in
+            if next_rank = owner_rank then
               evaluate_owner ()
+            else begin
+              solve_episode next;
+              drain_episode ()
             end
+          else
+          if frame.mode = Grow
+          && (owner_info.controlled
+              || frame.touched_side)
+          then begin
+            frame.mode <- Narrow;
+            evaluate_owner ()
+          end
         in
         evaluate_owner ();
         reset_registered_cells state owner
@@ -705,11 +723,10 @@ module Make
         let owner = frame.owner in
         let owner_rank = frame.owner_rank in
         let target_rank = rank state.queue target in
+        let target_info = Dynarray.get state.queue.infos target_rank in
         trace_get state.queue owner_rank target_rank;
         let value =
-          match VH.find_option state.sigma target with
-          | Some value -> value
-          | None ->
+          try VH.find state.sigma target with Not_found ->
             if owner_rank < target_rank then begin
               solve_episode target;
               VH.find state.sigma target
@@ -719,7 +736,7 @@ module Make
               bottom
             end
         in
-        mark_controlled state target_rank owner_rank;
+        mark_controlled target_info target_rank owner_rank;
         let _, old_min_rank = frame.min_scope in
         if target_rank < old_min_rank then
           frame.min_scope <- target, target_rank;
@@ -728,7 +745,14 @@ module Make
             | None -> Some target_rank
             | Some previous -> Some (max previous target_rank)
           end;
-        let target_readers = get_or_create state.readers target 4 in
+        let target_readers =
+          match target_info.readers with
+          | Some readers -> readers
+          | None ->
+            let readers = VH.create 4 in
+            target_info.readers <- Some readers;
+            readers
+        in
         VH.replace target_readers owner ();
         value
 
@@ -762,12 +786,18 @@ module Make
         let source = frame.owner in
         let source_rank = frame.owner_rank in
         let target_rank = rank state.queue target in
+        let target_info = Dynarray.get state.queue.infos target_rank in
         trace_side state.queue source_rank target_rank;
         frame.touched_side <- true;
-        mark_controlled state source_rank target_rank;
-        let old_aggregate = side_aggregate state target in
+        mark_controlled frame.owner_info source_rank target_rank;
+        let old_aggregate = target_info.side_aggregate in
         let contributions =
-          get_or_create state.contributions target 4
+          match target_info.contributions with
+          | Some contributions -> contributions
+          | None ->
+            let contributions = VH.create 4 in
+            target_info.contributions <- Some contributions;
+            contributions
         in
         let old_contribution =
           VH.find_default contributions source bottom
@@ -852,7 +882,7 @@ module Make
           end
         in
         if aggregate_changed then begin
-          VH.replace state.side_aggregates target next_aggregate;
+          target_info.side_aggregate <- next_aggregate;
           if source_rank < target_rank
           && not (VH.mem state.sigma target)
           then
