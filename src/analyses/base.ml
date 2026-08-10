@@ -2524,7 +2524,7 @@ struct
       let cmp_bytes_with_zero = ID.equal_to Z.zero bytes in
       let bytes_may_be_zero = cmp_bytes_with_zero <> `Neq in
       let bytes_may_be_nonzero = cmp_bytes_with_zero <> `Eq in
-      let include_null = (bytes_may_be_nonzero && get_bool "sem.malloc.fail") || (bytes_may_be_zero && malloc_zero_null) in
+      let include_null = loc = Q.AllocationLocation.Heap && ((bytes_may_be_nonzero && get_bool "sem.malloc.fail") || (bytes_may_be_zero && malloc_zero_null)) in
       let include_pointer = bytes_may_be_nonzero || malloc_zero_pointer in
       if not include_pointer then
         (None, AD.null_ptr)
