@@ -1,72 +1,82 @@
 open PostSolver
 open QS_update
 
-module QSt = QS_trivial.QSolver
-module QSg = QS.QSolver
-module QSi = QS_inlined.QSolver
+module QSs  = QS_simple.QSolver
+module QSsi = QS_inlined_simple.QSolver
+module QSg  = QS_restarting
+module QSgi = QS_inlined_restarting
+module QSo  = QS_opt.QSolver
+module QSoi = QS_inlined_opt.QSolver
 
-let _ =
-  Selector.add_solver ("qs_trivial", (module AddPost  (QSt)))
+let add = Selector.add_solver
 
-module QSolverW    = QSg (WideningUpdate)
-module QSolverWNW  = QSg (WNUpdate)
-module QSolverCWNW = QSg (CopyUpdate)
+module Normal = struct
+  let side_effect_phase_reset = true
+  let dead_side_elimination = true
+end
 
-let _ =
-  Selector.add_solver ("qs_w",    (module AddPost  (QSolverW)));
-  Selector.add_solver ("qs_wnw",  (module AddPost  (QSolverWNW)));
-  Selector.add_solver ("qs_cwnw", (module AddPost  (QSolverCWNW)))
-
-module QSolveriW    = QSi (WideningUpdate)
-module QSolveriWNW  = QSi (WNUpdate)
-module QSolveriCWNW = QSi (CopyUpdate)
-
-let _ =
-  Selector.add_solver ("qsi_w",    (module AddPost  (QSolveriW)));
-  Selector.add_solver ("qsi_wnw",  (module AddPost  (QSolveriWNW)));
-  Selector.add_solver ("qsi_cwnw", (module AddPost  (QSolveriCWNW)))
-
-module FeaturesDead : QS_inlined.FEATURES = struct
-  let normal_phase_reset = true
+module Dead = struct
   let side_effect_phase_reset = true
   let dead_side_elimination = false
 end
 
-module FeaturesNoSideReset : QS_inlined.FEATURES = struct
-  let normal_phase_reset = true
+module NoSideReset = struct
   let side_effect_phase_reset = false
   let dead_side_elimination = true
 end
 
-module FeaturesNoSideResetDead : QS_inlined.FEATURES = struct
-  let normal_phase_reset = true
+module NoSideResetDead = struct
   let side_effect_phase_reset = false
   let dead_side_elimination = false
 end
 
-module FeaturesNoReset : QS_inlined.FEATURES = struct
-  let normal_phase_reset = false
-  let side_effect_phase_reset = false
-  let dead_side_elimination = true
-end
 
-module FeaturesNoResetDead : QS_inlined.FEATURES = struct
-  let normal_phase_reset = false
-  let side_effect_phase_reset = false
-  let dead_side_elimination = false
-end
+(* --------- *)
 
-module QS_inl = QS_inlined.Make (QS_inlined.Control)
 
 let _ =
-  Selector.add_solver ("qsi_dead",    
-                       (module AddPost  (QS_inl (FeaturesDead) (CopyUpdate))));
-  Selector.add_solver ("qsi_reset1",    
-                       (module AddPost  (QS_inl (FeaturesNoSideReset) (CopyUpdate))));
-  Selector.add_solver ("qsi_reset1_dead",    
-                       (module AddPost  (QS_inl (FeaturesNoSideResetDead) (CopyUpdate))));
-  Selector.add_solver ("qsi_reset2",    
-                       (module AddPost  (QS_inl (FeaturesNoReset) (CopyUpdate))));
-  Selector.add_solver ("qsi_reset2_dead",    
-                       (module AddPost  (QS_inl (FeaturesNoResetDead) (CopyUpdate))));
+  add ("qss_w",    (module AddPost (QSs (WideningUpdate))));
+  add ("qss_wnw",  (module AddPost (QSs (WNUpdate))));
+  add ("qss_cwnw", (module AddPost (QSs (DefaultUpdate))))
 
+let _ =
+  add ("qssi_w",    (module AddPost (QSsi (WideningUpdate))));
+  add ("qssi_wnw",  (module AddPost (QSsi (WNUpdate))));
+  add ("qssi_cwnw", (module AddPost (QSsi (DefaultUpdate))))
+
+
+(* --------- *)
+
+
+let _ =
+  add ("qsr",    
+       (module AddPost (QSg.Make (QSg.Control) (Normal) (DefaultUpdate))));
+  add ("qsr_dead",    
+       (module AddPost (QSg.Make (QSg.Control) (Dead) (DefaultUpdate))));
+  add ("qsr_nosides",    
+       (module AddPost (QSg.Make (QSg.Control) (NoSideReset) (DefaultUpdate))));
+  add ("qsr_nosides_dead",    
+       (module AddPost (QSg.Make (QSg.Control) (NoSideResetDead) (DefaultUpdate))))
+
+(* --------- *)
+
+let _ =
+  add ("qsri",    
+       (module AddPost (QSgi.Make (QSg.Control) (Normal) (DefaultUpdate))));
+  add ("qsri_dead",    
+       (module AddPost (QSgi.Make (QSg.Control) (Dead) (DefaultUpdate))));
+  add ("qsri_nosides",    
+       (module AddPost (QSgi.Make (QSg.Control) (NoSideReset) (DefaultUpdate))));
+  add ("qsri_nosides_dead",    
+       (module AddPost (QSgi.Make (QSg.Control) (NoSideResetDead) (DefaultUpdate))))
+
+(* --------- *)
+let _ =
+  add ("qso_w",    (module AddPost (QSo (WideningUpdate))));
+  add ("qso_wnw",  (module AddPost (QSo (WNUpdate))));
+  add ("qso_cwnw", (module AddPost (QSo (DefaultUpdate))))
+
+let _ =
+  add ("qsoi_w",    (module AddPost (QSoi (WideningUpdate))));
+  add ("qsoi_wnw",  (module AddPost (QSoi (WNUpdate))));
+  add ("qsoi_cwnw", (module AddPost (QSoi (DefaultUpdate))))

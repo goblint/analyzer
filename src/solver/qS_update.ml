@@ -96,10 +96,10 @@ struct
       Widen, widen old input
 end
 
-(** [k = 0] performs one direct copy.  [l = 0] permits the first
+(** [k = 1] performs two direct copies.  [l = 0] permits the first
     widening/narrowing box before committing to widening when it reopens. *)
 module CopyUpdate = JoinedBoxUpdate (struct
-    let k = 0
+    let k = 1
     let l = 0
   end)
 
@@ -113,5 +113,19 @@ struct
   type phase = M.phase
 
   let initial_phase _is_side_effect _variable = M.BoxW 0
+  let update = M.update
+end
+
+module DefaultUpdate (S : DemandEqConstrSys) =
+struct
+  module M = JoinedBoxUpdate (struct
+      let k = 0
+      let l = 0
+    end) (S)
+
+  type phase = M.phase
+
+  let initial_phase is_side_effect _variable =
+    if is_side_effect then M.BoxW 0 else M.Copy 0
   let update = M.update
 end
