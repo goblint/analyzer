@@ -6,10 +6,11 @@ open MessageCategory
 open AnalysisStateUtil
 
 module AllocaVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All alloca() Variables" end)
-module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All Heap Variables" end)
+module InvalidVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All invalid memory variables" end)
 
-(* Heap vars created by alloca() and deallocated at function exit * Heap vars deallocated by free() *)
-module StackAndHeapVars = Lattice.Prod(AllocaVars)(HeapVars)
+(* Live alloca() regions owned by the current frame; regions whose storage may
+   have ended through free() or return. *)
+module StackAndInvalidVars = Lattice.Prod(AllocaVars)(InvalidVars)
 
 module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.FiniteMustThreadSet)
 
@@ -19,9 +20,15 @@ struct
 
   let name () = "useAfterFree"
 
-  module D = StackAndHeapVars
+  module D = StackAndInvalidVars
   module G = ThreadIdToJoinedThreadsMap
   module V = VarinfoV
+
+  let addressed_automatic_vars fundec =
+    let automatics =
+      fundec.sformals @ List.filter (fun v -> v.vstorage <> Static && v.vstorage <> Extern) fundec.slocals
+    in
+    List.filter (fun v -> v.vaddrof) automatics
 
   (* HELPER FUNCTIONS *)
 
@@ -31,8 +38,8 @@ struct
   let get_joined_threads man =
     man.ask Queries.MustJoinedThreads
 
-  let warn_for_multi_threaded_access man ?(is_free = false) (heap_var:varinfo) behavior cwe_number =
-    let freeing_threads = man.global heap_var in
+  let warn_for_multi_threaded_access man ?(is_free = false) (memory_var:varinfo) behavior cwe_number =
+    let freeing_threads = man.global memory_var in
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
     if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) || G.is_empty freeing_threads then ()
     else begin
@@ -63,35 +70,34 @@ struct
         let possibly_started = G.exists (other_possibly_started current) freeing_threads in
         if possibly_started then begin
           if is_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
-          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for heap variable %a. %s might occur" CilType.Varinfo.pretty heap_var bug_name
+          M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "There's a thread that's been started in parallel with the memory-freeing threads for memory region %a. %s might occur" CilType.Varinfo.pretty memory_var bug_name
         end
         else begin
           let current_is_unique = ThreadId.Thread.is_unique current in
           let any_equal_current threads = G.exists (equal_current current) threads in
           if not current_is_unique && any_equal_current freeing_threads then begin
             if is_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Current thread is not unique and a %s might occur for memory region %a" bug_name CilType.Varinfo.pretty memory_var
           end
-          else if HeapVars.mem heap_var (snd man.local) then begin
+          else if InvalidVars.mem memory_var (snd man.local) then begin
             if is_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
-            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for heap variable %a" bug_name ThreadIdDomain.Thread.pretty current CilType.Varinfo.pretty heap_var
+            M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "%s might occur in current unique thread %a for memory region %a" bug_name ThreadIdDomain.Thread.pretty current CilType.Varinfo.pretty memory_var
           end
         end
       | `Top ->
         if is_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
-        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. %s might occur for heap variable %a" bug_name CilType.Varinfo.pretty heap_var
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "CurrentThreadId is top. %s might occur for memory region %a" bug_name CilType.Varinfo.pretty memory_var
       | `Bot ->
         M.warn ~category:MessageCategory.Analyzer "CurrentThreadId is bottom"
     end
 
-  let side_effect_mem_free man freed_heap_vars threadid joined_threads =
-    let side_effect_globals_to_heap_var heap_var =
-      let current_globals = man.global heap_var in
+  let publish_invalidation man invalidated_vars threadid joined_threads =
+    let side_effect_global memory_var =
+      let current_globals = man.global memory_var in
       let globals_to_side_effect = G.add threadid joined_threads current_globals in
-      man.sideg heap_var globals_to_side_effect
+      man.sideg memory_var globals_to_side_effect
     in
-    HeapVars.iter side_effect_globals_to_heap_var freed_heap_vars
-
+    InvalidVars.iter side_effect_global invalidated_vars
 
   (* TRANSFER FUNCTIONS *)
 
@@ -104,12 +110,20 @@ struct
 
   let combine_env man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask:Queries.ask) : D.t =
     let (caller_stack_state, caller_heap_state) = man.local in
-    let callee_stack_state = fst callee_local in
     let callee_heap_state = snd callee_local in
-    (* Put all alloca()-vars together with all freed() vars in the caller's second component *)
-    (* Don't change caller's first component => caller hasn't exited yet *)
-    let callee_combined_state = HeapVars.join callee_stack_state callee_heap_state in
-    (caller_stack_state, HeapVars.join caller_heap_state callee_combined_state)
+    (* The callee's return has already invalidated its alloca regions. *)
+    (caller_stack_state, InvalidVars.join caller_heap_state callee_heap_state)
+
+  let return man _ fundec =
+    match man.edge with
+    | MyCFG.Ret (_, returned_fundec) when CilType.Fundec.equal fundec returned_fundec ->
+      let stack_allocations, invalid = man.local in
+      let expired = List.fold_left (fun expired v -> InvalidVars.add v expired) stack_allocations
+          (addressed_automatic_vars fundec) in
+      publish_invalidation man expired (get_current_threadid man) (get_joined_threads man);
+      let invalid = InvalidVars.join expired invalid in
+      AllocaVars.empty (), invalid
+    | _ -> man.local
 
   let special man (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let state = man.local in
@@ -122,14 +136,14 @@ struct
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr state ->
                 match addr with
-                | Queries.AD.Addr.Addr (var,_) when man.ask (Queries.IsAllocVar var) && man.ask (Queries.IsHeapVar var) -> HeapVars.add var state
+                | Queries.AD.Addr.Addr (var,_) when man.ask (Queries.IsAllocVar var) && man.ask (Queries.IsHeapVar var) -> InvalidVars.add var state
                 | _ -> state
-              ) ad (HeapVars.empty ())
+              ) ad (InvalidVars.empty ())
           in
           (* Side-effect the tid that's freeing all the heap vars collected here *)
-          side_effect_mem_free man pointed_to_heap_vars (get_current_threadid man) (get_joined_threads man);
+          publish_invalidation man pointed_to_heap_vars (get_current_threadid man) (get_joined_threads man);
           (* Add all heap vars, which ptr points to, to the state *)
-          (fst state, HeapVars.join (snd state) pointed_to_heap_vars)
+          (fst state, InvalidVars.join (snd state) pointed_to_heap_vars)
         | _ -> state
       end
     | Alloca _ ->
@@ -148,11 +162,11 @@ struct
     | Events.Access {exp; ad; kind; reach} ->
       (* must use original (pre-assign, etc) man queries *)
       let is_free = kind = Free in
-      let freed_heap_vars = snd oman.local in
+      let invalid_vars = snd oman.local in
       let undefined_behavior = if is_free then Undefined DoubleFree else Undefined UseAfterFree in
       let cwe_number = if is_free then 415 else 416 in
-      let warn_for_heap_var v =
-        if HeapVars.mem v freed_heap_vars then begin
+      let warn_for_invalid_var v =
+        if InvalidVars.mem v invalid_vars then begin
           if is_free then (
             set_mem_safety_flag InvalidFree;
             Checks.warn Checks.Category.DoubleFree "lval (%s) points to a maybe freed memory region" v.vname)
@@ -167,17 +181,23 @@ struct
           Checks.safe Checks.Category.InvalidMemoryAccess
       in
       if not (Queries.AD.is_top ad) then begin
-        let pointed_to_heap_vars =
+        let directly_accessed v =
+          match exp with
+          | AddrOf (Var direct, _) | StartOf (Var direct, _) -> CilType.Varinfo.equal v direct
+          | _ -> false
+        in
+        let pointed_to_invalid_vars =
           Queries.AD.fold (fun addr vars ->
               match addr with
-              | Queries.AD.Addr.Addr (v,_) when oman.ask (Queries.IsAllocVar v) -> v :: vars
+              | Queries.AD.Addr.Addr (v,_)
+                when oman.ask (Queries.IsAllocVar v)
+                     || ((InvalidVars.mem v invalid_vars || not (G.is_empty (oman.global v)))
+                         && not (directly_accessed v)) -> v :: vars
               | _ -> vars
             ) ad []
         in
-        (* Warn for all heap vars that the lval possibly points to *)
-        List.iter warn_for_heap_var pointed_to_heap_vars;
-        (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
-        List.iter (fun heap_var -> warn_for_multi_threaded_access oman ~is_free heap_var undefined_behavior cwe_number) pointed_to_heap_vars
+        List.iter warn_for_invalid_var pointed_to_invalid_vars;
+        List.iter (fun memory_var -> warn_for_multi_threaded_access oman ~is_free memory_var undefined_behavior cwe_number) pointed_to_invalid_vars
       end;
       man.local
     | _ ->
