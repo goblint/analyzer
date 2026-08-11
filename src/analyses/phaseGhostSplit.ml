@@ -6,6 +6,7 @@ open GoblintCil
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
 module LF = LibraryFunctions
+module ZMap = Map.Make (struct type t = Z.t let compare = Z.compare end)
 
 module Const =
 struct
@@ -196,26 +197,74 @@ struct
             | _ ->
               failwith "assumption about ghost owner violated"
         in
+        (* At a synchronization point, another thread may have performed zero
+           or more known phase changes since this path last synchronized.  We
+           therefore compute the transitive closure of possible changes for
+           every phase ghost and split once for every resulting combination.
+
+           Ghosts are handled one after another. [m] contains the choices made
+           for ghosts already handled; after computing all reachable values of
+           [var], [handle_vars] continues with the remaining ghosts. This is
+           what constructs the Cartesian product of their reachable phases. *)
         let rec handle_vars (m, (pinfo:MCPPhaseInfo.t)) = function
           | []  ->
+            (* Pass the must-information accumulated along the chosen phase
+               changes to the other MCP analyses before exposing this path. *)
             man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
           | var :: vars ->
-            let rec handle_var_changes m pinfo seen =
-              List.iter (fun (target, curr_pinfo) ->
-                  if not (List.exists (Z.equal target) seen) then begin
-                    let changed = D.add var (`Lifted target) m in
-                    let pinfo' = MCPPhaseInfo.meet pinfo curr_pinfo in
-                    handle_var_changes changed pinfo' (target :: seen)
-                  end
-                ) (possible_advances_here m var);
-              handle_vars (m, pinfo) vars
+            (* Several change sequences may reach the same numeric phase. The
+               phase alone is not enough for memoization, because the paths may
+               carry different auxiliary must-information. [reached] therefore
+               maps each phase to an antichain of auxiliary states.
+
+               In the lattice order, [new <= old] means that [old] already
+               covers every behavior represented by [new]. Such a new entry is
+               redundant. Conversely, when [old <= new], [new] subsumes [old],
+               so the old entry is removed. Incomparable entries are retained
+               separately: joining them here would lose correlations required
+               when subsequent phase changes or ghosts are processed. *)
+            let add_reached target pinfo (reached, worklist) =
+              let old_pinfos = Option.value ~default:[] (ZMap.find_opt target reached) in
+              if List.exists (MCPPhaseInfo.leq pinfo) old_pinfos then
+                reached, worklist
+              else
+                let pinfos = pinfo :: List.filter (fun old_pinfo -> not (MCPPhaseInfo.leq old_pinfo pinfo)) old_pinfos in
+                ZMap.add target pinfos reached, (target, pinfo) :: worklist
             in
             let current =
               match D.find var m with
-              | `Lifted z -> [z]
-              | _ -> []
+              | `Lifted z -> z
+              | _ -> assert false
             in
-            handle_var_changes m pinfo current
+            let rec collect reached = function
+              | [] -> reached
+              | (phase, phase_pinfo) :: worklist ->
+                let current_pinfos = ZMap.find phase reached in
+                if not (List.exists (MCPPhaseInfo.equal phase_pinfo) current_pinfos) then
+                  (* Worklist entries are not removed eagerly. If a later entry
+                     subsumed this one, it is no longer in the antichain and can
+                     be skipped here. *)
+                  collect reached worklist
+                else
+                  let phased = D.add var (`Lifted phase) m in
+                  let reached, worklist =
+                    List.fold_left (fun acc (target, change_pinfo) ->
+                        (* Along one sequence all must-information has to hold,
+                           hence [meet]. Alternative sequences are represented
+                           by separate antichain entries above. *)
+                        add_reached target (MCPPhaseInfo.meet phase_pinfo change_pinfo) acc
+                      ) (reached, worklist) (possible_advances_here phased var)
+                  in
+                  collect reached worklist
+            in
+            (* Zero phase changes is possible, so seed the closure with the
+               current phase and its incoming auxiliary information. *)
+            let reached = collect (ZMap.singleton current [pinfo]) [current, pinfo] in
+            ZMap.iter (fun phase phase_pinfos ->
+                List.iter (fun phase_pinfo ->
+                    handle_vars (D.add var (`Lifted phase) m, phase_pinfo) vars
+                  ) phase_pinfos
+              ) reached
         in
         let traceEvolution () =
           YamlWitness.VarSet.iter (fun var ->
