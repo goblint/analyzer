@@ -47,6 +47,12 @@ type math =
 type special =
   | Alloca of Cil.exp
   | Malloc of Cil.exp
+  | OCamlAlloc of Cil.exp
+  (* TODO: Rethink OCamlParam's placement. *)
+  | OCamlParam0
+  | OCamlParam of Cil.exp list
+  | OCamlDrop
+  | OCamlEndRoots
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
   | Free of Cil.exp
