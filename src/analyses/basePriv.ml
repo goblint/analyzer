@@ -545,7 +545,9 @@ struct
 
   let iter_sys_vars getg vq vf =
     match vq with
-    | VarQuery.Global g -> vf (V.global g)
+    | VarQuery.Global g ->
+      let shared = V.global g in
+      iter_published_digests getg shared (fun digest -> vf (V.bucket shared digest))
     | _ -> ()
 
   let long_meet m1 m2 = CPA.nonidempotent_union VD.meet m1 m2 (* TODO: idempotent_union if not using int domain refinement *)
@@ -557,11 +559,11 @@ struct
       m
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask (get_shared getg (V.global g)) in
     let r = if not inits then
         get_mutex_global_g
       else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits = merge_all (get_shared getg V.mutex_inits) in
         let get_mutex_inits' = CPA.singleton g (CPA.find g get_mutex_inits) in
         CPA.join get_mutex_global_g get_mutex_inits'
     in
@@ -578,12 +580,12 @@ struct
       ) v (CPA.bot ())
 
   let get_m_with_mutex_inits inits ask getg m =
-    let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
+    let get_m = get_relevant_writes ask m (get_shared getg (V.mutex m)) in
     let r =
       if not inits then
         get_m
       else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits = merge_all (get_shared getg V.mutex_inits) in
         let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
         let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
         CPA.join get_m get_mutex_inits'
@@ -617,7 +619,6 @@ struct
     in
     if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
     let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
     let l' = if is_recovered_st then
@@ -626,7 +627,7 @@ struct
       else
         l'
     in
-    sideg (V.global x) (G.create_global sidev);
+    sideg_bucket sideg (V.global x) digest (CPA.singleton x v);
     {st with cpa = cpa'; priv = (W.add x w,LMust.add lm lmust,l')}
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
@@ -660,8 +661,7 @@ struct
     else
       let is_in_Gm x _ = is_protected_by ~protection:Weak ask m x in
       let digest = Digest.current ask in
-      let sidev = GMutex.singleton digest (CPA.filter is_in_Gm st.cpa) in
-      sideg (V.mutex m) (G.create_mutex sidev);
+      sideg_bucket sideg (V.mutex m) digest (CPA.filter is_in_Gm st.cpa);
       let lm = LLock.mutex m in
       let l' = L.add lm (CPA.filter is_in_Gm st.cpa) l in
       {st with cpa = cpa'; priv = (w',LMust.add lm lmust,l')}
@@ -711,13 +711,11 @@ struct
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest escaped_cpa in
-    sideg V.mutex_inits (G.create_mutex sidev);
+    sideg_bucket sideg V.mutex_inits digest escaped_cpa;
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
           if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
-          let sidev = GMutex.singleton digest (CPA.singleton x v) in
-          sideg (V.global x) (G.create_global sidev);
+          sideg_bucket sideg (V.global x) digest (CPA.singleton x v);
           CPA.remove x acc
         )
         else
@@ -730,8 +728,7 @@ struct
     let cpa = st.cpa in
     let cpa_side = CPA.filter (fun x _ -> is_global ask x) cpa in
     let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest cpa_side in
-    sideg V.mutex_inits (G.create_mutex sidev);
+    sideg_bucket sideg V.mutex_inits digest cpa_side;
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
@@ -758,7 +755,6 @@ struct
         let current_digest = Digest.current ask in
         let publish_l (lock:LLock.t) (value:L.value) =
           (* Carry forward L component of current thread *)
-          let sideval = GMutex.singleton current_digest value in
           match lock with
           | `Left mutex ->
             if Locksets.(MustLockset.mem mutex (current_lockset ask)) then
@@ -769,16 +765,16 @@ struct
               else
                 (* Propagate here, as a later unlock may or may not trigger a side-effect here *)
                 (* TODO: To improve precision, we could also consider adding things to W here? *)
-                sideg (V.mutex mutex) (G.create_mutex sideval)
+                sideg_bucket sideg (V.mutex mutex) current_digest value
             else
-              sideg (V.mutex mutex) (G.create_mutex sideval)
+              sideg_bucket sideg (V.mutex mutex) current_digest value
           | `Right g ->
             (* Publishing here is unconditional, should this be like this ? *)
-            sideg (V.global g) (G.create_global sideval)
+            sideg_bucket sideg (V.global g) current_digest value
         in
         L.iter publish_l l;
-        let publish_others (mutex:V.t) =
-          let current_bindings = G.mutex @@ getg mutex in
+        let publish_others shared =
+          let current_bindings = get_shared getg shared in
           (*
             Look up all current bindings and if we find one that belongs to the old phase,
             but is not accounted for, carry it forward.
@@ -798,7 +794,7 @@ struct
               GMutex.add target value acc
           in
           let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
-          sideg mutex (G.create_mutex res)
+          sideg_shared sideg shared res
         in
         let mutexes = ask.f Queries.AppearingMutexes in
         LockDomain.AppearingMutexesQuery.iter (fun mutex -> publish_others (V.mutex mutex)) mutexes;
@@ -839,17 +835,16 @@ struct
     else st
 
   let read_unprotected_global getg x =
-    let get_mutex_global_x = merge_all @@ G.mutex @@ getg (V.global x) in
+    let get_mutex_global_x = merge_all (get_shared getg (V.global x)) in
     let get_mutex_global_x' = CPA.find x get_mutex_global_x in
-    let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+    let get_mutex_inits = merge_all (get_shared getg V.mutex_inits) in
     let get_mutex_inits' = CPA.find x get_mutex_inits in
     VD.join get_mutex_global_x' get_mutex_inits'
 
   let invariant_global ask getg = function
-    | `Middle  g -> (* global *)
+    | `Left (`Right (`Right g, _)) -> (* digest bucket for a global *)
       ValueDomain.invariant_global (read_unprotected_global getg) g (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
-    | `Left _
-    | `Right _ -> (* mutex or thread *)
+    | _ -> (* index, mutex bucket or thread *)
       Invariant.none
 end
 
