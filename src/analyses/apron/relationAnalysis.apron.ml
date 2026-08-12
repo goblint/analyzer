@@ -675,10 +675,22 @@ struct
       let new_rel = make_callee_rel ~thread:true man fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      [special_unknown_invalidate man f args]
+      [Priv.threadenter (Analyses.ask_of_man man) man.global st]
 
   let threadspawn man ~multiple lval f args fman =
-    man.local
+    match Cilfacade.find_varinfo_fundec f with
+    | _ -> man.local
+    | exception Not_found ->
+      (* [man.local] already contains the invalidated thread-create result.
+         Add the unknown thread's invalidations to that same state. When this is
+         the first spawn, publish the combined state as the initialization
+         snapshot; later spawns use ordinary privatized writes. *)
+      let st = special_unknown_invalidate man f args in
+      let ask = Analyses.ask_of_man man in
+      if ThreadFlag.has_ever_been_multi ask then
+        st
+      else
+        Priv.enter_multithreaded ask man.global man.sideg st
 
   let event man e oman =
     let ask = Analyses.ask_of_man man in
