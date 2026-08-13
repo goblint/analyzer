@@ -559,6 +559,8 @@ struct
          let st = invalidate_one ask man st lv in
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
+    | ThreadCreate _, _ ->
+      st (* result is invalidated by the framework after threadspawn *)
     | _, _ ->
       let st' = special_unknown_invalidate man f args in
       (* invalidate lval if present *)
@@ -675,22 +677,13 @@ struct
       let new_rel = make_callee_rel ~thread:true man fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      [Priv.threadenter (Analyses.ask_of_man man) man.global st]
+      (* Keep the creator state for evaluating the unknown function's arguments.
+         The framework applies its special transfer after constructing the
+         complete spawned state. *)
+      [st]
 
   let threadspawn man ~multiple lval f args fman =
-    match Cilfacade.find_varinfo_fundec f with
-    | _ -> man.local
-    | exception Not_found ->
-      (* [man.local] already contains the invalidated thread-create result.
-         Add the unknown thread's invalidations to that same state. When this is
-         the first spawn, publish the combined state as the initialization
-         snapshot; later spawns use ordinary privatized writes. *)
-      let st = special_unknown_invalidate man f args in
-      let ask = Analyses.ask_of_man man in
-      if ThreadFlag.has_ever_been_multi ask then
-        st
-      else
-        Priv.enter_multithreaded ask man.global man.sideg st
+    man.local
 
   let event man e oman =
     let ask = Analyses.ask_of_man man in

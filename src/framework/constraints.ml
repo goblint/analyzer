@@ -59,7 +59,7 @@ struct
     if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
-  let common_man var edge prev_node pval (getl:lv -> ld) sidel demandl getg sideg : (D.t, S.G.t, S.C.t, S.V.t) man * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
+  let common_man var edge prev_node pval (getl:lv -> ld) sidel demandl getg sideg : (D.t, S.G.t, S.C.t, S.V.t) man * D.t list ref * (lval option * lval option * varinfo * exp list * D.t * bool) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -77,31 +77,37 @@ struct
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
       }
-    and spawn ?(multiple=false) lval f args =
+    and spawn ?(multiple=false) ?result_lval lval f args =
       (* TODO: adjust man node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
       let ds = S.threadenter ~multiple man lval f args in
       List.iter (fun d ->
-          spawns := (lval, f, args, d, multiple) :: !spawns;
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
+            spawns := (result_lval, lval, f, args, d, multiple) :: !spawns;
             let c = S.context man fd d in
             sidel (FunctionEntry fd, c) d;
             demandl (Function fd, c)
           | exception Not_found ->
-            (* unknown function *)
-            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname;
-            (* actual implementation (e.g. invalidation) is done by threadenter *)
-            (* must still sync for side effects, e.g., old sync-based none privatization soundness in 02-base/51-spawn-special *)
-            let rec sync_man =
+            (* [d] is the combined child state returned by MCP threadenter,
+               so queries use the created thread's ID. *)
+            let rec special_man =
               { man with
-                ask = (fun (type a) (q: a Queries.t) -> S.query sync_man q);
+                ask = (fun (type a) (q: a Queries.t) -> S.query special_man q);
                 local = d;
                 prev_node = Function dummyFunDec;
               }
             in
-            (* TODO: more accurate man? *)
-            ignore (sync sync_man)
+            let d = S.special special_man None f args in
+            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname;
+            let rec sync_man =
+              { special_man with
+                ask = (fun (type a) (q: a Queries.t) -> S.query sync_man q);
+                local = d;
+              }
+            in
+            let d = sync sync_man in
+            spawns := (result_lval, lval, f, args, d, multiple) :: !spawns
         ) ds
     in
     (* ... nice, right! *)
@@ -124,14 +130,25 @@ struct
         }
       in
       (* TODO: don't forget path dependencies *)
-      let one_spawn (lval, f, args, fd, multiple) =
+      let one_spawn (result_lval, lval, f, args, fd, multiple) =
         let rec fman =
           { man with
             ask = (fun (type a) (q: a Queries.t) -> S.query fman q)
           ; local = fd
           }
         in
-        S.threadspawn man' ~multiple lval f args fman
+        let d = S.threadspawn man' ~multiple lval f args fman in
+        Option.map_default (fun lval ->
+            (* [threadspawn] has processed [EnterMultiThreaded], so this is an
+               ordinary creator assignment in multithreaded mode. *)
+            let rec event_man =
+              { man' with
+                ask = (fun (type a) (q: a Queries.t) -> S.query event_man q);
+                local = d;
+              }
+            in
+            S.event event_man (Events.Assign {lval; exp = MyCFG.unknown_exp}) event_man
+          ) d result_lval
       in
       bigsqcup (List.map one_spawn spawns)
 
@@ -436,7 +453,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
-      ; spawn  = (fun ?(multiple=false) v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; spawn  = (fun ?(multiple=false) ?result_lval v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
       }
