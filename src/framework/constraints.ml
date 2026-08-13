@@ -77,7 +77,7 @@ struct
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
       }
-    and spawn ?(multiple=false) ?result_lval lval f args =
+    and spawn ?(multiple=false) ~result_lval lval f args =
       (* TODO: adjust man node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
       let ds = S.threadenter ~multiple man lval f args in
@@ -453,7 +453,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
-      ; spawn  = (fun ?(multiple=false) ?result_lval v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; spawn  = (fun ?(multiple=false) ~result_lval v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
       }
