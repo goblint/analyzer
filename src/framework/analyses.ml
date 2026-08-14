@@ -151,7 +151,7 @@ type ('d,'g,'c,'v) man =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; spawn    : ?multiple:bool -> lval option -> varinfo -> exp list -> unit
+  ; spawn    : ?multiple:bool -> result_lval:lval option -> lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
   }

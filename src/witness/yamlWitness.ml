@@ -740,7 +740,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local
       ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ())
-      ; spawn  = (fun ?(multiple=false) _ _ _ -> ())
+      ; spawn  = (fun ?(multiple=false) ~result_lval:_ _ _ _ -> ())
       ; split  = (fun _ _ -> ())
       ; sideg  = (fun _ _ -> ())
       }
