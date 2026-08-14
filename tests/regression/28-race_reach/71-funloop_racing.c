@@ -10,7 +10,7 @@ struct cache_entry {
 
 void cache_entry_addref(struct cache_entry *entry) {
   pthread_mutex_lock(&entry->refs_mutex);
-  access_or_assert_racefree(entry->refs); // UNKNOWN
+  access_or_assert_racefree(entry->refs); // UNKNOWN!
   pthread_mutex_unlock(&entry->refs_mutex);
 }
 
@@ -30,7 +30,7 @@ int main () {
 
   for(i=0; i<10; i++)
     cache_entry_addref(&cache[i]);
-  access_or_assert_racefree(cache[5].refs); // UNKNOWN
+  access_or_assert_racefree(cache[5].refs); // UNKNOWN!
 
   join_threads(t);
   return 0;
