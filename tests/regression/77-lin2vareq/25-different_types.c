@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq
 #include <stdio.h>
+#include <goblint.h>
 
 int x = 42;
 long y;

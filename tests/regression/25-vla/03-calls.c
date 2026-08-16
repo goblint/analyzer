@@ -1,6 +1,9 @@
 // PARAM: --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned
 // Variable-sized arrays
 // NOCHECK
+#include <stdio.h>
+
+void E(int);
 void foo(int n, int a[n]);
 void foo2(int n, int a[30][n]);
 void foo3(int n, int a[n][30]);

@@ -360,7 +360,7 @@
           "description": "List of context-insensitive analyses. This setting is ignored if `ana.ctx_sens` contains elements.",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "stack_loc", "stack_trace_set" ]
+          "default": []
         },
         "ctx_sens": {
           "title": "ana.ctx_sens",
@@ -2127,12 +2127,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "dump": {
-          "title": "dbg.dump",
-          "description": "Dumps the results to the given path",
-          "type": "string",
-          "default": ""
         },
         "cilout": {
           "title": "dbg.cilout",

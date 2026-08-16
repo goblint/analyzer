@@ -1,8 +1,9 @@
 (** creation lockset analysis [creationLockset]
     constructs edges on the graph over all threads, where the edges are labelled with must-locksets:
     (t_1) ---L--> (t_0) is represented by global t_1 t_0 = L and means that t_1 is protected by all members of L from t_0
+    If L is bot, this does not represent "all mutexes". Instead, it indicates that t_1 is never (transitively) created from t_0
 
-    @see https://github.com/goblint/analyzer/pull/1865
+    @see Daniel Bund. "Leveraging the Potential of Inter-Threaded Locksets in Abstract Interpretation", B.Sc. thesis at TUM. Available upon request.
 *)
 
 open Analyses
@@ -14,13 +15,8 @@ module Lockset = LockDomain.MustLockset
 module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
-
-  module V = struct
-    include TID
-    include StdV
-  end
-
-  module G = MapDomain.MapBot (TID) (Lockset)
+  module V = TIDV
+  module G = Queries.CL
 
   let name () = "creationLockset"
   let startstate _ = D.bot ()
@@ -33,45 +29,18 @@ module Spec = struct
   *)
   let contribute_locks man to_contribute child_tid = man.sideg child_tid to_contribute
 
-  (** reflexive-transitive closure of child relation applied to [tid]
-      and filtered to only include threads, where [tid] is a must-ancestor
-      @param man any man
-      @param tid
-  *)
-  let must_ancestor_descendants_closure man tid =
-    let descendants = man.ask @@ Queries.DescendantThreads tid in
-    let must_ancestors_descendants = TIDs.filter (TID.must_be_ancestor tid) descendants in
-    TIDs.add tid must_ancestors_descendants
-
   let threadspawn man ~multiple lval f args fman =
     let tid_lifted = man.ask Queries.CurrentThreadId in
     let child_tid_lifted = fman.ask Queries.CurrentThreadId in
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid when TID.must_be_ancestor tid child_tid ->
-      let must_ancestor_descendants = must_ancestor_descendants_closure fman child_tid in
+      let must_ancestor_descendants =
+        ThreadDescendants.must_ancestor_descendants_closure fman child_tid
+      in
       let lockset = man.ask Queries.MustLockset in
       let to_contribute = G.singleton tid lockset in
       TIDs.iter (contribute_locks man to_contribute) must_ancestor_descendants
     | _ -> ()
-
-  (** compute all descendant threads that may run along with the ego thread at a program point.
-      for all of them, tid must be an ancestor
-      @param man man of ego thread at the program point
-      @param tid ego thread id
-  *)
-  let get_must_ancestor_running_descendants man tid =
-    let may_created_tids = man.ask Queries.CreatedThreads in
-    let may_must_ancestor_created_tids =
-      TIDs.filter (TID.must_be_ancestor tid) may_created_tids
-    in
-    let may_transitively_created_tids =
-      TIDs.fold
-        (fun child_tid acc -> TIDs.union acc (must_ancestor_descendants_closure man child_tid))
-        may_must_ancestor_created_tids
-        (TIDs.empty ())
-    in
-    let must_joined_tids = man.ask Queries.MustJoinedThreads in
-    TIDs.diff_mustset may_transitively_created_tids must_joined_tids
 
   (** handle unlock of mutex [lock] *)
   let unlock man tid possibly_running_tids lock =
@@ -98,7 +67,9 @@ module Spec = struct
       let tid_lifted = man.ask Queries.CurrentThreadId in
       (match tid_lifted with
        | `Lifted tid ->
-         let possibly_running_tids = get_must_ancestor_running_descendants man tid in
+         let possibly_running_tids =
+           ThreadDescendants.get_must_ancestor_running_descendants man tid
+         in
          let lock_opt = LockDomain.MustLock.of_addr addr in
          (match lock_opt with
           | Some lock -> unlock man tid possibly_running_tids lock
@@ -154,6 +125,11 @@ module Spec = struct
       let creation_lockset = man.global tid in
       tid, lockset, creation_lockset
     | _ -> ThreadIdDomain.UnknownThread, Lockset.empty (), G.empty ()
+
+  let query man (type a) (x : a Queries.t) : a Queries.result =
+    match x with
+    | Queries.CreationLockset t -> (man.global t : G.t)
+    | _ -> Queries.Result.top x
 end
 
 let _ =

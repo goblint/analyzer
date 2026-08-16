@@ -1,6 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron  --set ana.relation.privatization mutex-meet --sets ana.apron.domain interval
 // Checks that branching over extern or volatile variables does not yield to both branches being dead.
 #include<pthread.h>
+#include <goblint.h>
 extern int optind;
 
 void* a(void* arg) {

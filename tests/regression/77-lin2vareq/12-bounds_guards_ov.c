@@ -1,5 +1,6 @@
 //SKIP PARAM: --set ana.activated[+] lin2vareq
 // same test as 63-affeq/10-bounds_guards.ov.c
+#include <goblint.h>
 
 int main() {
     int x, y;

@@ -1,3 +1,16 @@
+## v2.8.0 Clumsy Clurichaun
+* Add new may-happen-in-parallel analyses (#1805, #1865, #1913, #1928).
+* Add Open Verification Dashboard checks output (#1838, #1929).
+* Add negative bitwise shift warnings (#1637, #1989).
+* Add missing function declaration warnings (#1911).
+* Improve overflow warnings (#1894, #1895, #1896, #1905).
+* Fix spurious overflow checks (#1767, #1909, #1910, #1932, #2022).
+* Fix missing overflow and out-of-bounds checks (#1935, #2017, #2029).
+* Optimize base analysis domain using Patricia trees (#2002, #2015).
+* Optimize field offset calculations (#1964, #1973, #1974).
+* Optimize non-incremental top-down solver (#1566, #1972).
+* Add OCaml 5.5 support (#2006, #2010).
+
 ## v2.7.1 Bamboozled Buffalo
 * Add library function specifications for fortified `inet_pton` and `inet_ntop` (#1883).
 

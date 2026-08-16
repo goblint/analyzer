@@ -223,7 +223,23 @@ struct
     | Bot -> Bot
     | _ -> VD.top ()
 
-  let binop_ID (result_ik: Cil.ikind) = function
+  let binop_ID (result_ik: Cil.ikind) =
+    (* Check the shift amount for negative values (undefined behavior in C), emitting
+       appropriate warnings/errors based on bounds analysis. *)
+    let check_shift_neg dir y =
+      let ik = ID.ikind y in
+      let zero = ID.of_int ik Z.zero in
+      match ID.ge y zero, ID.lt y zero with
+      | Some true, _ ->
+        Checks.safe Checks.Category.InvalidShift
+      | _, Some true ->
+        M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by negative amount is undefined behavior" dir;
+        Checks.error Checks.Category.InvalidShift "Shift-%s by negative amount is undefined behavior" dir
+      | _ ->
+        M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by possibly negative amount may be undefined behavior" dir;
+        Checks.warn Checks.Category.InvalidShift "Shift-%s by possibly negative amount may be undefined behavior" dir
+    in
+    function
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
@@ -265,8 +281,14 @@ struct
     | BAnd -> ID.logand
     | BOr -> ID.logor
     | BXor -> ID.logxor
-    | Shiftlt -> ID.shift_left
-    | Shiftrt -> ID.shift_right
+    | Shiftlt ->
+      fun x y ->
+        check_shift_neg "left" y;
+        ID.shift_left x y
+    | Shiftrt ->
+      fun x y ->
+        check_shift_neg "right" y;
+        ID.shift_right x y
     | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
     | LOr -> id_binary_log (||) ~annihilator:true result_ik
     | b -> (fun x y -> (ID.top_of result_ik))
@@ -526,7 +548,7 @@ struct
   let rec get_mval ~man ?(full=false) (st: store) ((x, offs): Addr.Mval.t) (exp:exp option) =
     (* get hold of the variable value, either from local or global state *)
     let var = get_var ~man st x in
-    let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+    let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
     if M.tracing then M.tracec "get" "var = %a, %a = %a" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
     if full then var else match v with
       | Blob (c,s,_) -> c
@@ -613,10 +635,15 @@ struct
     | JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
 
+  let reachable_from_value ask (value: value) (t: typ) (description: string) =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+    reachable_from_value ask value t description
+
   (* Get the list of addresses accessible immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_addr ~man st (addr: Addr.t): address =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     if M.tracing then M.tracei "reachability" "Checking for %a" Addr.pretty addr;
     let res = reachable_from_value (Analyses.ask_of_man man) (get_addr ~man st addr None) (Addr.type_of addr) (Addr.show addr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a" AD.pretty res;
@@ -696,6 +723,7 @@ struct
 
 
   let reachable_top_pointers_types man (ps: AD.t) : Queries.TS.t =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     let module TS = Queries.TS in
     let empty = AD.empty () in
     let reachable_from_address (adr: address) =
@@ -1024,7 +1052,7 @@ struct
         in
         let v' = VD.cast ~kind:Internal t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *) (* TODO: proper castkind *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x (Some exp)) v' (convert_offset ~man st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) v' (convert_offset ~man st ofs) (Some exp) None t in (* handle offset *)
         v'
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
@@ -1504,7 +1532,7 @@ struct
         | _ -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
-        match eval_rv_address ~man man.local e with
+        match eval_rv_address ~man man.local e with (* TODO: why doesn't this use length from ArrayDomain? *)
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf t =
@@ -1512,7 +1540,7 @@ struct
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
-          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in
+          let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in (* TODO: shouldn't addr offset matter? *)
           let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Z.of_int) (Seq.append slen alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           `Lifted d
@@ -1521,36 +1549,27 @@ struct
       end
     | Q.EvalValue e ->
       eval_rv ~man man.local e
-    | Q.BlobSize {exp = e; base_address = from_base_addr} -> begin
+    | Q.BlobSize e -> begin
         let p = eval_rv_address ~man man.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | Address a ->
-          (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
-          (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
+          (* If there's a non-alloc var or an offset in the lval set, we answer with bottom *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_alloc_var man v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var man v || o <> `NoOffset
               | _ -> false) a then
             Queries.Result.bot q
           else (
-            (* If we need the BlobSize from the base address, then remove any offsets *)
-            let a =
-              if from_base_addr then AD.map (function
-                  | Addr (v, o) -> Addr (v, `NoOffset)
-                  | addr -> addr) a
-              else
-                a
-            in
             let r = get ~man ~full:true man.local a None in
             (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
                (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) with
-                | Blob (_,s,_) -> `Lifted s
+                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
                 | _ -> Queries.Result.top q
                )
-             | Blob (_,s,_) -> `Lifted s
+             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
              | _ -> Queries.Result.top q)
           )
         | _ -> Queries.Result.top q
@@ -1675,7 +1694,7 @@ struct
    * not include the flag. *)
   let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) (lval_type: Cil.typ) (value: value): store =
     let ask = Analyses.ask_of_man man in
-    let cil_offset = Offs.to_cil_offset offs in
+    let cil_offset = Offs.to_cil_offset offs in (* Only for partitioned arrays! Drops indices. *)
     let t = match t_override with
       | Some t -> t
       | None ->
@@ -1685,11 +1704,11 @@ struct
           lval_type
         else
           try
-            Cilfacade.typeOfLval (Var x, cil_offset)
-          with Cilfacade.TypeOfError _ ->
+            Offs.type_of ~base:x.vtype offs
+          with Offset.Type_of_error _ ->
             (* If we cannot determine the correct type here, we go with the one of the LVal *)
             (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-            M.debug ~category:Analyzer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
+            M.debug ~category:Analyzer "Could not obtain the type of %a" Addr.Mval.pretty (x, offs);
             lval_type
     in
     let update_offset old_value =
@@ -1708,7 +1727,7 @@ struct
       else
         new_value
     in
-    if M.tracing then M.tracel "set" "update_one_addr: start with '%a' (type '%a') \nstate:%a" AD.pretty (AD.of_mval (x,offs)) d_type x.vtype D.pretty st;
+    if M.tracing then M.tracel "set" "update_one_addr: start with '%a' (type '%a') \nstate:%a" Addr.Mval.pretty (x,offs) d_type t D.pretty st;
     if isFunctionType x.vtype then begin
       if M.tracing then M.tracel "set" "update_one_addr: returning: '%a' is a function type " d_type x.vtype;
       st
@@ -1873,14 +1892,6 @@ struct
     let f s v = rem_partitioning a s v in
     List.fold_left f st v_list
 
-  (**************************************************************************
-    * Auxillary functions
-    **************************************************************************)
-
-  let is_some_bot (x:value) =
-    match x with
-    | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | _ -> VD.is_bot_value x
 
   module InvariantEval =
   struct
@@ -2002,7 +2013,7 @@ struct
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value (%a): %a" d_plaintype t VD.pretty iv;
-              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) iv offs rval_val (Some  (Lval lval)) lval lval_t in (* do desired update to value *)
               set_savetop ~man  man.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | _ ->
               set_savetop ~man man.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
@@ -2317,64 +2328,42 @@ struct
       M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname;
       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
-  let points_to_heap_only man ptr =
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (Queries.AD.is_top a)->
-      Queries.AD.for_all (function
-          | Addr (v, _) -> man.ask (Queries.IsHeapVar v)
-          | _ -> false
-        ) a
-    | _ -> false
-
-  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds *)
+  let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
       intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
-    if points_to_heap_only man ptr then
-      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-      man.ask (Queries.BlobSize {exp = ptr; base_address = true})
-    else
-      match man.ask (Queries.MayPointTo ptr) with
-      | a when not (Queries.AD.is_top a) ->
-        let pts_list = Queries.AD.elements a in
-        let pts_elems_to_sizes (addr: Queries.AD.elt) =
-          begin match addr with
-            | Addr (v, _) ->
-              begin match Cil.unrollType v.vtype with
-                | TArray (item_typ, _, _) ->
-                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                  begin match man.ask (Queries.EvalLength ptr) with
-                    | `Lifted arr_len ->
-                      let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-                      begin
-                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-                      end
-                    | `Bot -> `Bot
-                    | `Top -> `Top
-                  end
-                | _ ->
-                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-                  `Lifted type_size_in_bytes
+    match addr with
+    | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
+      (* Ask for BlobSize from the base address in order to avoid BlobSize giving us bot *)
+      man.ask (Queries.BlobSize (AddrOf (Var v, NoOffset)))
+    | Addr (v, _) ->
+      begin match Cil.unrollType v.vtype with
+        | TArray (item_typ, _, _) ->
+          let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
+            | `Lifted arr_len ->
+              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
+              begin
+                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
               end
-            | _ -> `Top
+            | `Bot -> `Bot
+            | `Top -> `Top
           end
-        in
-        (* Map each points-to-set element to its size *)
-        let pts_sizes = List.map pts_elems_to_sizes pts_list in
-        (* Take the smallest of all sizes that ptr's contents may have *)
-        begin match pts_sizes with
-          | [] -> `Bot
-          | [x] -> x
-          | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
-        end
-      | _ ->
-        (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-         Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-         `Top)
+        | _ ->
+          let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+          `Lifted type_size_in_bytes
+      end
+    | _ -> `Top
+
+  let get_size_of_ptr_target man ptr =
+    man.ask (Queries.MayPointTo ptr)
+    |> Queries.AD.to_seq
+    |> Seq.map (get_addr_size man)
+    |> Seq.fold_left ValueDomainQueries.ID.join `Bot
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
@@ -2419,7 +2408,7 @@ struct
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~kind:Internal ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv ~man st (Lval src_cast_lval)
         else
-          VD.top_value (unrollType dest_typ)
+          VD.top_value dest_typ
       in
       set ~man st dest_a dest_typ value in
     (* for string functions *)
@@ -2471,11 +2460,11 @@ struct
             else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
               set ~man st lv_a lv_typ (f s1_a s2_a)
             else
-              set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+              set ~man st lv_a lv_typ (VD.top_value lv_typ)
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
-            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~man st s1_a s1_typ (VD.top_value s1_typ)
         end
         (* else compute value in array domain *)
       else
@@ -2491,7 +2480,7 @@ struct
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let size = man.ask (Q.BlobSize s1) in
           let s_id =
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
@@ -2500,7 +2489,7 @@ struct
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let size = man.ask (Q.BlobSize s1) in
           let s_id =
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
@@ -2513,13 +2502,13 @@ struct
           if op_addr = None then
             (* triggers warning, function only evaluated for side-effects *)
             let _ = AD.string_writing_defined s1_a in
-            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~man st s1_a s1_typ (VD.top_value s1_typ)
           else
             let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
             let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
             set ~man st lv_a lv_typ (op_array array_s1 array_s2)
         | _ ->
-          set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+          set ~man st lv_a lv_typ (VD.top_value lv_typ)
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
     let alloc loc size =
@@ -2583,7 +2572,7 @@ struct
             else
               match get ~man st a None with
               | Array array_s -> Int (CArrays.to_string_length array_s)
-              | _ -> VD.top_value (unrollType dest_typ)
+              | _ -> VD.top_value dest_typ
           in
           set ~man st dest_a dest_typ value
         ) st lv
@@ -2805,6 +2794,7 @@ struct
           let lv_addr = eval_lv ~man st lv in
           let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
           (* TODO: free (i.e. invalidate) old blob if successful? *)
+          (* TODO: realloc may return the same pointer, is this handled correctly? *)
           set_many ~man st ((lv_addr, Cilfacade.typeOfLval lv, Address addr) :: blob_set)
         ) st lv
     | Free ptr, _ ->

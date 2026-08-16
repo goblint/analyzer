@@ -49,6 +49,15 @@ let register_analysis =
     Hashtbl.replace registered_name n !count;
     incr count
 
+let registered_simplified_analysis (module S:SimplifiedAnalysis.SimplifiedSpec) =
+  let module S':MCPSpec = struct
+    include SimplifiedLifter.FromSimplifiedSpec(S)
+    module A = UnitA
+    let access _ _ = ()
+  end
+  in
+  register_analysis (module S')
+
 let find_spec = Hashtbl.find registered
 let find_spec_name n = (find_spec n).name
 let find_id = Hashtbl.find registered_name

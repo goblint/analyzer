@@ -6,11 +6,11 @@ open GoblintCil
 open Analyses
 
 let is_currently_multi (ask: Queries.ask): bool =
-  if !AnalysisState.global_initialization then false else
+  if !AnalysisState.global_initialization || GobConfig.get_bool "exp.single-threaded" then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = false}))
 
 let has_ever_been_multi (ask: Queries.ask): bool =
-  if !AnalysisState.global_initialization then false else
+  if !AnalysisState.global_initialization || GobConfig.get_bool "exp.single-threaded" then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = true}))
 
 module Spec =

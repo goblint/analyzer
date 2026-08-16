@@ -193,12 +193,8 @@ module T = struct
     | None ->
       Z.one
 
-  let is_struct_type t =
-    match Cil.unrollType t with
-    | TComp _ ->
-      true
-    | _ ->
-      false
+  (* TODO: Should this actually be accounting for unions? *)
+  let is_struct_type = Cilfacade.isStructOrUnionType
 
   let is_struct_ptr_type t =
     match Cil.unrollType t with

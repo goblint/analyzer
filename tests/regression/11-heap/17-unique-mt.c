@@ -1,4 +1,5 @@
 // PARAM: --set ana.malloc.unique_address_count 3
+#include <stdlib.h>
 #include<pthread.h>
 static int iRThreads = 1;
 static int data1Value = 0;

@@ -5,7 +5,7 @@ module VD = ValueDomain.Compound
 
 module CPA =
 struct
-  module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
+  module M0 = MapDomain.PatriciaMapBot (Basetype.Variables) (VD)
   module M =
   struct
     include M0
@@ -20,7 +20,7 @@ end
 module PartDeps =
 struct
   module VarSet = SetDomain.Make(Basetype.Variables)
-  include MapDomain.MapBot_LiftTop(Basetype.Variables)(VarSet)
+  include MapDomain.PatriciaMapBot_LiftTop(Basetype.Variables)(VarSet)
   let name () = "array partitioning deps"
 end
 

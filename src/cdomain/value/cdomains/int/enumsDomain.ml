@@ -170,7 +170,7 @@ module Enums : S with type int_t = Z.t = struct
         (* Check that the xs fit into the range r  *)
         Z.compare min_b min_a <= 0 && Z.compare max_a max_b <= 0 &&
         (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
-        BISet.for_all (fun x -> not (BISet.mem x ys)) xs
+        BISet.disjoint xs ys
     | Inc xs, Inc ys ->
       BISet.subset xs ys
     | Exc (xs, r), Exc (ys, s) ->
@@ -228,7 +228,7 @@ module Enums : S with type int_t = Z.t = struct
   let rem = lift2 Z.rem
 
   (* TODO: should be used by lognot? *)
-  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+  let[@warning "-unused-value-declaration"] apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
     let rf m = (size % Size.min_for % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
@@ -339,8 +339,8 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e when BISet.is_empty e -> None
     | Exc (e,_) when BISet.is_empty e -> None
     | Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> Some false
-    | Inc xs when BISet.for_all ((<>) Z.zero) xs -> Some true
-    | Exc (xs,_) when BISet.exists ((=) Z.zero) xs -> Some true
+    | Inc xs when not (BISet.mem Z.zero xs) -> Some true
+    | Exc (xs,_) when BISet.mem Z.zero xs -> Some true
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 
@@ -449,7 +449,7 @@ module Enums : S with type int_t = Z.t = struct
       | Exc (s, _) -> GobQCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> GobQCheck.shrink (BISet.arbitrary ()) s >|= pos
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map neg (BISet.arbitrary ());
       10, QCheck.map pos (BISet.arbitrary ());
     ] (* S TODO: decide frequencies *)

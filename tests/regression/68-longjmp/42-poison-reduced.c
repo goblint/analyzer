@@ -1,5 +1,7 @@
 // PARAM: --set ana.activated[+] expsplit --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.invalidate.args --disable exp.volatiles_are_top --enable ana.int.interval
+#include <stdlib.h>
 #include<setjmp.h>
+#include <goblint.h>
 jmp_buf env_buffer;
 struct c {
   char *g;

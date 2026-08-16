@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval_set --set exp.unrolling-factor 3 --set ana.context.gas_value 10
 #include <stdio.h>
+#include <goblint.h>
 
 int f(int i)
 {

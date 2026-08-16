@@ -1,4 +1,5 @@
 // PARAM: --set ana.context.callString_length 5 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set
+#include <goblint.h>
 
 // Test 1:
 int a(int i)

@@ -296,7 +296,11 @@ struct
     in
     let one_function f =
       match Cil.unrollType f.vtype with
-      | TFun (_, params, var_arg, _)  ->
+      | TFun (_, params, var_arg, attrs)  ->
+        if Cil.hasAttribute "missingproto" attrs then (
+          M.msg_final Warning ~category:Program "Function declaration missing";
+          M.warn ~category:Program "Function declaration missing for %s" f.vname
+        );
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
         (* Check whether number of arguments fits. *)

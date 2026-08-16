@@ -4,16 +4,41 @@
 
 open Analyses
 module TID = ThreadIdDomain.Thread
+module TIDs = ConcDomain.ThreadSet
+
+(** reflexive-transitive closure of child relation applied to [tid]
+    and filtered to only include threads, where [tid] is a must-ancestor
+    @param man any man
+    @param tid
+*)
+let must_ancestor_descendants_closure man tid =
+  let descendants = man.ask @@ Queries.DescendantThreads tid in
+  let must_ancestors_descendants = TIDs.filter (TID.must_be_ancestor tid) descendants in
+  TIDs.add tid must_ancestors_descendants
+
+(** compute all descendant threads that may run along with the ego thread at a program point.
+    for all of them, tid must be an ancestor
+    @param man man of ego thread at the program point
+    @param tid ego thread id
+*)
+let get_must_ancestor_running_descendants man tid =
+  let may_created_tids = man.ask Queries.CreatedThreads in
+  let may_must_ancestor_created_tids =
+    TIDs.filter (TID.must_be_ancestor tid) may_created_tids
+  in
+  let may_transitively_created_tids =
+    TIDs.fold
+      (fun child_tid acc -> TIDs.union acc (must_ancestor_descendants_closure man child_tid))
+      may_must_ancestor_created_tids
+      (TIDs.empty ())
+  in
+  let must_joined_tids = man.ask Queries.MustJoinedThreads in
+  TIDs.diff_mustset may_transitively_created_tids must_joined_tids
 
 module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
-
-  module V = struct
-    include TID
-    include StdV
-  end
-
+  module V = TIDV
   module G = ConcDomain.ThreadSet
 
   let name () = "threadDescendants"

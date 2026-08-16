@@ -128,7 +128,7 @@ let check_arguments () =
   in
   let warn m = Logs.warn "%s" m in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.");
-  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if not (get_bool "exp.single-threaded") && not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global! (Except when exp.single-threaded is enabled.)";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
   if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
@@ -192,13 +192,7 @@ let handle_flags () =
     set_auto "lib.activated[+]" "sv-comp";
 
   if get_bool "kernel" then
-    set_auto "lib.activated[+]" "linux-kernel";
-
-  match get_string "dbg.dump" with
-  | "" -> ()
-  | path ->
-    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
-    set_string "outfile" ""
+    set_auto "lib.activated[+]" "linux-kernel"
 
 let handle_options () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
@@ -490,7 +484,7 @@ let merge_parsed parsed =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  Errormsg.logChannel := Messages.get_out "cil" cilout;
+  Errormsg.logChannel := cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
@@ -523,7 +517,7 @@ let do_stats () =
     Goblint_solver.SolverStats.print ();
     Logs.newline ();
     Logs.info "Timings:";
-    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel Legacy.stderr);
     flush_all ()
   )
 

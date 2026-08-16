@@ -36,7 +36,7 @@ struct
   end
 
   (** We want to record termination information of loops and use the loop statements for that. *)
-  module G = MapDomain.MapBot (CilType.Stmt) (BoolDomain.MustBool)
+  module G = MapDomain.PatriciaMapBot (CilType.Stmt) (BoolDomain.MustBool)
 
   let startstate _ = ()
   let exitstate = startstate

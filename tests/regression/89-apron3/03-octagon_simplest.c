@@ -1,5 +1,6 @@
 // SKIP CRAM PARAM: --set ana.activated[+] apron --enable ana.int.interval
 // Simplified from 36-apron/01-octagon_simple
+#include <stdlib.h>
 #include <goblint.h>
 
 void main(void) {

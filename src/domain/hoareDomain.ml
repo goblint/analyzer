@@ -220,7 +220,7 @@ struct
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
 
   (* Copied from Make *)
-  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.list_small (B.arbitrary ())
 
   let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
     if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
@@ -277,7 +277,7 @@ struct
 
   let elements (s: t): (key * R.t) list = bindings s
   let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
-  let union = long_map2 R.union
+  let union = idempotent_union R.union
 
 
   (* copied & modified from SetDomain.Hoare_NoTop *)

@@ -1,4 +1,5 @@
 // PARAM: --disable ana.int.interval --disable ana.int.def_exc --enable ana.int.bitfield
+#include <stdlib.h>
 #include <goblint.h>
 
 void basic_join() {
