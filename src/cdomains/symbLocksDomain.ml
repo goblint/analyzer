@@ -364,15 +364,21 @@ struct
     S.filter (fun l ->
         match l with
         | AddrOf (Var v, o) ->
-          (* For concrete variable addresses, use semantic_equal directly without
-             a MayPointTo query on l.
-             Offset.Exp.of_cil converts the CIL offset to an exp-indexed offset;
-             ValueDomain.Offs.of_exp then abstracts it (non-constant indices become
-             top), which is sound: an unknown index may alias anything.
-             We keep l iff every address in pt_e is *definitely* not addr_l
-             (semantic_equal = Some false); when equality is unknown (None) or
-             definite (Some true), l is conservatively removed. *)
-          let addr_l = Queries.AD.Addr.of_mval (v, ValueDomain.Offs.of_exp (Offset.Exp.of_cil o)) in
+          (* Base represents address indices as ptrdiff_t. Normalize concrete CIL
+             indices likewise: retaining their original integer kind here would
+             make semantic_equal raise IncompatibleIKinds while computing byte
+             offsets. Non-constant indices remain top, as with Offs.of_exp. *)
+          let rec offset = function
+            | NoOffset -> `NoOffset
+            | Field (f, o) -> `Field (f, offset o)
+            | Index (Const (CInt (i, _, _)), o) ->
+              `Index (ValueDomain.IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) i, offset o)
+            | Index (_, o) ->
+              `Index (ValueDomain.IndexDomain.top (), offset o)
+          in
+          let addr_l = Queries.AD.Addr.of_mval (v, offset o) in
+          (* Keep l iff every possible address is definitely unequal; unknown
+             equality therefore conservatively removes l. *)
           Queries.AD.for_all (fun ae ->
               Queries.AD.Addr.semantic_equal ae addr_l = Some false
             ) pt_e
