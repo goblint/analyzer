@@ -208,8 +208,6 @@ struct
     if M.tracing then M.traceu "ad" "-> %B" r;
     r
 
-  let widen x y = widen x (join x y) (* TODO: needed? *)
-
   let null_ptr       = singleton Addr.NullPtr
   let unknown_ptr    = singleton Addr.UnknownPtr
   let not_null       = unknown_ptr
@@ -379,7 +377,7 @@ struct
     | false, false -> cop x y
 
   let meet x y   = merge join meet x y
-  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y (* TODO: remove join (redundant) *)
+  let narrow x y = merge widen narrow x y
 
   let meet x y =
     if M.tracing then M.traceli "ad" "meet %a %a" pretty x pretty y;

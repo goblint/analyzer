@@ -367,7 +367,7 @@ struct
       if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
       else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
 
-  let widen x y = widen x (join x y) (* TODO: inline *)
+  let widen x y = widen x (join x y) (* TODO: inline? removing join wouldn't be equivalent for Partitioned-s with different expression *)
 
   let show = function
     | Joint x ->  "Array (no part.): " ^ Val.show x
@@ -667,7 +667,7 @@ struct
       Partitioned (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
       if get_string "ana.base.partition-arrays.keep-expr" = "last" || get_bool "ana.base.partition-arrays.smart-join" then
-        let op = Val.join in (* widen between different components isn't called validly *) (* TODO: can remove join now? *)
+        let op = Val.join in (* widen between different components isn't called validly *) (* TODO: can remove join now? overrides argument op *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1_in_state_of_x2 = x2_eval_int e1 in
