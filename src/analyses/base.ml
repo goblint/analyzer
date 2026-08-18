@@ -2511,21 +2511,26 @@ struct
           set ~man st lv_a lv_typ (VD.top_value lv_typ)
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
-    let alloc loc size =
+    let alloc (loc: Q.AllocationLocation.t) size =
+      let zero_option, fail_option =
+        match loc with
+        | Heap -> "sem.malloc.zero", "sem.malloc.fail"
+        | Stack -> "sem.alloca.zero", "sem.alloca.fail"
+      in
       (* Whether malloc(0) is assumed to return the null pointer, a valid pointer, or both cases need to be considered. *)
-      let malloc_zero_null, malloc_zero_pointer =
-        match get_string "sem.malloc.zero" with
+      let alloc_zero_null, alloc_zero_pointer =
+        match get_string zero_option with
         | "null" -> true, false
         | "pointer" -> false, true
         | "either" -> true, true
-        | _ -> failwith "Invalid value for sem.malloc.zero."
+        | _ -> assert false
       in
       let bytes = eval_int ~man st size in
       let cmp_bytes_with_zero = ID.equal_to Z.zero bytes in
       let bytes_may_be_zero = cmp_bytes_with_zero <> `Neq in
       let bytes_may_be_nonzero = cmp_bytes_with_zero <> `Eq in
-      let include_null = (bytes_may_be_nonzero && get_bool "sem.malloc.fail") || (bytes_may_be_zero && malloc_zero_null) in
-      let include_pointer = bytes_may_be_nonzero || malloc_zero_pointer in
+      let include_null = (bytes_may_be_nonzero && get_bool fail_option) || (bytes_may_be_zero && alloc_zero_null) in
+      let include_pointer = bytes_may_be_nonzero || alloc_zero_pointer in
       if not include_pointer then
         (None, AD.null_ptr)
       else
