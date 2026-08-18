@@ -96,6 +96,11 @@ struct
       Widen, widen old input
 end
 
+module Copy0Update = JoinedBoxUpdate (struct
+    let k = 0
+    let l = 0
+  end)
+
 (** [k = 1] performs two direct copies.  [l = 0] permits the first
     widening/narrowing box before committing to widening when it reopens. *)
 module CopyUpdate = JoinedBoxUpdate (struct

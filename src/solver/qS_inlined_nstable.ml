@@ -1,14 +1,15 @@
 (* GENERATED FILE. DO NOT EDIT.
    Control: extraction/goblint_control_inlined.ml
-   Variant: Optimal
-   Configuration: first-discovery instance of the policy-parametric Optimal algorithm
-   Adapter: extraction/goblint_qsolver_opt.ml.in
+   Variant: NarrowingStable
+   Configuration: first-discovery instance of the policy-parametric Narrowing-Stable algorithm
+   Adapter: extraction/goblint_qsolver_narrowing_stable.ml.in
    Regenerate with: make goblint-solvers *)
 (**
-   Goblint callback adapter for the Optimal QSolver.
+   Goblint callback adapter for the Narrowing-Stable QSolver.
 
    This is a mutable implementation of the algorithm in
-   [optimal/QSOLVER_OPT.md]. The control operations at [@@CONTROL@@] are
+   [narrowing_stable/QSOLVER_NARROWING_STABLE.md]. The control operations at
+   [@@CONTROL@@] are
    supplied either by Rocq extraction or by the explicitly inlined benchmark
    variant.
 
@@ -136,7 +137,7 @@ module Make
     let bottom = S.Dom.bot ()
 
     let trace_supported = true
-    let trace_algorithm = "Optimal"
+    let trace_algorithm = "NarrowingStable"
     let trace_control = "inlined"
 
     type trace_output = {

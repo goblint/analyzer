@@ -5,8 +5,8 @@ module QSs  = QS_simple.QSolver
 module QSsi = QS_inlined_simple.QSolver
 module QSg  = QS_restarting
 module QSgi = QS_inlined_restarting
-module QSo  = QS_opt.QSolver
-module QSoi = QS_inlined_opt.QSolver
+module QSo  = QS_nstable.QSolver
+module QSoi = QS_inlined_nstable.QSolver
 
 let add = Selector.add_solver
 
@@ -37,12 +37,14 @@ end
 let _ =
   add ("qss_w",    (module AddPost (QSs (WideningUpdate))));
   add ("qss_wnw",  (module AddPost (QSs (WNUpdate))));
-  add ("qss_cwnw", (module AddPost (QSs (DefaultUpdate))))
+  add ("qss_cwnw", (module AddPost (QSs (CopyUpdate))));
+  add ("qss_cwnw_wnw", (module AddPost (QSs (DefaultUpdate))))
 
 let _ =
   add ("qssi_w",    (module AddPost (QSsi (WideningUpdate))));
   add ("qssi_wnw",  (module AddPost (QSsi (WNUpdate))));
-  add ("qssi_cwnw", (module AddPost (QSsi (DefaultUpdate))))
+  add ("qssi_cwnw", (module AddPost (QSsi (CopyUpdate))));
+  add ("qssi_cwnw_wnw", (module AddPost (QSsi (DefaultUpdate))))
 
 
 (* --------- *)
@@ -50,33 +52,38 @@ let _ =
 
 let _ =
   add ("qsr",    
-       (module AddPost (QSg.Make (QSg.Control) (Normal) (DefaultUpdate))));
+       (module AddPost (QSg.Make (QSg.Control) (Normal) (CopyUpdate))));
   add ("qsr_dead",    
-       (module AddPost (QSg.Make (QSg.Control) (Dead) (DefaultUpdate))));
+       (module AddPost (QSg.Make (QSg.Control) (Dead) (CopyUpdate))));
   add ("qsr_nosides",    
-       (module AddPost (QSg.Make (QSg.Control) (NoSideReset) (DefaultUpdate))));
+       (module AddPost (QSg.Make (QSg.Control) (NoSideReset) (CopyUpdate))));
   add ("qsr_nosides_dead",    
-       (module AddPost (QSg.Make (QSg.Control) (NoSideResetDead) (DefaultUpdate))))
+       (module AddPost (QSg.Make (QSg.Control) (NoSideResetDead) (CopyUpdate))))
 
 (* --------- *)
 
 let _ =
   add ("qsri",    
-       (module AddPost (QSgi.Make (QSg.Control) (Normal) (DefaultUpdate))));
+       (module AddPost (QSgi.Make (QSg.Control) (Normal) (CopyUpdate))));
   add ("qsri_dead",    
-       (module AddPost (QSgi.Make (QSg.Control) (Dead) (DefaultUpdate))));
+       (module AddPost (QSgi.Make (QSg.Control) (Dead) (CopyUpdate))));
   add ("qsri_nosides",    
-       (module AddPost (QSgi.Make (QSg.Control) (NoSideReset) (DefaultUpdate))));
+       (module AddPost (QSgi.Make (QSg.Control) (NoSideReset) (CopyUpdate))));
   add ("qsri_nosides_dead",    
-       (module AddPost (QSgi.Make (QSg.Control) (NoSideResetDead) (DefaultUpdate))))
+       (module AddPost (QSgi.Make (QSg.Control) (NoSideResetDead) (CopyUpdate))))
 
 (* --------- *)
 let _ =
   add ("qso_w",    (module AddPost (QSo (WideningUpdate))));
   add ("qso_wnw",  (module AddPost (QSo (WNUpdate))));
-  add ("qso_cwnw", (module AddPost (QSo (DefaultUpdate))))
+  add ("qso_cwnw", (module AddPost (QSo (CopyUpdate))));
+  add ("qso_c0wnw", (module AddPost (QSo (Copy0Update))));
+  add ("qso_cwnw_wnw", (module AddPost (QSo (DefaultUpdate))))
+
 
 let _ =
   add ("qsoi_w",    (module AddPost (QSoi (WideningUpdate))));
   add ("qsoi_wnw",  (module AddPost (QSoi (WNUpdate))));
+  add ("qsoi_cwnw", (module AddPost (QSoi (CopyUpdate))));
+  add ("qsoi_c0wnw", (module AddPost (QSoi (Copy0Update))));
   add ("qsoi_cwnw", (module AddPost (QSoi (DefaultUpdate))))
