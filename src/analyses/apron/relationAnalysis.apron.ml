@@ -424,8 +424,7 @@ struct
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local v) when ThreadEscape.has_escaped ask v -> false (* escaped locals may be modified through globals *)
-        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Local v) when not (belongs_to_fundec fundec var || any_local_reachable || ThreadEscape.has_escaped ask v) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
