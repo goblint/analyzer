@@ -414,7 +414,7 @@ module IntDomTupleImpl = struct
 
   (* f2: binary ops *)
   let join ik =
-    map2 ~norefine:true ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.join ik)} (* TODO: could join refine now that it's now part of every widening? *)
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.join ik)} (* TODO: could join refine now that it's now part of every widening? possibly not because some intermediate widens still do the join (e.g. struct domains) *)
 
   let meet ik =
     map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.meet ik)}
