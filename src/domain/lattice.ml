@@ -57,17 +57,6 @@ exception BotValue
 (** Exception raised by a bottomless lattice in place of a bottom value.
     Surrounding lattice functors may handle this on their own. *)
 
-exception Invalid_widen of Pretty.doc
-
-let () = Printexc.register_printer (function
-    | Invalid_widen doc ->
-      Some (GobPretty.sprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc)
-    | _ -> None (* for other exceptions *)
-  )
-
-let assert_valid_widen ~leq ~pretty_diff x y =
-  if not (leq x y) then
-    raise (Invalid_widen (pretty_diff () (x, y)))
 
 module UnitConf (N: Printable.Name) =
 struct
