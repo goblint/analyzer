@@ -19,7 +19,7 @@ sig
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
-  val widen: t -> t -> t (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
+  val widen: t -> t -> t (** [widen x y] {e cannot} assume [leq x y]. *)
 
   val narrow: t -> t -> t
 
