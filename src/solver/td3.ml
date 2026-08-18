@@ -503,7 +503,7 @@ module Base =
              if not (VS.mem x old_sides) then add_sides y x;
            | None -> ());
 
-          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *) (* TODO: remove join from widen only *)
+          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen else S.Dom.join) old d); *)
           HM.replace rho y tmp;
           let destabilized_vs: bool option = if WPS.record_destabilized_vs then (
               destabilize y;

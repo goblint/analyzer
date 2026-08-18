@@ -145,13 +145,13 @@ module Narrow:S =
           if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
             let (new_side, narrow_gas) = match phase with
               | D_Widen ->
-                let tmp = S.Dom.join old_side d in
-                if not @@ S.Dom.equal tmp old_side then
+                if not @@ S.Dom.leq d old_side then
+                  let tmp = S.Dom.join old_side d in
                   let new_side =
-                    if narrow_globs_conservative_widen && S.Dom.leq tmp (HM.find rho y) then
+                    if narrow_globs_conservative_widen && S.Dom.leq tmp (HM.find rho y) then (* TODO: need to really compute join for leq check? *)
                       tmp
                     else
-                      S.Dom.widen old_side tmp (* TODO: remove join from widen only *)
+                      S.Dom.widen old_side d
                   in
                   let new_gas = Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas in
                   (new_side, new_gas)
