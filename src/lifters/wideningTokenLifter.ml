@@ -180,6 +180,6 @@ struct
   let combine_assign man r fe f args fc es f_ask = lift_fun man lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 
   let threadenter man  ~multiple lval f args = lift_fun man (fun l ts -> List.map (Fun.flip lift' ts) l) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval )
-  let threadspawn man ~multiple lval f args fman = lift_fun man lift' (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
-  let event man e oman = lift_fun man lift' S.event ((|>) (conv oman) % (|>) e)
+  let threadspawn man ~multiple lval f args fman = lift_fun man lift' (S.threadspawn ~multiple) (fun p -> p lval f args (conv fman)) (* fun to delay (conv fman) until exception handler inside lift_fun *)
+  let event man e oman = lift_fun man lift' S.event (fun p -> p e (conv oman)) (* fun to delay (conv oman) until exception handler inside lift_fun *)
 end
