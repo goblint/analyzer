@@ -5,9 +5,9 @@
     creation_time: 2026-08-12T00:00:00Z
     producer: {name: Test, version: "0.0"}
     task:
-      input_files: [63-alternating-increments-5.c]
+      input_files: [63-triangular-1.c]
       input_file_hashes:
-        63-alternating-increments-5.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        63-triangular-1.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -15,7 +15,7 @@
     - {name: ghost_t1_phase, scope: global, type: int, initial: {value: "0", format: c_expression}}
     - {name: ghost_t2_phase, scope: global, type: int, initial: {value: "0", format: c_expression}}
     ghost_updates:
-    - location: {file_name: 63-alternating-increments-5.c, line: 17, column: 5, function: t1}
+    - location: {file_name: 63-triangular-1.c, line: 17, column: 5, function: t1}
       updates: [{variable: ghost_t1_phase, value: "ghost_t1_phase + 1", format: c_expression}]
-    - location: {file_name: 63-alternating-increments-5.c, line: 26, column: 5, function: t2}
+    - location: {file_name: 63-triangular-1.c, line: 26, column: 5, function: t2}
       updates: [{variable: ghost_t2_phase, value: "ghost_t2_phase + 1", format: c_expression}]
