@@ -642,12 +642,7 @@ struct
 
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v:t =
-    if Idx.to_int i = Some Z.one  then
-      Partitioned ((Cil.integer 0), (v, v, v))
-    else if Val.is_bot v then
-      Joint (Val.bot ())
-    else
-      Joint v
+    Joint v
 
   let length _ = None
 
