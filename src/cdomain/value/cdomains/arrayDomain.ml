@@ -720,6 +720,7 @@ struct
     smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
   let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
+    let x2 = smart_join_with_length length x1_eval_int x2_eval_int x1 x2 in (* TODO: figure out why smart_op requires joined second argument when widening *)
     smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
   let smart_leq_with_length length x1_eval_int x2_eval_int x1 x2 =
