@@ -311,7 +311,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
+        ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -422,7 +422,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -454,7 +454,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -481,7 +481,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local   = e
       ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-      ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+      ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
       ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
       ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
       }

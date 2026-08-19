@@ -1,0 +1,21 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000061
+    creation_time: 2026-08-03T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [61-alternating-increments.c]
+      input_file_hashes:
+        61-alternating-increments.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - {name: ghost_t1_phase, scope: global, type: int, initial: {value: "0", format: c_expression}}
+    - {name: ghost_t2_phase, scope: global, type: int, initial: {value: "0", format: c_expression}}
+    ghost_updates:
+    - location: {file_name: 61-alternating-increments.c, line: 17, column: 5, function: t1}
+      updates: [{variable: ghost_t1_phase, value: "ghost_t1_phase + 1", format: c_expression}]
+    - location: {file_name: 61-alternating-increments.c, line: 26, column: 5, function: t2}
+      updates: [{variable: ghost_t2_phase, value: "ghost_t2_phase + 1", format: c_expression}]

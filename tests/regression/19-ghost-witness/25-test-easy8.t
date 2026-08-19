@@ -33,7 +33,7 @@ The phase change is atomic with thread 2 publishing `c = 1`.
     live: 26
     dead: 3 (1 in uncalled functions)
     total lines: 29
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@25-test-easy8.c:63:3-63:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@25-test-easy8.c:63:3-63:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -63,7 +63,7 @@ The second witness also states the final phase and published Boolean values.
     live: 26
     dead: 3 (1 in uncalled functions)
     total lines: 29
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@25-test-easy8.c:63:3-63:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@25-test-easy8.c:63:3-63:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 4
     unconfirmed: 0
@@ -97,7 +97,7 @@ The second witness also states the final phase and published Boolean values and 
     live: 26
     dead: 3 (1 in uncalled functions)
     total lines: 29
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@25-test-easy8.c:63:3-63:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@25-test-easy8.c:63:3-63:37] and has known lower and upper bounds
   [Info][Witness] unassume invariant: ((ghost_thread2_phase == (int )c && (int )c == 1) && (int )b == 1) && ghost_thread2_phase == 1 (25-test-easy8.c:65:3-65:22)
   [Info][Witness] witness validation summary:
     confirmed: 4

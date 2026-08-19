@@ -14,7 +14,6 @@ Does not succeed without the counter ghosts.
     live: 27
     dead: 0
     total lines: 27
-  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
 
 Track each increment at the corresponding `myglobal` assignment. With both
@@ -37,10 +36,9 @@ The run with the full value of 20 takes around 12 minutes, so here we exercise i
     dead: 1 (1 in uncalled functions)
     total lines: 27
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.c:28:40-28:47)
-  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
-  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -71,10 +69,9 @@ The second witness additionally contains final counter and value invariants.
     dead: 1 (1 in uncalled functions)
     total lines: 27
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.c:28:40-28:47)
-  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.c:64:10-64:71)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.c:75:10-75:41)
-  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
@@ -112,10 +109,9 @@ this run.
     dead: 3 (3 in uncalled functions)
     total lines: 29
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.i:13:40-13:47)
-  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.i:1343:10-1343:86)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.i:1353:10-1353:49)
-  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.i:1343:10-1343:86] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.i:1343:10-1343:86] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -148,10 +144,9 @@ The preprocessed input also accepts the final counter and value invariants.
     dead: 3 (3 in uncalled functions)
     total lines: 29
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.i:13:40-13:47)
-  [Info][Imprecise] Invalidating expressions: & tmp (22-pthread-demo-datarace.i:1343:10-1343:86)
   [Info][Imprecise] Invalidating expressions: & tmp___0 (22-pthread-demo-datarace.i:1353:10-1353:49)
-  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.i:1343:10-1343:86] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.i:1343:10-1343:86] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
@@ -183,8 +178,8 @@ Run with the second witness, which additionally contains final counter and value
     dead: 1 (1 in uncalled functions)
     total lines: 27
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (22-pthread-demo-datarace.c:28:40-28:47)
-  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_increments is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_worker_increments is only accessed by unique thread [main, thread_function_mutex@22-pthread-demo-datarace.c:64:10-64:71] and has known lower and upper bounds
   [Info][Witness] unassume invariant: (myglobal == 6 && myglobal == ghost_worker_increments + ghost_main_increments) && (ghost_worker_increments == 3 && ghost_main_increments == 3) (22-pthread-demo-datarace.c:75:10-75:41)
   [Info][Witness] unassume invariant: (myglobal == 6 && myglobal == ghost_worker_increments + ghost_main_increments) && (ghost_worker_increments == 3 && ghost_main_increments == 3) (22-pthread-demo-datarace.c:77:7-77:15)
   [Info][Witness] witness validation summary:

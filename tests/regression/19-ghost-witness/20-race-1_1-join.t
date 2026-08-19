@@ -44,8 +44,8 @@ Run with the second witness, which additionally contains phase/value invariants.
   [Warning][Deadcode][CWE-570] condition '! (pdev == 5)' is always false (20-race-1_1-join.c:55:8-55:18)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.c:51:4-51:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.c:51:4-51:29)
-  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.c:33:7-33:46] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.c:33:7-33:46] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 4
     unconfirmed: 0
@@ -85,8 +85,8 @@ separate, allowing all four assertions to be verified.
   [Warning][Deadcode][CWE-570] condition '! (pdev == 5)' is always false (20-race-1_1-join.c:55:8-55:18)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.c:51:4-51:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.c:51:4-51:29)
-  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.c:33:7-33:46] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.c:33:7-33:46] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -121,8 +121,8 @@ Run with the second witness, which additionally contains phase/value invariants 
   [Warning][Deadcode][CWE-570] condition '! (pdev == 5)' is always false (20-race-1_1-join.c:55:8-55:18)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.c:51:4-51:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.c:51:4-51:29)
-  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.c:33:7-33:46] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.c:33:7-33:46] and has known lower and upper bounds
   [Info][Witness] unassume invariant: ghost_thread1_phase == 1 && pdev == 6 (20-race-1_1-join.c:21:8-21:18)
   [Info][Witness] unassume invariant: ghost_main_phase == 1 && pdev == 1 (20-race-1_1-join.c:30:8-30:18)
   [Info][Witness] unassume invariant: ghost_main_phase == 2 && pdev == 3 (20-race-1_1-join.c:41:8-41:18)
@@ -195,8 +195,8 @@ Run the preprocessed input with the second witness, which additionally contains 
   [Warning][Deadcode][CWE-570] condition '! expression' is always false (20-race-1_1-join.i:1693:39-1693:50)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.i:1719:4-1719:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.i:1719:4-1719:29)
-  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 4
     unconfirmed: 0
@@ -238,8 +238,8 @@ Run the preprocessed input with the phase ghost witness
   [Warning][Deadcode][CWE-570] condition '! expression' is always false (20-race-1_1-join.i:1693:39-1693:50)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.i:1719:4-1719:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.i:1719:4-1719:29)
-  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -277,8 +277,8 @@ Run the preprocessed input with phase/value invariants and unassume them
   [Warning][Deadcode][CWE-570] condition '! expression' is always false (20-race-1_1-join.i:1693:39-1693:50)
   [Info][Unsound] Unknown address in status has escaped. (20-race-1_1-join.i:1719:4-1719:29)
   [Info][Unsound] Unknown value in ? could be an escaped pointer address! (20-race-1_1-join.i:1719:4-1719:29)
-  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_main_phase is only accessed by unique thread [main] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@20-race-1_1-join.i:1709:7-1709:61] and has known lower and upper bounds
   [Info][Witness] unassume invariant: ghost_thread1_phase == 1 && pdev == 6 (20-race-1_1-join.i:1700:4-1700:23)
   [Info][Witness] unassume invariant: ghost_main_phase == 1 && pdev == 1 (20-race-1_1-join.i:1707:4-1707:23)
   [Info][Witness] unassume invariant: ghost_main_phase == 1 && pdev == 1 (20-race-1_1-join.i:1708:7-1708:30)
