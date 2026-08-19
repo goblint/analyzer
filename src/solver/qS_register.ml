@@ -38,13 +38,13 @@ let _ =
   add ("qss_w",    (module AddPost (QSs (WideningUpdate))));
   add ("qss_wnw",  (module AddPost (QSs (WNUpdate))));
   add ("qss_cwnw", (module AddPost (QSs (CopyUpdate))));
-  add ("qss_cwnw_wnw", (module AddPost (QSs (DefaultUpdate))))
+  add ("qss_cwnw_w", (module AddPost (QSs (DefaultUpdate))))
 
 let _ =
   add ("qssi_w",    (module AddPost (QSsi (WideningUpdate))));
   add ("qssi_wnw",  (module AddPost (QSsi (WNUpdate))));
   add ("qssi_cwnw", (module AddPost (QSsi (CopyUpdate))));
-  add ("qssi_cwnw_wnw", (module AddPost (QSsi (DefaultUpdate))))
+  add ("qssi_cwnw_w", (module AddPost (QSsi (DefaultUpdate))))
 
 
 (* --------- *)
@@ -58,7 +58,9 @@ let _ =
   add ("qsr_nosides",    
        (module AddPost (QSg.Make (QSg.Control) (NoSideReset) (CopyUpdate))));
   add ("qsr_nosides_dead",    
-       (module AddPost (QSg.Make (QSg.Control) (NoSideResetDead) (CopyUpdate))))
+       (module AddPost (QSg.Make (QSg.Control) (NoSideResetDead) (CopyUpdate))));
+  add ("qsr_nosides_dead_w",    
+       (module AddPost (QSg.Make (QSg.Control) (NoSideResetDead) (DefaultUpdate))))
 
 (* --------- *)
 
@@ -77,13 +79,17 @@ let _ =
   add ("qso_w",    (module AddPost (QSo (WideningUpdate))));
   add ("qso_wnw",  (module AddPost (QSo (WNUpdate))));
   add ("qso_cwnw", (module AddPost (QSo (CopyUpdate))));
-  add ("qso_c0wnw", (module AddPost (QSo (Copy0Update))));
-  add ("qso_cwnw_wnw", (module AddPost (QSo (DefaultUpdate))))
+  add ("qso_cwnw_w", (module AddPost (QSo (DefaultUpdate))))
 
 
 let _ =
   add ("qsoi_w",    (module AddPost (QSoi (WideningUpdate))));
   add ("qsoi_wnw",  (module AddPost (QSoi (WNUpdate))));
   add ("qsoi_cwnw", (module AddPost (QSoi (CopyUpdate))));
-  add ("qsoi_c0wnw", (module AddPost (QSoi (Copy0Update))));
-  add ("qsoi_cwnw", (module AddPost (QSoi (DefaultUpdate))))
+  add ("qsoi_cwnw_w", (module AddPost (QSoi (DefaultUpdate))))
+
+
+
+(* QSOLVER_RELUCTANT_BEGIN *)
+let () = QS_reluctant_register.registered
+(* QSOLVER_RELUCTANT_END *)

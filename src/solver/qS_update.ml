@@ -131,6 +131,6 @@ struct
   type phase = M.phase
 
   let initial_phase is_side_effect _variable =
-    if is_side_effect then M.BoxW 0 else M.Copy 0
+    if is_side_effect then M.Widen else M.Copy 0
   let update = M.update
 end
