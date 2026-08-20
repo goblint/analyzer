@@ -601,9 +601,9 @@ struct
   let combine_assign man r fe f args fc es f_ask = lift_fun man D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
   let threadenter man ~multiple lval f args = lift_fun man (List.map D.lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval) []
-  let threadspawn man ~multiple lval f args fman = lift_fun man D.lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval) `Bot
+  let threadspawn man ~multiple lval f args fman = lift_fun man D.lift (S.threadspawn ~multiple) (fun p -> p lval f args (conv fman)) `Bot (* fun to delay (conv fman) until exception handler inside lift_fun *)
 
-  let event (man:(D.t,G.t,C.t,V.t) man) (e:Events.t) (oman:(D.t,G.t,C.t,V.t) man):D.t = lift_fun man D.lift S.event ((|>) (conv oman) % (|>) e) `Bot
+  let event (man:(D.t,G.t,C.t,V.t) man) (e:Events.t) (oman:(D.t,G.t,C.t,V.t) man):D.t = lift_fun man D.lift S.event (fun p -> p e (conv oman)) `Bot (* fun to delay (conv oman) until exception handler inside lift_fun *)
 end
 
 
