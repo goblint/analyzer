@@ -42,7 +42,12 @@
   $ cfgDot --unroll 1 15-unrolled-loop-asm-goto.c
   [Info] unrolling loop at 15-unrolled-loop-asm-goto.c:6:3-18:3 with factor 1
 
-  $ PERL_RAND_SEED=0 PERL_HASH_SEED=0 graph-easy --as=boxart main.dot
+  $ echo $PERL_RAND_SEED
+  0
+  $ echo $PERL_HASH_SEED
+  0
+
+  $ graph-easy --as=boxart main.dot
                                                                                                                                                                                                        ┌─────────────────────────────────────────────────────┐
                                                                                                                                                                                                        │ main()                                              │
                                                                                                                                                                                                        └─────────────────────────────────────────────────────┘
