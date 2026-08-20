@@ -559,6 +559,8 @@ struct
          let st = invalidate_one ask man st lv in
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
+    | ThreadCreate _, _ ->
+      st (* result is invalidated by the framework after threadspawn *)
     | _, _ ->
       let st' = special_unknown_invalidate man f args in
       (* invalidate lval if present *)
@@ -675,7 +677,10 @@ struct
       let new_rel = make_callee_rel ~thread:true man fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      [special_unknown_invalidate man f args]
+      (* Keep the creator state for evaluating the unknown function's arguments.
+         The framework applies its special transfer after constructing the
+         complete spawned state. *)
+      [st]
 
   let threadspawn man ~multiple lval f args fman =
     man.local
