@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] expRelation
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --disable ana.queryproviders.exprelation
 #include <goblint.h>
 
 void main() {

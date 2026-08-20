@@ -37,6 +37,8 @@ module MCPAccess = MCPAccess
     Query results from different analyses for the same query are {{!Lattice.S.meet} met} for precision. *)
 
 module Queries = Queries
+module QueryProvider = QueryProvider
+module ExpRelation = ExpRelation
 
 (** MCP allows activated analyses to emit events to each other during the analysis. *)
 
@@ -188,7 +190,6 @@ module AccessAnalysis = AccessAnalysis
 module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
-module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
 module StartStateAnalysis = StartStateAnalysis
