@@ -384,12 +384,12 @@ class patchLabelsGotosVisitor(newtarget) = object
     match s.skind with
     | Goto (target,loc) ->
       (match newtarget !target with
-       | None -> SkipChildren
+       | None -> SkipChildren (* Could copy target ref as well to unshare, but that shouldn't be necessary nor make a difference: the refs are just modified initially in Cabs2cil and not later, so (un)sharing is irrelevant. *)
        | Some nt -> s.skind <- Goto (ref nt, loc); DoChildren)
     | Asm a ->
       let (changed, gotos') = List.fold_left_map (fun acc target ->
           match newtarget !target with
-          | None -> (acc, target) (* TODO: need to copy target ref as well? *)
+          | None -> (acc, target) (* Could copy target ref as well to unshare, but that shouldn't be necessary nor make a difference: the refs are just modified initially in Cabs2cil and not later, so (un)sharing is irrelevant. *)
           | Some nt -> (true, ref nt)
         ) false a.gotos
       in
