@@ -252,6 +252,37 @@ struct
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
   let choose = unsigned_min_binding
+
+  (* patricia-tree 0.14.0's own reflexive_compare is not antisymmetric. In the
+     case where one trie's branch contains the other's, it decides which subtree
+     of the containing trie to descend into with [mb land pa]; that is the test
+     for the mirrored case, and this one needs [ma land pb]
+     (functors.ml:656-658). Two maps can then each compare smaller than the
+     other. Map.Make over such a map keeps both as separate keys, so a join over
+     the map drops one of them and the solver widens against a value the join no
+     longer covers -- Lattice.Invalid_widen, seen in
+     tests/regression/90-libseff/50-resume-loop-path-join.c with
+     ana.path_sens[+] base, whose two path buckets are keyed by two base states
+     that differ by one variable. Compare the bindings in the order to_seq
+     produces them, which is unsigned key order, and compare the keys in that
+     same order, so the result is a total order. *)
+  let reflexive_compare f x y =
+    if x == y then 0
+    else
+      let rec compare_seq s1 s2 = match s1 (), s2 () with
+        | Seq.Nil, Seq.Nil -> 0
+        | Seq.Nil, Seq.Cons _ -> -1
+        | Seq.Cons _, Seq.Nil -> 1
+        | Seq.Cons ((k1, v1), s1'), Seq.Cons ((k2, v2), s2') ->
+          (* Unsigned order, as [x - min_int] maps the unsigned order onto the
+             signed one; [Int.unsigned_compare] is not in OCaml 4.14. *)
+          let c = Stdlib.compare (K.to_int k1 - min_int) (K.to_int k2 - min_int) in
+          if c <> 0 then c
+          else
+            let c = f v1 v2 in
+            if c <> 0 then c else compare_seq s1' s2'
+      in
+      compare_seq (to_seq x) (to_seq y)
 end
 
 module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
