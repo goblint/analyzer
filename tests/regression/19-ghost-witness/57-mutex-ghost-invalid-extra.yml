@@ -1,0 +1,285 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000033
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 57-mutex-ghost-invalid-extra.c
+      input_file_hashes:
+        57-mutex-ghost-invalid-extra.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_1
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_2
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_3
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_4
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 10
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 12
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 16
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 21
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 23
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 39
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 41
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 11
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 14
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 23
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 25
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 27
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 11
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_3
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 14
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 21
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 25
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 27
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 10
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 11
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 14
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 16
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 21
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 23
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 25
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 27
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_4
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 39
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_4
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-invalid-extra.c
+        line: 41
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_4
+        value: "0"
+        format: c_expression

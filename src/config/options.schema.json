@@ -353,7 +353,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet","phaseGhostSplit"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -782,9 +782,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
+                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/mutex-meet-tid-ghost/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
+              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "mutex-meet-tid-ghost", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid","protection-atomic-ghost"],
               "default": "protection-read"
             },
             "priv": {
@@ -989,9 +989,9 @@
             "privatization": {
               "title": "ana.relation.privatization",
               "description":
-                "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+                "Which relation privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-atomic/mutex-meet-tid/mutex-meet-tid-atomic/mutex-meet-tid-atomic-ghost/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
-              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-atomic", "mutex-meet-tid", "mutex-meet-tid-atomic", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-atomic", "mutex-meet-tid", "mutex-meet-tid-atomic", "mutex-meet-tid-atomic-ghost", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
@@ -1270,6 +1270,12 @@
           "title": "ana.unassume",
           "type": "object",
           "properties": {
+            "ghost": {
+              "title": "ana.unassume.ghost",
+              "description": "Unassume also expressions containing ghost variables.",
+              "type": "boolean",
+              "default": false
+            },
             "precheck": {
               "title": "ana.unassume.precheck",
               "description": "Check if invariant contradicts reached state before unassuming.",
@@ -2868,11 +2874,23 @@
               "type": "boolean",
               "default": false
             },
+            "lenient-location-matching": {
+              "title": "witness.yaml.lenient-location-matching",
+              "description": "Match witness locations by basename instead of full path.",
+              "type": "boolean",
+              "default": false
+            },
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
               "type": "string",
               "default": ""
+            },
+            "verdict-witness-only" :{
+              "title" : "witness.yaml.verdict-witness-only",
+              "description" : "Determine the verdict solely from witness validation, ignoring whether the analyzed property holds.",
+              "type" : "boolean",
+              "default" : false
             }
           },
           "additionalProperties": false

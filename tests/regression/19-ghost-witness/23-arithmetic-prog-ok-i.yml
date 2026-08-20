@@ -1,0 +1,40 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000234
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 23-arithmetic-prog-ok.i
+      input_file_hashes:
+        23-arithmetic-prog-ok.i: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_total_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location:
+        file_name: 23-arithmetic-prog-ok.i
+        line: 896
+        column: 5
+        function: thread2
+      updates:
+      - variable: ghost_total_phase
+        value: "ghost_total_phase + 1"
+        format: c_expression
+    - location:
+        file_name: 23-arithmetic-prog-ok.i
+        line: 902
+        column: 3
+        function: thread2
+      updates:
+      - variable: ghost_total_phase
+        value: "ghost_total_phase + 1"
+        format: c_expression

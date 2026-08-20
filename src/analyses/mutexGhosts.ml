@@ -63,8 +63,12 @@ struct
 
   let event man e oman =
     let verifier_atomic_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var in
+    let verifier_atomic_instrument_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_instrument_var in
+    let is_verifier_atomic_addr l =
+      LockDomain.Addr.equal l verifier_atomic_addr || LockDomain.Addr.equal l verifier_atomic_instrument_addr
+    in
     begin match e with
-      | Events.Lock (l, _) when not (LockDomain.Addr.equal l verifier_atomic_addr) ->
+      | Events.Lock (l, _) when not (is_verifier_atomic_addr l) ->
         man.sideg (V.node man.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()));
         if !AnalysisState.postsolving then (
           man.sideg V.update (G.create_update (NodeSet.singleton man.prev_node));
@@ -77,7 +81,7 @@ struct
               ) locked
           );
         )
-      | Events.Unlock l when not (LockDomain.Addr.equal l verifier_atomic_addr) ->
+      | Events.Unlock l when not (is_verifier_atomic_addr l) ->
         man.sideg (V.node man.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()));
         if !AnalysisState.postsolving then (
           man.sideg V.update (G.create_update (NodeSet.singleton man.prev_node));

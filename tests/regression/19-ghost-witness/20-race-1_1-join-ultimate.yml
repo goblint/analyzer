@@ -1,0 +1,66 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000207
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 20-race-1_1-join-ultimate.i
+      input_file_hashes:
+        20-race-1_1-join-ultimate.i: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_main_phase
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_thread1_phase
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 20-race-1_1-join-ultimate.i
+        line: 1712
+        column: 4
+        function: module_init
+      updates:
+      - variable: ghost_main_phase
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 20-race-1_1-join-ultimate.i
+        line: 1720
+        column: 4
+        function: module_init
+      updates:
+      - variable: ghost_main_phase
+        value: "2"
+        format: c_expression
+    - location:
+        file_name: 20-race-1_1-join-ultimate.i
+        line: 1731
+        column: 4
+        function: module_exit
+      updates:
+      - variable: ghost_main_phase
+        value: "3"
+        format: c_expression
+    - location:
+        file_name: 20-race-1_1-join-ultimate.i
+        line: 1703
+        column: 4
+        function: thread1
+      updates:
+      - variable: ghost_thread1_phase
+        value: "1"
+        format: c_expression
