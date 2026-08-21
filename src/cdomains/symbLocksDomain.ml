@@ -357,11 +357,34 @@ struct
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st
-  let remove ask e st =
-    (* TODO: Removing based on must-equality sets is not sound! *)
-    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
-    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
-    S.diff st addrs
+
+  let remove (ask: Queries.ask) e st =
+    (* No stripCastsDeepForPtrArith needed: MayPointTo handles casts semantically. *)
+    let pt_e = ask.f (Queries.MayPointTo e) in
+    S.filter (fun l ->
+        match l with
+        | AddrOf (Var v, o) ->
+          (* Base represents address indices as ptrdiff_t. Normalize concrete CIL
+             indices likewise: retaining their original integer kind here would
+             make semantic_equal raise IncompatibleIKinds while computing byte
+             offsets. Non-constant indices remain top, as with Offs.of_exp. *)
+          let rec offset = function
+            | NoOffset -> `NoOffset
+            | Field (f, o) -> `Field (f, offset o)
+            | Index (Const (CInt (i, _, _)), o) ->
+              `Index (ValueDomain.IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) i, offset o)
+            | Index (_, o) ->
+              `Index (ValueDomain.IndexDomain.top (), offset o)
+          in
+          let addr_l = Queries.AD.Addr.of_mval (v, offset o) in
+          (* Keep l iff every possible address is definitely unequal; unknown
+             equality therefore conservatively removes l. *)
+          Queries.AD.for_all (fun ae ->
+              Queries.AD.Addr.semantic_equal ae addr_l = Some false
+            ) pt_e
+        | _ ->
+          Queries.AD.is_bot (Queries.AD.meet pt_e (ask.f (Queries.MayPointTo l)))
+      ) st
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
 
   let filter = S.filter
