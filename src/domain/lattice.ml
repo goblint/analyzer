@@ -19,7 +19,7 @@ sig
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
-  val widen: t -> t -> t (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
+  val widen: t -> t -> t (** [widen x y] {e cannot} assume [leq x y]. *)
 
   val narrow: t -> t -> t
 
@@ -57,17 +57,6 @@ exception BotValue
 (** Exception raised by a bottomless lattice in place of a bottom value.
     Surrounding lattice functors may handle this on their own. *)
 
-exception Invalid_widen of Pretty.doc
-
-let () = Printexc.register_printer (function
-    | Invalid_widen doc ->
-      Some (GobPretty.sprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc)
-    | _ -> None (* for other exceptions *)
-  )
-
-let assert_valid_widen ~leq ~pretty_diff x y =
-  if not (leq x y) then
-    raise (Invalid_widen (pretty_diff () (x, y)))
 
 module UnitConf (N: Printable.Name) =
 struct
@@ -289,7 +278,7 @@ struct
         try `Lifted (Base.widen x y)
         with TopValue | Uncomparable -> `Top
       end
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -367,7 +356,7 @@ struct
     match (x,y) with
     | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.widen x y)
     | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.widen x y)
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -457,7 +446,7 @@ struct
   let widen x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -509,7 +498,7 @@ struct
         try `Lifted (Base.widen x y)
         with TopValue -> `Top
       end
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with

@@ -124,7 +124,7 @@ module C2PODomain = struct
     data_to_t filtered_join
 
   let widen_eq_classes a b =
-    join_f a b widen_eq_no_automata
+    join_f a (join a b) widen_eq_no_automata (* TODO: join needed? *)
 
   let widen a b =
     if M.tracing then M.trace "c2po-widen" "WIDEN\n";
