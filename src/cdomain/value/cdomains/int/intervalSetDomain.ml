@@ -617,7 +617,7 @@ struct
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
-    let list_pair_arb = QCheck.small_list pair_arb in
+    let list_pair_arb = QCheck.list_small pair_arb in
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
     let shrink xs = GobQCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)

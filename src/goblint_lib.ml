@@ -181,13 +181,15 @@ module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module BranchSet = BranchSet
-module StackTrace = StackTrace
 
 (** {2 Helper}
 
     Analyses which only support other analyses. *)
 
 module AccessAnalysis = AccessAnalysis
+module PhaseGhost = PhaseGhost
+module PhaseGhostSplit = PhaseGhostSplit
+module MutexGhost = MutexGhost
 module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
@@ -318,7 +320,6 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module StackDomain = StackDomain
 
 (** {2 Testing}
 

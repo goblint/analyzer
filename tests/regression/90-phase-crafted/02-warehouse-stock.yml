@@ -1,0 +1,70 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009002
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [02-warehouse-stock.c]
+      input_file_hashes:
+        02-warehouse-stock.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_receiver_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_picker_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_cycle_counter_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 02-warehouse-stock.c, line: 16, column: 3, function: receiver}
+      updates:
+      - variable: ghost_receiver_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 02-warehouse-stock.c, line: 29, column: 3, function: picker}
+      updates:
+      - variable: ghost_picker_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 02-warehouse-stock.c, line: 32, column: 3, function: picker}
+      updates:
+      - variable: ghost_picker_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 02-warehouse-stock.c, line: 43, column: 3, function: cycle_counter}
+      updates:
+      - variable: ghost_cycle_counter_phase
+        value: "1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000019002
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [02-warehouse-stock.c]
+      input_file_hashes:
+        02-warehouse-stock.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: 02-warehouse-stock.c, line: 60, column: 3, function: main}
+      value: ghost_receiver_phase >= 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 02-warehouse-stock.c, line: 60, column: 3, function: main}
+      value: ghost_picker_phase >= 0
+      format: c_expression

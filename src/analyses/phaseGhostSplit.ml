@@ -1,0 +1,386 @@
+(** Analysis for propagating phase changes of ghost globals accepted by [phaseGhost]. *)
+
+open Analyses
+open GoblintCil
+
+module TID = ThreadIdDomain.Thread
+module TIDs = ConcDomain.ThreadSet
+module LF = LibraryFunctions
+module ZMap = Map.Make (struct type t = Z.t let compare = Z.compare end)
+
+module Const =
+struct
+  include Queries.PhaseDigestConst
+  let name () = "ghost-constant"
+end
+
+module Spec =
+struct
+  include IdentitySpec
+
+  let name () = "phaseGhostSplit"
+
+  module D = Queries.PhaseDigestState
+  include ValueContexts (D)
+  module P = IdentityP (D)
+
+  module V = VarinfoV
+
+  module MHPs =
+  struct
+    include SetDomain.ToppedSet (MCPAccess.A) (struct let topname = "All phase accesses" end)
+
+    let can_any_mhp (other:MCPAccess.A.t) = exists (MCPAccess.A.may_race other)
+
+    let name () = "ghost-phase-accesses"
+  end
+
+  module MCPPhaseInfo = MCPAccess.AuxiliaryPhaseInfo
+
+  module MHPsPlusMCPPhaseInfo =
+  struct
+    include Lattice.Prod (MHPs) (MCPPhaseInfo)
+  end
+
+  module PhaseChange =
+  struct
+    include Printable.Prod (Const) (MHPsPlusMCPPhaseInfo)
+    let name () = "ghost-phase-change"
+  end
+
+  module OutgoingPhaseChanges =
+  struct
+    include SetDomain.Make (PhaseChange)
+    let name () = "ghost-outgoing-phase-changes"
+  end
+
+  module PhaseChanges =
+  struct
+    include MapDomain.MapBot (Const) (OutgoingPhaseChanges)
+    let name () = "ghost-phase-changes"
+  end
+
+  module G =
+  struct
+    (* fist component: constant value when the thread returns *)
+    (* second component: map from origin of phase change to targets with MHP information under which this change can happen  *)
+    include Lattice.Prod (Const) (PhaseChanges)
+    let const_at_thread_end (const, _) = const
+    let changes (_, changes) = changes
+    let create_const_at_thread_end const = (const, PhaseChanges.bot ())
+    let create_change origin target mhp pinfo =
+      (Const.bot (), (PhaseChanges.singleton origin (OutgoingPhaseChanges.singleton (target, (MHPs.singleton mhp, pinfo)))))
+
+    let possible_changes_after (_, changes) current currmhp =
+      match PhaseChanges.find_opt (`Lifted current) changes with
+      | Some outgoing ->
+        OutgoingPhaseChanges.fold (fun (target, (accesses, pinfo)) acc ->
+            match target with
+            | `Lifted target when not (Z.equal current target) && MHPs.can_any_mhp currmhp accesses ->
+              (target, pinfo) :: acc
+            | _ ->
+              acc
+          ) outgoing []
+      | None ->
+        []
+  end
+
+  let initial_ghost_values () =
+    List.fold_left (fun acc -> function
+        | GVar (v, initinfo, _) when YamlWitness.VarSet.mem v !(YamlWitness.ghostVars) ->
+          begin match initinfo.init with
+            | Some (SingleInit exp) ->
+              begin match Cil.getInteger (Cil.constFold true exp) with
+                | Some z -> D.add v (`Lifted z) acc
+                | None -> acc
+              end
+            | None when Cil.isIntegralType v.vtype ->
+              D.add v (`Lifted Z.zero) acc
+            | _ ->
+              acc
+          end
+        | _ ->
+          acc
+      ) (D.bot ()) !Cilfacade.current_file.globals
+
+  let startstate _ = initial_ghost_values ()
+  let exitstate _ = initial_ghost_values ()
+
+  let is_phase_ghost man var = man.ask (Queries.IsPhaseGhost var)
+
+  let phase_ghosts man =
+    YamlWitness.VarSet.elements !(YamlWitness.ghostVars)
+    |> List.filter (is_phase_ghost man)
+
+  let tids_of_current_thread man =
+    match man.ask Queries.CurrentThreadId with
+    | `Lifted tid when TID.is_unique tid -> TIDs.singleton tid
+    | _ -> TIDs.top ()
+
+  (* This local constant folding intentionally disregards writes from other threads.
+     It is only for the phaseGhost checker itself. *)
+  (* This information must **not** be used to refine other analyses,
+     because it is unsound in the presence of other threads interfering. By the same token, it must
+     be not used to raise Deadcode in branch. *)
+  let rec eval_const state e =
+    match Cil.stripCasts e with
+    | Const _ ->
+      Cil.getInteger (Cil.constFold true e)
+    | Lval (Var var, NoOffset) when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
+      begin match D.find_opt var state with
+        | Some (`Lifted z) -> Some z
+        | _ -> None
+      end
+    | UnOp (Neg, e, _) ->
+      Option.map Z.neg (eval_const state e)
+    | BinOp (PlusA, e1, e2, _)
+    | BinOp (IndexPI, e1, e2, _)
+    | BinOp (PlusPI, e1, e2, _) ->
+      Option.bind (eval_const state e1) (fun z1 ->
+          Option.map (Z.add z1) (eval_const state e2)
+        )
+    | BinOp (MinusA, e1, e2, _) ->
+      Option.bind (eval_const state e1) (fun z1 ->
+          Option.map (Z.sub z1) (eval_const state e2)
+        )
+    | BinOp (Mult, e1, e2, _) ->
+      Option.bind (eval_const state e1) (fun z1 ->
+          Option.map (Z.mul z1) (eval_const state e2)
+        )
+    | _ ->
+      None
+
+  let eval_rval man state e =
+    match eval_const state e with
+    | Some z -> Some z
+    | None ->
+      match man.ask (Queries.EvalInt e) with
+      | `Lifted value -> IntDomain.IntDomTuple.to_int value
+      | _ -> None
+
+  let current_mhp man: MCPAccess.A.t =
+    Obj.obj (man.ask (PartAccess Point))
+
+  let current_pinfo man: MCPPhaseInfo.t =
+    Obj.obj (man.ask PhaseInfo)
+
+  let sync man reason =
+    match reason with
+    | `NormalInCallTF ->
+      (* Do not change phase in the middle of the combine call! *)
+      man.local
+    | _ ->
+      (* We cannot get away with doing this after release-like operations, we may save values into ghosts and then assert that they are unchanged across lines which is false. *)
+      if !AnalysisState.global_initialization then
+        man.local
+      else
+        (* A ghost's phase status depends on global information and may become
+           known only after other forward-solver unknowns have been evaluated.
+           Keep the local value while the status is not yet established; it is
+           ignored unless [is_phase_ghost] holds and non-phase writes still top
+           it in [assign]. *)
+        let local = man.local in
+        let possible_advances_here m var =
+          if man.ask Queries.MustBeAtomic then
+            (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
+            (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; [])
+          else
+            match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId, D.find var m  with
+            | `Bot, _, _
+            | _, `Bot, _ ->
+              []
+            | `Lifted owner, _ , `Lifted z ->
+              G.possible_changes_after (man.global var) z (current_mhp man)
+            | _ ->
+              failwith "assumption about ghost owner violated"
+        in
+        (* At a synchronization point, another thread may have performed zero
+           or more known phase changes since this path last synchronized.  We
+           therefore compute the transitive closure of possible changes for
+           every phase ghost and split once for every resulting combination.
+
+           Ghosts are handled one after another. [m] contains the choices made
+           for ghosts already handled; after computing all reachable values of
+           [var], [handle_vars] continues with the remaining ghosts. This is
+           what constructs the Cartesian product of their reachable phases. *)
+        let rec handle_vars (m, (pinfo:MCPPhaseInfo.t)) = function
+          | []  ->
+            (* Pass the must-information accumulated along the chosen phase
+               changes to the other MCP analyses before exposing this path. *)
+            man.split m [Events.PropAuxiliaryPhaseInfo (Obj.repr pinfo)]
+          | var :: vars ->
+            (* Several change sequences may reach the same numeric phase. The
+               phase alone is not enough for memoization, because the paths may
+               carry different auxiliary must-information. [reached] therefore
+               maps each phase to an antichain of auxiliary states.
+
+               In the lattice order, [new <= old] means that [old] already
+               covers every behavior represented by [new]. Such a new entry is
+               redundant. Conversely, when [old <= new], [new] subsumes [old],
+               so the old entry is removed. Incomparable entries are retained
+               separately: joining them here would lose correlations required
+               when subsequent phase changes or ghosts are processed. *)
+            let add_reached target pinfo (reached, worklist) =
+              let old_pinfos = Option.value ~default:[] (ZMap.find_opt target reached) in
+              if List.exists (MCPPhaseInfo.leq pinfo) old_pinfos then
+                reached, worklist
+              else
+                let pinfos = pinfo :: List.filter (fun old_pinfo -> not (MCPPhaseInfo.leq old_pinfo pinfo)) old_pinfos in
+                ZMap.add target pinfos reached, (target, pinfo) :: worklist
+            in
+            let current =
+              match D.find var m with
+              | `Lifted z -> z
+              | _ -> assert false
+            in
+            let rec collect reached = function
+              | [] -> reached
+              | (phase, phase_pinfo) :: worklist ->
+                let current_pinfos = ZMap.find phase reached in
+                if not (List.exists (MCPPhaseInfo.equal phase_pinfo) current_pinfos) then
+                  (* Worklist entries are not removed eagerly. If a later entry
+                     subsumed this one, it is no longer in the antichain and can
+                     be skipped here. *)
+                  collect reached worklist
+                else
+                  let phased = D.add var (`Lifted phase) m in
+                  let reached, worklist =
+                    List.fold_left (fun acc (target, change_pinfo) ->
+                        (* Along one sequence all must-information has to hold,
+                           hence [meet]. Alternative sequences are represented
+                           by separate antichain entries above. *)
+                        add_reached target (MCPPhaseInfo.meet phase_pinfo change_pinfo) acc
+                      ) (reached, worklist) (possible_advances_here phased var)
+                  in
+                  collect reached worklist
+            in
+            (* Zero phase changes is possible, so seed the closure with the
+               current phase and its incoming auxiliary information. *)
+            let reached = collect (ZMap.singleton current [pinfo]) [current, pinfo] in
+            ZMap.iter (fun phase phase_pinfos ->
+                List.iter (fun phase_pinfo ->
+                    handle_vars (D.add var (`Lifted phase) m, phase_pinfo) vars
+                  ) phase_pinfos
+              ) reached
+        in
+        let traceEvolution () =
+          YamlWitness.VarSet.iter (fun var ->
+              let owner = man.ask (Queries.Owner var) in
+              let phase_ghost = is_phase_ghost man var in
+              let may_advance = phase_ghost && possible_advances_here local var <> [] in
+              M.tracel "phaseGhost" "Ghost %a is %sa phase ghost, has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
+                CilType.Varinfo.pretty var
+                (if phase_ghost then "" else "not ")
+                ThreadIdDomain.ThreadLifted.pretty owner
+                (if may_advance then "" else " not ")
+            ) !(YamlWitness.ghostVars)
+        in
+        if M.tracing then traceEvolution ();
+        handle_vars (local, MCPPhaseInfo.top ()) (phase_ghosts man);
+        raise Deadcode
+
+
+  let assign man lval rval =
+    if !AnalysisState.global_initialization then
+      man.local
+    else
+      let local = man.local in
+      match lval with
+      | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) && not (is_phase_ghost man var) ->
+        D.add var (Const.top ()) local
+      | Var var, NoOffset when is_phase_ghost man var ->
+        (match eval_const local (Lval lval), eval_rval man local rval with
+         | Some old_value, Some new_value ->
+           (let local_new = D.add var (`Lifted new_value) local in
+            let local_pinfo = current_pinfo man in
+            if not (Z.equal old_value new_value) then
+              man.sideg var (G.create_change (`Lifted old_value) (`Lifted new_value) (current_mhp man) (local_pinfo));
+            (* TODO: Prolong until after atomic is over? *)
+            if not (D.equal local local_new) then
+              man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});
+            local_new)
+         | _ ->
+           D.add var (Const.top ()) local)
+      | _ ->
+        local
+
+
+  let handle_return man =
+    let handle_ghost tid varinfo =
+      match man.ask (Queries.Owner varinfo) with
+      | `Lifted gtid when TID.equal tid gtid ->
+        (match D.find_opt varinfo man.local with
+         | Some v -> man.sideg varinfo (G.create_const_at_thread_end v)
+         | _ -> ())
+      | _ -> ()
+    in
+    match ThreadId.get_current (Analyses.ask_of_man man) with
+    | `Lifted tid when TID.is_unique tid ->
+      List.iter (handle_ghost tid) (phase_ghosts man);
+    | _ -> ()
+
+
+
+  let return man exp fundec =
+    if ThreadReturn.is_current (Analyses.ask_of_man man) then
+      handle_return man
+    ;
+    man.local
+
+
+
+  let special man (lv:lval option) (f: varinfo) (args: exp list) =
+    let desc = LF.find f in
+    let st = match desc.special args, f.vname with
+      | ThreadExit _, _ ->
+        handle_return man; man.local
+      | ThreadJoin { thread = id; _ }, _ ->
+        (** Also handle transitively joined threads *)
+        let handle_ghost tid varinfo  =
+          match man.ask (Owner varinfo) with
+          | `Lifted gtid when TID.equal tid gtid ->
+            (match G.const_at_thread_end (man.global varinfo) with
+             | `Lifted z ->
+               begin match D.find_opt varinfo man.local with
+                 | Some (`Lifted z')  when not (Z.equal z z') -> raise Deadcode
+                 | _ -> ()
+               end
+             | `Bot -> raise Deadcode
+             | _ -> ())
+          | _ -> ()
+        in
+        let tids = man.ask (Queries.EvalThread id) in
+        if TIDs.is_top tids || TIDs.is_empty tids || TIDs.is_bot tids then
+          man.local
+        else
+          (match TIDs.elements tids with
+           | [tid] when TID.is_unique tid ->
+             List.iter (handle_ghost tid) (phase_ghosts man);
+             man.local
+           | _ -> man.local)
+      | _ -> man.local
+    in
+    st
+
+
+  let query man (type a) (q: a Queries.t): a Queries.result =
+    let open Queries in
+    match q with
+    | PhaseDigest ->
+      `Lifted man.local
+    | EvalInt e ->
+      let local = man.local in
+      begin match Cil.stripCasts e with
+        | Lval (Var var, NoOffset) when is_phase_ghost man var ->
+          begin match D.find_opt var local with
+            | Some (`Lifted z) -> ID.of_int (Cilfacade.get_ikind_exp e) z
+            | _ -> Result.top q
+          end
+        | _ -> Result.top q
+      end
+    | _ ->
+      Result.top q
+end
+
+let _ =
+  MCP.register_analysis ~dep:["access"; "threadid"; "phaseGhost"] (module Spec : MCPSpec)

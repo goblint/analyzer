@@ -58,6 +58,12 @@ let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
 
+let findAttribute name attrs =
+  List.find_map (function
+      | Attr (name', params) when name' = name -> Some params
+      | _ -> None
+    ) attrs
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := (

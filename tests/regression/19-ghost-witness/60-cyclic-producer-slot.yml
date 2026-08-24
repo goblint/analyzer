@@ -1,0 +1,42 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000060
+    creation_time: 2026-08-03T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 60-cyclic-producer-slot.c
+      input_file_hashes:
+        60-cyclic-producer-slot.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_phase
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 60-cyclic-producer-slot.c
+        line: 15
+        column: 5
+        function: producer
+      updates:
+      - variable: ghost_phase
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 60-cyclic-producer-slot.c
+        line: 19
+        column: 5
+        function: producer
+      updates:
+      - variable: ghost_phase
+        value: "0"
+        format: c_expression

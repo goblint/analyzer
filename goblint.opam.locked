@@ -73,7 +73,7 @@ depends: [
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
   "fs-io" {= "3.21.1"}
-  "goblint-cil" {= "2.0.9"}
+  "goblint-cil" {= "2.1.0"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -108,8 +108,8 @@ depends: [
   "ppx_yojson_conv_lib" {= "v0.16.0" & with-dev-setup}
   "ppxlib" {= "0.35.0"}
   "ptime" {= "1.2.0" & with-doc}
-  "qcheck-core" {= "0.25"}
-  "qcheck-ounit" {= "0.25" & with-test}
+  "qcheck-core" {= "0.91"}
+  "qcheck-ounit" {= "0.91" & with-test}
   "re" {= "1.11.0" & with-doc}
   "result" {= "1.5" & with-doc}
   "rresult" {= "0.7.0"}
@@ -163,8 +163,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.9"
-    "git+https://github.com/goblint/cil.git#2243aad0e34cb59b7d2d18415ab88a7767c108b7"
+    "goblint-cil.2.1.0"
+    "git+https://github.com/goblint/cil.git#f2f244ec2ebb73536a15eb7488af10122c16907e"
   ]
   [
     "batteries.3.11.0"

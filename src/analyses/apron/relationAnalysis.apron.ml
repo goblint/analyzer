@@ -33,6 +33,8 @@ struct
     let of_elt {priv; _} = of_elt priv
   end
 
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
+
   module RV = RD.V
 
   module PCU = PCU(RD)
@@ -559,6 +561,8 @@ struct
          let st = invalidate_one ask man st lv in
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
+    | ThreadCreate _, _ ->
+      st (* result is invalidated by the framework after threadspawn *)
     | _, _ ->
       let st' = special_unknown_invalidate man f args in
       (* invalidate lval if present *)
@@ -659,6 +663,9 @@ struct
     | _ -> Result.top q
 
 
+  let aux_phase_info man = ((Priv.aux_phase_info man.local):AuxiliaryPhaseInfo.t)
+  let consume_aux_phase_info = Priv.consume_aux_phase_info
+
   (* Thread transfer functions. *)
 
   let threadenter man ~multiple lval f args =
@@ -675,7 +682,10 @@ struct
       let new_rel = make_callee_rel ~thread:true man fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      [special_unknown_invalidate man f args]
+      (* Keep the creator state for evaluating the unknown function's arguments.
+         The framework applies its special transfer after constructing the
+         complete spawned state. *)
+      [st]
 
   let threadspawn man ~multiple lval f args fman =
     man.local
@@ -757,6 +767,8 @@ struct
       st
     | Events.Longjmped {lval} ->
       Option.map_default (invalidate_one ask man st) st lval
+    | Events.PhaseChange {old_phase; new_phase} ->
+      Priv.phase_change ask old_phase new_phase man.global man.sideg st
     | _ ->
       st
 
@@ -778,7 +790,7 @@ struct
       PCU.RH.replace results man.node new_value;
     end;
     WideningTokenLifter.with_local_side_tokens (fun () ->
-        Priv.sync (Analyses.ask_of_man man) man.global man.sideg man.local (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
+        Priv.sync (Analyses.ask_of_man man) man.global man.sideg man.local (reason :> [`Normal | `NormalInCallTF | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
       )
 
   let init marshal =

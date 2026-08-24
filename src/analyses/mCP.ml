@@ -147,14 +147,14 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let do_spawns man (xs:(varinfo * (lval option * exp list * bool)) list) =
+  let do_spawns man (xs:(varinfo * (lval option * lval option * exp list * bool)) list) =
     let spawn_one v d =
       if get_bool "exp.single-threaded" then (
         M.msg_final Error ~category:Unsound "Thread not spawned";
         M.error ~category:Unsound "Thread not spawned from %a" CilType.Varinfo.pretty v
       )
       else
-        List.iter (fun (lval, args, multiple) -> man.spawn ~multiple lval v args) d
+        List.iter (fun (result_lval, lval, args, multiple) -> man.spawn ~multiple ~result_lval lval v args) d
     in
     iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
@@ -170,6 +170,15 @@ struct
       iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokenLifter.TS.equal dts
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
+
+  let consume_aux_phase_info (d:D.t) (pinfo:MCPAccess.AuxiliaryPhaseInfo.t) =
+    let f (n,(module S:MCPSpec),(d, pinfo)) =
+      let d' = S.consume_aux_phase_info (Obj.obj d) (Obj.obj pinfo) in
+      n, Obj.repr d'
+    in
+    let ls = spec_list2 d pinfo in
+    let d = map f ls in
+    (d:D.t)
 
   let rec do_splits man pv (xs:(int * (Obj.t * Events.t list)) list) emits =
     let split_one n (d,emits') =
@@ -199,6 +208,10 @@ struct
         man_with_local man (branch man exp tv)
       | Events.Assign {lval; exp} ->
         man_with_local man (assign man lval exp)
+      | Events.PropAuxiliaryPhaseInfo pinfo ->
+        let pinfo:MCPAccess.AuxiliaryPhaseInfo.t = Obj.obj pinfo in
+        if M.tracing then M.tracel "phaseProp" "consume_aux_phase_info: %s\n" (MCPAccess.AuxiliaryPhaseInfo.show pinfo);
+        man_with_local man (consume_aux_phase_info man.local pinfo)
       | e ->
         let spawns = ref [] in
         let splits = ref [] in
@@ -308,6 +321,8 @@ struct
             f ~q:(YamlEntryGlobal (Obj.repr g, task)) (Result.top ()) (n, spec n, assoc n man.local)
           | Queries.PartAccess a ->
             Obj.repr (access man a)
+          | Queries.PhaseInfo ->
+            Obj.repr (aux_phase_info man)
           | Queries.IterSysVars (vq, fi) ->
             (* IterSysVars is special: argument function is lifted for each analysis *)
             iter (fun ((n,(module S:MCPSpec),d) as t) ->
@@ -352,10 +367,18 @@ struct
     in
     BatList.map f (spec_list man.local) (* map without deadcode *)
 
+  and aux_phase_info (man:(D.t, G.t, C.t, V.t) man): MCPAccess.AuxiliaryPhaseInfo.t =
+    let man'' = outer_man "aux_phase_info" man in
+    let f (n, (module S: MCPSpec), d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "aux_phase_info" man'' n d in
+      (n, Obj.repr (S.aux_phase_info man'))
+    in
+    BatList.map f (spec_list man.local) (* map without deadcode *)
+
   and outer_man tfname ?spawns ?sides ?emits man =
     let spawn = match spawns with
-      | Some spawns -> (fun ?(multiple=false) l v a  -> spawns := (v,(l,a,multiple)) :: !spawns)
-      | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
+      | Some spawns -> (fun ?(multiple=false) ~result_lval l v a  -> spawns := (v,(result_lval,l,a,multiple)) :: !spawns)
+      | None -> (fun ?(multiple=false) ~result_lval v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
       | Some sides -> (fun v g    -> sides  := (v, (!WideningTokenLifter.side_tokens, g)) :: !sides)

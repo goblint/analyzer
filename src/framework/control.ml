@@ -104,7 +104,7 @@ struct
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
-  module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module Result = AnalysisResult.Result (LT)
   module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)
@@ -313,7 +313,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
+        ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -363,9 +363,8 @@ struct
     in
 
     let print_globals glob =
-      let out = M.get_out (Spec.name ()) !M.out in
       let print_one v st =
-        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
+        ignore (Pretty.fprintf !M.out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
       in
       GHT.iter print_one glob
     in
@@ -373,7 +372,6 @@ struct
     (* real beginning of the [analyze] function *)
     if get_bool "ana.sv-comp.enabled" then
       Witness.init (module FileCfg); (* TODO: move this out of analyze_loop *)
-    YamlWitness.init ();
 
     AnalysisState.global_initialization := true;
     GobConfig.earlyglobs := get_bool "exp.earlyglobs";
@@ -426,7 +424,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -458,7 +456,7 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+        ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         }
@@ -485,7 +483,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local   = e
       ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-      ; spawn   = (fun ?(multiple=false) _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
+      ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
       ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
       ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
       }

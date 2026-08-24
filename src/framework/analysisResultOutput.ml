@@ -42,7 +42,7 @@ struct
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
-    let out = Messages.get_out result_name !Messages.out in
+    let out = !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "pretty-deterministic" -> ignore (fprintf out "%a\n" pretty_deterministic (Lazy.force table))

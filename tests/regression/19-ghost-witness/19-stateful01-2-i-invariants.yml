@@ -1,0 +1,100 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000195
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 19-stateful01-2.i
+      input_file_hashes:
+        19-stateful01-2.i: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_thread1_phase
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_thread2_phase
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 19-stateful01-2.i
+        line: 697
+        column: 3
+        function: thread1
+      updates:
+      - variable: ghost_thread1_phase
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 19-stateful01-2.i
+        line: 700
+        column: 3
+        function: thread1
+      updates:
+      - variable: ghost_thread1_phase
+        value: "2"
+        format: c_expression
+    - location:
+        file_name: 19-stateful01-2.i
+        line: 707
+        column: 3
+        function: thread2
+      updates:
+      - variable: ghost_thread2_phase
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 19-stateful01-2.i
+        line: 710
+        column: 3
+        function: thread2
+      updates:
+      - variable: ghost_thread2_phase
+        value: "2"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000196
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 19-stateful01-2.i
+      input_file_hashes:
+        19-stateful01-2.i: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 19-stateful01-2.i
+        line: 725
+        column: 3
+        function: main
+      value: ghost_thread1_phase == 2 && ghost_thread2_phase == 2
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 19-stateful01-2.i
+        line: 725
+        column: 3
+        function: main
+      value: data1 == 16 && data2 == 5
+      format: c_expression

@@ -1,0 +1,47 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009048
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [48-mixed-window-table.c]
+      input_file_hashes:
+        48-mixed-window-table.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_refill_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_consumer_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_epoch_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 48-mixed-window-table.c, line: 16, column: 3, function: refill_thread}
+      updates:
+      - variable: ghost_refill_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 48-mixed-window-table.c, line: 24, column: 3, function: consumer_thread}
+      updates:
+      - variable: ghost_consumer_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 48-mixed-window-table.c, line: 27, column: 3, function: consumer_thread}
+      updates:
+      - variable: ghost_consumer_thread_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 48-mixed-window-table.c, line: 34, column: 3, function: epoch_thread}
+      updates:
+      - variable: ghost_epoch_thread_phase
+        value: "1"
+        format: c_expression
