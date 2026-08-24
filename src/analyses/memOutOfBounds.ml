@@ -133,9 +133,9 @@ struct
   let ptr_only_has_str_addr man ptr =
     ValueDomain.AD.for_all (function StrPtr _ -> true | _ -> false) (man.ask (Queries.MayPointTo ptr))
 
-  let get_addr_offset typ (addr: ValueDomain.Addr.t) =
+  let get_addr_offset ?typ (addr: ValueDomain.Addr.t) =
     match addr with
-    | Addr (_, offs) -> PreValueDomain.Offs.to_index ~typ offs
+    | Addr (_, offs) -> PreValueDomain.Offs.to_index ?typ offs
     | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
     | NullPtr
     | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
@@ -191,7 +191,7 @@ struct
     let ad = man.ask (Queries.MayPointTo lval_exp) in
     check_ad_deref man ~exp:lval_exp ~typ:ptr_type ad
 
-  and check_ad_deref man ?exp:lval_exp ~typ:ptr_type (ad: ValueDomain.AD.t) =
+  and check_ad_deref man ?exp:lval_exp ?typ (ad: ValueDomain.AD.t) =
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
     let d_opt_exp () = function
@@ -200,7 +200,7 @@ struct
     in
     let* addr = ad in
     let ptr_size = get_addr_size man addr in
-    let addr_offs = get_addr_offset ptr_type addr in
+    let addr_offs = get_addr_offset ?typ addr in
     match ptr_size, addr_offs with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
@@ -258,7 +258,7 @@ struct
     let ptr_type = typeOf ptr in
     let* addr = man.ask (Queries.MayPointTo ptr) in
     let ptr_size = get_addr_size man addr in
-    let addr_offs = get_addr_offset ptr_type addr in
+    let addr_offs = get_addr_offset ~typ:ptr_type addr in
     match ptr_size, eval_n with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
@@ -314,15 +314,16 @@ struct
 
   let special man (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
-    let is_arg_implicitly_derefed arg =
-      let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
-      let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
-      let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
-      let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
-      List.mem arg read_shallow_args || List.mem arg read_deep_args || List.mem arg write_shallow_args || List.mem arg write_deep_args
-    in
+    let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
+    let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
+    let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
+    let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
     Option.iter (fun x -> check_lval_for_oob_access man x) lval;
-    List.iter (fun arg -> check_exp_for_oob_access man ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) arg) arglist;
+    List.iter (fun arg -> check_exp_for_oob_access man arg) arglist;
+    List.iter (fun arg -> check_ad_deref man (man.ask (MayPointTo arg))) read_shallow_args;
+    List.iter (fun arg -> check_ad_deref man (man.ask (MayPointTo arg))) write_shallow_args;
+    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) read_deep_args;
+    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) write_deep_args;
     (* Check calls to memset and memcpy for out-of-bounds-accesses *)
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count man f.vname dest count;
