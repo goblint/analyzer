@@ -1,3 +1,4 @@
+// NOCHECK
 struct input_state;
 typedef struct input_state input_state;
 struct input_state {

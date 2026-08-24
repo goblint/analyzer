@@ -8,8 +8,16 @@ rules:
         - pattern: Messages.tracec
         - pattern: Messages.traceu
         - pattern: Messages.traceli
+        - pattern: M.trace
+        - pattern: M.tracel
+        - pattern: M.tracei
+        - pattern: M.tracec
+        - pattern: M.traceu
+        - pattern: M.traceli
       - pattern-not-inside: if Messages.tracing then ...
       - pattern-not-inside: if Messages.tracing && ... then ...
+      - pattern-not-inside: if M.tracing then ...
+      - pattern-not-inside: if M.tracing && ... then ...
     message: trace functions should only be called if tracing is enabled at compile time
     languages: [ocaml]
     severity: WARNING

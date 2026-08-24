@@ -14,25 +14,26 @@ struct
   let mul = Float_t.mul
   let div = Float_t.div
 
-  let pred x = Option.get (to_float (Float_t.pred (of_float Nearest x)))
-  let succ x = Option.get (to_float (Float_t.succ (of_float Nearest x)))
+  let pred x = to_float (Float_t.pred (of_float Nearest x))
+  let succ x = to_float (Float_t.succ (of_float Nearest x))
 
-  let fmax = Option.get (to_float Float_t.upper_bound)
-  let fmin = Option.get (to_float Float_t.lower_bound)
-  let fsmall = Option.get (to_float Float_t.smallest)
+  let fmax = to_float Float_t.upper_bound
+  let fmin = to_float Float_t.lower_bound
+  let fsmall = to_float Float_t.smallest
 
   let fi_zero = FI.of_const 0.
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
-  let itb_true = IT.of_int IBool Z.one
-  let itb_false = IT.of_int IBool Z.zero
-  let itb_unknown = IT.of_interval IBool (Z.zero, Z.one)
 
   let assert_equal v1 v2 =
     assert_equal ~cmp:FI.equal ~printer:FI.show v1 v2
 
-  let itb_xor v1 v2 = (**returns true, if both IntDomainTuple bool results are either unknown or different *)
-    ((IT.equal v1 itb_unknown) && (IT.equal v2 itb_unknown)) || ((IT.equal v1 itb_true) && (IT.equal v2 itb_false)) || ((IT.equal v1 itb_false) && (IT.equal v2 itb_true))
+  let itb_xor v1 v2 = (**returns true, if both bool results are either unknown or different *)
+    match v1, v2 with
+    | None, None
+    | Some true, Some false
+    | Some false, Some true -> true
+    | _, _ -> false
 
   (**interval tests *)
   let test_FI_nan _ =
@@ -53,7 +54,7 @@ struct
       FI.top () + FI.top () = FI.top ();
       (FI.of_const fmin) + (FI.of_const fmax) = fi_zero;
       (FI.of_const fsmall) + (FI.of_const fsmall) = FI.of_const (fsmall +. fsmall);
-      let one_plus_fsmall = Option.get (to_float (Float_t.add Up (Float_t.of_float Up 1.) Float_t.smallest)) in
+      let one_plus_fsmall = to_float (Float_t.add Up (Float_t.of_float Up 1.) Float_t.smallest) in
       (FI.of_const fsmall) + (FI.of_const 1.) = FI.of_interval (1., one_plus_fsmall);
       (FI.of_interval (1., 2.)) + (FI.of_interval (2., 3.)) = FI.of_interval (3., 5.);
       (FI.of_interval (-. 2., 3.)) + (FI.of_interval (-. 100., 20.)) = FI.of_interval (-. 102., 23.);
@@ -265,7 +266,10 @@ struct
 
   let test_FI_div_zero_result_top =
     QCheck.Test.make ~name:"test_FI_div_zero_result_top" (FI.arbitrary ()) (fun arg ->
-        FI.is_top (FI.div arg (FI.of_const 0.)))
+        let res = FI.div arg (FI.of_const 0.) in
+        if FI.equal arg fi_zero
+        then FI.equal res (FI.nan ())
+        else FI.is_top res)
 
   let test_FI_accurate_neg =
     QCheck.Test.make ~name:"test_FI_accurate_neg" QCheck.float (fun arg ->
@@ -286,27 +290,27 @@ struct
   let test_FI_add =
     QCheck.Test.make ~name:"test_FI_add" (QCheck.pair QCheck.float QCheck.float) (fun (arg1, arg2) ->
         let result = FI.add (FI.of_const arg1) (FI.of_const arg2) in
-        (FI.leq (FI.of_const (Option.get (to_float (add Up (of_float Nearest arg1) (of_float Nearest arg2))))) result) &&
-        (FI.leq (FI.of_const (Option.get (to_float (add Down (of_float Nearest arg1) (of_float Nearest arg2))))) result))
+        (FI.leq (FI.of_const (to_float (add Up (of_float Nearest arg1) (of_float Nearest arg2)))) result) &&
+        (FI.leq (FI.of_const (to_float (add Down (of_float Nearest arg1) (of_float Nearest arg2)))) result))
 
   let test_FI_sub =
     QCheck.Test.make ~name:"test_FI_sub" (QCheck.pair QCheck.float QCheck.float) (fun (arg1, arg2) ->
         let result = FI.sub (FI.of_const arg1) (FI.of_const arg2) in
-        (FI.leq (FI.of_const (Option.get (to_float (sub Up (of_float Nearest arg1) (of_float Nearest arg2))))) result) &&
-        (FI.leq (FI.of_const (Option.get (to_float (sub Down (of_float Nearest arg1) (of_float Nearest arg2))))) result))
+        (FI.leq (FI.of_const (to_float (sub Up (of_float Nearest arg1) (of_float Nearest arg2)))) result) &&
+        (FI.leq (FI.of_const (to_float (sub Down (of_float Nearest arg1) (of_float Nearest arg2))))) result)
 
   let test_FI_mul =
     QCheck.Test.make ~name:"test_FI_mul" (QCheck.pair QCheck.float QCheck.float) (fun (arg1, arg2) ->
         let result = FI.mul (FI.of_const arg1) (FI.of_const arg2) in
-        (FI.leq (FI.of_const (Option.get (to_float (mul Up (of_float Nearest arg1) (of_float Nearest arg2))))) result) &&
-        (FI.leq (FI.of_const (Option.get (to_float (mul Down (of_float Nearest arg1) (of_float Nearest arg2))))) result))
+        (FI.leq (FI.of_const (to_float (mul Up (of_float Nearest arg1) (of_float Nearest arg2)))) result) &&
+        (FI.leq (FI.of_const (to_float (mul Down (of_float Nearest arg1) (of_float Nearest arg2)))) result))
 
 
   let test_FI_div =
     QCheck.Test.make ~name:"test_FI_div" (QCheck.pair QCheck.float QCheck.float) (fun (arg1, arg2) ->
         let result = FI.div (FI.of_const arg1) (FI.of_const arg2) in
-        (FI.leq (FI.of_const (Option.get (to_float (div Up (of_float Nearest arg1) (of_float Nearest arg2))))) result) &&
-        (FI.leq (FI.of_const (Option.get (to_float (div Down (of_float Nearest arg1) (of_float Nearest arg2))))) result))
+        (FI.leq (FI.of_const (to_float (div Up (of_float Nearest arg1) (of_float Nearest arg2)))) result) &&
+        (FI.leq (FI.of_const (to_float (div Down (of_float Nearest arg1) (of_float Nearest arg2)))) result))
 
 
   let test () = [

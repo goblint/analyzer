@@ -18,14 +18,14 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check for undocumented modules
         run: python scripts/goblint-lib-modules.py
@@ -35,13 +35,13 @@ jobs:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-doc
@@ -50,7 +50,7 @@ jobs:
         run: opam exec -- dune build @doc
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _build/default/_doc/_html/
 
@@ -67,4 +67,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

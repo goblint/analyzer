@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval  --set ana.base.arrays.domain partitioned
+// NOCHECK
 struct some_struct
 {
     int dir[7];

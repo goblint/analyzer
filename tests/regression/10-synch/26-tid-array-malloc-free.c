@@ -1,4 +1,5 @@
 // PARAM: --set ana.activated[+] thread
+// NOCRASH
 #include <pthread.h>
 #include <stdlib.h>
 

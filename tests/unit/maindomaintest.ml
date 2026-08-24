@@ -28,9 +28,6 @@ let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
 
-  (* TODO: move to intDomains if passing *)
-  (module IntDomain.Booleans);
-
   (* TODO: fix *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
@@ -44,19 +41,19 @@ let domains: (module Lattice.S) list = [
 
 let nonAssocDomains: (module Lattice.S) list = []
 
-let intDomains: (module IntDomainProperties.S) list = [
+let intDomains: (module IntDomainProperties.S2) list = [
   (module IntDomain.SOverflowUnlifter(IntDomain.Interval));
-  (module IntDomain.Enums);
-  (module IntDomain.Congruence);
+  (module IntDomainProperties.MakeS2 (IntDomain.Enums));
+  (module IntDomainProperties.MakeS2 (IntDomain.Congruence));
   (module IntDomain.SOverflowUnlifter(IntDomain.IntervalSet));
+  (module IntDomain.SOverflowUnlifter(IntDomain.Bitfield));
   (* (module IntDomain.Flattened); *)
-  (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.IntDomTuple); *)
 ]
 
-let nonAssocIntDomains: (module IntDomainProperties.S) list = [
-  (module IntDomain.DefExc);
+let nonAssocIntDomains: (module IntDomainProperties.S2) list = [
+  (module IntDomainProperties.MakeS2 (IntDomain.DefExc));
 ]
 
 (* TODO: make arbitrary ikind part of domain test for better efficiency *)
@@ -91,12 +88,11 @@ let nonAssocTestsuite =
     )
 
 let old_intdomains intDomains =
-  BatList.cartesian_product intDomains ikinds
-  |> List.map (fun (d, ik) ->
-      let module D = (val d: IntDomainProperties.S) in
+  GobList.cartesian_map (fun d ik ->
+      let module D = (val d: IntDomainProperties.S2) in
       let module Ikind = struct let ikind () = ik end in
       (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldSWithIkind)
-    )
+    ) intDomains ikinds
 let intTestsuite =
   old_intdomains intDomains
   |> List.concat_map (fun d ->

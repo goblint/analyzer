@@ -1,7 +1,16 @@
 (** Domains for thread sets and their uniqueness. *)
 
-module ThreadSet = 
-struct 
+module FiniteMustThreadSet = struct
+  include SetDomain.Reverse (SetDomain.Make (ThreadIdDomain.FlagConfiguredTID))
+
+  let mem_lifted lifted_tid set =
+    match lifted_tid with
+    | ThreadIdDomain.Thread ft -> mem ft set
+    | ThreadIdDomain.UnknownThread -> false
+end
+
+module ThreadSet =
+struct
   include SetDomain.Make (ThreadIdDomain.Thread)
 
   let is_top = mem UnknownThread
@@ -17,20 +26,22 @@ struct
 
   let meet x y = merge join meet x y
 
-  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+  let narrow x y = merge widen narrow x y
 
+  let diff_mustset x (y: FiniteMustThreadSet.t) =
+    FiniteMustThreadSet.fold (fun t -> remove (ThreadIdDomain.Thread t)) y x
 end
-module MustThreadSet = SetDomain.Reverse(ThreadSet)
 
 module CreatedThreadSet = ThreadSet
 
 module ThreadCreation =
 struct
   module UNames = struct
-    let truename  = "repeated"
-    let falsename = "unique"
+    let name = "unique"
+    let true_name  = "repeated"
+    let false_name = "unique"
   end
-  module Uniqueness = IntDomain.MakeBooleans (UNames)
+  module Uniqueness = BoolDomain.MakeMayBool (UNames)
   module ParentThreadSet =
   struct
     include ThreadSet
@@ -38,12 +49,13 @@ struct
   end
   module DirtyExitNames =
   struct
-    let truename = "dirty exit"
-    let falsename = "clean exit"
+    let name = "exit"
+    let true_name = "dirty exit"
+    let false_name = "clean exit"
   end
 
   (* A thread exits cleanly iff it joined all threads it started, and they also all exit cleanly *)
-  module DirtyExit = IntDomain.MakeBooleans (DirtyExitNames)
+  module DirtyExit = BoolDomain.MakeMayBool (DirtyExitNames)
   include Lattice.Prod3 (Uniqueness) (ParentThreadSet) (DirtyExit)
 end
 

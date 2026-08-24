@@ -63,7 +63,14 @@ struct
     }
 
   (** Stack of currently active timing frames. *)
-  let current: frame Stack.t = Stack.create ()
+  let current: frame Stack.t Domain.DLS.key = Domain.DLS.new_key 
+      (fun () -> Stack.create ())
+      (* A root frame must be created for new threads, as each thread has its own stack *)
+      ~split_from_parent: (fun _ -> begin
+            let (stack : frame Stack.t) = Stack.create () in 
+            Stack.push (create_frame root) stack;
+            stack
+          end)
 
   let reset () =
     (* Reset tree. *)
@@ -73,9 +80,9 @@ struct
     root.count <- 0;
     root.children <- [];
     (* Reset frames. *)
-    if not (Stack.is_empty current) then ( (* If ever started. In case reset before first start. *)
-      Stack.clear current;
-      Stack.push (create_frame root) current
+    if not (Stack.is_empty (Domain.DLS.get current)) then ( (* If ever started. In case reset before first start. *)
+      Stack.clear (Domain.DLS.get current);
+      Stack.push (create_frame root) (Domain.DLS.get current)
     )
 
   let start options' =
@@ -87,8 +94,8 @@ struct
       Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
     );
     enabled := true;
-    if Stack.is_empty current then (* If never started. *)
-      Stack.push (create_frame root) current
+    if Stack.is_empty (Domain.DLS.get current) then (* If never started. *)
+      Stack.push (create_frame root) (Domain.DLS.get current)
 
   let stop () =
     enabled := false
@@ -96,7 +103,7 @@ struct
   let enter ?args name =
     (* Find the right tree. *)
     let tree: tree =
-      let {tree; _} = Stack.top current in
+      let {tree; _} = Stack.top (Domain.DLS.get current) in
       let rec loop = function
         | child :: _ when child.name = name -> child
         | _ :: children' -> loop children'
@@ -108,7 +115,7 @@ struct
       in
       loop tree.children
     in
-    Stack.push (create_frame tree) current;
+    Stack.push (create_frame tree) (Domain.DLS.get current);
     if !options.tef then
       Catapult.Tracing.begin' ~pid:tef_pid ?args name
 
@@ -130,7 +137,7 @@ struct
       tree.count <- tree.count + 1
 
   let exit name =
-    let {tree; _} as frame = Stack.pop current in
+    let {tree; _} as frame = Stack.pop (Domain.DLS.get current) in
     assert (tree.name = name);
     add_frame_to_tree frame tree;
     if !options.tef then
@@ -177,7 +184,7 @@ struct
         tree (* no need to recurse, current doesn't go into subtree *)
     in
     (* Folding the stack also reverses it such that the root frame is at the beginning. *)
-    let current_rev = Stack.fold (fun acc frame -> frame :: acc) [] current in
+    let current_rev = Stack.fold (fun acc frame -> frame :: acc) [] (Domain.DLS.get current) in
     tree_with_current current_rev root
 
   let rec pp_tree ppf node =

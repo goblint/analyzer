@@ -7,7 +7,7 @@ pthread_mutex_t B_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct ops {
   int (*f)(int);
-  void (*g)();
+  void (*g)(void);
 };
 
 extern void register_dev(struct ops *);

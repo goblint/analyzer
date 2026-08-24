@@ -1,4 +1,5 @@
 //PARAM: --set ana.activated[+] useAfterFree --set ana.activated[+] threadJoins --set ana.activated[+] memOutOfBounds --enable ana.int.interval --set ana.base.arrays.domain partitioned
+#include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
 

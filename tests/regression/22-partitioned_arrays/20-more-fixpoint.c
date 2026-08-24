@@ -1,4 +1,5 @@
 // PARAM: --set ana.base.arrays.domain partitioned
+// FIXPOINT
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>

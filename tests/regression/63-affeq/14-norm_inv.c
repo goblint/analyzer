@@ -3,6 +3,7 @@
 // Normalization should be triggered when an invertible expression is assigned.
 // No asserts, likely fixpoint regression.
 // TODO: used to have list-based matrices, issue was only with those?
+// NOCHECK
 int main() {
     int A, B;
     int r, d, p, q;

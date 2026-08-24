@@ -1,0 +1,25 @@
+{
+  "ana": {
+    "widen": {
+      "tokens": true
+    }
+  },
+  "witness": {
+    "yaml": {
+      "enabled": false,
+      "strict": true,
+      "entry-types": [
+        "invariant_set",
+        "violation_sequence"
+      ],
+      "invariant-types": [
+        "location_invariant",
+        "loop_invariant"
+      ]
+    },
+    "invariant": {
+      "after-lock": true,
+      "other": true
+    }
+  }
+}

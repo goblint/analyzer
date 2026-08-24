@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval
+// NOCRASH
 int main()
 {
   unsigned int top;

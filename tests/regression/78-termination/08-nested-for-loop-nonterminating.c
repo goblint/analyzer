@@ -3,7 +3,7 @@
 
 int main()
 {
-  int outerCount, innerCount;
+  unsigned int outerCount, innerCount;
 
   for (outerCount = 1; outerCount <= 3; outerCount++)
   {

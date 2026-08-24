@@ -76,9 +76,6 @@
     "region-offsets": true
   },
   "witness": {
-    "graphml": {
-      "enabled": false
-    },
     "yaml": {
       "enabled": true
     },
@@ -109,6 +106,10 @@
     },
     "null-pointer": {
       "dereference": "assume_none"
+    },
+    "malloc": {
+      "fail": false,
+      "zero": "pointer"
     }
   }
 }

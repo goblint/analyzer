@@ -4,7 +4,7 @@
 
 int non_nested_loops(){
   // Non-nested loops
-  int i;
+  unsigned int i;
 
   // for loop
   for (i = 1; i <= 10; i++)
@@ -13,7 +13,7 @@ int non_nested_loops(){
   }
 
   // while loop
-  int j = 1;
+  unsigned int j = 1;
   while (j <= 10)
   {
     printf("While loop iteration: %d\n", j);
@@ -21,7 +21,7 @@ int non_nested_loops(){
   }
 
   // do-while loop
-  int k = 1;
+  unsigned int k = 1;
   do
   {
     printf("Do-While loop iteration: %d\n", k);
@@ -30,9 +30,9 @@ int non_nested_loops(){
   return 0;
 }
 
-int nested_loops(){
+int nested_loops1(){
    // Nested loops
-  int a, b;
+  unsigned int a, b;
 
   // Nested for and while loop
   for (a = 1; a <= 5; a++)
@@ -44,12 +44,14 @@ int nested_loops(){
       c++;
     }
   }
+}
 
+int nested_loops2(){
   // Nested while and do-while loop
-  int x = 1;
+  unsigned int x = 1;
   while (x <= 5)
   {
-    int y = 1;
+    unsigned int y = 1;
     do
     {
       printf("Nested While-Do-While loop: %d\n", y);
@@ -57,9 +59,11 @@ int nested_loops(){
     } while (y <= x);
     x++;
   }
+}
 
+int nested_loops3(){
   // Nested do-while and for loop
-  int p = 1;
+  unsigned int p = 1;
   do
   {
     for (int q = 1; q <= p; q++)
@@ -72,10 +76,10 @@ int nested_loops(){
 }
 
 int nested_while_loop_with_break(){
-  int m;
+  unsigned int m;
 
   // Nested while loop with a break statement
-  int n = 1;
+  unsigned int n = 1;
   while (n <= 5)
   {
     printf("Outer While loop iteration: %d\n", n);
@@ -96,7 +100,7 @@ int nested_while_loop_with_break(){
 
 int nested_loop_with_conditions(){
   // Loop with nested conditions
-  for (int v = 1; v <= 10; v++)
+  for (unsigned int v = 1; v <= 10; v++)
   {
     printf("Loop with Nested Conditions: %d - ", v);
     if (v < 5)
@@ -117,7 +121,9 @@ int nested_loop_with_conditions(){
 int main()
 {
   non_nested_loops();
-  nested_loops();
+  nested_loops1();
+  nested_loops2();
+  nested_loops3();
   // Additional nested loops
   nested_while_loop_with_break();
   nested_loop_with_conditions();

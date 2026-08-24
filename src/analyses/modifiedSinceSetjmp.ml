@@ -30,42 +30,42 @@ struct
         ) ls (VS.empty ())
 
   (* transfer functions *)
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    [man.local, D.bot ()] (* enter with bot as opposed to IdentitySpec *)
 
-  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let combine_env man lval fexp f args fc au (f_ask: Queries.ask) =
     let taintedcallee = relevants_from_ad (f_ask.f Queries.MayBeTainted) in
-    add_to_all_defined taintedcallee ctx.local
+    add_to_all_defined taintedcallee man.local
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
-    ctx.local
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask) : D.t =
+    man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Setjmp _ ->
-      let entry = (ctx.prev_node, ctx.control_context ()) in
-      let v = D.find entry ctx.local in (* Will make bot binding explicit here *)
+      let entry = (man.prev_node, man.control_context ()) in
+      let v = D.find entry man.local in (* Will make bot binding explicit here *)
       (* LHS of setjmp not marked as tainted on purpose *)
-      D.add entry v ctx.local
+      D.add entry v man.local
     | _ ->
-      ctx.local
+      man.local
 
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadenter man ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.MayBeModifiedSinceSetjmp entry -> D.find entry ctx.local
+    | Queries.MayBeModifiedSinceSetjmp entry -> D.find entry man.local
     | _ -> Queries.Result.top q
 
-  let event ctx (e: Events.t) octx =
+  let event man (e: Events.t) oman =
     match e with
     | Access {ad; kind = Write; _} ->
-      add_to_all_defined (relevants_from_ad ad) ctx.local
+      add_to_all_defined (relevants_from_ad ad) man.local
     | _ ->
-      ctx.local
+      man.local
 end
 
 let _ =

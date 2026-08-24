@@ -31,7 +31,7 @@ struct
     (* widen new(!) element e with old(!) bucket using op *)
     let rec widen op e = function
       | [] -> []
-      | x::xs -> try if E.leq x e then [op x e] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
+      | x::xs -> try if E.leq x e then [op x e] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *) (* TODO: still need leq? *)
 
     (* meet element e with bucket using op *)
     let rec meet op e = function
@@ -46,7 +46,8 @@ struct
       else Map.add i b m
   end
 
-  let elements m = Map.values m |> List.of_enum |> List.flatten
+  let elements m =
+    m |> Map.to_seq |> Seq.map snd |> List.of_seq |> List.flatten
 
   (* merge elements in x and y by f *)
   (* TODO: unused, remove? *)
@@ -89,6 +90,7 @@ struct
 
   let join   x y = merge_join E.join x y
   let widen  x y = merge_widen E.widen x y
+  let widen x y = widen x (join x y) (* TODO: inline *)
   let meet   x y = merge_meet E.meet x y
   let narrow x y = merge_meet E.narrow x y (* TODO: fix narrow like widen? see Set *)
 
@@ -198,11 +200,12 @@ struct
   let reduce s = filter (fun x -> not (exists (le x) s)) s
   let product_bot op a b =
     let a,b = elements a, elements b in
-    List.concat_map (fun x -> List.map (fun y -> op x y) b) a |> fun x -> reduce (of_list x)
+    GobList.cartesian_map op a b |> fun x -> reduce (of_list x)
   let product_widen op a b = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.concat_map (fun x -> List.map (fun y -> op x y) ys) xs |> fun x -> reduce (union b (of_list x))
-  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+    GobList.cartesian_map op xs ys |> fun x -> reduce (union b (of_list x))
+  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ()) (* TODO: still need leq? *)
+  let widen x y = widen x (join x y) (* TODO: inline *)
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
   let add x a = if mem x a then a else add x a (* special mem! *)
@@ -219,7 +222,7 @@ struct
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
 
   (* Copied from Make *)
-  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (B.arbitrary ())
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.list_small (B.arbitrary ())
 
   let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
     if leq s1 s2 then dprintf "%s (%d and %d paths): These are fine!" (name ()) (cardinal s1) (cardinal s2) else begin
@@ -276,7 +279,7 @@ struct
 
   let elements (s: t): (key * R.t) list = bindings s
   let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
-  let union = long_map2 R.union
+  let union = idempotent_union R.union
 
 
   (* copied & modified from SetDomain.Hoare_NoTop *)
@@ -301,18 +304,18 @@ struct
     maximals
   let product_bot op op2 a b =
     let a,b = elements a, elements b in
-    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> fun x -> reduce (of_list x)
+    GobList.cartesian_map (fun (x,xr) (y,yr) -> (op x y, op2 xr yr)) a b |> fun x -> reduce (of_list x)
   let product_bot2 op2 a b =
     let a,b = elements a, elements b in
-    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> fun x -> reduce (of_list x)
+    GobList.cartesian_map op2 a b |> fun x -> reduce (of_list x)
   (* why are type annotations needed for product_widen? *)
   (* TODO: unused now *)
   let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+    GobList.cartesian_map (fun (x,xr) (y,yr) -> (op x y, op2 xr yr)) xs ys |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let product_widen2 op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) ys) xs |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+    GobList.cartesian_map op2 xs ys |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
@@ -320,7 +323,9 @@ struct
   let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
   (* let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen *)
   (* TODO: move PathSensitive3-specific widen out of HoareMap *)
-  let widen = product_widen2 (fun (x, xr) (y, yr) -> if SpecD.leq x y then (SpecD.widen x y, yr) else (y, yr)) (* TODO: is this right now? *)
+  let widen = product_widen2 (fun (x, xr) (y, yr) -> if SpecD.leq x y then (SpecD.widen x y, yr) else (y, yr)) (* TODO: is this right now? *)  (* TODO: still need leq? *)
+
+  let widen x y = widen x (join x y) (* TODO: inline *)
 
   (* TODO: shouldn't this also reduce? *)
   let apply_list f s = elements s |> f |> of_list
@@ -367,8 +372,8 @@ struct
   (* TODO: move to Set above? *)
   let product_widen (op: elt -> elt -> elt option) a b = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.concat_map (fun x -> List.filter_map (fun y -> op x y) ys) xs |> fun x -> join b (of_list x)
-  let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None)
+    GobList.cartesian_filter_map op xs ys |> fun x -> join b (of_list x)
+  let widen = product_widen (fun x y -> if E.leq x y then Some (E.widen x y) else None) (* TODO: still need leq? *)
 
   (* above widen is actually extrapolation operator, so define connector-based widening instead *)
 
@@ -397,4 +402,6 @@ struct
         join_em s1 s2
     in
     widen s1 s2'
+
+  let widen x y = widen x (join x y) (* TODO: inline *)
 end

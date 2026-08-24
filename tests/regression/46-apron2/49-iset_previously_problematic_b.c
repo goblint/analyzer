@@ -1,6 +1,7 @@
 // SKIP PARAM: --enable ana.int.interval_set --set ana.activated[+] apron
 // These examples were cases were we saw issues of not reaching a fixpoint during development of the octagon domain. Since those issues might
 // resurface, these tests without asserts are included
+// NOCHECK
 typedef int wchar_t;
 typedef unsigned long size_t;
 

@@ -1,5 +1,4 @@
 open GoblintCil
-open Batteries
 module Thresholds = Set.Make(Z)
 
 (* Collect only constants that are used in comparisons *)
@@ -13,10 +12,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
 
   method! vexpr = function
     (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
-    | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Ge, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Lt, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Gt, (Const (CInt(i,_,_))), _, (TInt _)) ->
+    | BinOp (Le, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Ge, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Lt, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Gt, (Const (CInt(i,_,_))), _, _) ->
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ Z.pred i;
 
@@ -28,10 +27,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       DoChildren
 
     (* Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr *)
-    | BinOp (Lt, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
+    | BinOp (Lt, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Gt, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Le, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Ge, (Const (CInt(i,_,_))), _, _) ->
       let i = Z.succ i in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ Z.pred i;
@@ -44,10 +43,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       DoChildren
 
     (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
-    | BinOp (Eq, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Eq, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ne, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ne, (Const (CInt(i,_,_))), _, (TInt _)) ->
+    | BinOp (Eq, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Eq, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Ne, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Ne, (Const (CInt(i,_,_))), _, _) ->
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ i;
 
@@ -61,7 +60,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
 end
 
 let default_thresholds = Thresholds.of_list (
-    let thresh_pos = List.map (Int.pow 2) [0;2;4;8;16;32;48] in
+    let thresh_pos = List.map (BatInt.pow 2) [0;2;4;8;16;32;48] in
     let thresh_neg = List.map (fun x -> -x) thresh_pos in
     List.map Z.of_int (thresh_neg @ thresh_pos @ [0])
   )
@@ -72,16 +71,13 @@ let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
     let octagon = ref default_thresholds in
     let thisVisitor = new extractThresholdsFromConditionsVisitor(upper,lower,octagon) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
+    !upper, !lower, !octagon)
 
-let upper_thresholds () =
-  let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u
+let upper_thresholds = ResettableLazy.map Batteries.Tuple3.first conditional_widening_thresholds
 
-let lower_thresholds () =
-  let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l
+let lower_thresholds = ResettableLazy.map Batteries.Tuple3.second conditional_widening_thresholds
 
-let octagon_thresholds () =
-  let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o
+let octagon_thresholds = ResettableLazy.map Batteries.Tuple3.third conditional_widening_thresholds
 
 
 class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2) = object
@@ -105,15 +101,13 @@ let widening_thresholds = ResettableLazy.from_fun (fun () ->
     let set_incl_mul2 = ref Thresholds.empty in
     let thisVisitor = new extractConstantsVisitor(set,set_incl_mul2) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    Thresholds.elements !set, Thresholds.elements !set_incl_mul2)
+    !set, !set_incl_mul2)
 
-let thresholds () =
-  fst @@ ResettableLazy.force widening_thresholds
+let thresholds = ResettableLazy.map fst widening_thresholds
 
-let thresholds_incl_mul2 () =
-  snd @@ ResettableLazy.force widening_thresholds
+let thresholds_incl_mul2 = ResettableLazy.map snd widening_thresholds
 
-module EH = BatHashtbl.Make (CilType.Exp)
+module EH = Hashtbl.Make (CilType.Exp)
 
 class extractInvariantsVisitor (exps) = object
   inherit nopCilVisitor
@@ -121,6 +115,7 @@ class extractInvariantsVisitor (exps) = object
   method! vinst (i: instr) =
     match i with
     | Call (_, Lval (Var f, NoOffset), args, _, _) when LibraryFunctions.is_special f ->
+      let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) in
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Assert { exp; _ } ->
@@ -146,10 +141,15 @@ let exps = ResettableLazy.from_fun (fun () ->
     let exps = EH.create 100 in
     let visitor = new extractInvariantsVisitor exps in
     visitCilFileSameGlobals visitor !Cilfacade.current_file;
-    EH.keys exps |> BatList.of_enum
+    EH.to_seq_keys exps |> List.of_seq
   )
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
   ResettableLazy.reset conditional_widening_thresholds;
-  ResettableLazy.reset exps
+  ResettableLazy.reset exps;
+  ResettableLazy.reset thresholds;
+  ResettableLazy.reset thresholds_incl_mul2;
+  ResettableLazy.reset upper_thresholds;
+  ResettableLazy.reset lower_thresholds;
+  ResettableLazy.reset octagon_thresholds;

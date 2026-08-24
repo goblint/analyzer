@@ -2,7 +2,7 @@ open Goblint_lib
 open OUnit2
 open GoblintCil
 
-module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
+module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomainProperties.MakeS2 (IntDomain.DefExc))) (IntDomain.PtrDiffIkind)
 module Offs = Offset.MakeLattice (ID)
 module LV = AddressDomain.AddressLattice (Mval.MakeLattice (Offs))
 

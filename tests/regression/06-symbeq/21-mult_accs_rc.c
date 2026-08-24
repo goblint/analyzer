@@ -14,7 +14,7 @@ void *t_fun(void *arg) {
   pthread_mutex_lock(&s->mutex);
   s = get_s();
   s->data = 5; // RACE!
-  pthread_mutex_lock(&s->mutex);
+  pthread_mutex_unlock(&s->mutex);
   return NULL;
 }
 

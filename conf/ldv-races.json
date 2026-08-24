@@ -1,7 +1,6 @@
 {
   "pre": {
     "cppflags": [
-      "-DGOBLINT_NO_PTHREAD_ONCE",
       "-DGOBLINT_NO_QSORT",
       "-DGOBLINT_NO_BSEARCH"
     ]
@@ -66,13 +65,6 @@
       "ncurses",
       "klever"
     ]
-  },
-  "witness": {
-    "graphml": {
-      "enabled": true,
-      "id": "enumerate",
-      "unknown": false
-    }
   },
   "solver": "td3",
   "sem": {

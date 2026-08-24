@@ -8,13 +8,15 @@
    batteries.unthreaded
    goblint_std
    goblint_common
-   goblint-cil)
+   goblint-cil
+   patricia-tree)
  (flags :standard -open Goblint_std)
  (preprocess
   (pps
     ppx_deriving.std
     ppx_deriving_hash
-    ppx_deriving_yojson))
+    ppx_deriving_yojson
+    ppx_deriving_lattice))
  (instrumentation (backend bisect_ppx)))
 
 (documentation)

@@ -43,7 +43,7 @@ struct
     append fd (FundecSet.empty ()) [] current
 
   let startcontext () = []
-  let context ctx fd x = append fd (ctx.context ())
+  let context man fd x = append fd (man.context ())
 end
 
 let _ = MCP.register_analysis (module Spec : MCPSpec)

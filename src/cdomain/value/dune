@@ -13,6 +13,7 @@
    goblint_library
    goblint_domain
    goblint_incremental
+   goblint_parallel
    goblint-cil)
  (flags :standard -open Goblint_std -open Goblint_logs)
  (preprocess

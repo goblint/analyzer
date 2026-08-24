@@ -5,6 +5,7 @@
     OCaml standard library extensions which are not provided by {!Batteries}. *)
 
 module GobArray = GobArray
+module GobFun = GobFun
 module GobGc = GobGc
 module GobHashtbl = GobHashtbl
 module GobList = GobList
@@ -13,6 +14,9 @@ module GobResult = GobResult
 module GobOption = GobOption
 module GobSys = GobSys
 module GobUnix = GobUnix
+module GobTuple = GobTuple
+
+include GobFun.Syntax
 
 (** {1 Other libraries}
 

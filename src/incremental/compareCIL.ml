@@ -19,7 +19,7 @@ let name_of_global_col gc = match gc.def with
     | None -> raise (Failure "empty global record")
 
 let compare_global_col gc1 gc2 = compare (name_of_global_col gc1) (name_of_global_col gc2)
-let equal_name_global_col gc1 gc2 = compare_global_col gc1 gc2 == 0
+let equal_name_global_col gc1 gc2 = compare_global_col gc1 gc2 = 0
 
 let get_varinfo gc = match gc.decls, gc.def with
   | _, Some (Var v) -> v
@@ -101,9 +101,7 @@ let addToFinalMatchesMapping oV nV final_matches =
 let empty_rename_assms m = VarinfoMap.for_all (fun vo vn -> vo.vname = vn.vname) m
 
 let already_matched oV nV final_matches =
-  match VarinfoMap.find_opt oV (fst final_matches) with
-  | None -> false
-  | Some v -> v.vid = oV.vid
+  GobOption.exists (fun v -> v.vid = nV.vid) (VarinfoMap.find_opt oV (fst final_matches))
 
 (* looks up the result of the already executed comparison and returns true if it is unchanged, false if it is changed.
    Throws an exception if not found. *)

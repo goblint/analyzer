@@ -241,17 +241,13 @@ struct
   (** (Global) flag to disallow modification of the configuration. *)
   let immutable = ref false
 
-  let set_immutable = (:=) immutable
-
   let is_immutable () = !immutable
 
   let with_immutable_conf f =
     (* allow nesting *)
     if is_immutable () then f ()
-    else (
-      set_immutable true;
-      Fun.protect ~finally:(fun () -> set_immutable false) f
-    )
+    else
+      GobRef.wrap immutable true f
 
   (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability.
       @raise Failure
@@ -330,7 +326,7 @@ struct
     (* The explicit polymorphism is needed to make it compile *)
     let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
       let r = m.enum () in
-      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r
+      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r (* nosemgrep: batenum-module *)
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
@@ -404,8 +400,7 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let cwd = Fpath.v (Sys.getcwd ()) in
-    let config_dirs = cwd :: Fpath.(parent (v Sys.executable_name)) :: Goblint_sites.conf in
+    let config_dirs = GobFpath.cwd () :: GobSys.exe_dir :: Goblint_sites.conf in
     let file = List.find_map_opt (fun custom_include_dir ->
         let path = Fpath.append custom_include_dir fn in
         if Sys.file_exists (Fpath.to_string path) then
@@ -416,10 +411,10 @@ struct
     in
     match file with
     | Some fn ->
-      let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
+      let v = In_channel.with_open_text (Fpath.to_string fn) Yojson.Safe.from_channel in
       merge v;
       if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
-    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
+    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or directory" (Fpath.to_string fn)))
 end
 
 include Impl

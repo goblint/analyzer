@@ -61,9 +61,7 @@ let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (eval_int: 
   if ID.is_bot i || ID.is_bot_ikind i then
     Bool.top () (* base returns bot for non-int results, consider unknown *)
   else
-    match ID.to_bool i with
-    | Some b -> b
-    | None -> Bool.top ()
+    BatOption.default (Bool.top ()) (ID.to_bool i)
 
 (** Backwards-compatibility for former [MustBeEqual] query. *)
 let must_be_equal = eval_int_binop (module MustBool) Eq

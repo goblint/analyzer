@@ -1,6 +1,5 @@
-// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType' --set pre.cppflags[+] "-DGOBLINT_NO_PTHREAD_ONCE"
+// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType'
 // Here, we do not include pthread.h, so MutexAttr.recursive_int remains at `2`, emulating the behavior of OS X.
-#define GOBLINT_NO_PTHREAD_ONCE 1
 typedef signed char __int8_t;
 typedef unsigned char __uint8_t;
 typedef short __int16_t;

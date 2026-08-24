@@ -6,7 +6,7 @@ int global;
 void bad() { global++; } // RACE!
 void good() { printf("Hello!"); }
 
-void (*f)() = good;
+void (*f)(void) = good;
 
 void *t_fun(void *arg) {
   f(); // RACE!

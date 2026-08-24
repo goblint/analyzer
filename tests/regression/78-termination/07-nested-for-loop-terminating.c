@@ -3,8 +3,8 @@
 
 int main()
 {
-  int rows = 3;
-  int columns = 4;
+  unsigned int rows = 3;
+  unsigned int columns = 4;
 
   // Nested loop to iterate over rows and columns
   for (int i = 1; i <= rows; i++)

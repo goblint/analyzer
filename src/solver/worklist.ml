@@ -1,7 +1,7 @@
 (** Worklist solver ([WL]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -23,7 +23,7 @@ module Make =
     let solve st vs =
       let infl = HM.create 10 in
       let rho  = HM.create 10 in
-      let vs   = ref (VS.of_enum (List.enum vs)) in
+      let vs   = ref (VS.of_list vs) in
       let init x =
         new_var_event x;
         HM.replace rho x (bot ());
@@ -62,4 +62,4 @@ module Make =
 
 
 let _ =
-  Selector.add_solver ("WL",  (module PostSolver.EqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("WL",  (module PostSolver.DemandEqIncrSolverFromEqSolver (Make)));

@@ -9,7 +9,7 @@ int g () {
   int a[10];
 
   f(1, &i);
-  // check that i is an integer and can be used for array indexing without Goblint crashing
+  // NOCRASH: check that i is an integer and can be used for array indexing without Goblint crashing
   int r = a[i];
   a[i] = r;
 

@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval_set
+// NOCHECK
 #include <goblint.h>
 #include <limits.h>
 

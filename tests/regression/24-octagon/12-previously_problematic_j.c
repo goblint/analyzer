@@ -1,4 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron
+// NOCHECK
 void main(void) {
   int i = 0;
   int j = i;

@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval --enable ana.sv-comp.enabled --enable ana.sv-comp.functions --set ana.specification "CHECK( init(main()), LTL(G ! overflow) )"
+// CRAM
+#include <stdlib.h>
 
 int main(){
 	// This is not an overflow, just implementation defined behavior on a cast

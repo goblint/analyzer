@@ -2,7 +2,7 @@
     Simpler version of {!Td3} without terminating, space-efficiency and incremental. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 module WP =
@@ -61,10 +61,10 @@ module WP =
           let tmp = S.Dom.join tmp' (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
-          let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else if wpx then box old tmp else tmp in
+          let tmp = if is_side x then S.Dom.widen old tmp else if wpx then box old tmp else tmp in
           HM.remove called x;
           if not (S.Dom.equal old tmp) then (
-            if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp));
+            if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old tmp);
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) is %a. Old value was %a" S.Var.pretty_trace x (HM.mem rho x) (is_side x) S.Dom.pretty tmp S.Dom.pretty old;
@@ -97,7 +97,7 @@ module WP =
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let d = Enum.fold (fun d y -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) (S.Dom.bot ()) (VS.enum w) in
+        let d = VS.fold (fun y d -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) w (S.Dom.bot ()) in
         if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         d
       and side x y d =
@@ -154,4 +154,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown", (module PostSolver.DemandEqIncrSolverFromEqSolver (WP)));

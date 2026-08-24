@@ -16,27 +16,31 @@ let () =
   (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults; *)
   ()
 
-let rec element_paths (element: element): string list =
-  match element.kind with
-  | String _
-  | Boolean
-  | Integer _
-  | Number _
-  | Monomorphic_array _ ->
+let rec element_paths ~bool (element: element): string list =
+  match element.kind, bool with
+  | String _, false
+  | Boolean, _
+  | Integer _, false
+  | Number _, false ->
     [""]
-  | Object object_specs ->
+  | Monomorphic_array _, false ->
+    [""; "[+]"; "[-]"; "[*]"]
+  | Object object_specs, _ ->
     List.concat_map (fun (name, field_element, _, _) ->
-        List.map (fun path -> name ^ "." ^ path) (element_paths field_element)
+        List.map (fun path -> "." ^ name ^ path) (element_paths ~bool field_element)
       ) object_specs.properties
+  | _, true ->
+    []
   | _ ->
     Logs.Format.error "%a" Json_schema.pp (create element);
     failwith "element_paths"
 
-let schema_paths (schema: schema): string list =
-  element_paths (root schema)
-  |> List.map BatString.rchop (* remove trailing '.' *)
+let schema_paths ~bool (schema: schema): string list =
+  element_paths ~bool (root schema)
+  |> List.map BatString.lchop (* remove first '.' *)
 
-let paths = schema_paths schema
+let paths = schema_paths ~bool:false schema
+let bool_paths = schema_paths ~bool:true schema
 
 let rec element_completions (element: element): (string * string list) list =
   let default_completion () =
@@ -48,9 +52,17 @@ let rec element_completions (element: element): (string * string list) list =
   in
   match element.kind with
   | Integer _
-  | Number _
-  | Monomorphic_array _ ->
+  | Number _ ->
     default_completion ()
+  | Monomorphic_array (array_element, array_specs) ->
+    let array_element_completions =
+      element_completions array_element
+      |> List.concat_map (fun (path, cs) ->
+          assert (path = ""); (* Arrays of objects/arrays not supported. Currently we only have arrays of strings.*)
+          [("[+]", cs); ("[-]", cs); ("[*]", cs)]
+        )
+    in
+    default_completion () @ array_element_completions
   | Boolean ->
     [("", ["false"; "true"])]
   | String string_specs ->
@@ -68,7 +80,7 @@ let rec element_completions (element: element): (string * string list) list =
     end
   | Object object_specs ->
     List.concat_map (fun (name, field_element, _, _) ->
-        List.map (fun (path, cs) -> (name ^ "." ^ path, cs)) (element_completions field_element)
+        List.map (fun (path, cs) -> ("." ^ name ^ path, cs)) (element_completions field_element)
       ) object_specs.properties
   | _ ->
     Logs.Format.error "%a" Json_schema.pp (create element);
@@ -76,7 +88,7 @@ let rec element_completions (element: element): (string * string list) list =
 
 let schema_completions (schema: schema): (string * string list) list =
   element_completions (root schema)
-  |> List.map (BatTuple.Tuple2.map1 BatString.rchop) (* remove trailing '.' *)
+  |> List.map (BatTuple.Tuple2.map1 BatString.lchop) (* remove first '.' *)
 
 let completions = schema_completions schema
 

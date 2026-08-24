@@ -1,11 +1,14 @@
-(executable
- (name yamlWitnessStrip)
+(executables
+ (names yamlWitnessStrip yamlWitnessStripDiff multilibConfigure)
  (libraries
    batteries.unthreaded
+   goblint-cil
    goblint_std
    goblint_lib
-   yaml
-   goblint.sites.dune
-   goblint.build-info.dune)
+   yaml)
  (flags :standard -open Goblint_std)
  (preprocess (pps ppx_deriving.std)))
+
+(rule
+ (target multilibAvailable)
+ (action (with-stdout-to %{target} (run ./multilibConfigure.exe))))

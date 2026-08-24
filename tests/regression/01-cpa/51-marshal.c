@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval
+// NOCHECK
 void callee(int j) {
   j++;
 }

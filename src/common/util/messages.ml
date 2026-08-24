@@ -177,14 +177,8 @@ let () = AfterConfig.register (fun () ->
       GobFormat.pp_set_ansi_color_tags !formatter
   )
 
-let xml_file_name = ref ""
-
 (** The file where everything is output *)
 let out = ref stdout
-
-let get_out name alternative = match get_string "dbg.dump" with
-  | "" -> alternative
-  | path -> open_out (Filename.concat path (name ^ ".out"))
 
 
 let print ?(ppf= !formatter) (m: Message.t) =
@@ -205,9 +199,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
   in
   let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
-    BatEnum.drop (loc.line - 1) lines;
-    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
-    let lines = BatList.of_enum lines in
+    BatEnum.drop (loc.line - 1) lines; (* nosemgrep: batenum-module *)
+    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in (* nosemgrep: batenum-module *)
+    let lines = BatList.of_enum lines in (* nosemgrep: batenum-of_enum *)
     match lines with
     | [] -> assert false
     | [line] ->

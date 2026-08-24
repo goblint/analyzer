@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <goblint.h>
 
+void __VERIFIER_atomic_begin();
+void __VERIFIER_atomic_end();
+
 pthread_mutex_t mutex;
 
 void *fun(void* args)

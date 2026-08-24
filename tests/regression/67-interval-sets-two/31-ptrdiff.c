@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set ana.base.arrays.domain partitioned --set ana.activated[+] var_eq
+// NOCHECK
 int *tmp;
 
 int main ()

@@ -2,7 +2,7 @@
     Simpler version of {!Td3} without space-efficiency and incremental. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 module WP =
@@ -24,8 +24,8 @@ module WP =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
       let called = HM.create  10 in
-      let rho    = HM.create  10 in
-      let rho'   = HM.create  10 in
+      let rho    = HM.create  10 in (* rho for right-hand side values *)
+      let rho'   = HM.create  10 in (* rho for start and side effect values *)
       let wpoint = HM.create  10 in
 
       let add_infl y x =
@@ -53,9 +53,9 @@ module WP =
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           HM.remove called x;
-          let tmp = if wpx then match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp else tmp in
+          let tmp = if wpx then match phase with Widen -> S.Dom.widen old tmp | Narrow -> S.Dom.narrow old tmp else tmp in
           if not (S.Dom.equal old tmp) then (
-            (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
+            (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old tmp); *)
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) is %a. Old value was %a" S.Var.pretty_trace x (HM.mem rho x) (is_side x) S.Dom.pretty tmp S.Dom.pretty old; *)
@@ -101,7 +101,7 @@ module WP =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
-        HM.replace rho x d;
+        HM.replace rho' x d;
         solve x Widen
       in
 
@@ -133,4 +133,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown_term", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown_term", (module PostSolver.DemandEqIncrSolverFromEqSolver (WP)));

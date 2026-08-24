@@ -31,10 +31,10 @@ struct
   let meet _ _ = failwith "PartitonDomain.Set.meet: unsound"
 
   let collapse (s1:t) (s2:t): bool =
-    let f vf2 res =
-      res || exists (fun vf1 -> S.collapse vf1 vf2) s1
+    let f vf2 =
+      exists (fun vf1 -> S.collapse vf1 vf2) s1
     in
-    fold f s2 false
+    exists f s2
 
   let add e s = join s (singleton e)
 
@@ -106,6 +106,9 @@ struct
 
   let show _ = "Partitions"
 
+  (* Top and bottom are reversed:
+     Bottom will be All (equations), i.e. contradiction,
+     Top will be empty set, i.e. no equations. *)
   let top = E.bot
   let bot = E.top
   let is_top = E.is_bot

@@ -3,7 +3,7 @@
 
 int main()
 {
-  int counter = 0;
+  unsigned int counter = 0;
 
   goto jump_point;
 
@@ -13,7 +13,7 @@ int main()
 
     // Dummy code
     printf("Iteration %d\n", counter);
-    int result = counter * 2;
+    unsigned int result = counter * 2;
   jump_point:
     printf("Result: %d\n", result);
 

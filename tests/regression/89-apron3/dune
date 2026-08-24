@@ -1,0 +1,15 @@
+(rule
+ (aliases runtest runaprontest)
+ (enabled_if %{lib-available:apron})
+ (deps
+   (package goblint)
+   ../../../goblint ; update_suite calls local goblint
+   (:update_suite ../../../scripts/update_suite.rb)
+   (glob_files ??-*.c))
+ (locks /update_suite)
+ (action (chdir ../../.. (run %{update_suite} group apron3 -q))))
+
+(cram
+ (alias runaprontest)
+ (enabled_if %{lib-available:apron})
+ (deps (glob_files *.c)))

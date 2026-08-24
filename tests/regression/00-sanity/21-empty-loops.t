@@ -8,21 +8,21 @@
     │ (body)
     ▼
   ┌───────────────────────────────────────┐
-  │ 21-empty-loops.c:57:3-57:31           │
+  │ 21-empty-loops.c:58:3-58:31           │
   │ (unknown)                             │
-  │ [21-empty-loops.c:56:1-57:3           │   skip
+  │ [21-empty-loops.c:57:1-58:3           │   skip
   │ (unknown)]                            │ ───────┐
-  │ YAML loc: 21-empty-loops.c:57:3-57:31 │        │
-  │ GraphML: true; server: true           │ ◀──────┘
+  │ YAML loc: 21-empty-loops.c:58:3-58:31 │        │
+  │ server: true                          │ ◀──────┘
   └───────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌───────────────────────────────────────┐
-  │ 21-empty-loops.c:58:1-58:1            │
+  │ 21-empty-loops.c:59:1-59:1            │
   │ (unknown)                             │
-  │ YAML loc: 21-empty-loops.c:58:1-58:1  │
-  │ GraphML: true; server: true           │
+  │ YAML loc: 21-empty-loops.c:59:1-59:1  │
+  │ server: true                          │
   └───────────────────────────────────────┘
     │
     │ return
@@ -39,20 +39,21 @@
     │ (body)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:62:3-62:14 (synthetic)    │
-  │ (21-empty-loops.c:62:10-62:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:62:3-62:14     │ ─────────┐
-  │ GraphML: true; server: false               │          │
-  │ loop: 21-empty-loops.c:62:3-62:14          │ ◀────────┘
+  │ 21-empty-loops.c:63:3-63:14 (synthetic)    │
+  │ (21-empty-loops.c:63:10-63:11 (synthetic)) │
+  │ [21-empty-loops.c:63:3-63:14 (synthetic)   │   Pos(1)
+  │ (unknown)]                                 │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:63:3-63:14     │          │
+  │ server: false                              │ ◀────────┘
   └────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:63:1-63:1                 │
+  │ 21-empty-loops.c:64:1-64:1                 │
   │ (unknown)                                  │
-  │ YAML loc: 21-empty-loops.c:63:1-63:1       │
-  │ GraphML: true; server: true                │
+  │ YAML loc: 21-empty-loops.c:64:1-64:1       │
+  │ server: true                               │
   └────────────────────────────────────────────┘
     │
     │ return
@@ -63,19 +64,19 @@
 
   $ graph-easy --as=boxart f_empty_goto_loop_suffix.dot
              ┌───────────────────────────────────────┐
-             │ 21-empty-loops.c:75:3-75:11           │
-             │ (21-empty-loops.c:75:3-75:11)         │
-             │ YAML loc: 21-empty-loops.c:75:3-75:11 │
-             │ GraphML: true; server: true           │
+             │ 21-empty-loops.c:76:3-76:11           │
+             │ (21-empty-loops.c:76:3-76:11)         │
+             │ YAML loc: 21-empty-loops.c:76:3-76:11 │
+             │ server: true                          │
              └───────────────────────────────────────┘
                │
                │ suffix()
                ▼
              ┌───────────────────────────────────────┐
-             │ 21-empty-loops.c:76:1-76:1            │
+             │ 21-empty-loops.c:77:1-77:1            │
              │ (unknown)                             │
-             │ YAML loc: 21-empty-loops.c:76:1-76:1  │
-             │ GraphML: true; server: true           │ ◀┐
+             │ YAML loc: 21-empty-loops.c:77:1-77:1  │
+             │ server: true                          │ ◀┐
              └───────────────────────────────────────┘  │
                │                                        │
                │ return                                 │
@@ -90,12 +91,12 @@
                │ (body)                                 │
                ▼                                        │
              ┌───────────────────────────────────────┐  │
-             │ 21-empty-loops.c:73:3-73:38           │  │
+             │ 21-empty-loops.c:74:3-74:38           │  │
              │ (unknown)                             │  │
-      skip   │ [21-empty-loops.c:72:1-73:3           │  │
+      skip   │ [21-empty-loops.c:73:1-74:3           │  │
     ┌─────── │ (unknown)]                            │  │
-    │        │ YAML loc: 21-empty-loops.c:73:3-73:38 │  │
-    └──────▶ │ GraphML: true; server: true           │ ─┘
+    │        │ YAML loc: 21-empty-loops.c:74:3-74:38 │  │
+    └──────▶ │ server: true                          │ ─┘
              └───────────────────────────────────────┘
 
   $ graph-easy --as=boxart f_empty_while_loop_suffix.dot
@@ -106,29 +107,30 @@
     │ (body)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:80:3-80:14 (synthetic)    │
-  │ (21-empty-loops.c:80:10-80:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:80:3-80:14     │ ─────────┐
-  │ GraphML: true; server: false               │          │
-  │ loop: 21-empty-loops.c:80:3-80:14          │ ◀────────┘
+  │ 21-empty-loops.c:81:3-81:14 (synthetic)    │
+  │ (21-empty-loops.c:81:10-81:11 (synthetic)) │
+  │ [21-empty-loops.c:81:3-81:14 (synthetic)   │   Pos(1)
+  │ (unknown)]                                 │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:81:3-81:14     │          │
+  │ server: false                              │ ◀────────┘
   └────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:82:3-82:11                │
-  │ (21-empty-loops.c:82:3-82:11)              │
-  │ YAML loc: 21-empty-loops.c:82:3-82:11      │
-  │ GraphML: true; server: true                │
+  │ 21-empty-loops.c:83:3-83:11                │
+  │ (21-empty-loops.c:83:3-83:11)              │
+  │ YAML loc: 21-empty-loops.c:83:3-83:11      │
+  │ server: true                               │
   └────────────────────────────────────────────┘
     │
     │ suffix()
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:83:1-83:1                 │
+  │ 21-empty-loops.c:84:1-84:1                 │
   │ (unknown)                                  │
-  │ YAML loc: 21-empty-loops.c:83:1-83:1       │
-  │ GraphML: true; server: true                │
+  │ YAML loc: 21-empty-loops.c:84:1-84:1       │
+  │ server: true                               │
   └────────────────────────────────────────────┘
     │
     │ return
@@ -145,19 +147,19 @@
     │ (body)
     ▼
   ┌──────────────────────────────────────┐
-  │ 21-empty-loops.c:93:3-93:9           │   body()
-  │ (21-empty-loops.c:93:3-93:9)         │ ─────────┐
-  │ YAML loc: 21-empty-loops.c:93:3-93:9 │          │
-  │ GraphML: true; server: true          │ ◀────────┘
+  │ 21-empty-loops.c:94:3-94:9           │   body()
+  │ (21-empty-loops.c:94:3-94:9)         │ ─────────┐
+  │ YAML loc: 21-empty-loops.c:94:3-94:9 │          │
+  │ server: true                         │ ◀────────┘
   └──────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌──────────────────────────────────────┐
-  │ 21-empty-loops.c:95:1-95:1           │
+  │ 21-empty-loops.c:96:1-96:1           │
   │ (unknown)                            │
-  │ YAML loc: 21-empty-loops.c:95:1-95:1 │
-  │ GraphML: true; server: true          │
+  │ YAML loc: 21-empty-loops.c:96:1-96:1 │
+  │ server: true                         │
   └──────────────────────────────────────┘
     │
     │ return
@@ -168,36 +170,37 @@
 
   $ graph-easy --as=boxart f_nonempty_while_loop.dot
   
-    ┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
-    │                                                                                                   │
-    │                                                   ┌────────────────────────────────────────────┐  │
-    │                                                   │ f_nonempty_while_loop()                    │  │
-    │                                                   └────────────────────────────────────────────┘  │
-    │                                                     │                                             │ body()
-    │                                                     │ (body)                                      │
-    │                                                     ▼                                             │
-  ┌─────────────────────────────────────────┐           ┌────────────────────────────────────────────┐  │
-  │ 21-empty-loops.c:101:5-101:11           │           │ 21-empty-loops.c:99:3-102:3 (synthetic)    │  │
-  │ (21-empty-loops.c:101:5-101:11)         │           │ (21-empty-loops.c:99:10-99:11 (synthetic)) │  │
-  │ YAML loc: 21-empty-loops.c:101:5-101:11 │           │ YAML loop: 21-empty-loops.c:99:3-102:3     │  │
-  │ GraphML: true; server: true             │  Pos(1)   │ GraphML: true; server: false               │  │
-  │                                         │ ◀──────── │ loop: 21-empty-loops.c:99:3-102:3          │ ◀┘
-  └─────────────────────────────────────────┘           └────────────────────────────────────────────┘
+    ┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐
+    │                                                                                                     │
+    │                                                   ┌──────────────────────────────────────────────┐  │
+    │                                                   │ f_nonempty_while_loop()                      │  │
+    │                                                   └──────────────────────────────────────────────┘  │
+    │                                                     │                                               │ body()
+    │                                                     │ (body)                                        │
+    │                                                     ▼                                               │
+  ┌─────────────────────────────────────────┐           ┌──────────────────────────────────────────────┐  │
+  │                                         │           │ 21-empty-loops.c:100:3-103:3 (synthetic)     │  │
+  │ 21-empty-loops.c:102:5-102:11           │           │ (21-empty-loops.c:100:10-100:11 (synthetic)) │  │
+  │ (21-empty-loops.c:102:5-102:11)         │           │ [21-empty-loops.c:100:3-103:3 (synthetic)    │  │
+  │ YAML loc: 21-empty-loops.c:102:5-102:11 │           │ (unknown)]                                   │  │
+  │ server: true                            │  Pos(1)   │ YAML loop: 21-empty-loops.c:100:3-103:3      │  │
+  │                                         │ ◀──────── │ server: false                                │ ◀┘
+  └─────────────────────────────────────────┘           └──────────────────────────────────────────────┘
                                                           │
                                                           │ Neg(1)
                                                           ▼
-                                                        ┌────────────────────────────────────────────┐
-                                                        │ 21-empty-loops.c:103:1-103:1               │
-                                                        │ (unknown)                                  │
-                                                        │ YAML loc: 21-empty-loops.c:103:1-103:1     │
-                                                        │ GraphML: true; server: true                │
-                                                        └────────────────────────────────────────────┘
+                                                        ┌──────────────────────────────────────────────┐
+                                                        │ 21-empty-loops.c:104:1-104:1                 │
+                                                        │ (unknown)                                    │
+                                                        │ YAML loc: 21-empty-loops.c:104:1-104:1       │
+                                                        │ server: true                                 │
+                                                        └──────────────────────────────────────────────┘
                                                           │
                                                           │ return
                                                           ▼
-                                                        ┌────────────────────────────────────────────┐
-                                                        │ return of f_nonempty_while_loop()          │
-                                                        └────────────────────────────────────────────┘
+                                                        ┌──────────────────────────────────────────────┐
+                                                        │ return of f_nonempty_while_loop()            │
+                                                        └──────────────────────────────────────────────┘
 
 
   $ graph-easy --as=boxart f_empty_goto_loop_prefix.dot
@@ -208,30 +211,30 @@
     │ (body)
     ▼
   ┌─────────────────────────────────────────┐
-  │ 21-empty-loops.c:112:3-112:11           │
-  │ (21-empty-loops.c:112:3-112:11)         │
-  │ YAML loc: 21-empty-loops.c:112:3-112:11 │
-  │ GraphML: true; server: true             │
+  │ 21-empty-loops.c:113:3-113:11           │
+  │ (21-empty-loops.c:113:3-113:11)         │
+  │ YAML loc: 21-empty-loops.c:113:3-113:11 │
+  │ server: true                            │
   └─────────────────────────────────────────┘
     │
     │ prefix()
     ▼
   ┌─────────────────────────────────────────┐
-  │ 21-empty-loops.c:115:3-115:38           │
+  │ 21-empty-loops.c:116:3-116:38           │
   │ (unknown)                               │
-  │ [21-empty-loops.c:114:1-115:3           │   skip
+  │ [21-empty-loops.c:115:1-116:3           │   skip
   │ (unknown)]                              │ ───────┐
-  │ YAML loc: 21-empty-loops.c:115:3-115:38 │        │
-  │ GraphML: true; server: true             │ ◀──────┘
+  │ YAML loc: 21-empty-loops.c:116:3-116:38 │        │
+  │ server: true                            │ ◀──────┘
   └─────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌─────────────────────────────────────────┐
-  │ 21-empty-loops.c:116:1-116:1            │
+  │ 21-empty-loops.c:117:1-117:1            │
   │ (unknown)                               │
-  │ YAML loc: 21-empty-loops.c:116:1-116:1  │
-  │ GraphML: true; server: true             │
+  │ YAML loc: 21-empty-loops.c:117:1-117:1  │
+  │ server: true                            │
   └─────────────────────────────────────────┘
     │
     │ return
@@ -248,29 +251,30 @@
     │ (body)
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:120:3-120:11                │
-  │ (21-empty-loops.c:120:3-120:11)              │
-  │ YAML loc: 21-empty-loops.c:120:3-120:11      │
-  │ GraphML: true; server: true                  │
+  │ 21-empty-loops.c:121:3-121:11                │
+  │ (21-empty-loops.c:121:3-121:11)              │
+  │ YAML loc: 21-empty-loops.c:121:3-121:11      │
+  │ server: true                                 │
   └──────────────────────────────────────────────┘
     │
     │ prefix()
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:122:3-122:14 (synthetic)    │
-  │ (21-empty-loops.c:122:10-122:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:122:3-122:14     │ ─────────┐
-  │ GraphML: true; server: false                 │          │
-  │ loop: 21-empty-loops.c:122:3-122:14          │ ◀────────┘
+  │ 21-empty-loops.c:123:3-123:14 (synthetic)    │
+  │ (21-empty-loops.c:123:10-123:11 (synthetic)) │
+  │ [21-empty-loops.c:123:3-123:14 (synthetic)   │   Pos(1)
+  │ (unknown)]                                   │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:123:3-123:14     │          │
+  │ server: false                                │ ◀────────┘
   └──────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:123:1-123:1                 │
+  │ 21-empty-loops.c:124:1-124:1                 │
   │ (unknown)                                    │
-  │ YAML loc: 21-empty-loops.c:123:1-123:1       │
-  │ GraphML: true; server: true                  │
+  │ YAML loc: 21-empty-loops.c:124:1-124:1       │
+  │ server: true                                 │
   └──────────────────────────────────────────────┘
     │
     │ return
@@ -289,18 +293,18 @@
   ┌─────────────────────────────────────────┐
   │ unknown                                 │
   │ (unknown)                               │   skip
-  │ [21-empty-loops.c:127:1-128:3           │ ───────┐
+  │ [21-empty-loops.c:128:1-129:3           │ ───────┐
   │ (unknown)]                              │        │
-  │ GraphML: true; server: true             │ ◀──────┘
+  │ server: true                            │ ◀──────┘
   └─────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌─────────────────────────────────────────┐
-  │ 21-empty-loops.c:131:1-131:1            │
+  │ 21-empty-loops.c:132:1-132:1            │
   │ (unknown)                               │
-  │ YAML loc: 21-empty-loops.c:131:1-131:1  │
-  │ GraphML: true; server: true             │
+  │ YAML loc: 21-empty-loops.c:132:1-132:1  │
+  │ server: true                            │
   └─────────────────────────────────────────┘
     │
     │ return
@@ -317,20 +321,21 @@
     │ (body)
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:135:3-137:3 (synthetic)     │
-  │ (21-empty-loops.c:135:10-135:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:135:3-137:3      │ ─────────┐
-  │ GraphML: true; server: false                 │          │
-  │ loop: 21-empty-loops.c:135:3-137:3           │ ◀────────┘
+  │ 21-empty-loops.c:136:3-138:3 (synthetic)     │
+  │ (21-empty-loops.c:136:10-136:11 (synthetic)) │
+  │ [21-empty-loops.c:136:3-138:3 (synthetic)    │   Pos(1)
+  │ (unknown)]                                   │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:136:3-138:3      │          │
+  │ server: false                                │ ◀────────┘
   └──────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:138:1-138:1                 │
+  │ 21-empty-loops.c:139:1-139:1                 │
   │ (unknown)                                    │
-  │ YAML loc: 21-empty-loops.c:138:1-138:1       │
-  │ GraphML: true; server: true                  │
+  │ YAML loc: 21-empty-loops.c:139:1-139:1       │
+  │ server: true                                 │
   └──────────────────────────────────────────────┘
     │
     │ return
@@ -347,21 +352,21 @@
     │ (body)
     ▼
   ┌─────────────────────────────────────────┐
-  │ 21-empty-loops.c:143:3-143:42           │
+  │ 21-empty-loops.c:144:3-144:42           │
   │ (unknown)                               │
-  │ [21-empty-loops.c:142:1-143:3           │   skip
+  │ [21-empty-loops.c:143:1-144:3           │   skip
   │ (unknown)]                              │ ───────┐
-  │ YAML loc: 21-empty-loops.c:143:3-143:42 │        │
-  │ GraphML: true; server: true             │ ◀──────┘
+  │ YAML loc: 21-empty-loops.c:144:3-144:42 │        │
+  │ server: true                            │ ◀──────┘
   └─────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌─────────────────────────────────────────┐
-  │ 21-empty-loops.c:146:1-146:1            │
+  │ 21-empty-loops.c:147:1-147:1            │
   │ (unknown)                               │
-  │ YAML loc: 21-empty-loops.c:146:1-146:1  │
-  │ GraphML: true; server: true             │
+  │ YAML loc: 21-empty-loops.c:147:1-147:1  │
+  │ server: true                            │
   └─────────────────────────────────────────┘
     │
     │ return
@@ -380,18 +385,18 @@
   ┌────────────────────────────────────────────────────────┐
   │ unknown                                                │
   │ (unknown)                                              │   skip
-  │ [21-empty-loops.c:150:1-151:3                          │ ───────┐
+  │ [21-empty-loops.c:151:1-152:3                          │ ───────┐
   │ (unknown)]                                             │        │
-  │ GraphML: true; server: true                            │ ◀──────┘
+  │ server: true                                           │ ◀──────┘
   └────────────────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌────────────────────────────────────────────────────────┐
-  │ 21-empty-loops.c:155:1-155:1                           │
+  │ 21-empty-loops.c:156:1-156:1                           │
   │ (unknown)                                              │
-  │ YAML loc: 21-empty-loops.c:155:1-155:1                 │
-  │ GraphML: true; server: true                            │
+  │ YAML loc: 21-empty-loops.c:156:1-156:1                 │
+  │ server: true                                           │
   └────────────────────────────────────────────────────────┘
     │
     │ return
@@ -408,21 +413,21 @@
     │ (body)
     ▼
   ┌─────────────────────────────────────────────────────────┐
-  │ 21-empty-loops.c:160:3-160:59                           │
+  │ 21-empty-loops.c:161:3-161:59                           │
   │ (unknown)                                               │
-  │ [21-empty-loops.c:159:1-160:3                           │   skip
+  │ [21-empty-loops.c:160:1-161:3                           │   skip
   │ (unknown)]                                              │ ───────┐
-  │ YAML loc: 21-empty-loops.c:160:3-160:59                 │        │
-  │ GraphML: true; server: true                             │ ◀──────┘
+  │ YAML loc: 21-empty-loops.c:161:3-161:59                 │        │
+  │ server: true                                            │ ◀──────┘
   └─────────────────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌─────────────────────────────────────────────────────────┐
-  │ 21-empty-loops.c:164:1-164:1                            │
+  │ 21-empty-loops.c:165:1-165:1                            │
   │ (unknown)                                               │
-  │ YAML loc: 21-empty-loops.c:164:1-164:1                  │
-  │ GraphML: true; server: true                             │
+  │ YAML loc: 21-empty-loops.c:165:1-165:1                  │
+  │ server: true                                            │
   └─────────────────────────────────────────────────────────┘
     │
     │ return
@@ -441,18 +446,18 @@
   ┌───────────────────────────────────────────────────────┐
   │ unknown                                               │
   │ (unknown)                                             │   skip
-  │ [21-empty-loops.c:168:1-169:3                         │ ───────┐
+  │ [21-empty-loops.c:169:1-170:3                         │ ───────┐
   │ (unknown)]                                            │        │
-  │ GraphML: true; server: true                           │ ◀──────┘
+  │ server: true                                          │ ◀──────┘
   └───────────────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌───────────────────────────────────────────────────────┐
-  │ 21-empty-loops.c:174:1-174:1                          │
+  │ 21-empty-loops.c:175:1-175:1                          │
   │ (unknown)                                             │
-  │ YAML loc: 21-empty-loops.c:174:1-174:1                │
-  │ GraphML: true; server: true                           │
+  │ YAML loc: 21-empty-loops.c:175:1-175:1                │
+  │ server: true                                          │
   └───────────────────────────────────────────────────────┘
     │
     │ return

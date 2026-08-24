@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval_set --enable ana.int.def_exc
+// NOCHECK
 #include <stdio.h>
 int main(){
   int a = 0;

@@ -2,7 +2,7 @@
 +++ tests/incremental/05-method-rename/05-common_rename.c
 @@ -1,20 +1,20 @@
  #include<stdio.h>
-
+ // CRAM
 -void foo() {
 +void bar() {
      printf("foo");

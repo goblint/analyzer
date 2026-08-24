@@ -4,9 +4,9 @@ void f() {
   glob++; // NOWARN!
 }
 
-void (*fptr) = f;
+void (*fptr)(void) = f;
 
-int g(void (*ptr)()) {
+int g(void (*ptr)(void)) {
   return 0;
 }
 

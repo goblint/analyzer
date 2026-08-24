@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval_set --set ana.base.arrays.domain partitioned
+#include <stdlib.h>
+#include <stdio.h>
 #include <goblint.h>
 
 int main(void) {

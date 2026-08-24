@@ -3,9 +3,9 @@
 #include <stdio.h>
 
 int loops0(){
-  int i = 1;
-  int j = 1;
-  int k = 5;
+  unsigned int i = 1;
+  unsigned int j = 1;
+  unsigned int k = 5;
 
   // Outer while loop
   while (i <= 5)
@@ -84,9 +84,9 @@ int loops0(){
 
 int loops1()
 {
-  int i = 1;
-  int j = 1;
-  int k = 5;
+  unsigned int i = 1;
+  unsigned int j = 1;
+  unsigned int k = 5;
 
   // Outer while loop
   while (i <= 5)
@@ -145,9 +145,9 @@ int loops1()
 }
 
 int loops2(){
-  int i = 1;
-  int j = 1;
-  int k = 5;
+  unsigned int i = 1;
+  unsigned int j = 1;
+  unsigned int k = 5;
 
   // Loop with nested conditions
   i = 1;
@@ -197,9 +197,9 @@ int loops2(){
   printf("\n");
 
   // Loop with multiple variables
-  int a = 1;
-  int b = 2;
-  int c = 3;
+  unsigned int a = 1;
+  unsigned int b = 2;
+  unsigned int c = 3;
   while (a <= 10)
   {
     printf("%d %d %d\n", a, b, c);

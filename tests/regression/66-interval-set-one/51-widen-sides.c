@@ -1,4 +1,4 @@
-// PARAM: --set ana.ctx_insens "['base', 'mallocWrapper']"  --enable ana.int.interval_set --sets solvers.td3.side_widen sides-local
+// PARAM: --set ana.ctx_insens "['base', 'mallocWrapper']"  --enable ana.int.interval_set --set solvers.td3.side_widen sides-local
 #include <goblint.h>
 
 int further(int n) {

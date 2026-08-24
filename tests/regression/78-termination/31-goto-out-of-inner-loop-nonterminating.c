@@ -7,7 +7,7 @@ int main()
   int columns = 5;
 
   // Outer loop for rows
-  for (int i = 1; 1; i++) // NONTERMLOOP termination analysis shall mark beginning of for as non-terminating loop
+  for (unsigned int i = 1; 1; i++) // NONTERMLOOP termination analysis shall mark beginning of for as non-terminating loop
   {
     // Inner loop for columns
     for (int j = 1; j <= columns; j++)

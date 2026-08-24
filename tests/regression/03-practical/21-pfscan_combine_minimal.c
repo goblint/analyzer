@@ -1,3 +1,4 @@
+// FIXPOINT
 #include <pthread.h>
 
 struct __anonstruct_PQUEUE_63 {
@@ -17,7 +18,7 @@ int pqueue_init(PQUEUE *qp)
 
 void pqueue_close(PQUEUE *qp )
 {
-  pthread_mutex_lock(& qp->mtx);
+  pthread_mutex_lock(& qp->mtx); // TODO (OSX): WARN (must double locking)
   qp->closed = 1;
   pthread_mutex_unlock(& qp->mtx);
   return;
@@ -25,7 +26,7 @@ void pqueue_close(PQUEUE *qp )
 
 int pqueue_put(PQUEUE *qp)
 {
-  pthread_mutex_lock(& qp->mtx);
+  pthread_mutex_lock(& qp->mtx); // TODO (OSX): WARN (must double locking)
   if (qp->closed) {
     // pfscan actually has a bug and is missing the following unlock at early return
     // pthread_mutex_unlock(& qp->mtx);

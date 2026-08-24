@@ -126,7 +126,7 @@ struct
     with
       | Failure _ (* raised by IntDomain *)
       | SetDomain.Unsupported _ (* raised by SetDomain *)
-      | Lattice.Unsupported _ (* raised by MapDomain *) ->
+      | Lattice.TopValue (* raised by MapDomain *) ->
         false
 
   let top_leq = make ~name:"top leq" (arb) (fun a ->
@@ -166,9 +166,7 @@ module Widen (D: Lattice.S): S =
 struct
   include DomainTest (D)
 
-  (* let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a b)) *)
-  (* solvers always use (D.join a b) as second argument *)
-  let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a (D.join a b))) (* assume join idem, assoc *)
+  let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a b))
 
   let tests = [
     widen_join

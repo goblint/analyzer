@@ -3,11 +3,11 @@
 
 int main()
 {
-  int outerCount = 1;
+  unsigned int outerCount = 1;
 
   while (outerCount <= 3)
   {
-    int innerCount = 1;
+    unsigned int innerCount = 1;
 
     while (outerCount < 3 || innerCount > 0) // NONTERMLOOP termination analysis shall mark beginning of while as non-terminating loop
     {

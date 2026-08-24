@@ -36,7 +36,6 @@ struct
   let kill x (y:t): t = lift (VF.kill x) y
   let replace x exp y = lift (VF.replace x exp) y
 
-  let is_bullet x = x = `Right ()
   let bullet = `Right ()
   let of_vf vf = `Left vf
   let real_region (x:t): bool = match x with
@@ -50,7 +49,7 @@ module RS = struct
   let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
-  let has_bullet x = exists VFB.is_bullet x
+  let has_bullet x = mem VFB.bullet x
   let is_single_bullet rs =
     not (is_top rs) &&
     cardinal rs = 1 &&
@@ -126,7 +125,7 @@ struct
       match rval with
       | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
-      | CastE (typ, exp) -> eval_rval deref exp
+      | CastE (_, typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)
       | BinOp (PlusPI, p, i, typ)
       | BinOp (IndexPI, p, i, typ) -> eval_rval deref p

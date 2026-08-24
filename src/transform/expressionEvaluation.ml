@@ -125,16 +125,10 @@ struct
                 value_after
 
       method private try_ask location expression =
-        match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
-        (* Inapplicable: Unreachable *)
-        | Some x when Queries.ID.is_bot_ikind x -> None
-        | Some x ->
-          begin match Queries.ID.to_int x with
-            (* Evaluable: Definite *)
-            | Some i -> Some (Some (not (Z.equal i Z.zero)))
-            (* Evaluable: Inconclusive *)
-            | None -> Some None
-          end
+        match ~? (fun () -> Queries.eval_bool (ask location) expression) with
+        | Some `Bot -> None (* Inapplicable: Unreachable *)
+        | Some (`Lifted b) -> Some (Some b) (* Evaluable: Definite *)
+        | Some `Top -> Some None (* Evaluable: Inconclusive *)
         (* Inapplicable: Unlisted *)
         | None
         | exception Not_found -> None

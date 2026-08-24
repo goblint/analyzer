@@ -35,10 +35,10 @@ __VERIFIER_nondet2(unsigned int, u32)
 __VERIFIER_nondet2(unsigned short int, u16) // not in rules
 __VERIFIER_nondet2(unsigned char, u8) // not in rules
 __VERIFIER_nondet2(unsigned char, unsigned_char) // not in rules
-__VERIFIER_nondet2(long long, longlong) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
-__VERIFIER_nondet2(unsigned long long, ulonglong) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
-__VERIFIER_nondet2(__uint128_t, uint128) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
-__VERIFIER_nondet2(__int128_t, int128) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
+__VERIFIER_nondet2(long long, longlong)
+__VERIFIER_nondet2(unsigned long long, ulonglong)
+__VERIFIER_nondet2(__uint128_t, uint128)
+__VERIFIER_nondet2(__int128_t, int128)
 __VERIFIER_nondet2(unsigned char, uchar)
 __VERIFIER_nondet2(unsigned int, uint)
 __VERIFIER_nondet2(unsigned long, ulong)
@@ -46,6 +46,9 @@ __VERIFIER_nondet2(unsigned, unsigned)
 __VERIFIER_nondet2(unsigned short, ushort)
 // void* __VERIFIER_nondet_pointer() { void* val; return val; }
 __VERIFIER_nondet2(void*, pointer)
+
+// Instead of using reference implementation from SV-COMP rules,
+// __VERIFIER_nondet_memory is in LibraryFunctions to avoid supertop warnings.
 
 // atomics are now special in Goblint
 // void __VERIFIER_atomic_begin() { }

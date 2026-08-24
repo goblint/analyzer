@@ -1,4 +1,5 @@
 // PARAM: --enable allglobs --set ana.activated[+] threadJoins
+// CRAM
 #include <stdlib.h>
 #include <pthread.h>
 

@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable ana.int.interval --sets sem.int.signed_overflow assume_none --set ana.activated[+] apron --enable ana.autotune.enabled
+//SKIP PARAM: --enable ana.int.interval --set sem.int.signed_overflow assume_none --set ana.activated[+] apron --enable ana.autotune.enabled
 // Check that autotuner respect goblint_stub attributes as hints to not track variables.
 #include <goblint.h>
 

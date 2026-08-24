@@ -3,11 +3,11 @@
 
 int main()
 {
-  int outerCount, innerCount;
+  unsigned int outerCount, innerCount;
 
   for (outerCount = 1; outerCount <= 3; outerCount++)
   {
-    for (innerCount = 1; innerCount > 0; innerCount++) // NONTERMLOOP termination analysis shall mark beginning of for as non-terminating loop
+    for (innerCount = 1; innerCount > 0; innerCount += 4) // NONTERMLOOP termination analysis shall mark beginning of for as non-terminating loop
     {
       printf("(%d, %d) ", outerCount, innerCount);
     }

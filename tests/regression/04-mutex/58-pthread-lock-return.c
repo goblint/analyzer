@@ -1,5 +1,6 @@
 // PARAM: --disable sem.lock.fail
 #include <pthread.h>
+#include <goblint.h>
 
 int g_mutex = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

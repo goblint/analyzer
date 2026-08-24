@@ -1,4 +1,5 @@
 // Test for issue in https://github.com/goblint/cil/issues/19
+// NOCRASH
 static int a[];
 static int a[] = {};
 static int b[0] = {};

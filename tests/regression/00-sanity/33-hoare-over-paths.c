@@ -1,7 +1,7 @@
 // PARAM: --set ana.path_sens[+] mutex
 #include <assert.h>
 #include <pthread.h>
-
+// CRAM
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
 int main() {
@@ -27,8 +27,8 @@ int main() {
   // NEW explanation:
   // using SensitiveDomain correctly keeps both paths as path-sensitivity demands
 
-  // TODO: manually check final join node in HTML
-  // cannot be automated because concrete execution cannot check
+  // cram test checks internal result
+  // cannot be automated with annotations because concrete execution cannot check
   // if _must_ lockset _may_ contain m on some path
   return 0;
 }

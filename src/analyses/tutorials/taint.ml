@@ -5,6 +5,8 @@
 (* Helpful link on CIL: https://goblint.github.io/cil/ *)
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
+(* A tutorial on this analysis is available at:  https://youtu.be/CoVFNbJJfZY *)
+(* Caveat: The second half of it gives away solutions, might be best to attempt solving it yourself first.  *)
 
 open GoblintCil
 open Analyses
@@ -28,7 +30,7 @@ struct
   module C = Printable.Unit
 
   (* We are context insensitive in this analysis *)
-  let context ctx _ _ = ()
+  let context man _ _ = ()
   let startcontext () = ()
 
 
@@ -43,7 +45,7 @@ struct
     | Imag e
     | SizeOfE e
     | AlignOfE e
-    | CastE (_,e)
+    | CastE (_,_,e)
     | UnOp (_,e,_) -> is_exp_tainted state e
     | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> false
     | Question (b, t, f, _) -> is_exp_tainted state b || is_exp_tainted state t || is_exp_tainted state f
@@ -58,8 +60,8 @@ struct
   (* transfer functions *)
 
   (** Handles assignment of [rval] to [lval]. *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    let state = ctx.local in
+  let assign man (lval:lval) (rval:exp) : D.t =
+    let state = man.local in
     match lval with
     | Var v,_ ->
       (* TODO: Check whether rval is tainted, handle assignment to v accordingly *)
@@ -67,19 +69,28 @@ struct
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
-  let branch ctx (exp:exp) (tv:bool) : D.t =
+  let branch man (exp:exp) (tv:bool) : D.t =
     (* Nothing needs to be done *)
-    ctx.local
+    man.local
+
+  (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
+      computes the caller state after the function call.
+      For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let caller_state = man.local in
+    (* TODO: Check if f is a sink / source and handle it appropriately *)
+    (* To warn about a potential issue in the code, use M.warn. *)
+    caller_state
 
   (** Handles going from start node of function [f] into the function body of [f].
-      Meant to handle e.g. initializiation of local variables. *)
-  let body ctx (f:fundec) : D.t =
+      Meant to handle e.g. initialization of local variables. *)
+  let body man (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
-    ctx.local
+    man.local
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    let state = ctx.local in
+  let return man (exp:exp option) (f:fundec) : D.t =
+    let state = man.local in
     match exp with
     | Some e ->
       (* TODO: Record whether a tainted value was returned. *)
@@ -91,8 +102,8 @@ struct
       [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    let caller_state = ctx.local in
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let caller_state = man.local in
     (* Create list of (formal, actual_exp)*)
     let zipped = List.combine f.sformals args in
     (* TODO: For the initial callee_state, collect formal parameters where the actual is tainted. *)
@@ -108,31 +119,22 @@ struct
   (** For a function call "lval = f(args)" or "f(args)",
       computes the global environment state of the caller after the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+  let combine_env man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     (* Nothing needs to be done *)
-    ctx.local
+    man.local
 
   (** For a function call "lval = f(args)" or "f(args)",
       computes the state of the caller after assigning the return value from the call.
       Argument [callee_local] is the state of [f] at its return node. *)
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    let caller_state = ctx.local in
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+    let caller_state = man.local in
     (* TODO: Record whether lval was tainted. *)
-    caller_state
-
-  (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
-      computes the caller state after the function call.
-      For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let caller_state = ctx.local in
-    (* TODO: Check if f is a sink / source and handle it appropriately *)
-    (* To warn about a potential issue in the code, use M.warn. *)
     caller_state
 
   (* You may leave these alone *)
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.top ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.top ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.top ()
 end
 
