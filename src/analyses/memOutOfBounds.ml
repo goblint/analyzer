@@ -110,6 +110,11 @@ struct
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
           `Lifted type_size_in_bytes
       end
+    | StrPtr s ->
+      begin match StringDomain.to_string_length s with
+        | Some size -> `Lifted (ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int size))
+        | None -> `Top
+      end
     | _ -> `Top
 
   let cil_offs_to_idx man typ offs =
@@ -138,11 +143,11 @@ struct
     | Addr (_, offs) -> PreValueDomain.Offs.to_index ?typ offs
     | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
     | NullPtr
-    | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
+    | StrPtr _ -> ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero
 
   let rec check_lval_for_oob_access man lval =
-    (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
-    if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then () (* TODO: why are StrPtrs special? *)
+    (* If the lval does not contain a pointer, then no need to WARN *)
+    if (not @@ lval_contains_a_ptr lval) then ()
     else
       match lval with
       | (Var _, _) -> ()
