@@ -187,21 +187,29 @@ struct
         check_exp_for_oob_access man ~is_implicitly_derefed e (* See 74-invalid_deref/42-oob-mem-nested *)
 
   and check_no_binop_deref man lval_exp =
+    let ptr_type = typeOf lval_exp in
+    let ad = man.ask (Queries.MayPointTo lval_exp) in
+    check_ad_deref man ~exp:lval_exp ~typ:ptr_type ad
+
+  and check_ad_deref man ?exp:lval_exp ~typ:ptr_type (ad: ValueDomain.AD.t) =
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let ptr_type = typeOf lval_exp in
-    let* addr = man.ask (Queries.MayPointTo lval_exp) in
+    let d_opt_exp () = function
+      | None -> Pretty.nil
+      | Some exp -> Pretty.dprintf " %a" d_exp exp
+    in
+    let* addr = ad in
     let ptr_size = get_addr_size man addr in
     let addr_offs = get_addr_offset ptr_type addr in
     match ptr_size, addr_offs with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer%a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer%a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp
     | `Bot, _ ->
       set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer%a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer%a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp
     | `Lifted ps, ao ->
       let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
