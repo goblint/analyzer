@@ -110,6 +110,11 @@ struct
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
           `Lifted type_size_in_bytes
       end
+    | StrPtr s ->
+      begin match StringDomain.to_string_length s with
+        | Some size -> `Lifted (ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int size))
+        | None -> `Top
+      end
     | _ -> `Top
 
   let cil_offs_to_idx man typ offs =
@@ -133,23 +138,21 @@ struct
   let ptr_only_has_str_addr man ptr =
     ValueDomain.AD.for_all (function StrPtr _ -> true | _ -> false) (man.ask (Queries.MayPointTo ptr))
 
-  let get_addr_offset typ (addr: ValueDomain.Addr.t) =
+  let get_addr_offset ?typ (addr: ValueDomain.Addr.t) =
     match addr with
-    | Addr (_, offs) -> PreValueDomain.Offs.to_index ~typ offs
+    | Addr (_, offs) -> PreValueDomain.Offs.to_index ?typ offs
     | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
     | NullPtr
-    | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
+    | StrPtr _ -> ID.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero
 
-  let rec check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
-    (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
-    if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then () (* TODO: why are StrPtrs special? *)
+  let rec check_lval_for_oob_access man lval =
+    (* If the lval does not contain a pointer, then no need to WARN *)
+    if (not @@ lval_contains_a_ptr lval) then ()
     else
-      (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
-      (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
-      match lval, is_implicitly_derefed with
-      | (Var _, _), false -> ()
-      | (Var v, _), true -> check_no_binop_deref man (Lval lval)
-      | (Mem e, o), _ ->
+      match lval with
+      | (Var _, _) -> ()
+      (* | (Var v, _) -> check_no_binop_deref man (Lval lval) *) (* TODO: previous implicit access case. still need for array accesses? *)
+      | (Mem e, o) ->
         let ptr_type = typeOf e in
         let offs_intdom = cil_offs_to_idx man ptr_type o in
         let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
@@ -184,24 +187,32 @@ struct
         end;
         check_no_binop_deref man e; (* TODO: the above check and the one in check_no_binop_deref should probably be combined into one *)
         (* TODO: accesses in index expressions don't seem to be checked anywhere (unlike with access events) *)
-        check_exp_for_oob_access man ~is_implicitly_derefed e (* See 74-invalid_deref/42-oob-mem-nested *)
+        check_exp_for_oob_access man e (* See 74-invalid_deref/42-oob-mem-nested *)
 
   and check_no_binop_deref man lval_exp =
+    let ptr_type = typeOf lval_exp in
+    let ad = man.ask (Queries.MayPointTo lval_exp) in
+    check_ad_deref man ~exp:lval_exp ~typ:ptr_type ad
+
+  and check_ad_deref man ?exp:lval_exp ?typ (ad: ValueDomain.AD.t) =
     let behavior = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let ptr_type = typeOf lval_exp in
-    let* addr = man.ask (Queries.MayPointTo lval_exp) in
+    let d_opt_exp () = function
+      | None -> Pretty.nil
+      | Some exp -> Pretty.dprintf " %a" d_exp exp
+    in
+    let* addr = ad in
     let ptr_size = get_addr_size man addr in
-    let addr_offs = get_addr_offset ptr_type addr in
+    let addr_offs = get_addr_offset ?typ addr in
     match ptr_size, addr_offs with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer%a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer%a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp
     | `Bot, _ ->
       set_mem_safety_flag InvalidDeref;
-      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
-      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
+      M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer%a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer%a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_opt_exp lval_exp
     | `Lifted ps, ao ->
       let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
@@ -218,7 +229,7 @@ struct
         M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao;
         Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao
 
-  and check_exp_for_oob_access man ?(is_implicitly_derefed = false) exp =
+  and check_exp_for_oob_access man exp =
     match exp with
     | Const _
     | SizeOf _
@@ -230,17 +241,17 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, _, e) -> check_exp_for_oob_access man ~is_implicitly_derefed e
+    | CastE (_, _, e) -> check_exp_for_oob_access man e
     | BinOp (bop, e1, e2, t) ->
-      check_exp_for_oob_access man ~is_implicitly_derefed e1;
-      check_exp_for_oob_access man ~is_implicitly_derefed e2
+      check_exp_for_oob_access man e1;
+      check_exp_for_oob_access man e2
     | Question (e1, e2, e3, _) ->
-      check_exp_for_oob_access man ~is_implicitly_derefed e1;
-      check_exp_for_oob_access man ~is_implicitly_derefed e2;
-      check_exp_for_oob_access man ~is_implicitly_derefed e3
+      check_exp_for_oob_access man e1;
+      check_exp_for_oob_access man e2;
+      check_exp_for_oob_access man e3
     | Lval lval
     | StartOf lval
-    | AddrOf lval -> check_lval_for_oob_access man ~is_implicitly_derefed lval (* TODO: StartOf and AddrOf don't actually access, so this does spurious checks (moving over to access events would fix this) *)
+    | AddrOf lval -> check_lval_for_oob_access man lval (* TODO: StartOf and AddrOf don't actually access, so this does spurious checks (moving over to access events would fix this) *)
 
   (* For memset() and memcpy() *)
   let check_count man fun_name ptr n =
@@ -250,7 +261,7 @@ struct
     let ptr_type = typeOf ptr in
     let* addr = man.ask (Queries.MayPointTo ptr) in
     let ptr_size = get_addr_size man addr in
-    let addr_offs = get_addr_offset ptr_type addr in
+    let addr_offs = get_addr_offset ~typ:ptr_type addr in
     match ptr_size, eval_n with
     | `Top, _ ->
       set_mem_safety_flag InvalidDeref;
@@ -306,15 +317,16 @@ struct
 
   let special man (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
-    let is_arg_implicitly_derefed arg =
-      let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
-      let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
-      let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
-      let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
-      List.mem arg read_shallow_args || List.mem arg read_deep_args || List.mem arg write_shallow_args || List.mem arg write_deep_args
-    in
+    let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
+    let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
+    let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
+    let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
     Option.iter (fun x -> check_lval_for_oob_access man x) lval;
-    List.iter (fun arg -> check_exp_for_oob_access man ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) arg) arglist;
+    List.iter (fun arg -> check_exp_for_oob_access man arg) arglist;
+    List.iter (fun arg -> check_ad_deref man ~exp:arg ~typ:(typeOf arg) (man.ask (MayPointTo arg))) read_shallow_args;
+    List.iter (fun arg -> check_ad_deref man ~exp:arg ~typ:(typeOf arg) (man.ask (MayPointTo arg))) write_shallow_args;
+    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) read_deep_args; (* TODO: no typ to pass? should trust addr? *)
+    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) write_deep_args; (* TODO: no typ to pass? should trust addr? *)
     (* Check calls to memset and memcpy for out-of-bounds-accesses *)
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count man f.vname dest count;
