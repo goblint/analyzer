@@ -323,10 +323,10 @@ struct
     let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
     Option.iter (fun x -> check_lval_for_oob_access man x) lval;
     List.iter (fun arg -> check_exp_for_oob_access man arg) arglist;
-    List.iter (fun arg -> check_ad_deref man (man.ask (MayPointTo arg))) read_shallow_args;
-    List.iter (fun arg -> check_ad_deref man (man.ask (MayPointTo arg))) write_shallow_args;
-    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) read_deep_args;
-    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) write_deep_args;
+    List.iter (fun arg -> check_ad_deref man ~exp:arg ~typ:(typeOf arg) (man.ask (MayPointTo arg))) read_shallow_args;
+    List.iter (fun arg -> check_ad_deref man ~exp:arg ~typ:(typeOf arg) (man.ask (MayPointTo arg))) write_shallow_args;
+    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) read_deep_args; (* TODO: no typ to pass? should trust addr? *)
+    List.iter (fun arg -> check_ad_deref man (man.ask (ReachableFrom arg))) write_deep_args; (* TODO: no typ to pass? should trust addr? *)
     (* Check calls to memset and memcpy for out-of-bounds-accesses *)
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count man f.vname dest count;
