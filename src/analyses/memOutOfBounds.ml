@@ -140,16 +140,14 @@ struct
     | NullPtr
     | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
 
-  let rec check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
+  let rec check_lval_for_oob_access man lval =
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
     if (not @@ lval_contains_a_ptr lval) || ptr_only_has_str_addr man (Lval lval) then () (* TODO: why are StrPtrs special? *)
     else
-      (* If the lval doesn't indicate an explicit dereference, we still need to check for an implicit dereference *)
-      (* An implicit dereference is, e.g., printf("%p", ptr), where ptr is a pointer *)
-      match lval, is_implicitly_derefed with
-      | (Var _, _), false -> ()
-      | (Var v, _), true -> check_no_binop_deref man (Lval lval)
-      | (Mem e, o), _ ->
+      match lval with
+      | (Var _, _) -> ()
+      (* | (Var v, _) -> check_no_binop_deref man (Lval lval) *) (* TODO: previous implicit access case. still need for array accesses? *)
+      | (Mem e, o) ->
         let ptr_type = typeOf e in
         let offs_intdom = cil_offs_to_idx man ptr_type o in
         let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
@@ -184,7 +182,7 @@ struct
         end;
         check_no_binop_deref man e; (* TODO: the above check and the one in check_no_binop_deref should probably be combined into one *)
         (* TODO: accesses in index expressions don't seem to be checked anywhere (unlike with access events) *)
-        check_exp_for_oob_access man ~is_implicitly_derefed e (* See 74-invalid_deref/42-oob-mem-nested *)
+        check_exp_for_oob_access man e (* See 74-invalid_deref/42-oob-mem-nested *)
 
   and check_no_binop_deref man lval_exp =
     let ptr_type = typeOf lval_exp in
@@ -226,7 +224,7 @@ struct
         M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao;
         Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao
 
-  and check_exp_for_oob_access man ?(is_implicitly_derefed = false) exp =
+  and check_exp_for_oob_access man exp =
     match exp with
     | Const _
     | SizeOf _
@@ -238,17 +236,17 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, _, e) -> check_exp_for_oob_access man ~is_implicitly_derefed e
+    | CastE (_, _, e) -> check_exp_for_oob_access man e
     | BinOp (bop, e1, e2, t) ->
-      check_exp_for_oob_access man ~is_implicitly_derefed e1;
-      check_exp_for_oob_access man ~is_implicitly_derefed e2
+      check_exp_for_oob_access man e1;
+      check_exp_for_oob_access man e2
     | Question (e1, e2, e3, _) ->
-      check_exp_for_oob_access man ~is_implicitly_derefed e1;
-      check_exp_for_oob_access man ~is_implicitly_derefed e2;
-      check_exp_for_oob_access man ~is_implicitly_derefed e3
+      check_exp_for_oob_access man e1;
+      check_exp_for_oob_access man e2;
+      check_exp_for_oob_access man e3
     | Lval lval
     | StartOf lval
-    | AddrOf lval -> check_lval_for_oob_access man ~is_implicitly_derefed lval (* TODO: StartOf and AddrOf don't actually access, so this does spurious checks (moving over to access events would fix this) *)
+    | AddrOf lval -> check_lval_for_oob_access man lval (* TODO: StartOf and AddrOf don't actually access, so this does spurious checks (moving over to access events would fix this) *)
 
   (* For memset() and memcpy() *)
   let check_count man fun_name ptr n =
