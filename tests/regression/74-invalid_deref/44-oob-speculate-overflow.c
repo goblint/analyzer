@@ -1,5 +1,7 @@
 // SKIP CRAM PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval
 // SKIP and CRAM because cannot test for specific kinds of warning
+// disable fortification (__builtin___memset_chk) because cram test warnings would be different
+#define _FORTIFY_SOURCE 0
 #include <stdlib.h>
 #include <string.h>
 
