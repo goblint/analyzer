@@ -26,7 +26,7 @@ int bar() {
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex2);
-  assert_racefree(glob); // UNKNOWN
+  assert_racefree(glob); // UNKNOWN!
   pthread_mutex_unlock(&mutex2);
   return NULL;
 }

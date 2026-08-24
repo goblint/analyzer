@@ -360,8 +360,8 @@ struct
       if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
         let rel' = RD.add_vars st.rel [RV.return] in
         Option.map_default (fun e ->
-          assign_from_globals_wrapper ask man.global {st with rel = rel'} e (fun rel' e' ->
-              RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
+            assign_from_globals_wrapper ask man.global {st with rel = rel'} e (fun rel' e' ->
+                RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
               )
           ) rel' e
         (* default value rel' leaves V.return unconstrained *)
@@ -556,8 +556,8 @@ struct
       Priv.thread_join ~force:true ask man.global id st
     | Rand, _ ->
       Option.map_default (fun lv ->
-         let st = invalidate_one ask man st lv in
-         assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+          let st = invalidate_one ask man st lv in
+          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
     | _, _ ->
       let st' = special_unknown_invalidate man f args in
