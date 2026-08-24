@@ -6,9 +6,9 @@ int main(int argc, char const *argv[]) {
     char *ptr = malloc(5 * sizeof(char));
 
     ptr++;//NOWARN
-    printf("%s", *ptr);//NOWARN
+    printf("%s", ptr);//NOWARN
     ptr = ptr + 5;//NOWARN
-    printf("%s", *ptr);//WARN
+    printf("%s", ptr);//WARN
     *(ptr + 1) = 'b';//WARN
     *(ptr + 10) = 'c';//WARN
 
