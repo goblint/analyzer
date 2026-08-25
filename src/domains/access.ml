@@ -615,6 +615,7 @@ struct
     graph
 end
 module InterferenceGraphColoring = Goblint_ocamlgraph.Coloring.Make (InterferenceGraph)
+module ColorMap = Map.Make (Goblint_ocamlgraph.Coloring.Color)
 
 let coloring_module =
   lazy (
@@ -643,18 +644,15 @@ let print_accesses memo grouped_accs =
     | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
       let graph = InterferenceGraph.of_accesses race_accs in
       let coloring = Coloring.color graph in
-      let module IntMap = Map.Make (Int) in
       let add_to_map acc map =
-        match InterferenceGraphColoring.H.find_opt coloring acc with
-        | None -> map (* TODO: should never happen?! *)
-        | Some c ->
-          IntMap.update c (function
-              | None -> Some [acc]
-              | Some accs -> Some (acc :: accs)
-            ) map
+        let c = InterferenceGraphColoring.H.find coloring acc in
+        ColorMap.update c (function
+            | None -> Some [acc]
+            | Some accs -> Some (acc :: accs)
+          ) map
       in
-      let color_map = AS.fold add_to_map race_accs IntMap.empty in
-      IntMap.bindings color_map
+      let color_map = AS.fold add_to_map race_accs ColorMap.empty in
+      ColorMap.bindings color_map
       |> List.concat_map (fun (color, accs) ->
           let header = (dprintf "Color %d" color, None) in
           let acc_msgs = accs |> List.rev |> List.map h in
