@@ -4,7 +4,6 @@ open GoblintCil
 open Analyses
 
 module M = Messages
-module AD = Queries.AD
 
 let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   assert (not v.vglob);
@@ -26,34 +25,6 @@ struct
   include Analyses.ValueContexts(D)
   module V = VarinfoV
   module G = ThreadIdSet
-
-  let reachable (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.ReachableFrom e) with
-    | ad when not (Queries.AD.is_top ad) ->
-      let to_extra addr set =
-        match addr with
-        | Queries.AD.Addr.Addr (v,_) -> D.add v set
-        | _ -> set
-      in
-      Queries.AD.fold to_extra ad (D.empty ())
-    (* Ignore soundness warnings, as invalidation proper will raise them. *)
-    | ad ->
-      if M.tracing then M.tracel "escape" "reachable %a: %a" d_exp e Queries.AD.pretty ad;
-      D.empty ()
-
-  let mpt (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.MayPointTo e) with
-    | ad when not (AD.is_top ad) ->
-      let to_extra addr set =
-        match addr with
-        | AD.Addr.Addr (v,_) -> D.add v set
-        | _ -> set
-      in
-      AD.fold to_extra (AD.remove UnknownPtr ad) (D.empty ())
-    (* Ignore soundness warnings, as invalidation proper will raise them. *)
-    | ad ->
-      if M.tracing then M.tracel "escape" "mpt %a: %a" d_exp e AD.pretty ad;
-      D.empty ()
 
   let thread_id man =
     man.ask Queries.CurrentThreadId
@@ -123,8 +94,7 @@ struct
     | _ -> Queries.Result.top q
 
   let escape_rval man ask (rval:exp) =
-    let escaped = reachable ask rval in
-    let escaped = D.filter (fun v -> not v.vglob) escaped in
+    let escaped = EscapeUtil.escaping ask rval in
 
     let thread_id = thread_id man in
     side_effect_escape man escaped thread_id;
@@ -135,8 +105,7 @@ struct
   (* transfer functions *)
   let assign man (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_man man in
-    let vs = mpt ask (AddrOf lval) in
-    if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
+    if EscapeUtil.stores_into_escaped ask ~escaped:(fun v -> v.vglob || has_escaped ask v) lval then (
       let escaped = escape_rval man ask rval in
       D.join man.local escaped
     ) else begin
@@ -146,7 +115,7 @@ struct
   let combine_assign man (lval:lval option) (fexp:exp) f args fc au f_ask : D.t =
     let ask = Analyses.ask_of_man man in
     match lval with
-    | Some lval when D.exists (fun v -> v.vglob || has_escaped ask v) (mpt ask (AddrOf lval)) ->
+    | Some lval when EscapeUtil.stores_into_escaped ask ~escaped:(fun v -> v.vglob || has_escaped ask v) lval ->
       let rval = Lval (ReturnUtil.return_lval ()) in
       let escaped = escape_rval man f_ask rval in (* Using f_ask because the return value is only accessible in the context of that function at this point *)
       D.join man.local escaped
@@ -174,8 +143,7 @@ struct
     match args with
     | [ptc_arg] ->
       (* not reusing fman.local to avoid unnecessarily early join of extra *)
-      let escaped = reachable (Analyses.ask_of_man man) ptc_arg in
-      let escaped = D.filter (fun v -> not v.vglob) escaped in
+      let escaped = EscapeUtil.escaping (Analyses.ask_of_man man) ptc_arg in
       if M.tracing then M.tracel "escape" "%a: %a" d_exp ptc_arg D.pretty escaped;
       let thread_id = thread_id man in
       emit_escape_event man escaped;
