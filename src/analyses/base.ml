@@ -1204,7 +1204,7 @@ struct
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where man is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
-  let eval_exp st (exp:exp) =
+  let eval_exp st =
     (* Since man is not available here, we need to make some adjustments *)
     let rec query: type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
       let anyq = Queries.Any q in
@@ -1231,9 +1231,7 @@ struct
       ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
       }
     in
-    match eval_rv ~man:(man' Queries.Set.empty) st exp with
-    | Int x -> ValueDomain.ID.to_int x
-    | _ -> None
+    Queries.to_value_domain_ask (Analyses.ask_of_man (man' Queries.Set.empty))
 
   let eval_funvar man fval: Queries.AD.t =
     let fp = eval_fv ~man man.local fval in

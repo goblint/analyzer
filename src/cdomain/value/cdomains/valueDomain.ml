@@ -27,9 +27,9 @@ sig
   val is_statically_safe_cast: typ -> typ -> bool
   val is_dynamically_safe_cast: typ -> typ -> t -> bool
   val cast: kind:castkind -> typ -> t -> t
-  val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t ->  t
-  val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) ->  t -> t -> t
-  val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
+  val smart_join: VDQ.t -> VDQ.t -> t -> t ->  t
+  val smart_widen: VDQ.t -> VDQ.t ->  t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
   val is_immediate_type: typ -> bool
   val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t

@@ -52,9 +52,9 @@ sig
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
-  val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
-  val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
-  val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
+  val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
   val update_length: idx -> t -> t
 
   val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
@@ -101,9 +101,9 @@ end
 module type LatticeWithSmartOps =
 sig
   include LatticeWithInvalidate
-  val smart_join: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> t
-  val smart_widen: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> t
-  val smart_leq: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> bool
+  val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
 end
 
 module type Null =
@@ -301,9 +301,9 @@ module type SPartitioned =
 sig
   include S
   val set_with_length: idx option -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
-  val smart_join_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
-  val smart_widen_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option)  -> t -> t-> t
-  val smart_leq_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
+  val smart_join_with_length: idx option -> VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen_with_length: idx option -> VDQ.t -> VDQ.t  -> t -> t-> t
+  val smart_leq_with_length: idx option -> VDQ.t -> VDQ.t -> t -> t -> bool
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
@@ -651,12 +651,12 @@ struct
 
   let length _ = None
 
-  let must_i_one_smaller l i =
-    GobOption.exists2 (fun l i -> Z.equal i (Z.pred l)) (Option.bind l Idx.to_int) i
+  let must_i_one_smaller l (VDQ.{eval_int; _}, e) =
+    GobOption.exists (fun l -> VDQ.must_be_equal eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) (Z.pred l))) (Option.bind l Idx.to_int)
 
-  let must_be_zero = GobOption.exists (Z.equal Z.zero)
+  let must_be_zero (VDQ.{eval_int; _}, e) = VDQ.must_be_equal eval_int e Cil.zero
 
-  let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 x1_eval_int x2_eval_int =
+  let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 (x1_eval_int: VDQ.t) (x2_eval_int: VDQ.t) =
     normalize @@
     let must_be_length_minus_one = must_i_one_smaller length in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
@@ -668,8 +668,8 @@ struct
         let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
-        let e1_in_state_of_x2 = x2_eval_int e1 in
-        let e2_in_state_of_x1 = x1_eval_int e2 in
+        let e1_in_state_of_x2 = (x2_eval_int, e1) in
+        let e2_in_state_of_x1 = (x1_eval_int, e2) in
         (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
         (* It is mostly SOME order to ensure commutativity of join *)
         let e1_is_better = (not (Cil.isConstant e1) && Cil.isConstant e2) || Basetype.CilExp.compare e1 e2 < 0 in
@@ -700,16 +700,16 @@ struct
     | Joint _, Joint _ ->
       Joint op_over_all
     | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
-      if must_be_zero (x1_eval_int e2) then
+      if must_be_zero (x1_eval_int, e2) then
         Partitioned (e2, (xl2, op x1 xm2, op x1 xr2))
-      else if must_be_length_minus_one (x1_eval_int e2) then
+      else if must_be_length_minus_one (x1_eval_int, e2) then
         Partitioned (e2, (op x1 xl2, op x1 xm2, xr2))
       else
         Joint op_over_all
     | Partitioned (e1, (xl1, xm1, xr1)), Joint x2 ->
-      if must_be_zero (x2_eval_int e1) then
+      if must_be_zero (x2_eval_int, e1) then
         Partitioned (e1, (xl1, op xm1 x2, op xr1 x2))
-      else if must_be_length_minus_one (x2_eval_int e1) then
+      else if must_be_length_minus_one (x2_eval_int, e1) then
         Partitioned (e1, (op xl1 x2, op xm1 x2, xr1))
       else
         Joint op_over_all
@@ -732,20 +732,20 @@ struct
     | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
       if Basetype.CilExp.equal e1 e2 then
         leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
-      else if must_be_zero (x1_eval_int e2) then
+      else if must_be_zero (x1_eval_int, e2) then
         (* A read will never be from xl2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
         leq' l xm2 && leq' l xr2
-      else if must_be_length_minus_one (x1_eval_int e2) then
+      else if must_be_length_minus_one (x1_eval_int, e2) then
         (* A read will never be from xr2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
         leq' l xl2 && leq' l xm2
       else
         false
     | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
-      if must_be_zero (x1_eval_int e2) then
+      if must_be_zero (x1_eval_int, e2) then
         leq' x1 xm2 && leq' x1 xr2
-      else if must_be_length_minus_one (x1_eval_int e2) then
+      else if must_be_length_minus_one (x1_eval_int, e2) then
         leq' x1 xl2 && leq' x1 xm2
       else
         leq' x1 xl2 && leq' x1 xr2 && leq' x1 xm2 && leq' x1 xr2
