@@ -53,13 +53,11 @@ struct
     module C = Graph.Coloring.Make (G)
 
     let color g =
-      let max_colors = max 1 (G.nb_vertex g) in
+      let n = G.nb_vertex g in
       let rec loop k =
-        if k > max_colors then
-          raise Graph.Coloring.NoColoring
-        else
-          try C.coloring g k with
-          | Graph.Coloring.NoColoring -> loop (k + 1)
+        assert (k <= n);
+        try C.coloring g k
+        with Graph.Coloring.NoColoring -> loop (k + 1)
       in
       loop 1
   end
