@@ -621,7 +621,7 @@ let coloring_module =
     let open InterferenceGraphColoring in
     match get_string "warn.race-coloring" with
     | "none" -> None
-    | "greedy" -> Some (module Greedy: ALGORITHM)
+    | "greedy" -> Some (module Greedy: Algorithm)
     | "dsatur" -> Some (module Dsatur)
     | "rlf" -> Some (module Rlf)
     | "optimal" -> Some (module Optimal)
@@ -640,13 +640,13 @@ let print_accesses memo grouped_accs =
     | lazy None ->
       AS.elements race_accs
       |> List.map h
-    | lazy (Some (module Coloring: InterferenceGraphColoring.ALGORITHM)) ->
+    | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
       let graph = InterferenceGraph.of_accesses race_accs in
       let coloring = Coloring.color graph in
       let module IntMap = Map.Make (Int) in
       let add_to_map acc map =
-        match InterferenceGraphColoring.color_of coloring acc with
-        | None -> map
+        match InterferenceGraphColoring.H.find_opt coloring acc with
+        | None -> map (* TODO: should never happen?! *)
         | Some c ->
           IntMap.update c (function
               | None -> Some [acc]

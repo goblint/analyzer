@@ -1,47 +1,50 @@
-module Make (G : Graph.Coloring.G) = struct
-  module C = Graph.Coloring.Make (G)
-  module IntSet = Set.Make (Int)
+module Color = Int
 
-  type coloring = int C.H.t
+module ColorSet = Set.Make (Color)
 
-  module type ALGORITHM = sig
-    val color : G.t -> coloring
+module Make (G: Graph.Coloring.G) =
+struct
+  module H = Hashtbl.Make (G.V)
+  type coloring = Color.t H.t
+
+  module type Algorithm =
+  sig
+    val color: G.t -> coloring
   end
 
-  let k_color g k = C.coloring g k
-  let color_with (module A : ALGORITHM) g = A.color g
-  let color_of coloring v = C.H.find_opt coloring v
-  let colors_used coloring = C.H.fold (fun _ c acc -> max acc c) coloring 0
-
-  module Greedy : ALGORITHM = struct
+  module Greedy: Algorithm =
+  struct
     let color g =
       let n = G.nb_vertex g in
-      let coloring = C.H.create n in
+      let coloring = H.create n in
       let vertices =
         G.fold_vertex (fun v acc -> (G.out_degree g v, v) :: acc) g []
         |> List.sort (fun (d1, _) (d2, _) -> compare d2 d1)
         |> List.map snd
       in
       let next_color v =
-        let used = ref IntSet.empty in
+        let used = ref ColorSet.empty in
         G.iter_succ (fun u ->
-            match C.H.find_opt coloring u with
+            match H.find_opt coloring u with
             | None -> ()
-            | Some c -> used := IntSet.add c !used
+            | Some c -> used := ColorSet.add c !used
           ) g v;
         let rec pick c =
-          if IntSet.mem c !used then
+          if ColorSet.mem c !used then
             pick (c + 1)
           else
             c
         in
         pick 1
       in
-      List.iter (fun v -> C.H.add coloring v (next_color v)) vertices;
+      List.iter (fun v -> H.add coloring v (next_color v)) vertices;
       coloring
   end
 
-  module Optimal : ALGORITHM = struct
+  module Optimal: Algorithm =
+  struct
+    module C = Graph.Coloring.Make (G)
+
     let color g =
       let max_colors = max 1 (G.nb_vertex g) in
       let rec loop k =
@@ -54,21 +57,22 @@ module Make (G : Graph.Coloring.G) = struct
       loop 1
   end
 
-  module Dsatur : ALGORITHM = struct
+  module Dsatur: Algorithm =
+  struct
     let color g =
       let n = G.nb_vertex g in
-      let coloring = C.H.create n in
-      let saturation = C.H.create n in
-      let degree = C.H.create n in
+      let coloring = H.create n in
+      let saturation = H.create n in
+      let degree = H.create n in
       G.iter_vertex (fun v ->
-          C.H.replace saturation v IntSet.empty;
-          C.H.replace degree v (G.out_degree g v)
+          H.replace saturation v ColorSet.empty;
+          H.replace degree v (G.out_degree g v)
         ) g;
-      let is_colored v = C.H.mem coloring v in
+      let is_colored v = H.mem coloring v in
       let sat_count v =
-        match C.H.find_opt saturation v with
+        match H.find_opt saturation v with
         | None -> 0
-        | Some s -> IntSet.cardinal s
+        | Some s -> ColorSet.cardinal s
       in
       let choose_vertex () =
         let pick v best_opt =
@@ -85,8 +89,8 @@ module Make (G : Graph.Coloring.G) = struct
               else if sv < sb then
                 Some best
               else (
-                let dv = C.H.find degree v in
-                let db = C.H.find degree best in
+                let dv = H.find degree v in
+                let db = H.find degree best in
                 if dv > db then Some v else Some best
               )
         in
@@ -94,12 +98,12 @@ module Make (G : Graph.Coloring.G) = struct
       in
       let pick_color v =
         let used =
-          match C.H.find_opt saturation v with
-          | None -> IntSet.empty
+          match H.find_opt saturation v with
+          | None -> ColorSet.empty
           | Some s -> s
         in
         let rec pick c =
-          if IntSet.mem c used then
+          if ColorSet.mem c used then
             pick (c + 1)
           else
             c
@@ -111,15 +115,15 @@ module Make (G : Graph.Coloring.G) = struct
         | None -> ()
         | Some v ->
           let c = pick_color v in
-          C.H.add coloring v c;
+          H.add coloring v c;
           G.iter_succ (fun u ->
               if not (is_colored u) then
                 let s =
-                  match C.H.find_opt saturation u with
-                  | None -> IntSet.empty
+                  match H.find_opt saturation u with
+                  | None -> ColorSet.empty
                   | Some s -> s
                 in
-                C.H.replace saturation u (IntSet.add c s)
+                H.replace saturation u (ColorSet.add c s)
             ) g v;
           loop ()
       in
@@ -127,17 +131,19 @@ module Make (G : Graph.Coloring.G) = struct
       coloring
   end
 
-  module Rlf : ALGORITHM = struct
-    module VSet = struct
-      let create n = C.H.create n
-      let mem s v = C.H.mem s v
-      let add s v = C.H.replace s v ()
-      let remove s v = C.H.remove s v
+  module Rlf: Algorithm =
+  struct
+    module VSet =
+    struct
+      let create n = H.create n
+      let mem s v = H.mem s v
+      let add s v = H.replace s v ()
+      let remove s v = H.remove s v
     end
 
     let color g =
       let n = G.nb_vertex g in
-      let coloring = C.H.create n in
+      let coloring = H.create n in
       let uncolored = VSet.create n in
       G.iter_vertex (fun v -> VSet.add uncolored v) g;
       let degree v = G.out_degree g v in
@@ -192,7 +198,7 @@ module Make (G : Graph.Coloring.G) = struct
         | Some v0 ->
           let forbidden = VSet.create n in
           let add_vertex v =
-            C.H.add coloring v color;
+            H.add coloring v color;
             VSet.remove uncolored v;
             add_forbidden forbidden v
           in
