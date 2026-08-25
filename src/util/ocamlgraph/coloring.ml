@@ -35,13 +35,14 @@ struct
         |> List.map snd
       in
       let next_color v =
-        let used = ref ColorSet.empty in
-        G.iter_succ (fun u ->
+        (* TODO: use saturation hashtbl like in Dsatur? *)
+        let used = G.fold_succ (fun u used ->
             match H.find_opt coloring u with
-            | None -> ()
-            | Some c -> used := ColorSet.add c !used
-          ) g v;
-        ColorSet.find_unused !used
+            | None -> used
+            | Some c -> ColorSet.add c used
+          ) g v ColorSet.empty
+        in
+        ColorSet.find_unused used
       in
       List.iter (fun v -> H.add coloring v (next_color v)) vertices;
       coloring
@@ -76,9 +77,7 @@ struct
         ) g;
       let is_colored v = H.mem coloring v in
       let sat_count v =
-        match H.find_opt saturation v with
-        | None -> 0
-        | Some s -> ColorSet.cardinal s
+        ColorSet.cardinal (H.find saturation v)
       in
       let choose_vertex () =
         let pick v best_opt =
@@ -100,14 +99,11 @@ struct
                 if dv > db then Some v else Some best
               )
         in
+        (* TODO: uncolored set like in Rlf? *)
         G.fold_vertex pick g None
       in
       let pick_color v =
-        let used =
-          match H.find_opt saturation v with
-          | None -> ColorSet.empty
-          | Some s -> s
-        in
+        let used = H.find saturation v in
         ColorSet.find_unused used
       in
       let rec loop () =
@@ -118,11 +114,7 @@ struct
           H.add coloring v c;
           G.iter_succ (fun u ->
               if not (is_colored u) then
-                let s =
-                  match H.find_opt saturation u with
-                  | None -> ColorSet.empty
-                  | Some s -> s
-                in
+                let s = H.find saturation u in
                 H.replace saturation u (ColorSet.add c s)
             ) g v;
           loop ()
