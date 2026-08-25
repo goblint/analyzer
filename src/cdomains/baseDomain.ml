@@ -107,7 +107,7 @@ end
 module type ExpEvaluator =
 sig
   type t
-  val eval_exp: t  ->  ValueDomainQueries.t
+  val to_value_domain_ask: t  ->  ValueDomainQueries.t
 end
 
 (* Takes a module for privatization component and a module specifying how expressions can be evaluated inside the domain and returns the domain *)
@@ -116,14 +116,14 @@ struct
   include BaseComponents (PrivD)
 
   let join (one:t) (two:t): t =
-    let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
+    let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.to_value_domain_ask one) (ExpEval.to_value_domain_ask two)) in
     op_scheme cpa_join PartDeps.join WeakUpdates.join PrivD.join one two
 
   let leq one two =
-    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
+    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.to_value_domain_ask one) (ExpEval.to_value_domain_ask two)) in
     cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && WeakUpdates.leq one.weak two.weak && PrivD.leq one.priv two.priv
 
   let widen one two: t =
-    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
+    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.to_value_domain_ask one) (ExpEval.to_value_domain_ask two)) in
     op_scheme cpa_widen PartDeps.widen WeakUpdates.widen PrivD.widen one two
 end

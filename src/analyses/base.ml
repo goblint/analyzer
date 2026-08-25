@@ -1204,7 +1204,7 @@ struct
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where man is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
-  let eval_exp st =
+  let to_value_domain_ask st =
     (* Since man is not available here, we need to make some adjustments *)
     let rec query: type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
       let anyq = Queries.Any q in
@@ -1218,17 +1218,17 @@ struct
     and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) (* the expression is guaranteed to not contain globals *)
     and man' asked =
       { ask = (fun (type a) (q: a Queries.t) -> query asked q)
-      ; emit   = (fun _ -> failwith "Cannot \"emit\" in base eval_exp context.")
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in base to_value_domain_ask context.")
       ; node    = MyCFG.dummy_node
       ; prev_node = MyCFG.dummy_node
-      ; control_context = (fun () -> man_failwith "Base eval_exp has no context.")
-      ; context = (fun () -> man_failwith "Base eval_exp has no context.")
+      ; control_context = (fun () -> man_failwith "Base to_value_domain_ask has no context.")
+      ; context = (fun () -> man_failwith "Base to_value_domain_ask has no context.")
       ; edge    = MyCFG.Skip
       ; local   = st
       ; global  = gs
-      ; spawn   = (fun ?(multiple=false) _ -> failwith "Base eval_exp should never spawn threads. What is going on?")
-      ; split   = (fun _ -> failwith "Base eval_exp trying to split paths.")
-      ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
+      ; spawn   = (fun ?(multiple=false) _ -> failwith "Base to_value_domain_ask should never spawn threads. What is going on?")
+      ; split   = (fun _ -> failwith "Base to_value_domain_ask trying to split paths.")
+      ; sideg   = (fun g d -> failwith "Base to_value_domain_ask trying to side effect.")
       }
     in
     Queries.to_value_domain_ask (Analyses.ask_of_man (man' Queries.Set.empty))
@@ -1813,7 +1813,7 @@ struct
                 Analyses.ask_of_man (man' Queries.Set.empty)
               in
               let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
-              (* TODO: why does affect_move need general ask (of any query) instead of eval_exp? *)
+              (* TODO: why does affect_move need general ask (of any query) instead of to_value_domain_ask? *)
               VD.affect_move (Queries.to_value_domain_ask patched_ask) v x moved_by     (* was a set call caused e.g. by a guard *)
           in
           { st with cpa = update_variable arr arr.vtype nval st.cpa }
