@@ -1,6 +1,18 @@
 module Color = Int
 
-module ColorSet = Set.Make (Color)
+module ColorSet =
+struct
+  include Set.Make (Color)
+
+  let find_unused used =
+    let rec loop c =
+      if mem c used then
+        loop (c + 1)
+      else
+        c
+    in
+    loop 1
+end
 
 module Make (G: Graph.Coloring.G) =
 struct
@@ -29,13 +41,7 @@ struct
             | None -> ()
             | Some c -> used := ColorSet.add c !used
           ) g v;
-        let rec pick c =
-          if ColorSet.mem c !used then
-            pick (c + 1)
-          else
-            c
-        in
-        pick 1
+        ColorSet.find_unused !used
       in
       List.iter (fun v -> H.add coloring v (next_color v)) vertices;
       coloring
@@ -102,13 +108,7 @@ struct
           | None -> ColorSet.empty
           | Some s -> s
         in
-        let rec pick c =
-          if ColorSet.mem c used then
-            pick (c + 1)
-          else
-            c
-        in
-        pick 1
+        ColorSet.find_unused used
       in
       let rec loop () =
         match choose_vertex () with
