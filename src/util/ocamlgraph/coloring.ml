@@ -44,7 +44,7 @@ struct
         in
         ColorSet.find_unused used
       in
-      List.iter (fun v -> H.add coloring v (next_color v)) vertices;
+      List.iter (fun v -> H.replace coloring v (next_color v)) vertices;
       coloring
   end
 
@@ -111,7 +111,7 @@ struct
         | None -> ()
         | Some v ->
           let c = pick_color v in
-          H.add coloring v c;
+          H.replace coloring v c;
           G.iter_succ (fun u ->
               if not (is_colored u) then
                 let s = H.find saturation u in
@@ -190,7 +190,7 @@ struct
         | Some v0 ->
           let forbidden = VSet.create n in
           let add_vertex v =
-            H.add coloring v color;
+            H.replace coloring v color;
             VSet.remove uncolored v;
             add_forbidden forbidden v
           in
