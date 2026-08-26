@@ -363,24 +363,34 @@ module Checker (System: FwdGlobConstrSys)
   module LS = Gbl.LS
 
 
-  let work = ref (([] : System.LVar.t list), LS.empty)
-
-  let add_work x = let (l,s) = !work in
-    if LS.mem x s then ()
-    else work := (x::l, LS.add x s)
-
-  let rem_work () = let (l,s) = !work in
-    match l with
-    | [] -> None
-    | x::xs ->
-      let s = LS.remove x s in
-      let _ = work := (xs,s) in
-      Some x
-
   let check localinit globalinit xs =
 
     let sigma_out = LM.create 100 in
     let tau_out   = GM.create 100 in
+
+    (* Global dependencies may discover an influence after its local RHS has
+       already been checked. Distinguish processed locals from locals merely
+       present in the worklist so such late discoveries do not evaluate the
+       same final RHS again. *)
+    let work = ref (([] : System.LVar.t list), LS.empty) in
+    let processed = ref LS.empty in
+
+    let add_work x =
+      let l, queued = !work in
+      if LS.mem x queued || LS.mem x !processed then
+        ()
+      else
+        work := (x :: l, LS.add x queued)
+    in
+
+    let rem_work () =
+      let l, queued = !work in
+      match l with
+      | [] -> None
+      | x :: xs ->
+        work := (xs, LS.remove x queued);
+        Some x
+    in
 
     (* let get_local x = try (LM.find Lcl.loc x).loc_value with _ -> D.bot () in *)
     let get_local x = try (Lcl.get x).loc_value with _ -> D.bot () in
@@ -431,7 +441,11 @@ module Checker (System: FwdGlobConstrSys)
     let rec doit () =
       match rem_work () with
       | None -> (LM.to_seq sigma_out, GM.to_seq tau_out)
-      | Some x -> (match System.system x with
+      | Some x ->
+        (* Mark before evaluating to also suppress self-invalidation through a
+           global read performed by this RHS. *)
+        processed := LS.add x !processed;
+        (match System.system x with
           | None -> doit ()
           | Some f -> (
               f (get_local x)
@@ -592,4 +606,3 @@ module SetWorkList (Var: Set.OrderedType) : WorkListS with type elt = Var.t = st
       f x;
       map_until_empty f
 end
-
