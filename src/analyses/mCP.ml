@@ -147,14 +147,14 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let do_spawns man (xs:(varinfo * (lval option * exp list * bool)) list) =
+  let do_spawns man (xs:(varinfo * (lval option * lval option * exp list * bool)) list) =
     let spawn_one v d =
       if get_bool "exp.single-threaded" then (
         M.msg_final Error ~category:Unsound "Thread not spawned";
         M.error ~category:Unsound "Thread not spawned from %a" CilType.Varinfo.pretty v
       )
       else
-        List.iter (fun (lval, args, multiple) -> man.spawn ~multiple lval v args) d
+        List.iter (fun (result_lval, lval, args, multiple) -> man.spawn ~multiple ~result_lval lval v args) d
     in
     iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
@@ -353,8 +353,8 @@ struct
 
   and outer_man tfname ?spawns ?sides ?emits man =
     let spawn = match spawns with
-      | Some spawns -> (fun ?(multiple=false) l v a  -> spawns := (v,(l,a,multiple)) :: !spawns)
-      | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
+      | Some spawns -> (fun ?(multiple=false) ~result_lval l v a  -> spawns := (v,(result_lval,l,a,multiple)) :: !spawns)
+      | None -> (fun ?(multiple=false) ~result_lval v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
       | Some sides -> (fun v g    -> sides  := (v, (!WideningTokenLifter.side_tokens, g)) :: !sides)
