@@ -1033,7 +1033,7 @@ let meet_pos_conjs cc pos_conjs =
     let cc = insert_set cc subterms in
     closure cc pos_conjs
   in
-  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %a\n" pretty_conj (get_conjunction_from_data res); (* TODO: avoid eager computation in argument *)
+  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %t" (fun () -> pretty_conj () (get_conjunction_from_data res));
   res
 
 (** Adds propositions to the data structure.
@@ -1356,7 +1356,7 @@ let join_bldis bldiseq1 bldiseq2 cc1 cc2 cc cmap1 cmap2 =
   let cc = insert_set cc subterms in
   let diseqs_ref_terms = List.filter both_root bldiseq in
   let bldis = List.fold_left BlDis.add_block_diseq BlDis.empty diseqs_ref_terms in
-  (if M.tracing then M.trace "c2po-neq" "join_bldis: %a" pretty_conj (BlDis.to_conj bldis));
+  (if M.tracing then M.trace "c2po-neq" "join_bldis: %t" (fun () -> pretty_conj () (BlDis.to_conj bldis)));
   {cc with bldis}
 
 (** Check for equality of two congruence closures,
