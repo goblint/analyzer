@@ -124,9 +124,9 @@ module EqualitiesConjunction = struct
       (op dim (Array.length indexes), a)
 
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
-      M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %a } -> { %a }"
+      M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%a] in { %a } -> { %a }"
         (op 0 1)
-        (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str) cols "")
+        GoblintCil.Pretty.(docArray ~sep:(text ", ") (fun _ -> Pretty.num)) cols
         pretty (snd m)
         pretty (snd res);
     res
@@ -184,8 +184,8 @@ module EqualitiesConjunction = struct
   let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 
   let dim_remove ch m = let res = dim_remove ch m in if M.tracing then
-      M.tracel "dim_remove" "dim remove at positions [%s] in { %a } -> { %a }"
-        (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
+      M.tracel "dim_remove" "dim remove at positions [%a] in { %a } -> { %a }"
+        GoblintCil.Pretty.(docArray ~sep:(text ", ") (fun _ -> Pretty.num)) ch.dim
         pretty (snd m)
         pretty (snd res);
     res
@@ -328,8 +328,8 @@ struct
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
-    if M.tracing then M.tracel "from_texp" "%a %a -> %s" EConj.pretty (snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
-        (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
+    if M.tracing then M.tracel "from_texp" "%a %a -> %a" EConj.pretty (snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
+        GoblintCil.Pretty.(docOpt (fun (l,(o,d)) -> dprintf "%a + %a/%a" (d_list " + " (fun () (a,x,b) -> dprintf "%a*var_%d/%a" GobZ.pretty a x GobZ.pretty b)) l GobZ.pretty o GobZ.pretty d)) res;
     res
 
   let simplify_to_ref_and_offset (t: t) texp =
