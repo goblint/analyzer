@@ -398,7 +398,7 @@ end
 
 module Prod = ProdConf (Printable.DefaultConf)
 
-module Prod3 (Base1: S) (Base2: S) (Base3: S) =
+module Prod3Conf (Conf: Printable.Prod3Conf) (Base1: S) (Base2: S) (Base3: S) =
 struct
   open struct (* open to avoid leaking P and causing conflicts *)
     module P = Printable.Prod3 (Base1) (Base2) (Base3)
@@ -414,6 +414,8 @@ struct
     else
       Base3.pretty_diff () (x3,y3)
 end
+
+module Prod3 = Prod3Conf (Printable.DefaultConf)
 
 module LiftBot (Base : S) =
 struct
