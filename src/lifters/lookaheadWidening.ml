@@ -116,10 +116,15 @@ struct
   let special man r f args = lift_fun man S.special ((|>) args % (|>) f % (|>) r)
 
   let enter man r f args =
+    M.tracel "LA" "enter: %a" D.pretty man.local;
     let (l1, l2) = lift_fun' man S.enter ((|>) args % (|>) f % (|>) r) in
+    M.tracel "LA" "enter l1: %a" (Pretty.d_list "\n" D.pretty) l1;
+    M.tracel "LA" "enter l2: %a" (Pretty.d_list "\n" D.pretty) l2;
     List.map2 (fun (m1, m2) (p1, p2) -> ((m1, p1), (m2, p2))) l1 l2
-  let combine_env man r fe f args fc es f_ask = lift_fun man S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
-  let combine_assign man r fe f args fc es f_ask = lift_fun man S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_env man r fe f args fc es f_ask =
+    lift_fun2 man S.combine_env (fun p -> p r fe f args fc (fst es) f_ask) (fun p -> p r fe f args fc (snd es) f_ask)
+  let combine_assign man r fe f args fc es f_ask =
+    lift_fun2 man S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask) (fun p -> p r fe f args fc (snd es) f_ask)
 
   let threadenter man ~multiple lval f args =
     let (l1, l2) = lift_fun' man (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval) in
