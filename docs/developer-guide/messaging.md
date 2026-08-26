@@ -49,3 +49,5 @@ The `~loc` argument is optional and defaults to the current location, but allows
 The `_noloc` suffixed functions allow general messages without any location (not even current).
 
 By convention, may-warnings (the usual case) should use warning severity and  must-warnings should use error severity.
+
+The `Assumption` category says that a result is conditional, not that something in the program may be wrong, so emit it only through `Assumptions.add`. That prints a message at the location that used the assumption and one closing line naming the assumption, however many locations used it, which is why a consumer that wants the number of locations counts the located messages. Its severity is `Info` because Goblint has no assumption severity; a consumer counting alarms must therefore filter on the category, never on the severity.

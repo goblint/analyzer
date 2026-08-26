@@ -194,6 +194,14 @@ let rules = [
     shortDescription="The product calls free() twice on the same memory address, potentially leading to modification of unexpected memory locations.";
     helpUri="https://cwe.mitre.org/data/definitions/415.html";
     longDescription=""
+  };
+  {
+    name="Assumption";
+    ruleId="GO0023";
+    helpText="Assumed Property";
+    shortDescription="The result at this location holds only under an assumption the analysis did not check. Where the assumption has an identifier, the message text opens with it.";
+    helpUri="https://goblint.in.tum.de/home";
+    longDescription="";
   }
 ]
 
