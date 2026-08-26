@@ -26,7 +26,7 @@ struct
     include Printable.Chain (ChainParams)
     let name () = "widen-delay"
   end
-  include Printable.Prod (Base) (Chain) (* TODO: suppress Base name? *)
+  include Printable.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (Base) (Chain)
 
   let lift d = (d, 0)
   let unlift (d, _) = d

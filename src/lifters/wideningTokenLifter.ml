@@ -62,7 +62,7 @@ open Analyses
     except widening tokens are used to delay widenings. *)
 module Dom (D: Lattice.S) =
 struct
-  include Lattice.Prod (D) (TS) (* TODO: suppress Base name? *)
+  include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (D) (TS)
   let unlift (d, _) = d
   let lift d = (d, TS.bot ())
 
