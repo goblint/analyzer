@@ -6,10 +6,10 @@
 
     @see <http://www2.in.tum.de/bib/files/mihaila13widening.pdf> Mihaila, B., Sepp, A. & Simon, A. Widening as Abstract Domain. *)
 
-module Token = WideningToken
+module Token = WideningToken (* TODO: add name? *)
 
 (** Widening token set. *)
-module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
+module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end) (* TODO: add name? *)
 
 (** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
 let add_ref: (Token.t -> unit) Domain.DLS.key = Domain.DLS.new_key (fun () _ ->
@@ -58,7 +58,7 @@ open Analyses
     except widening tokens are used to delay widenings. *)
 module Dom (D: Lattice.S) =
 struct
-  include Lattice.Prod (D) (TS)
+  include Lattice.Prod (D) (TS) (* TODO: suppress Base name? *)
   let unlift (d, _) = d
   let lift d = (d, TS.bot ())
 

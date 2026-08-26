@@ -21,8 +21,8 @@ end
 
 module Dom (Base: S) (ChainParams: Printable.ChainParams) =
 struct
-  module Chain = Printable.Chain (ChainParams)
-  include Printable.Prod (Base) (Chain)
+  module Chain = Printable.Chain (ChainParams) (* TODO: add name *)
+  include Printable.Prod (Base) (Chain) (* TODO: suppress Base name? *)
 
   let lift d = (d, 0)
   let unlift (d, _) = d

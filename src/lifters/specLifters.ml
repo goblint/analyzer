@@ -328,7 +328,7 @@ module LevelSliceLifter (S:Spec)
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted)) (* TODO: suppress Base name? *) (* TODO: add name to 2nd component *)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -457,7 +457,7 @@ struct
   module M = MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
 
   module D = struct
-    include Lattice.Prod (S.D) (M)
+    include Lattice.Prod (S.D) (M) (* TODO: suppress S.D name? *)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
@@ -780,7 +780,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (S.G) (EM)
     let name () = "deadbranch"
 
     let s = function
