@@ -84,7 +84,7 @@ struct
   let replace x exp (v,fd) = v, F.replace x exp fd
 end
 
-module P = Printable.ProdSimple (V) (V)
+module P = Printable.Prod (V) (V)
 
 (* TODO: unused, but should be used by something? region? *)
 module Equ =
