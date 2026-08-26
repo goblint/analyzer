@@ -428,7 +428,8 @@ let ghost_instr_loc = function
 let show_ghost_update_location (loc: Cil.location) =
   Printf.sprintf "%s:%d:%d" loc.file loc.line loc.column
 
-module GhostUpdateLocator = WitnessUtil.Locator (CilType.Location)
+module GhostUpdateTarget = Printable.Prod (CilType.Location) (CilType.Fundec)
+module GhostUpdateLocator = WitnessUtil.Locator (GhostUpdateTarget)
 module GhostUpdateLocationH = Hashtbl.Make (CilType.Location)
 
 let rhs_needs_separate_evaluation rhs =
@@ -458,12 +459,18 @@ let rhs_needs_separate_evaluation rhs =
 class ghostUpdateLocationVisitor (locations : GhostUpdateLocator.t) = object
   inherit nopCilVisitor
 
+  val mutable fundec = None
+
+  method! vfunc f =
+    fundec <- Some f;
+    DoChildren
+
   method! vstmt s =
     (match s.skind with
      | Instr il ->
        List.iter (fun instr ->
            Option.iter (fun loc ->
-               GhostUpdateLocator.add locations loc loc
+               GhostUpdateLocator.add locations loc (loc, Option.get fundec)
              ) (ghost_instr_loc instr)
          ) il
      | _ -> ());
@@ -620,20 +627,10 @@ let init () =
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
     (* Phase 1: instrument ghost variable declarations. *)
     List.iter instrument_ghost_variables yaml_entries;
-    (* Phase 2: instrument ghost updates into the CIL statements.
-       Recompute global_vars after phase 1 so that ghost variables are in scope
-       when parsing update value expressions. *)
-    let global_vars_with_ghosts =
-      file.globals
-      |> List.filter_map (function
-          | Cil.GVar (v, _, _)
-          | Cil.GVarDecl (v, _)
-          | Cil.GFun ({svar = v; _}, _) -> Some (v.vname, Cil.Fv v)
-          | _ -> None
-        )
-    in
+    (* Phase 2: instrument ghost updates into the CIL statements. *)
     let instruction_locations = GhostUpdateLocator.create () in
     visitCilFile (new ghostUpdateLocationVisitor instruction_locations) file;
+    let update_parser = WitnessUtil.InvariantParser.create file in
     let updates : Cil.instr list GhostUpdateLocationH.t = GhostUpdateLocationH.create 16 in
     let add_update_instrs resolved_loc instrs =
       match GhostUpdateLocationH.find_opt updates resolved_loc with
@@ -647,29 +644,30 @@ let init () =
       | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_updates; _}; _} ->
         List.iter (fun (lu: YamlWitnessType.GhostInstrumentation.LocationUpdate.t) ->
             let loc = loc_of_location lu.location in
-            let instrs = List.filter_map (fun (upd: YamlWitnessType.GhostInstrumentation.Update.t) ->
-                match find_global_var upd.variable with
-                | None ->
-                  M.warn_noloc ~category:Witness "ghost update variable not found: %s" upd.variable;
-                  None
-                | Some v ->
-                  (match
-                     try Some (Formatcil.cExp upd.value global_vars_with_ghosts) with
-                     | exn when GobExn.catch_all_filter exn ->
-                       M.warn_noloc ~category:Witness "ghost update value parse failed for %s: %s" upd.variable upd.value;
-                       None
-                   with
-                   | None -> None
-                   | Some value_exp -> Some (Set (Cil.var v, value_exp, loc, locUnknown)))
-              ) lu.updates in
-            if instrs <> [] then
-              match GhostUpdateLocator.find_opt instruction_locations loc with
-              | Some resolved_locs ->
-                GhostUpdateLocator.ES.iter (fun resolved_loc ->
+            match GhostUpdateLocator.find_opt instruction_locations loc with
+            | Some resolved_locs ->
+              GhostUpdateLocator.ES.iter (fun (resolved_loc, fundec) ->
+                  let instrs = List.filter_map (fun (upd: YamlWitnessType.GhostInstrumentation.Update.t) ->
+                      match find_global_var upd.variable with
+                      | None ->
+                        M.warn_noloc ~category:Witness "ghost update variable not found: %s" upd.variable;
+                        None
+                      | Some v ->
+                        (match
+                           let open GobResult.Syntax in
+                           let* cabs = WitnessUtil.InvariantParser.parse_cabs upd.value in
+                           WitnessUtil.InvariantParser.parse_cil update_parser ~check:false ~fundec ~loc:resolved_loc cabs
+                         with
+                         | Error _ ->
+                           M.warn_noloc ~category:Witness "ghost update value parse failed for %s: %s" upd.variable upd.value;
+                           None
+                         | Ok value_exp -> Some (Set (Cil.var v, value_exp, loc, locUnknown)))
+                    ) lu.updates in
+                  if instrs <> [] then
                     add_update_instrs resolved_loc instrs
-                  ) resolved_locs
-              | None ->
-                unplaced_ghost_updates := show_ghost_update_location loc :: !unplaced_ghost_updates
+                ) resolved_locs
+            | None ->
+              unplaced_ghost_updates := show_ghost_update_location loc :: !unplaced_ghost_updates
           ) ghost_updates
       | Ok _ -> ()
       | Error (`Msg m) ->
@@ -742,7 +740,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local
       ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ())
-      ; spawn  = (fun ?(multiple=false) _ _ _ -> ())
+      ; spawn  = (fun ?(multiple=false) ~result_lval:_ _ _ _ -> ())
       ; split  = (fun _ _ -> ())
       ; sideg  = (fun _ _ -> ())
       }

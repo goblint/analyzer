@@ -1228,7 +1228,7 @@ struct
       ; edge    = MyCFG.Skip
       ; local   = st
       ; global  = gs
-      ; spawn   = (fun ?(multiple=false) _ -> failwith "Base eval_exp should never spawn threads. What is going on?")
+      ; spawn   = (fun ?(multiple=false) ~result_lval _ -> failwith "Base eval_exp should never spawn threads. What is going on?")
       ; split   = (fun _ -> failwith "Base eval_exp trying to split paths.")
       ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
       }
@@ -1997,7 +1997,7 @@ struct
        let find_fps e xs = Option.map_default (fun x -> x :: xs) xs (Addr.to_var_must e) in
        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
        let funs = Seq.filter (fun x -> isFunctionType x.vtype) @@ List.to_seq vars in
-       Seq.iter (fun x -> man.spawn None x []) funs
+       Seq.iter (fun x -> man.spawn ~result_lval:None None x []) funs
      | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
@@ -2384,9 +2384,9 @@ struct
     in
     let forks = forkfun man lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple4.second forks);
-    List.iter (fun (lval, f, args, multiple) -> man.spawn ~multiple lval f args) forks;
     let st: store = man.local in
     let desc = LF.find f in
+    List.iter (fun (lval, f, args, multiple) -> man.spawn ~multiple ~result_lval:lv lval f args) forks;
     let memory_copying dst src n =
       let dest_size = get_size_of_ptr_target man dst in
       let n_intdom = Option.map_default (fun exp -> man.ask (Queries.EvalInt exp)) `Bot n in
@@ -2710,7 +2710,7 @@ struct
       Option.map_default (fun lv -> set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) result) st lv
     (* handling thread creations *)
     | ThreadCreate _, _ ->
-      invalidate_ret_lv man.local (* actual results joined via threadspawn *)
+      man.local (* result is invalidated by the framework after threadspawn *)
     (* handling thread joins... sort of *)
     | ThreadJoin { thread = id; ret_var }, _ ->
       let st' =
@@ -2970,8 +2970,9 @@ struct
     | fd ->
       [make_entry ~thread:true man fd args]
     | exception Not_found ->
-      (* Unknown functions *)
-      let st = special_unknown_invalidate man f args in
+      (* Keep the creator state for evaluating the unknown function's arguments.
+         The framework applies its special transfer after constructing the
+         complete spawned state. *)
       [st]
 
   let threadspawn man ~multiple (lval: lval option) (f: varinfo) (args: exp list) fman: D.t =

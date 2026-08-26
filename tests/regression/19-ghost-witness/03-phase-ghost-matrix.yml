@@ -115,6 +115,10 @@
       scope: global
       type: int
       initial: {value: "0", format: c_expression}
+    - name: ghost_z
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
     ghost_updates:
     - location:
         file_name: 03-phase-ghost-matrix.c
@@ -161,3 +165,5 @@
       - {variable: ghost_v, value: "2", format: c_expression}
       - {variable: ghost_y, value: "ghost_y + 1", format: c_expression}
       - {variable: ghost_y, value: "ghost_y + 1", format: c_expression}
+      - {variable: ghost_z, value: "1", format: c_expression}
+      - {variable: ghost_z, value: "0", format: c_expression}

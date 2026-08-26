@@ -35,7 +35,7 @@ Validate the phase ghost associated with assignments to `total` using the level-
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (23-arithmetic-prog-ok.c:17:40-17:45)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& empty) (23-arithmetic-prog-ok.c:62:3-62:31)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& full) (23-arithmetic-prog-ok.c:63:3-63:30)
-  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -63,7 +63,7 @@ The second witness additionally states the final phase, value, and their relatio
     dead: 1 (1 in uncalled functions)
     total lines: 40
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (23-arithmetic-prog-ok.c:17:40-17:45)
-  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
@@ -95,7 +95,7 @@ The second witness additionally states the final phase, value, and their relatio
     dead: 1 (1 in uncalled functions)
     total lines: 40
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (23-arithmetic-prog-ok.c:17:40-17:45)
-  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.c:65:3-65:37] and has known lower and upper bounds
   [Info][Witness] unassume invariant: (total == (unsigned long )(2 * ghost_total_phase) && total == 10UL) && ghost_total_phase == 5 (23-arithmetic-prog-ok.c:67:3-67:22)
   [Info][Witness] witness validation summary:
     confirmed: 3
@@ -150,7 +150,7 @@ Validate the phase ghost against the preprocessed input.
   [Warning][Deadcode][CWE-571] condition 'total == 10UL' is always true (23-arithmetic-prog-ok.i:918:8-918:36)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& empty) (23-arithmetic-prog-ok.i:911:3-911:31)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& full) (23-arithmetic-prog-ok.i:912:3-912:30)
-  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.i:914:3-914:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.i:914:3-914:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -182,7 +182,7 @@ The preprocessed input also accepts the final phase, value, and relation invaria
   [Warning][Deadcode][CWE-571] condition 'total == 10UL' is always true (23-arithmetic-prog-ok.i:918:8-918:36)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& empty) (23-arithmetic-prog-ok.i:911:3-911:31)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& full) (23-arithmetic-prog-ok.i:912:3-912:30)
-  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.i:914:3-914:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.i:914:3-914:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
@@ -217,7 +217,7 @@ The preprocessed input also unassumes the phase/value invariants.
   [Warning][Deadcode][CWE-571] condition 'total == 10UL' is always true (23-arithmetic-prog-ok.i:918:8-918:36)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& empty) (23-arithmetic-prog-ok.i:911:3-911:31)
   [Info][Imprecise] Invalidating expressions: (pthread_cond_t * __restrict  )(& full) (23-arithmetic-prog-ok.i:912:3-912:30)
-  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.i:914:3-914:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_total_phase is only accessed by unique thread [main, thread2@23-arithmetic-prog-ok.i:914:3-914:37] and has known lower and upper bounds
   [Info][Witness] unassume invariant: (total == (unsigned long )(2 * ghost_total_phase) && total == 10UL) && ghost_total_phase == 5 (23-arithmetic-prog-ok.i:917:7-917:11)
   [Info][Witness] unassume invariant: (total == (unsigned long )(2 * ghost_total_phase) && total == 10UL) && ghost_total_phase == 5 (23-arithmetic-prog-ok.i:918:8-918:36)
   [Info][Witness] witness validation summary:

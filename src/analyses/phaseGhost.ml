@@ -1,5 +1,5 @@
 (** Analysis for checking whether ghost globals are only accessed by one unique thread
-    and monotonically increased to known bounds ([phaseGhost]). *)
+    and have known lower and upper bounds ([phaseGhost]). *)
 
 open Analyses
 open GoblintCil
@@ -13,10 +13,10 @@ struct
   let name () = "ghost-constant"
 end
 
-module MonotoneBounded =
+module Bounded =
 struct
   include BoolDomain.MustBool
-  let name () = "monotone-bounded"
+  let name () = "bounded"
 end
 
 module Spec =
@@ -34,11 +34,11 @@ struct
   module V = VarinfoV
   module G =
   struct
-    include Lattice.Prod (TIDs) (MonotoneBounded)
+    include Lattice.Prod (TIDs) (Bounded)
     let tids = fst
-    let monotone_bounded = snd
-    let create_tids tids = (tids, MonotoneBounded.bot ())
-    let create_monotone_bounded monotone_bounded = (TIDs.bot (), monotone_bounded)
+    let bounded = snd
+    let create_tids tids = (tids, Bounded.bot ())
+    let create_bounded bounded = (TIDs.bot (), bounded)
   end
 
   let initial_ghost_values () =
@@ -100,12 +100,17 @@ struct
     | _ ->
       None
 
-  let is_monotone_bounded_update state lval rval =
-    match eval_const state (Lval lval), eval_const state rval with
-    | Some old_value, Some new_value ->
-      Z.lt old_value new_value
+  let is_bounded_update man lval rval =
+    match eval_const man.local rval with
+    | Some _ -> true
     | _ ->
-      false
+      match man.ask (Queries.EvalInt rval) with
+      | `Lifted value ->
+        let module ID = IntDomain.IntDomTuple in
+        not (ID.is_top_of (ID.ikind value) value)
+        && Option.is_some (ID.minimal value)
+        && Option.is_some (ID.maximal value)
+      | _ -> false
 
   let event man e oman =
     match e with
@@ -131,13 +136,13 @@ struct
     else
       match lval with
       | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
-        let monotone_bounded = is_monotone_bounded_update man.local lval rval in
+        let bounded = is_bounded_update man lval rval in
         let local =
-          match monotone_bounded, eval_const man.local rval with
+          match bounded, eval_const man.local rval with
           | true, Some z -> D.add var (`Lifted z) man.local
           | _ -> D.add var (Const.top ()) man.local
         in
-        man.sideg var (G.create_monotone_bounded monotone_bounded);
+        man.sideg var (G.create_bounded bounded);
         local
       | _ ->
         man.local
@@ -157,8 +162,8 @@ struct
           | _ ->
             false
       in
-      let (tids, monotone_bounded) = man.global var in
-      monotone_bounded && unique_owner tids
+      let global = man.global var in
+      G.bounded global && unique_owner (G.tids global)
     | Queries.Owner var when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
       let tidset = G.tids (man.global var) in
       begin match TIDs.elements tidset with
@@ -171,16 +176,17 @@ struct
       end
     | Queries.WarnGlobal g ->
       let g: V.t = Obj.obj g in
-      let (tidset, monotone_bounded) = man.global g in
+      let global = man.global g in
+      let tidset = G.tids global in
       if TIDs.is_top tidset then
         (M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by a non-unique or unknown thread id" CilType.Varinfo.pretty g;)
       else
         (match TIDs.elements tidset with
          | [tid] when TID.is_unique tid ->
-           if monotone_bounded then
-             M.info_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a and is monotonically increased to known bounds" CilType.Varinfo.pretty g TID.pretty tid
+           if G.bounded global then
+             M.info_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a and has known lower and upper bounds" CilType.Varinfo.pretty g TID.pretty tid
            else
-             M.warn_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a, but is not monotonically increased to known bounds" CilType.Varinfo.pretty g TID.pretty tid
+             M.warn_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a, but does not have known lower and upper bounds" CilType.Varinfo.pretty g TID.pretty tid
          | _ ->
            M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by multiple unique threads: %a" CilType.Varinfo.pretty g TIDs.pretty tidset)
     | _ ->
