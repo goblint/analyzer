@@ -1457,9 +1457,6 @@ module MayBeEqual = struct
   let dummy_var typ =
     T.aux_term_of_varinfo (AssignAux typ)
 
-  let dummy_lval_print typ =
-    Lval (Var (to_varinfo (AssignAux typ)), NoOffset)
-
   let return_var typ =
     T.aux_term_of_varinfo (ReturnAux typ)
 

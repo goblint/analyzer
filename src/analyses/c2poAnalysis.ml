@@ -188,7 +188,7 @@ struct
         end
       | None -> ctx.local
     in
-    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %a; result: %a" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) D.pretty ctx.local D.pretty res;
+    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %a; result: %a" (Pretty.docOpt (d_exp ())) exp_opt D.pretty ctx.local D.pretty res;
     res
 
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
