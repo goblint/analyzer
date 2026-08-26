@@ -381,10 +381,10 @@ end
 
 module Lift2 = Lift2Conf (Printable.DefaultConf)
 
-module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
+module ProdConf (Conf: Printable.ProdConf) (Base1: S) (Base2: S) =
 struct
   open struct (* open to avoid leaking P and causing conflicts *)
-    module P = Printable.ProdConf (C) (Base1) (Base2)
+    module P = Printable.ProdConf (Conf) (Base1) (Base2)
   end
   type t = Base1.t * Base2.t [@@deriving lattice]
   include (P: module type of P with type t := t)
@@ -396,8 +396,7 @@ struct
       Base1.pretty_diff () (x1,y1)
 end
 
-
-module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
+module Prod = ProdConf (Printable.DefaultConf)
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
