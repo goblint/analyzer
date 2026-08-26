@@ -100,7 +100,7 @@ struct
     | lval_size, (Some rterm, Some roffset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
 
-      if M.tracing then M.trace "c2po-assign" "assigning: var: %a; expr: %a + %a. \nTo_cil: lval: %a; expr: %a\n" T.pretty lterm T.pretty rterm GobZ.pretty roffset d_exp (T.to_cil lterm) d_exp (T.to_cil rterm);
+      if M.tracing then M.trace "c2po-assign" "assigning: var: %a; expr: %a + %a. \nTo_cil: lval: %a; expr: %a\n" T.pretty lterm T.pretty rterm GobZ.pretty roffset T.pretty_exp lterm T.pretty_exp rterm;
 
       let equal_dummy_rterm = [Equal (dummy_var, rterm, roffset)] in
       let equal_dummy_lterm = [Equal (lterm, dummy_var, Z.zero)] in

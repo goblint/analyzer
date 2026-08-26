@@ -324,6 +324,10 @@ module T = struct
     | Aux (_, exp)
     | (Deref (_, _, exp)) -> exp
 
+  (** Wrapper to only do {!to_cil} on demand. *)
+  let pretty_exp () term =
+    d_exp () (to_cil term)
+
   let default_int_type =
     ILong
 
