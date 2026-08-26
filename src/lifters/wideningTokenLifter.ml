@@ -6,10 +6,14 @@
 
     @see <http://www2.in.tum.de/bib/files/mihaila13widening.pdf> Mihaila, B., Sepp, A. & Simon, A. Widening as Abstract Domain. *)
 
-module Token = WideningToken (* TODO: add name? *)
+module Token = WideningToken
 
 (** Widening token set. *)
-module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end) (* TODO: add name? *)
+module TS =
+struct
+  include SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
+  let name () = "widen-tokens"
+end
 
 (** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
 let add_ref: (Token.t -> unit) Domain.DLS.key = Domain.DLS.new_key (fun () _ ->

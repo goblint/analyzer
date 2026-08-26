@@ -321,14 +321,20 @@ module OptEqual (S: Spec) = struct
   include (S : Spec with module D := D and module G := G and module C := C)
 end
 
+module LevelSliceDomain =
+struct
+  include Lattice.Reverse (IntDomain.Lifted)
+  let name () = "level"
+end
+
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  : Spec with module D = Lattice.Prod (S.D) (LevelSliceDomain)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted)) (* TODO: suppress Base name? *) (* TODO: add name to 2nd component *)
+  module D = Lattice.Prod (S.D) (LevelSliceDomain) (* TODO: suppress Base name? *)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -454,7 +460,11 @@ struct
     include S.D
     let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
-  module M = MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+  module M =
+  struct
+    include MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+    let name () = "widen-context"
+  end
 
   module D = struct
     include Lattice.Prod (S.D) (M) (* TODO: suppress S.D name? *)
@@ -763,6 +773,11 @@ struct
 
   module V =
   struct
+    module Node =
+    struct
+      include Node
+      let name () = "deadbranch"
+    end
     include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (S.V) (Node)
     let name () = "DeadBranch"
     let s x = `Left x
