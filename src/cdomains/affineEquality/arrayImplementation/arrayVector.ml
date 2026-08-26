@@ -48,7 +48,7 @@ module ArrayVector: ArrayVectorFunctor =
     type t = A.t array [@@deriving eq, ord, hash]
 
     let pretty () t =
-      GoblintCil.Pretty.(dprintf "[%a]" (docArray ~sep:(text " ") (fun _ x -> text (A.to_string x))) t)
+      GoblintCil.Pretty.(dprintf "[%a]" (docArray ~sep:(text " ") (fun _ x -> A.pretty () x)) t)
 
     let keep_vals v n =
       if n >= Array.length v then v else

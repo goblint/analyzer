@@ -446,7 +446,7 @@ module ListMatrix: SparseMatrixFunctor =
             | [], [] -> (acclist,acc)
           in
           let resl,rest = sub_and_last_aux ([],None) c1 c2 in
-          if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %a, c2: %a, resultlist: %a, result_pivot: %a" ridx V.pretty col1 V.pretty col2 GoblintCil.Pretty.(d_list "," (fun () (i, v) -> dprintf "(%d,%s)" i (A.to_string v))) resl GoblintCil.Pretty.(docOpt (fun (i,v1,v2) -> dprintf "(%d,%s,%s)" i (A.to_string v1) (A.to_string v2))) rest;
+          if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %a, c2: %a, resultlist: %a, result_pivot: %a" ridx V.pretty col1 V.pretty col2 GoblintCil.Pretty.(d_list "," (fun () (i, v) -> dprintf "(%d,%a)" i A.pretty v)) resl GoblintCil.Pretty.(docOpt (fun (i,v1,v2) -> dprintf "(%d,%a,%a)" i A.pretty v1 A.pretty v2)) rest;
           V.of_sparse_list len (List.rev resl), rest
         in
         let coldiff,lastdiff = sub_and_lastterm col1 col2 in
@@ -470,8 +470,8 @@ module ListMatrix: SparseMatrixFunctor =
           let transformed_a = multiply_by_t (-) m1 r1 in
           let alpha = get_col_upper_triangular transformed_a cidx in
           let res = push_col transformed_res cidx alpha in
-          if M.tracing then M.trace "linear_disjunct_cases" "case_three: found difference at ridx: %d idx: %d, x: %s, y: %s, diff: %s, m1: \n%a, m2:\n%a, res:\n%a"
-              ridx idx (A.to_string x) (A.to_string y) (A.to_string diff) pretty m1 pretty m2 pretty_rev res; (* TODO: avoid eager A.to_string *)
+          if M.tracing then M.trace "linear_disjunct_cases" "case_three: found difference at ridx: %d idx: %d, x: %a, y: %a, diff: %a, m1: \n%a, m2:\n%a, res:\n%a"
+              ridx idx A.pretty x A.pretty y A.pretty diff pretty m1 pretty m2 pretty_rev res;
           safe_remove_row (transformed_a) idx, safe_remove_row (multiply_by_t (-) m2 r2) idx, safe_remove_row (res) idx, ridx - 1
       in
 
