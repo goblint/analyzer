@@ -391,6 +391,7 @@ module ListMatrix: SparseMatrixFunctor =
       let maxcols = num_cols m1 in
       let inverse_termorder = fun x y -> y - x in
       let rev_matrix = List.map (fun x -> V.of_sparse_list (V.length x) (List.rev @@ V.to_sparse_list x) ) in
+      let pretty_rev () m = pretty () (rev_matrix m) in
       let del_col m i = List.map (fun v -> V.tail_afterindex v i) m in
       let safe_get_row m i =
         try List.nth m i with
@@ -445,7 +446,7 @@ module ListMatrix: SparseMatrixFunctor =
             | [], [] -> (acclist,acc)
           in
           let resl,rest = sub_and_last_aux ([],None) c1 c2 in
-          if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %a, c2: %a, resultlist: %s, result_pivot: %s" ridx V.pretty col1 V.pretty col2 (String.concat "," (List.map (fun (i,v) -> Printf.sprintf "(%d,%s)" i (A.to_string v)) resl)) (match rest with None -> "None" | Some (i,v1,v2) -> Printf.sprintf "(%d,%s,%s)" i (A.to_string v1) (A.to_string v2)); (* TODO: avoid eager arguments *)
+          if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %a, c2: %a, resultlist: %a, result_pivot: %a" ridx V.pretty col1 V.pretty col2 GoblintCil.Pretty.(d_list "," (fun () (i, v) -> dprintf "(%d,%s)" i (A.to_string v))) resl GoblintCil.Pretty.(docOpt (fun (i,v1,v2) -> dprintf "(%d,%s,%s)" i (A.to_string v1) (A.to_string v2))) rest;
           V.of_sparse_list len (List.rev resl), rest
         in
         let coldiff,lastdiff = sub_and_lastterm col1 col2 in
@@ -470,13 +471,13 @@ module ListMatrix: SparseMatrixFunctor =
           let alpha = get_col_upper_triangular transformed_a cidx in
           let res = push_col transformed_res cidx alpha in
           if M.tracing then M.trace "linear_disjunct_cases" "case_three: found difference at ridx: %d idx: %d, x: %s, y: %s, diff: %s, m1: \n%a, m2:\n%a, res:\n%a"
-              ridx idx (A.to_string x) (A.to_string y) (A.to_string diff) pretty m1 pretty m2 pretty (rev_matrix res); (* TODO: avoid eager A.to_string, rev_matrix *)
+              ridx idx (A.to_string x) (A.to_string y) (A.to_string diff) pretty m1 pretty m2 pretty_rev res; (* TODO: avoid eager A.to_string *)
           safe_remove_row (transformed_a) idx, safe_remove_row (multiply_by_t (-) m2 r2) idx, safe_remove_row (res) idx, ridx - 1
       in
 
       let rec lindisjunc_aux currentrowindex currentcolindex m1 m2 result =
         if M.tracing then M.trace "linear_disjunct" "result so far: \n%a, currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a"
-            pretty (rev_matrix result) currentrowindex currentcolindex pretty m1 pretty m2; (* TODO: avoid eager rev_matrix *)
+            pretty_rev result currentrowindex currentcolindex pretty m1 pretty m2;
         if currentcolindex >= maxcols then result
         else
           let col1, rc1 = col_and_rc m1 currentcolindex currentrowindex in
