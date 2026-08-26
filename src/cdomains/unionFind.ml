@@ -574,9 +574,9 @@ module T = struct
     (if M.tracing then
        match res with
        | exception (UnsupportedCilExpression s) ->
-         M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
+         M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s" d_plainlval lval s
        | t ->
-         M.trace "c2po-cil-conversion" "lval: %a --> %a\n" d_plainlval lval pretty t);
+         M.trace "c2po-cil-conversion" "lval: %a --> %a" d_plainlval lval pretty t);
     res
 
   let rec of_cil_neg ask neg e = match e with
@@ -606,14 +606,14 @@ module T = struct
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
         | exception (UnsupportedCilExpression s) ->
-          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s" d_plainexp e s;
           None, None
         | t, z -> t, Some z
       in
       (if M.tracing && not neg then
          match res with
-         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %a\n" d_plainexp e GobZ.pretty z
-         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %a + %a\n" d_plainexp e pretty t GobZ.pretty z;
+         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %a" d_plainexp e GobZ.pretty z
+         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %a + %a" d_plainexp e pretty t GobZ.pretty z;
          | _ -> ());
       res
 
@@ -628,7 +628,7 @@ module T = struct
       if check_valid_pointer exp then
         Some t, Some z
       else begin
-        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %a + %a\n" d_plainexp e pretty t GobZ.pretty z;
+        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %a + %a" d_plainexp e pretty t GobZ.pretty z;
         None, None
       end
     | t, z -> t, z

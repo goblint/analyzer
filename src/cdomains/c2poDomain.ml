@@ -125,7 +125,7 @@ module C2PODomain = struct
     join_f a b widen_eq_no_automata
 
   let widen a b =
-    if M.tracing then M.trace "c2po-widen" "WIDEN\n";
+    if M.tracing then M.trace "c2po-widen" "WIDEN";
     match GobConfig.get_string "ana.c2po.join_algorithm" with
     | "precise" ->
       widen_automata a b
@@ -229,7 +229,7 @@ module D = struct
       It removes all terms that contain an AssignAux variable,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_aux_variable cc =
-    if M.tracing then M.trace "c2po" "remove_terms_containing_aux_variable\n";
+    if M.tracing then M.trace "c2po" "remove_terms_containing_aux_variable";
     let is_assign_aux_term t =
       let var = T.get_var t in
       Var.is_assign_aux var
@@ -240,7 +240,7 @@ module D = struct
       It removes all terms that contain an ReturnAux variable,
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_return_variable cc =
-    if M.tracing then M.trace "c2po" "remove_terms_containing_aux_variable\n";
+    if M.tracing then M.trace "c2po" "remove_terms_containing_aux_variable";
     let is_return_aux_term t =
       let var = T.get_var t in
       Var.is_return_aux var
@@ -279,7 +279,7 @@ module D = struct
   (** Remove terms from the data structure.
       It removes all terms that may point to one of the tainted addresses.*)
   let remove_tainted_terms ask address cc =
-    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
+    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a" MayBeEqual.AD.pretty address;
     let may_be_tainted =
       MayBeEqual.may_point_to_one_of_these_addresses ask address cc
     in

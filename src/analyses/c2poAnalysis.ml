@@ -26,7 +26,7 @@ struct
       reachable_from_exp @ acc
     in
     let res = List.fold collect_reachable_from_exp [] args in
-    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %s\n" (List.fold_left (fun s v -> s ^ v.vname ^"; ") "" res);
+    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %s" (List.fold_left (fun s v -> s ^ v.vname ^"; ") "" res);
     res
 
   (* Returns Some true if we know for sure that it is true,
@@ -100,7 +100,7 @@ struct
     | lval_size, (Some rterm, Some roffset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
 
-      if M.tracing then M.trace "c2po-assign" "assigning: var: %a; expr: %a + %a. \nTo_cil: lval: %a; expr: %a\n" T.pretty lterm T.pretty rterm GobZ.pretty roffset T.pretty_exp lterm T.pretty_exp rterm;
+      if M.tracing then M.trace "c2po-assign" "assigning: var: %a; expr: %a + %a. \nTo_cil: lval: %a; expr: %a" T.pretty lterm T.pretty rterm GobZ.pretty roffset T.pretty_exp lterm T.pretty_exp rterm;
 
       let equal_dummy_rterm = [Equal (dummy_var, rterm, roffset)] in
       let equal_dummy_lterm = [Equal (lterm, dummy_var, Z.zero)] in
@@ -285,7 +285,7 @@ struct
 
       (*remove all variables that were tainted by the function*)
       let tainted = f_ask.f (MayBeTainted) in
-      if M.tracing then M.trace "c2po-tainted" "combine_env1: %a\n" MayBeEqual.AD.pretty tainted;
+      if M.tracing then M.trace "c2po-tainted" "combine_env1: %a" MayBeEqual.AD.pretty tainted;
 
       let local = D.remove_tainted_terms caller_ask tainted state_with_assignments.data in
       let local = data_to_t local in

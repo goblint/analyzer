@@ -555,7 +555,7 @@ module MRMap = struct
      - The map with the minimal representatives.
   *)
   let compute_minimal_representatives (uf, set, map) =
-    if M.tracing then M.trace "c2po-normal-form" "compute_minimal_representatives\n";
+    if M.tracing then M.trace "c2po-normal-form" "compute_minimal_representatives";
     let atoms = SSet.get_atoms set in
     (* process all atoms in increasing order *)
     let compare el1 el2 =
@@ -668,7 +668,7 @@ let get_normal_conjunction cc get_normal_repr =
     | Equal (t1,t2,z) -> failwith "No equality expected."
     | BlNequal (t1,t2) -> failwith "No block disequality expected."
   in
-  if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %a;\nUnion find: %a\nMap: %a\n" pretty_conj disequalities TUF.pretty_uf cc.uf LMap.pretty_map cc.map;
+  if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %a;\nUnion find: %a\nMap: %a" pretty_conj disequalities TUF.pretty_uf cc.uf LMap.pretty_map cc.map;
   let disequalities = List.map normalize_disequality disequalities in
   (* block disequalities *)
   let normalize_bldis t = match t with
@@ -819,7 +819,7 @@ let congruence_neq cc neg' =
   (* take explicit dis-equalities into account *)
   let uf, neq_list = Disequalities.init_list_neq uf neg in
   let neq = Disequalities.propagate_neq (uf, cmap, arg, neq) cc.bldis neq_list in
-  if M.tracing then M.trace "c2po-neq" "congruence_neq: %a\nUnion find: %a\n" Disequalities.pretty_neq neq TUF.pretty_uf uf;
+  if M.tracing then M.trace "c2po-neq" "congruence_neq: %a\nUnion find: %a" Disequalities.pretty_neq neq TUF.pretty_uf uf;
   {cc with uf; diseq = neq}
 
 (**

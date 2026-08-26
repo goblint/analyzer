@@ -439,7 +439,7 @@ struct
       try
         { d = Some (EConj.meet_with_one_conj d i (var, o, divi)); env = t.env}
       with EConj.Contradiction ->
-        if M.tracing then M.trace "meet" " -> Contradiction\n";
+        if M.tracing then M.trace "meet" " -> Contradiction";
         { d = None; env = t.env}
 
   let meet_with_one_conj t i e =
