@@ -95,13 +95,16 @@ struct
   let lift_fun (man: (D.t, G.t, C.t, V.t) man) g h =
     let main = h (g (convm man)) in
     if S.D.is_bot main then D.bot () else
+      let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
       (main, h (g (convp man)))
   let lift_fun' (man: (D.t, G.t, C.t, V.t) man) g h =
     let main = h (g (convm man)) in
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     (main, h (g (convp man)))
   let lift_fun2 (man: (D.t, G.t, C.t, V.t) man) g h1 h2 =
     let main = h1 (g (convm man)) in
     if S.D.is_bot main then D.bot () else
+      let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
       (main, h2 (g (convp man)))
 
   let sync man reason = lift_fun man S.sync   ((|>) reason)
