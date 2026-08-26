@@ -9,7 +9,7 @@ sig
 
   val copy: t -> t
 
-  val empty: unit -> t 
+  val empty: unit -> t
 
   val is_empty: t -> bool
 

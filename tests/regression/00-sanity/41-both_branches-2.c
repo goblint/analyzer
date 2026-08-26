@@ -4,6 +4,8 @@ struct S {
   int *f[1];
 };
 
+struct S *magic();
+
 int main() {
   struct S* s;
   s = magic();

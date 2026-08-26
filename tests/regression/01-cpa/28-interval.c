@@ -49,6 +49,11 @@ int main () {
   __goblint_check(!(a>9));
   __goblint_check(b==8); //UNKNOWN
 
+  __goblint_check((a < 10) == 1);
+  __goblint_check((a > 9) == 0);
+  __goblint_check((a == b) >= 0);
+  __goblint_check((a == b) <= 1);
+
   for(x = 0; x < 10; x++){
     __goblint_check(x >= 0);
     __goblint_check(x <= 9);

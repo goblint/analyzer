@@ -9,6 +9,15 @@ open Goblint_constraint.ConstrSys
 open GobConfig
 
 
+type Goblint_backtrace.mark += TfLocation of location
+
+let () = Goblint_backtrace.register_mark_printer (function
+    | TfLocation loc ->
+      Some ("transfer function at " ^ CilType.Location.show loc)
+    | _ -> None (* for other marks *)
+  )
+
+
 module type Increment =
 sig
   val increment: increment_data option
@@ -287,7 +296,11 @@ struct
     in
     let one_function f =
       match Cil.unrollType f.vtype with
-      | TFun (_, params, var_arg, _)  ->
+      | TFun (_, params, var_arg, attrs)  ->
+        if Cil.hasAttribute "missingproto" attrs then (
+          M.msg_final Warning ~category:Program "Function declaration missing";
+          M.warn ~category:Program "Function declaration missing for %s" f.vname
+        );
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
         (* Check whether number of arguments fits. *)
@@ -342,14 +355,6 @@ struct
       | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> tf_skip var edge prev_node
     end getl sidel demandl getg sideg d
-
-  type Goblint_backtrace.mark += TfLocation of location
-
-  let () = Goblint_backtrace.register_mark_printer (function
-      | TfLocation loc ->
-        Some ("transfer function at " ^ CilType.Location.show loc)
-      | _ -> None (* for other marks *)
-    )
 
   let tf var getl sidel demandl getg sideg prev_node (_,edge) d (f,t) =
     let old_loc  = !Goblint_tracing.current_loc in

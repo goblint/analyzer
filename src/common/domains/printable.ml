@@ -296,7 +296,7 @@ struct
       | `Bot -> empty
       | `Top -> GobQCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Bot;
       1, QCheck.always `Top
@@ -721,7 +721,7 @@ struct
       | `Lifted x -> GobQCheck.shrink (Base.arbitrary ()) x >|= lift
       | `Top -> GobQCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Top
     ] (* S TODO: decide frequencies *)

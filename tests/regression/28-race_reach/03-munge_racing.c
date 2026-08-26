@@ -8,7 +8,7 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void munge(pthread_mutex_t *m) {
   pthread_mutex_lock(m);
-  access_or_assert_racefree(global); // UNKNOWN
+  access_or_assert_racefree(global); // UNKNOWN!
   pthread_mutex_unlock(m);
 }
 

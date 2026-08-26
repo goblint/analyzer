@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --enable ana.int.interval --set solver slr3tp
 #include <assert.h>
+#include <goblint.h>
 
 int main() {
   short a;
@@ -9,12 +10,12 @@ int main() {
   b = a + 1;
   c = a + 2;
 	int x, g;
-	
+
   for(x=0; x < 50; x++){
 		g = 1;
   }
   b = a + x;
-	
+
 	// x = [50, 50] after narrow
   if(b - a > 50){ // live after widen, but dead after narrow
     // node after Pos(x>50) is marked dead at the end

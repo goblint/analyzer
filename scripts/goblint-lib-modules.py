@@ -34,6 +34,9 @@ exclude_module_names = set([
     "PrivPrecCompare",
     "ApronPrecCompare",
 
+    # executable helpers
+    "Goblint_memtrace",
+
     # libraries
     "Goblint_std",
     "Goblint_constraint",

@@ -1,10 +1,21 @@
 # Inspecting results
 
-## g2html
+## HTML
+1. Run Goblint with additional `--html` argument.
+2. Run `python3 -m http.server --directory result 8080`
+   or `npx http-server -c-1 result`.
+3. Inspect results at <http://localhost:8080/index.xml>.
+
+Modern browsers' security settings forbid some file access which is necessary for the HTML output to work, hence the need for serving the results via Python's `http.server` (or similar).
+
+## g2html (legacy)
+If there are problems with the above HTML output, the legacy g2html output (using an external Java component) is still possible.
+The frontend of the above HTML output is reused from g2html, so the two look the same (except for code highlighting).
+
 1. First time run: `make jar`.
-2. Run Goblint with additional `--html` argument.
+2. Run Goblint with additional `--set result g2html` arguments.
 3. Run `python3 -m http.server --directory result 8080`
-   or  `npx http-server -c-1 result`.
+   or `npx http-server -c-1 result`.
 4. Inspect results at <http://localhost:8080/index.xml>.
 
 Modern browsers' security settings forbid some file access which is necessary for g2html to work, hence the need for serving the results via Python's `http.server` (or similar).

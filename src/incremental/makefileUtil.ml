@@ -9,12 +9,11 @@ let comb_suffix = "_comb.c"
 
 let exec_command ?path (command: string) =
   let current_dir = Sys.getcwd () in
-  (match path with
-   | Some path ->
+  GobOption.iter (fun path ->
      let path_str = Fpath.to_string path in
      if Sys.file_exists path_str && Sys.is_directory path_str then Sys.chdir path_str
      else failwith ("Directory " ^ path_str ^ " does not exist!")
-   | None -> ());
+    ) path;
   Logs.debug "%s" ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
   let (std_out, std_in) = open_process command in
   let output = Buffer.create buff_size in

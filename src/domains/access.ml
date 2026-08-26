@@ -234,7 +234,7 @@ let rec get_type (fb: typ Lazy.t) : exp -> acc_typ = function
     `Type (uintType) (* TODO: Correct types from typeOf? *)
   | UnOp (_,_,t) -> `Type t
   | BinOp (_,_,_,t) -> `Type t
-  | CastE (t,e) ->
+  | CastE (_,t,e) ->
     begin match get_type fb e with
       | `Struct s -> `Struct s
       | _         -> `Type t
@@ -370,7 +370,7 @@ and distribute_access_exp f = function
     distribute_access_lval_addr f lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
-  | CastE  (t, exp) ->
+  | CastE (_, t, exp) ->
     distribute_access_exp f exp
   | Question (b,t,e,_) ->
     distribute_access_exp f b;

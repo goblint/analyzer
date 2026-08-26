@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # usage: transform.sh [--stdout] [--stderr] [--file] transform1 transform2 ... -- [goblint args] file.c
 # runs goblint with the given transformations active and outputs the transformed file to stdout
-# - unless --stdout/--stderr is passed, supress those streams
+# - unless --stdout/--stderr is passed, suppress those streams
 # - if --file is passed, output to a temporary file and print its path to stdout
 
 set -eu -o pipefail

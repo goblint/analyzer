@@ -1,6 +1,6 @@
 - entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: 0a72f7b3-7826-4f68-bc7b-25425e95946e
     creation_time: 2022-07-26T09:11:03Z
     producer:

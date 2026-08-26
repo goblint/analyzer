@@ -201,7 +201,7 @@ struct
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
 
-  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (Base.arbitrary ())
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.list_small (Base.arbitrary ())
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -455,7 +455,7 @@ struct
   module E =
   struct
     include E
-    let arbitrary () = QCheck.oneofl E.elems
+    let arbitrary () = QCheck.oneof_list E.elems
   end
 
   include Make (E)

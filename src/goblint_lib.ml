@@ -109,6 +109,7 @@ module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
 module MutexGhosts = MutexGhosts
+module MustlockHistory = MustlockHistory
 
 (** {3 Threads}
 
@@ -120,6 +121,7 @@ module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
+module ThreadDescendants = ThreadDescendants
 
 (** {3 Other} *)
 
@@ -131,6 +133,8 @@ module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
+module CreationLockset = CreationLockset
+module DescendantLockset = DescendantLockset
 
 (** {2 Longjmp}
 
@@ -151,6 +155,21 @@ module Signs = Signs
 module Taint = Taint
 module UnitAnalysis = UnitAnalysis
 
+module GStoreWidening = GStoreWidening
+module GStoreWideningHelper = GStoreWideningHelper
+
+module SimplifiedAnalysis = SimplifiedAnalysis
+module SimplifiedLifter = SimplifiedLifter
+
+(** {3 Solutions}
+
+    Looking at these spoils all the fun! *)
+
+module SignsSol = SignsSol
+module SignsExtendSol = SignsExtendSol
+module TaintSol = TaintSol
+module GStoreWideningSol = GStoreWideningSol
+
 (** {2 Other} *)
 
 module Assert = Assert
@@ -160,7 +179,6 @@ module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module BranchSet = BranchSet
-module StackTrace = StackTrace
 
 (** {2 Helper}
 
@@ -297,7 +315,6 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module StackDomain = StackDomain
 
 (** {2 Testing}
 
@@ -327,6 +344,7 @@ module CilMaps = CilMaps
 
 module Messages = Messages
 module Logs = Logs
+module Checks = Checks
 
 (** {2 Front-end}
 
@@ -336,6 +354,11 @@ module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
 module TerminationPreprocessing = TerminationPreprocessing
+
+(** {2 Results} *)
+
+module AnalysisResultOutput = AnalysisResultOutput
+module XsltResultOutput = XsltResultOutput
 
 (** {2 Witnesses}
 
@@ -355,6 +378,7 @@ module WitnessUtil = WitnessUtil
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
+module YamlWitnessVersion = YamlWitnessVersion
 module WitnessGhost = WitnessGhost
 
 (** {2 SARIF} *)
@@ -412,6 +436,7 @@ module Timeout = Timeout
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
+module CodeHighlighter = CodeHighlighter
 module XmlUtil = XmlUtil
 
 module GobExn = GobExn
@@ -455,6 +480,7 @@ module SparseVector = SparseVector
 module ListMatrix = ListMatrix
 module RatOps = RatOps
 
+module RelationCil = RelationCil
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

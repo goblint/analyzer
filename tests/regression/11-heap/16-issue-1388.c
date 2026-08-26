@@ -1,4 +1,6 @@
 // PARAM: --set ana.malloc.unique_address_count 2 --set ana.activated[-] threadid
+#include <stdlib.h>
+#include <goblint.h>
 
 typedef struct list {
  struct list *next;

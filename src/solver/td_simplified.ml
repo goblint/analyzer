@@ -24,14 +24,14 @@ module Base : GenericEqSolver =
       let wpoint = HM.create 10 in
       let stable = HM.create 10 in
 
-      let () = print_solver_stats := fun () ->
+      print_solver_stats := (fun () ->
           Logs.debug "|rho|=%d" (HM.length rho);
           Logs.debug "|stable|=%d" (HM.length stable);
           Logs.debug "|infl|=%d" (HM.length infl);
           Logs.debug "|wpoint|=%d" (HM.length wpoint);
           Logs.info "|called|=%d" (HM.length called);
           print_context_stats rho
-      in
+        );
 
       let add_infl y x =
         if tracing then trace "infl" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -122,7 +122,7 @@ module Base : GenericEqSolver =
               if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
               box old eqd)
           in
-          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( 
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then (
             (* old != wpd *)
             if tracing && not (S.Dom.is_bot old) then trace "update" "%a (wpx: %b): %a" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
@@ -132,7 +132,7 @@ module Base : GenericEqSolver =
             (iterate[@tailcall]) x
           ) else (
             (* old == wpd *)
-            if not (HM.mem stable x) then ( 
+            if not (HM.mem stable x) then (
               (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
               if tracing then trace "iter" "iterate still unstable %a" S.Var.pretty_trace x;
               (iterate[@tailcall]) x
@@ -172,7 +172,7 @@ module Base : GenericEqSolver =
           );
           List.iter (fun x -> HM.replace called x ();
                       if tracing then trace "multivar" "solving for %a" S.Var.pretty_trace x;
-                      iterate x; 
+                      iterate x;
                       HM.remove called x
                     ) unstable_vs;
           solver ();

@@ -47,7 +47,7 @@ struct
     match desc.special args with
     | Malloc _
     | Calloc _
-    | Realloc _ -> alloc_var Heap
+    | Realloc _ -> alloc_var Heap (* TODO: realloc may return the same pointer, is this handled correctly? *)
     | Alloca _ -> alloc_var Stack
     | _ ->
       match lval with

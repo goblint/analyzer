@@ -1,3 +1,48 @@
+## v2.8.0 Clumsy Clurichaun
+* Add new may-happen-in-parallel analyses (#1805, #1865, #1913, #1928).
+* Add Open Verification Dashboard checks output (#1838, #1929).
+* Add negative bitwise shift warnings (#1637, #1989).
+* Add missing function declaration warnings (#1911).
+* Improve overflow warnings (#1894, #1895, #1896, #1905).
+* Fix spurious overflow checks (#1767, #1909, #1910, #1932, #2022).
+* Fix missing overflow and out-of-bounds checks (#1935, #2017, #2029).
+* Optimize base analysis domain using Patricia trees (#2002, #2015).
+* Optimize field offset calculations (#1964, #1973, #1974).
+* Optimize non-incremental top-down solver (#1566, #1972).
+* Add OCaml 5.5 support (#2006, #2010).
+
+## v2.7.1 Bamboozled Buffalo
+* Add library function specifications for fortified `inet_pton` and `inet_ntop` (#1883).
+
+## v2.7.0 Bamboozled Buffalo
+Functionally equivalent to Goblint in SV-COMP 2026.
+
+* Add sequential portfolio for SV-COMP (#1845, #1867, #1877).
+* Add struct bitfield support (#1739, #1823).
+* Improve bitwise operations for integer domains (#1739).
+* Reimplement HTML output in OCaml (#1752).
+* Remove YAML witness version 0.1 support (#1812, #1817, #1852, #1853, #1855).
+* Fix incorrect invariants in witnesses (#1818, #1876).
+* Simplify relational invariants in witnesses (#1826, #1871, #1873).
+* Fix argument types in Goblint stubs (#1684, #1814, #1779, #1820).
+
+## v2.6.0 Awkward Aardvark
+* Add division by zero analysis (#1764).
+* Add bitfield domain (#1623).
+* Add weakly-relational C-2PO pointer analysis (#1485).
+* Add widening delay (#1358, #1442, #1483).
+* Add narrowing of globals to top-down solver (#1636).
+* Add weak dependencies to top-down solver (#1746, #1747).
+* Add YAML ghost witness generation (#1394).
+* Remove GraphML witness generation (#1732, #1733, #1738).
+* Use C standard option for preprocessing (#1807).
+* Add bash completion for array options (#1670, #1705, #1750).
+* Make `malloc(0)` semantics configurable (#1418, #1777).
+* Update path-sensitive analyses (#1785, #1791, #1792).
+* Fix evaluation of library function arguments (#1758, #1761).
+* Optimize affine equalities analysis using sparse matrices (#1459, #1625).
+* Prepare for parallelism (#1708, #1744, #1748, #1781, #1790).
+
 ## v2.5.0
 Functionally equivalent to Goblint in SV-COMP 2025.
 

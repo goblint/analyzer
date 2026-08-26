@@ -6,7 +6,7 @@ open Batteries
 
 let timing_wrap = Vector.timing_wrap
 
-module type ArrayMatrix = 
+module type ArrayMatrix =
 sig
   include Matrix
   val get_col: t -> int -> vec
@@ -61,7 +61,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
       Array.length m
 
     let compare_num_rows m1 m2 =
-      Int.compare (Array.length m1) (Array.length m2) 
+      Int.compare (Array.length m1) (Array.length m2)
 
     let is_empty m =
       (num_rows m = 0)
@@ -181,7 +181,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
-    (* This does NOT have the same semantics as map2i_with. While map2i_with can deal with m and v having different lenghts, map2i will raise Invalid_argument in that case*)
+    (* This does NOT have the same semantics as map2i_with. While map2i_with can deal with m and v having different lengths, map2i will raise Invalid_argument in that case*)
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
       let range_array = Array.init (V.length v) Fun.id in

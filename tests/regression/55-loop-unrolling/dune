@@ -2,7 +2,7 @@
  (deps (glob_files *.c)))
 
 (cram
- (applies_to 11-unrolled-loop-invariant)
+ (applies_to 11-unrolled-loop-invariant 15-unrolled-loop-asm-goto)
  (enabled_if %{bin-available:graph-easy})
  (deps
    %{bin:cfgDot}))

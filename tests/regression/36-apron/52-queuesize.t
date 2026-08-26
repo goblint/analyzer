@@ -2,7 +2,7 @@
 
 Without diff-box:
 
-  $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.relation.invariant.one-var --disable ana.apron.invariant.diff-box 52-queuesize.c
+  $ goblint --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.relation.invariant.one-var --disable ana.apron.invariant.diff-box 52-queuesize.c
   [Success][Assert] Assertion "free >= 0" will succeed (52-queuesize.c:67:5-67:31)
   [Success][Assert] Assertion "free <= capacity" will succeed (52-queuesize.c:68:5-68:38)
   [Success][Assert] Assertion "used >= 0" will succeed (52-queuesize.c:69:5-69:31)
@@ -40,7 +40,7 @@ Without diff-box:
     location invariants: 8
     loop invariants: 0
     flow-insensitive invariants: 0
-    total generation entries: 8
+    total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 3
     vulnerable: 0
@@ -48,90 +48,84 @@ Without diff-box:
     total memory locations: 3
 
   $ yamlWitnessStrip < witness.yml | tee witness-disable-diff-box.yml
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: 2147483647LL >= (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: (long long )capacity >= (long long )free
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: 2147483647LL >= (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: (long long )capacity >= (long long )free
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 15
+          column: 3
+          function: pop
+        value: (long long )capacity >= (long long )free
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 15
+          column: 3
+          function: pop
+        value: (long long )free >= 0LL
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 15
+          column: 3
+          function: pop
+        value: (long long )used + (long long )free == (long long )capacity
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 15
+          column: 3
+          function: pop
+        value: 2147483647LL >= (long long )capacity
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 36
+          column: 3
+          function: push
+        value: (long long )capacity >= (long long )free
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 36
+          column: 3
+          function: push
+        value: (long long )free >= 0LL
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 36
+          column: 3
+          function: push
+        value: (long long )used + (long long )free == (long long )capacity
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 36
+          column: 3
+          function: push
+        value: 2147483647LL >= (long long )capacity
+        format: c_expression
 
 With diff-box:
 
-  $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.relation.invariant.one-var --enable ana.apron.invariant.diff-box 52-queuesize.c
+  $ goblint --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra --enable ana.relation.invariant.one-var --enable ana.apron.invariant.diff-box 52-queuesize.c
   [Success][Assert] Assertion "free >= 0" will succeed (52-queuesize.c:67:5-67:31)
   [Success][Assert] Assertion "free <= capacity" will succeed (52-queuesize.c:68:5-68:38)
   [Success][Assert] Assertion "used >= 0" will succeed (52-queuesize.c:69:5-69:31)
@@ -166,102 +160,95 @@ With diff-box:
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:56:10-56:11)
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:78:12-78:13)
   [Info][Witness] witness generation summary:
-    location invariants: 6
+    location invariants: 4
     loop invariants: 0
     flow-insensitive invariants: 0
-    total generation entries: 6
+    total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 3
     vulnerable: 0
     unsafe: 0
     total memory locations: 3
 
+TODO: Should (long long )free >= 0LL somehow still remain, because it cannot be inferred by box alone?
   $ yamlWitnessStrip < witness.yml | tee witness-enable-diff-box.yml
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: (long long )capacity >= (long long )free
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: (long long )capacity >= (long long )free
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 15
+          column: 3
+          function: pop
+        value: (long long )capacity >= (long long )free
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 15
+          column: 3
+          function: pop
+        value: (long long )used + (long long )free == (long long )capacity
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 36
+          column: 3
+          function: push
+        value: (long long )capacity >= (long long )free
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 52-queuesize.c
+          line: 36
+          column: 3
+          function: push
+        value: (long long )used + (long long )free == (long long )capacity
+        format: c_expression
 
 Compare witnesses:
 
   $ yamlWitnessStripDiff witness-disable-diff-box.yml witness-enable-diff-box.yml
-  # Left-only entries:
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: 2147483647LL >= (long long )capacity
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: 2147483647LL >= (long long )capacity
-      type: assertion
-      format: C
+  # Left-only invariants:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 52-queuesize.c
+        line: 36
+        column: 3
+        function: push
+      value: 2147483647LL >= (long long )capacity
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 52-queuesize.c
+        line: 36
+        column: 3
+        function: push
+      value: (long long )free >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 52-queuesize.c
+        line: 15
+        column: 3
+        function: pop
+      value: 2147483647LL >= (long long )capacity
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 52-queuesize.c
+        line: 15
+        column: 3
+        function: pop
+      value: (long long )free >= 0LL
+      format: c_expression
   ---
-  # Right-only entries:
-  []

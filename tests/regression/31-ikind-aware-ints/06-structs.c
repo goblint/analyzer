@@ -1,5 +1,7 @@
 // PARAM: --enable ana.int.interval
 // NOCRASH
+#include <stdlib.h>
+
 struct rtl8169_private {
    unsigned int features ;
 };

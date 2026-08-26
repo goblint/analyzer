@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 43-apron-unassume-precheck.yml --enable ana.unassume.precheck
+// SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 43-apron-unassume-precheck.yml --enable ana.unassume.precheck
 #include <goblint.h>
 
 int main() {

@@ -3,4 +3,5 @@
 (library
  (name goblint_timing)
  (public_name goblint.timing)
- (libraries catapult catapult-file domain_shims))
+ (libraries catapult catapult-file domain_shims)
+ (instrumentation (backend bisect_ppx)))

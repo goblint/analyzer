@@ -1,6 +1,6 @@
-- entry_type: location_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: f88caf27-fbfe-4ce8-a15d-463646cca899
     creation_time: 2024-07-16T16:36:39Z
     producer:
@@ -18,433 +18,139 @@
         95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
       data_model: LP64
       language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: 0 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 7949534c-6edd-4412-9778-fc58745e7cc5
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: 0 <= *b
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: ffe5f8b3-569c-4d42-8e9b-21c48312e6ce
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: g <= 127
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: cad5c137-4373-4431-b8c8-c5d1e537a716
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: '*b <= 127'
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: aa21493b-1338-4004-90b7-046b9e826169
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: -8LL + (long long )g >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: b640fdf6-abc8-45b9-ad4f-2695e0d66a3d
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: 2147483648LL + (long long )a >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: ecc017f2-d045-45c7-a795-d3d16088368d
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: (2147483638LL + (long long )a) + (long long )g >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 52ace953-715d-4d44-9c44-5b40c1124593
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: (2147483637LL - (long long )a) + (long long )g >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 661e7eee-b5c0-4de3-89ed-369f6978ba28
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: 10LL - (long long )g >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 7878f84e-a951-4247-a196-97f9195cf2fb
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: 2147483647LL - (long long )a >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: e80582ed-4527-4773-97fd-08631c673c21
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: (2147483658LL + (long long )a) - (long long )g >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 49f62de7-3bfc-45ee-8709-0ff295f23b7a
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: (2147483657LL - (long long )a) - (long long )g >= 0LL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: cb86dd3a-2ff5-420b-8d49-42240a324a26
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: b == & g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 2573f907-0386-4098-9b0c-7f1ec86d3f90
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: g != 0
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 15693293-61f1-431b-867e-86add36e4d80
-    creation_time: 2024-07-16T16:36:39Z
-    producer:
-      name: Goblint
-      version: heads/check_overflow_convert-0-gc35fd8620-dirty
-      command_line: '''../../../goblint'' ''95-witness-mm-escape.c'' ''--set'' ''ana.activated[+]''
-        ''apron'' ''--set'' ''ana.path_sens[+]'' ''threadflag'' ''--set'' ''ana.relation.privatization''
-        ''mutex-meet-tid-cluster12'' ''--enable'' ''witness.yaml.enabled'' ''--disable''
-        ''witness.invariant.other'' ''--enable'' ''ana.relation.invariant.one-var''
-        ''--set'' ''witness.yaml.path'' ''95-witness-mm-escape.yml'''
-    task:
-      input_files:
-      - 95-witness-mm-escape.c
-      input_file_hashes:
-        95-witness-mm-escape.c: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-      data_model: LP64
-      language: C
-  location:
-    file_name: 95-witness-mm-escape.c
-    file_hash: bc9de79e9c6aebc20f4284c088f10093ed99a05b0758005a17a5f39a9cc1b7e8
-    line: 19
-    column: 1
-    function: main
-  location_invariant:
-    string: '*b != 0'
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: 0 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: 0 <= *b
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: g <= 127
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: '*b <= 127'
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: -8LL + (long long )g >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: 2147483648LL + (long long )a >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: (2147483638LL + (long long )a) + (long long )g >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: (2147483637LL - (long long )a) + (long long )g >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: 10LL - (long long )g >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: 2147483647LL - (long long )a >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: (2147483658LL + (long long )a) - (long long )g >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: (2147483657LL - (long long )a) - (long long )g >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: b == & g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: g != 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 95-witness-mm-escape.c
+        line: 19
+        column: 1
+        function: main
+      value: '*b != 0'
+      format: c_expression

@@ -16,17 +16,24 @@ Regression tests can be run with various granularity:
 
 * Run all (non-Apron) regression tests with: `./scripts/update_suite.rb`.
 * Run all Apron tests with: `dune build @runaprontest`.
-* Run a group of tests with: `./scripts/update_suite.rb group sanity`.
+* Run a group of tests (by directory, without number) with: `./scripts/update_suite.rb group sanity`.
 
     Unfortunately this also runs skipped tests.
     This is a bug that is used as a feature in the tests with Apron, as not all CI jobs have the Apron library installed.
 
-* Run a single test with: `./scripts/update_suite.rb assert`.
-* Run a single test with full output: `./regtest.sh 00 01`.
+* Run a single test (by name, without group or number) with: `./scripts/update_suite.rb assert`.
 
-    Additional options are also passed to Goblint.
+    This compares Goblint output with test annotations (described below) and only outputs mismatches (i.e. test failures).
+    It is useful for checking if the test passes (or which parts don't).
+    Since group name is not specified, beware of same test name in multiple groups.
 
-To pass additional options to Goblint with `update_suite.rb`, use the `gobopt` environment variable, e.g.:
+* Run a single test (by group and test number) with full output: `./regtest.sh 00 01`.
+
+    This _does not_ compare Goblint output with test annotations, but directly shows all Goblint output.
+    It is useful for debugging the test.
+    Additional command-line options are also passed to Goblint.
+
+To pass additional command-line options to Goblint with `update_suite.rb`, use the `gobopt` environment variable, e.g.:
 ```
 gobopt='--set ana.base.privatization write+lock' ./scripts/update_suite.rb
 ```
@@ -189,7 +196,7 @@ To run `bisect_ppx` locally:
 
 1. Install bisect_ppx with `opam install bisect_ppx`.
 2. Run `make coverage` to build Goblint with bisect_ppx instrumentation.
-3. Run tests with coverage: `dune runtest --instrument-with bisect_ppx` (this will now generate `.coverage` files in various directories).
-4. Generate coverage report with `bisect-ppx-report html`.
-5. After that the generated `.coverage` files can be removed with `find . -type f -name '*.coverage' -delete`.
+3. Run tests with coverage: `mkdir -p _build/coverage ; BISECT_FILE="$(pwd)/_build/coverage/bisect" dune runtest --force --instrument-with bisect_ppx` (this will generate `.coverage` files into the directory `_build/coverage`).
+4. Generate coverage report with `bisect-ppx-report html`.  
+  Note: after that the generated `.coverage` files can be removed (e.g., with `find . -type f -name '*.coverage' -delete` or by deleting `_build/coverage`).
 6. The HTML report can be found in the `_coverage` folder.

@@ -102,7 +102,7 @@ struct
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -351,7 +351,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -431,7 +431,7 @@ struct
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
   let invariant_global ask getg g = Invariant.none
-  let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let finalize () = ()
 
@@ -647,7 +647,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         let rel = st.rel in
@@ -733,7 +733,7 @@ struct
               (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
               if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
                 RD.cil_exp_of_lincons1 lincons1
-                |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp))
+                |> Option.filter (InvariantCil.exp_is_suitable ?scope:None)
               else
                 None
             )
@@ -1242,7 +1242,7 @@ struct
       )
       else (
         (* fold throws if the thread set is top *)
-        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let tids' = ConcDomain.ThreadSet.diff_mustset tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
         let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
             let lmust',l' = G.thread (getg (V.thread tid)) in
             (LMust.union lmust' lmust, L.join l l')
@@ -1272,7 +1272,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         let rel = st.rel in

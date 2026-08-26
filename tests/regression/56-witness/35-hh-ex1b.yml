@@ -1,6 +1,6 @@
-- entry_type: loop_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: 1a354f1e-76e8-40e9-808a-8d5efbe35496
     creation_time: 2022-10-12T10:45:49Z
     producer:
@@ -13,13 +13,13 @@
         35-hh-ex1b.c: 9fe07d5f950140350848bae4342d9d1b7c6c9f625f6985746089a36a37243600
       data_model: LP64
       language: C
-  location:
-    file_name: 35-hh-ex1b.c
-    file_hash: 9fe07d5f950140350848bae4342d9d1b7c6c9f625f6985746089a36a37243600
-    line: 7
-    column: 5
-    function: main
-  loop_invariant:
-    string: 0 <= i && i <= 99
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 35-hh-ex1b.c
+        line: 7
+        column: 5
+        function: main
+      value: 0 <= i && i <= 99
+      format: c_expression

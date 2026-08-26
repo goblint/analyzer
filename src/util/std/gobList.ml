@@ -1,7 +1,7 @@
 open Batteries
 
 (** The normal haskell zip that throws no exception *)
-let rec combine_short l1 l2 = match l1, l2 with
+let[@tail_mod_cons] rec combine_short l1 l2 = match l1, l2 with
   | x1 :: l1, x2 :: l2 -> (x1, x2) :: combine_short l1 l2
   | _, _ -> []
 
@@ -54,6 +54,15 @@ let until_last_with (pred: 'a -> bool) (xs: 'a list) =
     | h::t -> if pred h then until_last_helper (h::seen@last) [] t else until_last_helper last (h::seen) t
   in
   until_last_helper [] [] xs
+
+let cartesian_map f l1 l2 =
+  List.concat_map (fun x -> List.map (f x) l2) l1
+
+let cartesian_filter_map f l1 l2 =
+  List.concat_map (fun x -> List.filter_map (f x) l2) l1
+
+let cartesian_concat_map f l1 l2 =
+  List.concat_map (fun x -> List.concat_map (f x) l2) l1
 
 
 (** Open this to use applicative functor/monad syntax for {!list}. *)

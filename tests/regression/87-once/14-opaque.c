@@ -1,7 +1,7 @@
 // NOMAC PARAM: --set ana.activated[+] pthreadOnce --enable ana.int.interval
 #include <pthread.h>
 #include <stdio.h>
-// #include <goblint.h>
+#include <goblint.h>
 #include <stdlib.h>
 
 pthread_once_t once1;

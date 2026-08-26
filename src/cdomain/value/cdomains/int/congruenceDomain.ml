@@ -44,7 +44,7 @@ struct
   let range ik = Size.range ik
 
   let top () = Some (Z.zero, Z.one)
-  let top_of ik = Some (Z.zero, Z.one)
+  let top_of ?bitfield ik = Some (Z.zero, Z.one)
   let bot () = None
   let bot_of ik = bot ()
 
@@ -124,7 +124,6 @@ struct
   let of_int ik (x: int_t) = normalize ik @@ Some (x, Z.zero)
   let zero = Some (Z.zero, Z.zero)
   let one  = Some (Z.one, Z.zero)
-  let top_bool = top()
 
   let of_bool _ik = function true -> one | false -> zero
 
@@ -133,9 +132,10 @@ struct
     | x when equal zero x -> Some false
     | x -> if leq zero x then None else Some true
 
-  let starting ?(suppress_ovwarn=false) ik n = top()
+  let starting ik n = top()
 
   let ending = starting
+  let of_interval ik x = of_interval ik x (* cast away optional suppress_ovwarn argument *)
 
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
@@ -165,7 +165,7 @@ struct
     | _ -> None
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
-  let cast_to ?(suppress_ovwarn=false) ?torg ?(no_ov=false) t x =
+  let cast_to ?(suppress_ovwarn=false) ~kind ?from_ik ?(no_ov=false) t x =
     match x with
     | None -> None
     | Some (c, m) when m =: Z.zero ->
@@ -182,16 +182,16 @@ struct
         let (min_ikorg, max_ikorg) = range ikorg in
         ikorg = t || (max_t >=: max_ikorg && min_t <=: min_ikorg)
       in
-      match Option.map Cil.unrollType torg with
-      | Some (Cil.TInt (ikorg, _) | TEnum ({ekind = ikorg; _}, _)) when p ikorg ->
+      match from_ik with
+      | Some ikorg when p ikorg ->
         if M.tracing then M.trace "cong-cast" "some case";
         x
       | _ -> top ()
 
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov (t : Cil.ikind) x =
+  let cast_to ?(suppress_ovwarn=false) ~kind ?from_ik ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
-    let res = cast_to ?torg ?no_ov t x in
+    let res = cast_to ~kind ?from_ik ?no_ov t x in
     if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
@@ -203,29 +203,6 @@ struct
     res
 
   let narrow = meet
-
-  let log f ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_bool i1, to_bool i2 with
-      | Some x, Some y -> of_bool ik (f x y)
-      | _              -> top_of ik
-
-  let c_logor = log (||)
-  let c_logand = log (&&)
-
-  let log1 f ik i1 =
-    if is_bot i1 then
-      bot_of ik
-    else
-      match to_bool i1 with
-      | Some x -> of_bool ik (f ik x)
-      | _      -> top_of ik
-
-  let c_lognot = log1 (fun _ik -> not)
 
   let shift_right _ _ _ = top()
 
@@ -443,48 +420,50 @@ struct
     res
 
   let ne ik (x: t) (y: t) = match x, y with
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> of_bool ik (not (c1 =: c2 ))
-    | x, y -> if meet ik x y = None then of_bool ik true else top_bool
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> Some (not (c1 =: c2))
+    | x, y -> if meet ik x y = None then Some true else None
 
   let eq ik (x: t) (y: t) = match x, y with
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> of_bool ik (c1 =: c2)
-    | x, y -> if meet ik x y <> None then top_bool else of_bool ik false
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> Some (c1 =: c2)
+    | x, y -> if meet ik x y <> None then None else Some false
 
   let comparison ik op x y = match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) ->
       if m1 =: Z.zero && m2 =: Z.zero then
-        if op c1 c2 then of_bool ik true else of_bool ik false
+        Some (op c1 c2)
       else
-        top_bool
+        None
 
   let ge ik x y = comparison ik (>=:) x y
 
+  let pretty_bool_option = Pretty.docOpt (Pretty.dprintf "%B")
+
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a " pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a" pretty x pretty y pretty_bool_option res;
     res
 
   let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a " pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a" pretty x pretty y pretty_bool_option res;
     res
 
   let gt ik x y = comparison ik (>:) x y
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a " pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a" pretty x pretty y pretty_bool_option res;
     res
 
   let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a " pretty x pretty y pretty res;
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a" pretty x pretty y pretty_bool_option res;
     res
 
   let invariant_ikind e ik x =

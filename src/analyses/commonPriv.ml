@@ -101,9 +101,9 @@ struct
     not (VD.is_immediate_type x.vtype) &&
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; kind; protection})
 
-  let protected_vars (ask: Q.ask): varinfo list =
+  let protected_vars (ask: Q.ask) ~(kind): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
-        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; kind = Write})) acc
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; kind})) acc
       ) (ask.f Q.MustLockset) (Q.VS.empty ())
     |> Q.VS.elements
 end
@@ -169,7 +169,7 @@ struct
 
   module W =
   struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
+    include MapDomain.PatriciaMapBot_LiftTop (Basetype.Variables) (MinLocksets)
     let name () = "W"
   end
 
@@ -178,7 +178,7 @@ struct
     (* Note different Map order! *)
     (* MapTop because default value in P must be top of MinLocksets,
        as opposed to bottom in W. *)
-    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
+    include MapDomain.PatriciaMapTop_LiftBot (Basetype.Variables) (MinLocksets)
     let name () = "P"
 
     (* TODO: change MinLocksets.exists/top instead? *)

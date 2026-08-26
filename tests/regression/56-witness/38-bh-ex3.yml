@@ -1,6 +1,6 @@
-- entry_type: loop_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: bd436e09-244f-45db-a5f4-9337ca997424
     creation_time: 2022-10-12T11:13:15Z
     producer:
@@ -13,13 +13,13 @@
         38-bh-ex3.c: 9d2cb05c2decf8564defade7194c336478ec5ae4be1ee79202269ff09830dada
       data_model: LP64
       language: C
-  location:
-    file_name: 38-bh-ex3.c
-    file_hash: 9d2cb05c2decf8564defade7194c336478ec5ae4be1ee79202269ff09830dada
-    line: 7
-    column: 3
-    function: main
-  loop_invariant:
-    string: 0 <= m && m <= 60 && 0 <= n && n <= 60
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 38-bh-ex3.c
+        line: 7
+        column: 3
+        function: main
+      value: 0 <= m && m <= 60 && 0 <= n && n <= 60
+      format: c_expression

@@ -1,6 +1,6 @@
-- entry_type: location_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
     creation_time: 2022-06-16T06:37:52Z
     producer:
@@ -13,113 +13,49 @@
         02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
       data_model: LP64
       language: C
-  location:
-    file_name: 02-base-lor-addr.c
-    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-    line: 17
-    column: 3
-    function: main
-  location_invariant:
-    string: (x == &a || x == &b) || x == &c
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
-    creation_time: 2022-06-16T06:37:52Z
-    producer:
-      name: Simmo Saan
-      version: n/a
-    task:
-      input_files:
-      - 02-base-lor-addr.c
-      input_file_hashes:
-        02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-      data_model: LP64
-      language: C
-  location:
-    file_name: 02-base-lor-addr.c
-    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-    line: 18
-    column: 3
-    function: main
-  location_invariant:
-    string: (x == &a || x == &b) || x == &d
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
-    creation_time: 2022-06-16T06:37:52Z
-    producer:
-      name: Simmo Saan
-      version: n/a
-    task:
-      input_files:
-      - 02-base-lor-addr.c
-      input_file_hashes:
-        02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-      data_model: LP64
-      language: C
-  location:
-    file_name: 02-base-lor-addr.c
-    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-    line: 29
-    column: 3
-    function: main
-  location_invariant:
-    string: y == &e || y == x
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
-    creation_time: 2022-06-16T06:37:52Z
-    producer:
-      name: Simmo Saan
-      version: n/a
-    task:
-      input_files:
-      - 02-base-lor-addr.c
-      input_file_hashes:
-        02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-      data_model: LP64
-      language: C
-  location:
-    file_name: 02-base-lor-addr.c
-    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-    line: 30
-    column: 3
-    function: main
-  location_invariant:
-    string: (y == &a || y == &b) || y == &c || y == &e
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
-    creation_time: 2022-06-16T06:37:52Z
-    producer:
-      name: Simmo Saan
-      version: n/a
-    task:
-      input_files:
-      - 02-base-lor-addr.c
-      input_file_hashes:
-        02-base-lor-addr.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-      data_model: LP64
-      language: C
-  location:
-    file_name: 02-base-lor-addr.c
-    file_hash: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
-    line: 31
-    column: 3
-    function: main
-  location_invariant:
-    string: y == &d || y == x
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 02-base-lor-addr.c
+        line: 17
+        column: 3
+        function: main
+      value: (x == &a || x == &b) || x == &c
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 02-base-lor-addr.c
+        line: 18
+        column: 3
+        function: main
+      value: (x == &a || x == &b) || x == &d
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 02-base-lor-addr.c
+        line: 29
+        column: 3
+        function: main
+      value: y == &e || y == x
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 02-base-lor-addr.c
+        line: 30
+        column: 3
+        function: main
+      value: (y == &a || y == &b) || y == &c || y == &e
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 02-base-lor-addr.c
+        line: 31
+        column: 3
+        function: main
+      value: y == &d || y == x
+      format: c_expression

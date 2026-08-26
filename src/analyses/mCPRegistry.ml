@@ -14,7 +14,8 @@ type spec_modules = { name : string
                     ; cont : (module Printable.S)
                     ; var  : (module SpecSysVar)
                     ; acc  : (module MCPA)
-                    ; path : (module DisjointDomain.Representative) }
+                    ; path : (module DisjointDomain.Representative)
+                    ; usesApron : bool }
 
 let activated  : (int * spec_modules) list ref = ref []
 let activated_context_sens: (int * spec_modules) list ref = ref []
@@ -24,7 +25,7 @@ let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
 
 let register_analysis =
   let count = ref 0 in
-  fun ?(dep=[]) (module S:MCPSpec) ->
+  fun ?(dep=[]) ?(usesApron=false) (module S:MCPSpec) ->
     let n = S.name () in
     let module P =
     struct
@@ -41,15 +42,28 @@ let register_analysis =
             ; var  = (module S.V : SpecSysVar)
             ; acc  = (module S.A : MCPA)
             ; path = (module P : DisjointDomain.Representative)
+            ; usesApron
             }
     in
     Hashtbl.replace registered !count s;
     Hashtbl.replace registered_name n !count;
     incr count
 
+let registered_simplified_analysis (module S:SimplifiedAnalysis.SimplifiedSpec) =
+  let module S':MCPSpec = struct
+    include SimplifiedLifter.FromSimplifiedSpec(S)
+    module A = UnitA
+    let access _ _ = ()
+  end
+  in
+  register_analysis (module S')
+
 let find_spec = Hashtbl.find registered
 let find_spec_name n = (find_spec n).name
 let find_id = Hashtbl.find registered_name
+
+let any_activated_uses_apron () =
+  List.exists (fun (n, _) -> (find_spec n).usesApron) !activated
 
 module type DomainListPrintableSpec =
 sig

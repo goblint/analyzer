@@ -37,10 +37,9 @@ let run_transformations ?(file_output = true) file names ask =
 
   if file_output && List.exists (fun (_, (module T : S)) -> T.requires_file_output) active_transformations then
     let filename = GobConfig.get_string "trans.output" in
-    let oc = Stdlib.open_out filename in
-    GobRef.wrap GoblintCil.lineDirectiveStyle None @@ fun () ->
-    dumpFile defaultCilPrinter oc filename file;
-    Stdlib.close_out oc
+    let@ oc = Out_channel.with_open_text filename in
+    let@ () = GobRef.wrap GoblintCil.lineDirectiveStyle None in
+    dumpFile defaultCilPrinter oc filename file
 
 let run file name = run_transformations ~file_output:false file [name]
 

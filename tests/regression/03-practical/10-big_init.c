@@ -1,4 +1,6 @@
 // Just an example of slow initialization.
+#include <goblint.h>
+
 typedef unsigned char BYTE;
 BYTE Buffer[4096];
 

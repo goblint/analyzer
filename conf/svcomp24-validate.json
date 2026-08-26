@@ -109,6 +109,10 @@
     },
     "null-pointer": {
       "dereference": "assume_none"
+    },
+    "malloc": {
+      "fail": false,
+      "zero": "pointer"
     }
   },
   "witness": {
@@ -117,8 +121,6 @@
       "strict": true,
       "format-version": "2.0",
       "entry-types": [
-        "location_invariant",
-        "loop_invariant",
         "invariant_set"
       ],
       "invariant-types": [

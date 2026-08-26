@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.sv-comp.functions --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 39-bh-ex-add.yml
+// PARAM: --enable ana.int.interval --enable ana.sv-comp.functions --set ana.activated[+] unassume --set witness.yaml.unassume 39-bh-ex-add.yml
 #include <goblint.h>
 extern _Bool __VERIFIER_nondet_bool();
 int main() {
