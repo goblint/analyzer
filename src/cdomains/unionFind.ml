@@ -360,7 +360,7 @@ module T = struct
         let const = to_cil_constant off (Some typ) in
         BinOp (PlusPI, cil_t, const, typ)
     in
-    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;
+    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %a; res: %a" d_exp cil_t GobZ.pretty off d_exp res;
     res
 
   let is_field = function
@@ -416,7 +416,7 @@ module T = struct
   (** Get a Cil expression that is equivalent to *(exp + offset),
       by taking into account type correctness.*)
   let dereference_exp exp offset =
-    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
+    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %a" d_exp exp GobZ.pretty offset;
     let res =
       let find_field cinfo =
         try

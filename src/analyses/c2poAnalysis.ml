@@ -26,7 +26,7 @@ struct
       reachable_from_exp @ acc
     in
     let res = List.fold collect_reachable_from_exp [] args in
-    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %s" (List.fold_left (fun s v -> s ^ v.vname ^"; ") "" res);
+    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %a" GoblintCil.Pretty.(d_list "; " CilType.Varinfo.pretty) res;
     res
 
   (* Returns Some true if we know for sure that it is true,
