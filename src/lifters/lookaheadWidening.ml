@@ -8,37 +8,47 @@ open Analyses
 
 module Dom (Base: S) =
 struct
-  include Printable.Prod (Base) (Base)
+  module Main =
+  struct
+    include Base
+    let name () = "main"
+  end
+  module Pilot =
+  struct
+    include Base
+    let name () = "pilot"
+  end
+  include Printable.Prod (Main) (Pilot)
 
-  let bot () = (Base.bot (), Base.bot ())
-  let is_bot (m, p) = Base.is_bot m
-  let top () = (Base.top (), Base.top ())
-  let is_top (m, p) = Base.is_top m && Base.is_top p
+  let bot () = (Main.bot (), Pilot.bot ())
+  let is_bot (m, p) = Main.is_bot m
+  let top () = (Main.top (), Pilot.top ())
+  let is_top (m, p) = Main.is_top m && Pilot.is_top p
 
-  let leq (m1, p1) (m2, p2) = Base.leq m1 m2 && (not (Base.equal m1 m2) || Base.leq p1 p2)
+  let leq (m1, p1) (m2, p2) = Main.leq m1 m2 && (not (Main.equal m1 m2) || Pilot.leq p1 p2)
 
   let op_scheme mop pop (m1, p1) (m2, p2) = (mop m1 m2, pop p1 p2)
-  let join x y = op_scheme Base.join Base.join x y
-  let meet = op_scheme Base.meet Base.meet (** TODO: Might not be correct *)
+  let join x y = op_scheme Main.join Pilot.join x y
+  let meet = op_scheme Main.meet Pilot.meet (** TODO: Might not be correct *)
   let widen ((m1, p1) as x) ((m2, p2) as y) =
     if leq y x then
       x
-    else if Base.leq p2 p1 then
+    else if Pilot.leq p2 p1 then
       (p2, p2)
     else
-      op_scheme Base.join (fun p1 p2 ->
-          if Base.leq p2 p1 then
+      op_scheme Main.join (fun p1 p2 ->
+          if Pilot.leq p2 p1 then
             p1 (* ensure stable widening *) (* TODO: is this necessary for us? *)
           else
-            Base.widen p1 p2
+            Pilot.widen p1 p2
         ) x y
-  let narrow = op_scheme Base.narrow Base.narrow (** TODO: Might not be correct *)
+  let narrow = op_scheme Main.narrow Pilot.narrow (** TODO: Might not be correct *)
 
   let pretty_diff () ((m1, p1), (m2, p2)) =
-    if Base.leq m1 m2 then
-      Base.pretty_diff () (p1, p2)
+    if Main.leq m1 m2 then
+      Pilot.pretty_diff () (p1, p2)
     else
-      Base.pretty_diff () (m1, m2)
+      Main.pretty_diff () (m1, m2)
 end
 
 
