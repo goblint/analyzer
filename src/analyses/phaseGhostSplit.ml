@@ -24,7 +24,15 @@ struct
   include ValueContexts (D)
   module P = IdentityP (D)
 
-  module V = VarinfoV
+  module V =
+  struct
+    module PhaseOrigin = Printable.Prod (VarinfoV) (Const)
+    include Printable.Either (VarinfoV) (PhaseOrigin)
+    include StdV
+
+    let thread_end var = `Left var
+    let changes var origin = `Right (var, origin)
+  end
 
   module MHPs =
   struct
@@ -54,35 +62,25 @@ struct
     let name () = "ghost-outgoing-phase-changes"
   end
 
-  module PhaseChanges =
-  struct
-    include MapDomain.MapBot (Const) (OutgoingPhaseChanges)
-    let name () = "ghost-phase-changes"
-  end
-
   module G =
   struct
-    (* fist component: constant value when the thread returns *)
-    (* second component: map from origin of phase change to targets with MHP information under which this change can happen  *)
-    include Lattice.Prod (Const) (PhaseChanges)
+    (* The two components are stored at disjoint [V] keys. Keeping one product
+       domain avoids a lifted sum while solver dependencies remain per key. *)
+    include Lattice.Prod (Const) (OutgoingPhaseChanges)
     let const_at_thread_end (const, _) = const
-    let changes (_, changes) = changes
-    let create_const_at_thread_end const = (const, PhaseChanges.bot ())
-    let create_change origin target mhp pinfo =
-      (Const.bot (), (PhaseChanges.singleton origin (OutgoingPhaseChanges.singleton (target, (MHPs.singleton mhp, pinfo)))))
+    let outgoing_changes (_, outgoing) = outgoing
+    let create_const_at_thread_end const = (const, OutgoingPhaseChanges.bot ())
+    let create_change target mhp pinfo =
+      (Const.bot (), OutgoingPhaseChanges.singleton (target, (MHPs.singleton mhp, pinfo)))
 
-    let possible_changes_after (_, changes) current currmhp =
-      match PhaseChanges.find_opt (`Lifted current) changes with
-      | Some outgoing ->
-        OutgoingPhaseChanges.fold (fun (target, (accesses, pinfo)) acc ->
-            match target with
-            | `Lifted target when not (Z.equal current target) && MHPs.can_any_mhp currmhp accesses ->
-              (target, pinfo) :: acc
-            | _ ->
-              acc
-          ) outgoing []
-      | None ->
-        []
+    let possible_changes_after global current currmhp =
+      OutgoingPhaseChanges.fold (fun (target, (accesses, pinfo)) acc ->
+          match target with
+          | `Lifted target when not (Z.equal current target) && MHPs.can_any_mhp currmhp accesses ->
+            (target, pinfo) :: acc
+          | _ ->
+            acc
+        ) (outgoing_changes global) []
   end
 
   let initial_ghost_values () =
@@ -190,7 +188,7 @@ struct
             | _, `Bot, _ ->
               []
             | `Lifted owner, _ , `Lifted z ->
-              G.possible_changes_after (man.global var) z (current_mhp man)
+              G.possible_changes_after (man.global (V.changes var (`Lifted z))) z (current_mhp man)
             | _ ->
               failwith "assumption about ghost owner violated"
         in
@@ -294,7 +292,7 @@ struct
            (let local_new = D.add var (`Lifted new_value) local in
             let local_pinfo = current_pinfo man in
             if not (Z.equal old_value new_value) then
-              man.sideg var (G.create_change (`Lifted old_value) (`Lifted new_value) (current_mhp man) (local_pinfo));
+              man.sideg (V.changes var (`Lifted old_value)) (G.create_change (`Lifted new_value) (current_mhp man) local_pinfo);
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then
               man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});
@@ -310,7 +308,7 @@ struct
       match man.ask (Queries.Owner varinfo) with
       | `Lifted gtid when TID.equal tid gtid ->
         (match D.find_opt varinfo man.local with
-         | Some v -> man.sideg varinfo (G.create_const_at_thread_end v)
+         | Some v -> man.sideg (V.thread_end varinfo) (G.create_const_at_thread_end v)
          | _ -> ())
       | _ -> ()
     in
@@ -339,7 +337,7 @@ struct
         let handle_ghost tid varinfo  =
           match man.ask (Owner varinfo) with
           | `Lifted gtid when TID.equal tid gtid ->
-            (match G.const_at_thread_end (man.global varinfo) with
+            (match G.const_at_thread_end (man.global (V.thread_end varinfo)) with
              | `Lifted z ->
                begin match D.find_opt varinfo man.local with
                  | Some (`Lifted z')  when not (Z.equal z z') -> raise Deadcode
