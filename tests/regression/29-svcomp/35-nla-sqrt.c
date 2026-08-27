@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.sv-comp.functions --enable ana.autotune.enabled --set ana.autotune.activated[+] octagon
+// SKIP PARAM: --enable ana.sv-comp.functions --enable ana.autotune.enabled --set ana.autotune.activated[+] octagonVars
 // Extracted from: nla-digbench-scaling/sqrt1-ll_unwindbound5.c
 #include <goblint.h>
 extern int __VERIFIER_nondet_int(void);
