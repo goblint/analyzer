@@ -269,6 +269,7 @@ sig
   include Printable.S
   val may_race: t -> t -> bool
   val should_print: t -> bool (** Whether value should be printed in race output. *)
+  val join: t -> t -> t
 end
 
 module type MCPSpec =
@@ -324,6 +325,7 @@ struct
   include Printable.Unit
   let may_race _ _ = true
   let should_print _ = false
+  let join _ _ = ()
 end
 
 module EmptyP =

@@ -90,3 +90,10 @@ let is_unique_thread mhp =
   match mhp.tid with
   | `Lifted tid -> TID.is_unique tid
   | _ -> false
+
+let join {tid=tid; created=created; must_joined=must_joined} {tid=tid2; created=created2; must_joined=must_joined2} =
+  {
+    tid=ThreadIdDomain.ThreadLifted.join tid tid2;
+    created=ConcDomain.ThreadSet.inter created created2; (* TODO: this seems wrong in terms of lattice but right in terms of expected output?! *)
+    must_joined=ConcDomain.FiniteMustThreadSet.join must_joined must_joined2;
+  }

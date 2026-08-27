@@ -148,6 +148,7 @@ module Spec = struct
       D.exists ls_not_empty dl
       || G.exists (fun _ -> D.exists ls_not_empty) dlg
       || Queries.LH.exists (fun l tids -> not @@ TIDs.is_empty tids) lh
+    let join _ _ = failwith "TODO"
   end
 
   let access man _ =

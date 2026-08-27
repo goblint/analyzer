@@ -604,6 +604,7 @@ let print_accesses memo grouped_accs =
     in
     AS.elements race_accs
     |> List.map h
+    |> List.cons (MCPAccess.A.pretty () (AS.elements race_accs |> List.map (fun a -> a.A.acc) |> BatList.reduce MCPAccess.A.join), None)
   in
   let group_loc = match memo with
     | (`Var v, _) -> Some (M.Location.CilLocation v.vdecl) (* TODO: offset location *)

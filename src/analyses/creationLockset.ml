@@ -115,6 +115,7 @@ module Spec = struct
     let printXml f (_, _, cl) = G.printXml f cl
 
     let should_print (_t, _ls, cl) = G.exists (fun _ ls -> not @@ Lockset.is_empty ls) cl
+    let join _ _ = failwith "TODO"
   end
 
   let access man _ =

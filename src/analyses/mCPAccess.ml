@@ -39,4 +39,11 @@ struct
     | x :: y ->
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+
+
+  let binop_fold f a (x:t) (y:t) =
+    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
+  let binop_map (f: (module Analyses.MCPA) -> Obj.t -> Obj.t -> Obj.t) x y =
+    List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
+  let join   = binop_map (fun (module S : Analyses.MCPA) x y -> Obj.repr @@ S.join   (Obj.obj x) (Obj.obj y))
 end

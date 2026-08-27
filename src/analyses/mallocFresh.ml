@@ -66,6 +66,7 @@ struct
     let name () = "fresh"
     let may_race f1 f2 = not (f1 || f2)
     let should_print f = f
+    let join f1 f2 = f1 && f2
   end
   let access man (a: Queries.access) =
     match a with

@@ -75,6 +75,7 @@ struct
     let should_print r = match r with
       | Some r when Lvals.is_empty r -> false
       | _ -> true
+    let join r1 r2 = failwith "TODO"
   end
   let access man (a: Queries.access) =
     match a with

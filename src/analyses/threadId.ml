@@ -136,6 +136,9 @@ struct
       | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> false (* only unique threads *)
       | _, _ -> true
     let should_print = Option.is_some
+    let join (t1: t) (t2: t) = match t1, t2 with
+      | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> Some t1 (* only unique threads *)
+      | _, _ -> None
   end
 
   let access man _ =
