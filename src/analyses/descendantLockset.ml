@@ -119,7 +119,7 @@ module Spec = struct
     end
     module DlLhProd =
     struct
-      include Printable.Prod3 (D) (G) (Queries.LH)
+      include Printable.Prod3 (D) (G) (LH)
       let should_print (dl, dlg, lh) =
         D.should_print dl || G.should_print dlg || LH.should_print lh
 
@@ -165,7 +165,7 @@ module Spec = struct
       else
         let relevant_lh2_threads =
           Lockset.fold
-            (fun lock -> TIDs.union (Queries.LH.find lock lh2))
+            (fun lock -> TIDs.union (LH.find lock lh2))
             locks_held_creating_t2
             (TIDs.empty ())
         in
