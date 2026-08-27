@@ -100,13 +100,54 @@ module Spec = struct
     struct
       include D
       let name () = "local"
+      let should_print dl =
+        let ls_not_empty _ ls = not @@ Lockset.is_empty ls in
+        exists ls_not_empty dl
     end
     module G =
     struct
       include G
       let name () = "global"
+      let should_print dlg =
+        exists (fun _ -> D.should_print) dlg
     end
-    module DlLhProd = Printable.Prod3 (D) (G) (Queries.LH)
+    module LH =
+    struct
+      include Queries.LH
+      let should_print lh =
+        exists (fun l tids -> not @@ TIDs.is_empty tids) lh
+    end
+    module DlLhProd =
+    struct
+      include Printable.Prod3 (D) (G) (Queries.LH)
+      let should_print (dl, dlg, lh) =
+        D.should_print dl || G.should_print dlg || LH.should_print lh
+
+      let pretty () (dl, dlg, lh) =
+        let open GoblintCil in
+        let dl_doc =
+          if D.should_print dl then
+            Some (Pretty.dprintf "%s:%a" (D.name ()) D.pretty dl)
+          else
+            None
+        in
+        let dlg_doc =
+          if G.should_print dlg then
+            Some (Pretty.dprintf "%s:%a" (G.name ()) G.pretty dlg)
+          else
+            None
+        in
+        let lh_doc =
+          if LH.should_print lh then
+            Some (Pretty.dprintf "%s:%a" (LH.name ()) LH.pretty lh)
+          else
+            None
+        in
+        let docs = List.filter_map Fun.id [dl_doc; dlg_doc; lh_doc] in
+        Pretty.dprintf "(%a)" (Pretty.d_list ", " Pretty.insert) docs
+
+      let show x = GobPretty.sprint pretty x
+    end
 
     (** ego tid * (local descendant lockset * global descendant lockset * lock history) *)
     include Printable.Prod (TID) (DlLhProd)
@@ -154,11 +195,7 @@ module Spec = struct
     let to_yojson (_, dl_dlg_lh) = DlLhProd.to_yojson dl_dlg_lh
     let printXml f (_, dl_dlg_lh) = DlLhProd.printXml f dl_dlg_lh
 
-    let should_print (_, (dl, dlg, lh)) =
-      let ls_not_empty _ ls = not @@ Lockset.is_empty ls in
-      D.exists ls_not_empty dl
-      || G.exists (fun _ -> D.exists ls_not_empty) dlg
-      || Queries.LH.exists (fun l tids -> not @@ TIDs.is_empty tids) lh
+    let should_print (_, dl_dlg_lh) = DlLhProd.should_print dl_dlg_lh
   end
 
   let access man _ =
