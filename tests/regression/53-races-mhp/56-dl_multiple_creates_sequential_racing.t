@@ -5,10 +5,10 @@
     total lines: 13
   [Warning][Race] Memory location global (race with conf. 110): (56-dl_multiple_creates_sequential_racing.c:4:5-4:15)
     write with descendantLockset:(lock history:{
-                                               mutex -> {[main], [main], {t1}}
+                                               mutex -> {[main], [main, {t1}]}
                                              }) (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:11:3-11:11)
     write with descendantLockset:(lock history:{
-                                               mutex -> {[main], {t1}}
+                                               mutex -> {[main, {t1}]}
                                              }) (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:11:3-11:11)
     write with [descendantLockset:(lock history:{
                                                 mutex -> {[main, t1]}
@@ -18,12 +18,12 @@
                                               }), thread:[main, t1]] (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:11:3-11:11)
     write with [descendantLockset:(lock history:{
                                                 mutex -> {[main]}
-                                              }), mhp:{created={[main, t1], [main], {t1}}}, lock:{mutex}, thread:[main]] (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:20:3-20:11)
+                                              }), mhp:{created={[main, t1], [main, {t1}]}}, lock:{mutex}, thread:[main]] (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:20:3-20:11)
     read with descendantLockset:(lock history:{
-                                              mutex -> {[main], [main], {t1}}
+                                              mutex -> {[main], [main, {t1}]}
                                             }) (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:11:3-11:11)
     read with descendantLockset:(lock history:{
-                                              mutex -> {[main], {t1}}
+                                              mutex -> {[main, {t1}]}
                                             }) (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:11:3-11:11)
     read with [descendantLockset:(lock history:{
                                                mutex -> {[main, t1]}
@@ -33,7 +33,7 @@
                                              }), thread:[main, t1]] (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:11:3-11:11)
     read with [descendantLockset:(lock history:{
                                                mutex -> {[main]}
-                                             }), mhp:{created={[main, t1], [main], {t1}}}, lock:{mutex}, thread:[main]] (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:20:3-20:11)
+                                             }), mhp:{created={[main, t1], [main, {t1}]}}, lock:{mutex}, thread:[main]] (conf. 110)  (exp: & global) (56-dl_multiple_creates_sequential_racing.c:20:3-20:11)
   [Info][Race] Memory locations race summary:
     safe: 3
     vulnerable: 0
