@@ -96,10 +96,21 @@ module Spec = struct
     | _ -> man.local
 
   module A = struct
+    module D =
+    struct
+      include D
+      let name () = "local"
+    end
+    module G =
+    struct
+      include G
+      let name () = "global"
+    end
     module DlLhProd = Printable.Prod3 (D) (G) (Queries.LH)
 
     (** ego tid * (local descendant lockset * global descendant lockset * lock history) *)
     include Printable.Prod (TID) (DlLhProd)
+    let name () = "descendantLockset"
 
     (** checks if program point 1 must happen before program point 2
         @param (t1,dl1) thread id and descendant lockset of program point 1
