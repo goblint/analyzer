@@ -132,7 +132,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | NaN -> "[NaN]"
     | PlusInfinity -> "[+infinity]"
     | MinusInfinity -> "[-infinity]"
-    | Interval (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.to_string low) (Float_t.to_string high)
+    | Interval (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.show low) (Float_t.show high)
 
   include Printable.SimpleShow (
     struct
@@ -672,7 +672,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_cos_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 2. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %s; l'' %s; h'' %s" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
+    if Messages.tracing then Messages.trace "CstubsTrig" "cos: dist %a; l'' %a; h'' %a" Float_t.pretty dist Float_t.pretty l'' Float_t.pretty h'';
     if (dist <= Float_t.of_float Down 0.5) && (h'' <= Float_t.of_float Down 0.5) && (l'' <= h'') then
       (* case: monotonic decreasing interval*)
       Interval (safe_mathfun_down Float_t.cos h, safe_mathfun_up Float_t.cos l)
@@ -695,7 +695,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_tan_cfun l h =
     let (dist, l'', h'') = project_and_compress l h 1. in
-    if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %s; l'' %s; h'' %s" (Float_t.to_string dist) (Float_t.to_string l'') (Float_t.to_string h'');
+    if Messages.tracing then Messages.trace "CstubsTrig" "tan: dist %a; l'' %a; h'' %a" Float_t.pretty dist Float_t.pretty l'' Float_t.pretty h'';
     if (dist <= Float_t.of_float Down 1.) && (Bool.not ((l'' <= Float_t.of_float Up 0.5) && (h'' >= Float_t.of_float Up 0.5))) then
       (* case: monotonic increasing interval*)
       Interval (safe_mathfun_down Float_t.tan l, safe_mathfun_up Float_t.tan h)

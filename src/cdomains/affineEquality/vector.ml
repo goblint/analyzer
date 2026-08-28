@@ -4,7 +4,7 @@ sig
   type num
   type t [@@deriving eq, ord, hash]
 
-  val show: t -> string
+  val pretty: unit -> t -> GoblintCil.Pretty.doc
 
   val copy: t -> t
 

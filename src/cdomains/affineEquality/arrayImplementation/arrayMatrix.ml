@@ -51,8 +51,8 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     type t = A.t array array [@@deriving eq, ord, hash]
 
-    let show x =
-      Array.fold_left (^) "" (Array.map (fun v -> V.show @@ V.of_array v) x)
+    let pretty =
+      GoblintCil.Pretty.(docArray ~sep:nil (fun _ x -> V.pretty () (V.of_array x))) (* TODO: avoid of_array *)
 
     let empty () =
       Array.make_matrix 0 0 A.zero

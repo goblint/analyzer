@@ -91,17 +91,18 @@ module SparseVector: SparseVectorFunctor =
     let to_sparse_list v =
       v.entries
 
-    let show v =
-      let rec sparse_list_str i l =
-        if i >= v.len then "]"
+    let pretty () v =
+      let open GoblintCil.Pretty in
+      let rec sparse_list_str i () l: doc =
+        if i >= v.len then nil
         else
           match l with
-          | [] -> (A.to_string A.zero) ^" "^ (sparse_list_str (i + 1) l)
+          | [] -> dprintf "%a %a" A.pretty A.zero (sparse_list_str (i + 1)) l
           | (idx, value) :: xs ->
-            if i = idx then (A.to_string value) ^" "^ sparse_list_str (i + 1) xs
-            else (A.to_string A.zero) ^" "^ sparse_list_str (i + 1) l
+            if i = idx then dprintf "%a %a" A.pretty value (sparse_list_str (i + 1)) xs
+            else dprintf "%a %a" A.pretty A.zero (sparse_list_str (i + 1)) l
       in
-      "["^(sparse_list_str 0 v.entries)^"\n"
+      dprintf "[%a]" (sparse_list_str 0) v.entries
 
     let length v =
       v.len
@@ -139,7 +140,7 @@ module SparseVector: SparseVectorFunctor =
       if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else let res =
              {v with entries = (n,num)::v.entries} in
-        if M.tracing then M.trace "push_first" "pushed %s at index %d, new length: %d, resulting in %s" (A.to_string num) n res.len (res.entries |> List.map (fun (i, x) -> Printf.sprintf "(%d, %s)" i (A.to_string x)) |> String.concat ", ");
+        if M.tracing then M.trace "push_first" "pushed %a at index %d, new length: %d, resulting in %a" A.pretty num n res.len GoblintCil.Pretty.(d_list ", " (fun () (i, x) -> dprintf "(%d, %a)" i A.pretty x)) res.entries;
         res
 
     (**
