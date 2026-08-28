@@ -361,13 +361,25 @@ struct
 
   let widen (x:t) (y:t) = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.widen x y)
-    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y)) (* TODO: This case is strange, see below. *)
     | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
       if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
       else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
 
-  let widen x y = widen x (join x y) (* TODO: inline? removing join wouldn't be equivalent for Partitioned-s with different expression *)
+  (** The non-smart {!widen} has some strange behavior, e.g. with
+      - [x = Partitioned (foo, 1, 2, 3)],
+      - [y = Partitioned (bar, 4, 5, 6)].
+
+      On the one hand:
+      - [join x y = Joint [1,6]],
+      - [widen x (join x y) = Partitioned (foo, widen 1 [1,6], widen 2 [1,6], widen 3 [1,6]) = Partitioned (foo, [1,inf], top, top)].
+
+      On the other hand:
+      - [widen x y = Joint (widen [1,3] [4,6]) = Joint [1,inf]].
+
+      So it's not the same. The first one widens from [Partitioned] to [Joint] goes back to [Partitioned].
+      {!smart_widen} below doesn't have this issue. *)
 
   let show = function
     | Joint x ->  "Array (no part.): " ^ Val.show x
