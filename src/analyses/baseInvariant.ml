@@ -342,19 +342,24 @@ struct
         let a' = ID.add (ID.mul (ID.div a b) b) c in
         let b' = ID.div (ID.sub a c) (ID.div a b) in
         (* However, for [2,4]%2 == 1 this only gives [3,4].
-         * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
-         * If b is negative we have to look at the lower bound. *)
-        let is_divisible bound =
-          (* TODO: could check divisibility directly, instead of via ID? *)
-          GobOption.exists (fun ba -> ID.equal_to Z.zero (ID.rem (ID.of_int ikind ba) b) = `Eq) (bound a)
-        in
-        let max_pos = match ID.maximal b with None -> true | Some x -> Z.compare x Z.zero >= 0 in
-        let min_neg = match ID.minimal b with None -> true | Some x -> Z.compare x Z.zero < 0 in
-        let implies a b = not a || b in
+         * Since [a % b == c] implies that [a] is congruent to [c] modulo [b], every known
+         * bound of [a] can be moved inwards to the closest value congruent to [c] modulo [b].
+         * Here the upper bound 4 moves to 3, which gives the precise [3,3]. *)
         let a'' =
-          if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
-            ID.meet a' (ID.sub (ID.mul (ID.div a b) b) c)
-          else a'
+          match ID.to_int b, ID.to_int c with
+          | Some b, Some c when not (Z.equal b Z.zero) ->
+            (* To handle signs uniformly, we tighten the upper bound m by subtracting the
+             * always positive Euclidean remainder of (m - c) modulo b, which is the precise
+             * amount that m is too high. And symmetrically for the lower bound. *)
+            let a' = match ID.maximal a with
+              | Some m -> ID.meet a' (ID.ending ~suppress_ovwarn:true ikind (Z.sub m (Z.erem (Z.sub m c) b)))
+              | None -> a'
+            in
+            begin match ID.minimal a with
+              | Some m -> ID.meet a' (ID.starting ~suppress_ovwarn:true ikind (Z.add m (Z.erem (Z.sub c m) b)))
+              | None -> a'
+            end
+          | _, _ -> a'
         in
         let a''' =
           (* if both b and c are definite, we can get a precise value in the congruence domain *)

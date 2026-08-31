@@ -16,25 +16,25 @@ int main() {
   // Used to be considered dead because the bound was moved to 3-2=1 instead of 3-(3-2)=2.
   int z;
   if (z >= 0 && z <= 3 && z % 3 == 2)
-    __goblint_check(z == 2); // TODO
+    __goblint_check(z == 2);
 
   // Same for a negative divisor, where only the magnitude of b matters.
   int n;
   if (n >= -28 && n <= -22 && n % -7 == -5)
-    __goblint_check(n == -26); // TODO
+    __goblint_check(n == -26);
 
   // Test to show both refinements are needed. The congruence shift accepts 1,
   // but the original mod refinement restricts the sign to negative, so <= -2.
   int s;
   if (s >= -12 && s <= 1 && s % 3 == -2) { // s = -11, -8, -5, -2
-    __goblint_check(s >= -11); // TODO
+    __goblint_check(s >= -11);
     __goblint_check(s <= -2);
   }
 
   int w;
   if (w >= 0 && w <= 48 && w % 3 == 1) { // w = 1, 4, ..., 46
     __goblint_check(w >= 1);
-    __goblint_check(w <= 46); // TODO
+    __goblint_check(w <= 46);
   }
 
   int v;
