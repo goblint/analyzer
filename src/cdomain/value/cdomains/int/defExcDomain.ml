@@ -363,7 +363,7 @@ struct
       | `Excluded _, `Excluded _ -> top_overflow ()
       (* The good case: *)
       | `Definite x, `Definite y ->
-        (try `Definite (f x y) with | Division_by_zero -> top_overflow ())
+        (try `Definite (f x y) with | Division_by_zero -> if GobConfig.get_string "sem.int.div-by-zero" = "assume_none" then `Bot else top_overflow ())
       | `Bot, `Bot -> `Bot
       | _ ->
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)

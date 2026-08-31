@@ -540,6 +540,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
+    (* TODO: handle sem.int.div-by-zero option *)
     if o2 = Ints_t.zero then
       (top_of ik, {underflow=false; overflow=false})
     else
@@ -558,6 +559,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       (norm ~ov:overflow ik res, {underflow=false; overflow=overflow})
 
   let rem ik (z1, o1) (z2, o2) =
+    (* TODO: handle sem.int.div-by-zero option *)
     if o2 = Ints_t.zero then top_of ik else
     if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then
       let tmp = o1 %: o2 in (!:tmp, tmp)
