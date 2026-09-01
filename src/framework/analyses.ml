@@ -11,7 +11,7 @@ module M  = Messages
 type fundecs = fundec list * fundec list * fundec list
 
 
-module Var =
+module VarNode =
 struct
   type t = Node.t [@@deriving eq, ord, hash, relift]
 
@@ -36,12 +36,12 @@ struct
     else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
   let printXml f (n,c) =
-    Var.printXml f n;
+    VarNode.printXml f n;
     BatPrintf.fprintf f "<context>\n";
     LD.printXml f c;
     BatPrintf.fprintf f "</context>\n"
 
-  let var_id (n,_) = Var.var_id n
+  let var_id (n,_) = VarNode.var_id n
   let node (n,_) = n
   let is_write_only _ = false
 end
