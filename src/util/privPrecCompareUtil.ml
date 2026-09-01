@@ -5,10 +5,10 @@ open PrecCompareUtil
 
 module LV =
 struct
-  include Printable.Prod (CilType.Location) (Basetype.Variables)
+  include Printable.Prod (CilType.Location) (Var)
   let name () = "location variables"
   type marshal = t
-  let pretty () (l, v) = Pretty.dprintf "%a %a" CilType.Location.pretty l Basetype.Variables.pretty v
+  let pretty () (l, v) = Pretty.dprintf "%a %a" CilType.Location.pretty l Var.pretty v
   let to_location = fst
 end
 

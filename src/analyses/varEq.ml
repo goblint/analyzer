@@ -351,7 +351,7 @@ struct
     | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
-      Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask v))
+      Some (v.vglob || (ask.f (Queries.IsMultiple v) || BaseUtil.is_global ask (Cil v)))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ad when not (Queries.AD.is_top ad) ->

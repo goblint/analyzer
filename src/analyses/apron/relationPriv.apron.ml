@@ -227,7 +227,7 @@ struct
 
   (** Restrict environment to local variables and still-protected global variables. *)
   let restrict_local is_unprot rel w_remove =
-    let remove_local_vars = List.map AV.local (W.elements w_remove) in
+    let remove_local_vars = List.map AV.local (List.map (fun (Var.Cil v) -> v) (W.elements w_remove)) in
     let rel' = RD.remove_vars rel remove_local_vars in
     (* remove global vars *)
     RD.remove_filter rel' (fun var ->
@@ -244,15 +244,15 @@ struct
     let g_local_var = AV.local g in
     let x_var = AV.local x in
     let rel_local =
-      if W.mem g w then
+      if W.mem (Cil g) w then
         RD.assign_var rel x_var g_local_var
       else
         RD.bot ()
     in
     let rel_local' =
-      if P.mem g p then
+      if P.mem (Cil g) p then
         rel_local
-      else if is_unprotected ask g then (
+      else if is_unprotected ask (Cil g) then (
         let g_unprot_var = AV.unprot g in
         let rel_unprot = RD.add_vars rel [g_unprot_var] in
         let rel_unprot = RD.assign_var rel_unprot x_var g_unprot_var in
@@ -271,7 +271,7 @@ struct
         RD.join rel_local rel_prot
       )
     in
-    let rel_local' = restrict_local (is_unprotected ask) rel_local' (W.empty ()) in
+    let rel_local' = restrict_local (fun g -> is_unprotected ask (Cil g)) rel_local' (W.empty ()) in
     let rel_local' = RD.meet rel_local' (getg ()) in
     rel_local'
 
@@ -294,12 +294,12 @@ struct
          else
          (* restricting g#unprot-s out from oct' gives oct_local *)
          {oct = oct_local; priv = (P.add g p, W.add g w)} *)
-      if is_unprotected ask g then
-        {st with rel = restrict_local (is_unprotected ask) rel' (W.singleton g)}
+      if is_unprotected ask (Cil g) then
+        {st with rel = restrict_local (fun g -> is_unprotected ask (Cil g)) rel' (W.singleton (Cil g))}
       else (
-        let p' = P.add g p in
-        let w' = W.add g w in
-        {rel = restrict_local (is_unprotected ask) rel' (W.empty ()); priv = (p', w')}
+        let p' = P.add (Cil g) p in
+        let w' = W.add (Cil g) w in
+        {rel = restrict_local (fun g -> is_unprotected ask (Cil g)) rel' (W.empty ()); priv = (p', w')}
       )
     in
     let rel_local' = RD.meet st'.rel (getg ()) in
@@ -331,6 +331,7 @@ struct
         )
     in
     let rel_side = List.fold_left (fun acc omega ->
+        let omega = List.map (fun (Var.Cil g) -> g) omega in
         let g_prot_vars = List.map AV.prot omega in
         let g_local_vars = List.map AV.local omega in
         let rel_side1 = RD.add_vars rel g_prot_vars in
@@ -341,7 +342,7 @@ struct
     let rel' = rel_side in
     let rel_side = restrict_global rel_side in
     sideg () rel_side;
-    let rel_local = restrict_local (fun g -> is_unprotected_without ask g m) rel' w_remove in
+    let rel_local = restrict_local (fun g -> is_unprotected_without ask (Cil g) m) rel' w_remove in
     let rel_local' = RD.meet rel_local (getg ()) in
     {rel = rel_local'; priv = (p', w')}
 
@@ -431,7 +432,7 @@ struct
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
   let invariant_global ask getg g = Invariant.none
-  let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
+  let invariant_vars ask getg st = List.map (fun (Var.Cil g) -> g) @@ protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let finalize () = ()
 
@@ -445,14 +446,14 @@ struct
 
   let remove_globals_unprotected_after_unlock ask m oct =
     let newly_unprot var = match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
+      | Some (Global g) -> is_protected_by ask m (Cil g) && is_unprotected_without ask (Cil g) m
       | _ -> false
     in
     RD.remove_filter oct newly_unprot
 
   let keep_only_protected_globals ask m oct =
     let protected var = match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g
+      | Some (Global g) -> is_protected_by ask m (Cil g)
       | _ -> false
     in
     RD.keep_filter oct protected
@@ -506,7 +507,7 @@ struct
         RD.keep_vars (getg (V.mutex atomic_mutex)) [g_var]
       )
       else
-        getg (V.global g)
+        getg (V.global (Cil g))
     in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
@@ -542,7 +543,7 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_local' =
-        if is_unprotected ask g then
+        if is_unprotected ask (Cil g) then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
@@ -578,9 +579,9 @@ struct
       if Param.handle_atomic then
         sideg (V.mutex atomic_mutex) rel_side (* Unprotected invariant is one big relation. *)
       else
-        sideg (V.global g) rel_side;
+        sideg (V.global (Cil g)) rel_side;
       let rel_local' =
-        if is_unprotected ask g then
+        if is_unprotected ask (Cil g) then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
@@ -634,7 +635,7 @@ struct
         sideg (V.mutex atomic_mutex) rel_side;
       let rel_local =
         let newly_unprot var = match AV.find_metadata var with
-          | Some (Global g) -> is_unprotected_without ask g atomic_mutex
+          | Some (Global g) -> is_unprotected_without ask (Cil g) atomic_mutex
           | _ -> false
         in
         RD.remove_filter rel newly_unprot
@@ -664,7 +665,7 @@ struct
         if g_vars <> [] then sideg V.mutex_inits rel_side;
         let rel_local = RD.remove_filter rel (fun var ->
             match AV.find_metadata var with
-            | Some (Global g) -> is_unprotected ask g
+            | Some (Global g) -> is_unprotected ask (Cil g)
             | _ -> false
           )
         in
@@ -879,7 +880,7 @@ struct
     (* normal (strong) mapping: contains only still fully protected *)
     (* must filter by protection to avoid later meeting with non-protecting *)
     LRD.filter (fun gs _ ->
-        VS.for_all (is_protected_by ask m) gs
+        VS.for_all (fun g -> is_protected_by ask m (Cil g)) gs
       ) octs
 
   let keep_global g octs =
@@ -919,7 +920,7 @@ struct
     let clusters =
       ClusteringArg.generate gs
       |> List.map VS.of_list
-      |> List.filter (VS.exists (fun g -> W.mem g w)) (* cluster intersection w is non-empty *)
+      |> List.filter (VS.exists (fun g -> W.mem (Cil g) w)) (* cluster intersection w is non-empty *)
     in
     let oct_side_cluster gs =
       RD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
@@ -962,7 +963,7 @@ struct
       (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
       filter_map' (fun gs oct ->
           (* must filter by protection to avoid later meeting with non-protecting *)
-          let gs' = VS.filter (is_protected_by ask m) gs in
+          let gs' = VS.filter (fun g -> is_protected_by ask m (Cil g)) gs in
           if VS.is_empty gs' then
             None
           else
@@ -1065,7 +1066,7 @@ struct
         |> Cluster.keep_global g
       )
       else
-        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g)
+        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global (Cil g))
     in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
@@ -1089,7 +1090,7 @@ struct
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let _,lmust,l = st.priv in
     let rel = st.rel in
-    let lm = LLock.global g in
+    let lm = LLock.global (Var.Cil g) in
     (* lock *)
     let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -1109,7 +1110,7 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_local' =
-        if is_unprotected ask g then
+        if is_unprotected ask (Cil g) then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
@@ -1122,7 +1123,7 @@ struct
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let w,lmust,l = st.priv in
-    let lm = LLock.global g in
+    let lm = LLock.global (Var.Cil g) in
     let rel = st.rel in
     (* lock *)
     let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
@@ -1143,26 +1144,26 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_side = RD.keep_vars rel_local [g_var] in
-      let rel_side, clusters = Cluster.unlock (W.singleton g) rel_side in
+      let rel_side, clusters = Cluster.unlock (W.singleton (Cil g)) rel_side in
       let digest = Digest.current ask in
       let sidev = GMutex.singleton digest rel_side in
       if Param.handle_atomic then
         sideg (V.mutex atomic_mutex) (G.create_global sidev) (* Unprotected invariant is one big relation. *)
       else
-        sideg (V.global g) (G.create_global sidev);
+        sideg (V.global (Cil g)) (G.create_global sidev);
       let l' = L.add lm rel_side l in
       let rel_local' =
-        if is_unprotected ask g then
+        if is_unprotected ask (Cil g) then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
       in
       let lmust' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
-      {rel = rel_local'; priv = (W.add g w,lmust',l')}
+      {rel = rel_local'; priv = (W.add (Cil g) w,lmust',l')}
     )
     else
       (* Delay publishing unprotected write in the atomic section. *)
-      {rel = rel_local; priv = (W.add g w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
+      {rel = rel_local; priv = (W.add (Cil g) w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
 
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
@@ -1281,7 +1282,7 @@ struct
         (* TODO: Is not potentially even unsound to do so?! *)
         let rel_local = RD.remove_filter rel (fun var ->
             match AV.find_metadata var with
-            | Some (Global g) -> is_unprotected ask g
+            | Some (Global g) -> is_unprotected ask (Cil g)
             | _ -> false
           )
         in
@@ -1332,7 +1333,7 @@ struct
 
   let iter_sys_vars getg vq vf =
     match vq with
-    | VarQuery.Global g -> vf (V.global g)
+    | VarQuery.Global g -> vf (V.global (Cil g))
     | _ -> ()
 
   let finalize () = ()

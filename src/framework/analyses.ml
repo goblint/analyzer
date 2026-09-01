@@ -307,6 +307,12 @@ struct
   include StdV
 end
 
+module VarV =
+struct
+  include Var (* TODO: or Basetype.Variables? *)
+  include StdV
+end
+
 module TIDV =
 struct
   include ThreadIdDomain.Thread
