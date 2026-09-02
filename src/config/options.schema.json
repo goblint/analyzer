@@ -1229,6 +1229,12 @@
                 }
               },
               "additionalProperties": false
+            },
+            "lookahead": {
+              "title": "ana.widen.lookahead",
+              "description": "Use lookahead widening.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

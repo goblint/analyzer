@@ -206,6 +206,7 @@ module ContextGasLifter = ContextGasLifter
 module WideningDelay = WideningDelay
 module WideningToken = WideningToken
 module WideningTokenLifter = WideningTokenLifter
+module LookaheadWidening = LookaheadWidening
 
 
 (** {1 Domains}
