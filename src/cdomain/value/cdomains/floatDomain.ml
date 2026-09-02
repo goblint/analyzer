@@ -291,7 +291,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | PlusInfinity, PlusInfinity -> PlusInfinity
     | _ -> Bot
 
-  (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
   let widen v1 v2 = (* TODO: support 'threshold_widening' option *)
     match v1, v2 with
     | Top, _ | _, Top -> Top

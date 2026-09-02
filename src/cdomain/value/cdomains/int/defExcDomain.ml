@@ -261,6 +261,8 @@ struct
     else
       join' ~range:(size ik) ik x y
 
+  let widen ik x y = widen ik x (join ik x y) (* TODO: inline? *)
+
 
   let meet ik x y =
     match (x,y) with

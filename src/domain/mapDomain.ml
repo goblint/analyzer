@@ -707,7 +707,7 @@ struct
   let widen_with_fct f x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (M.widen_with_fct f x y)
-    | _ -> y
+    | _ -> join x y
 
   let cardinal = function
     | `Top -> raise (Fn_over_All "cardinal")
@@ -852,7 +852,7 @@ struct
   let widen_with_fct f x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted(M.widen_with_fct f x y)
-    | _ -> y
+    | _ -> join x y
 
   let reflexive_subset_domain_for_all2 f x y =
     match (x,y) with

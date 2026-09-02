@@ -381,7 +381,7 @@ struct
     | `Top, _ -> `Top
     | _, `Top -> `Top
     | `Lifted x, `Lifted y -> `Lifted (S.join x y)
-  let widen x y = (* assumes y to be bigger than x *)
+  let widen x y =
     match x, y with
     | `Top, _
     | _, `Top -> `Top
