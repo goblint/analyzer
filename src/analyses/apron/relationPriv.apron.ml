@@ -29,11 +29,11 @@ module type S =
     val name: unit -> string
     val startstate: unit -> D.t
 
-    val read_global: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo -> varinfo -> RD.t
+    val read_global: Q.ask -> (V.t -> G.t) -> relation_components_t -> Var.t -> Var.t -> RD.t
 
     (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
        the state when following conditional guards. *)
-    val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> varinfo -> varinfo -> relation_components_t
+    val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> Var.t -> Var.t -> relation_components_t
 
     val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
     val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
@@ -51,7 +51,7 @@ module type S =
     val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
     (** Returns flow-insensitive invariant for global unknown. *)
 
-    val invariant_vars: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo list
+    val invariant_vars: Q.ask -> (V.t -> G.t) -> relation_components_t -> Var.t list
     (** Returns global variables which are privatized. *)
 
     val init: unit -> unit
@@ -210,9 +210,9 @@ struct
   struct
     include RelationDomain.VarMetadataTbl (VM)
 
-    let local g = make_var (Local g)
-    let unprot g = make_var (Unprot g)
-    let prot g = make_var (Prot g)
+    let local (Var.Cil g) = make_var (Local g)
+    let unprot (Var.Cil g) = make_var (Unprot g)
+    let prot (Var.Cil g) = make_var (Prot g)
   end
 
   let name () = "ProtectionBasedPriv"
@@ -227,12 +227,12 @@ struct
 
   (** Restrict environment to local variables and still-protected global variables. *)
   let restrict_local is_unprot rel w_remove =
-    let remove_local_vars = List.map AV.local (List.map (fun (Var.Cil v) -> v) (W.elements w_remove)) in
+    let remove_local_vars = List.map AV.local (W.elements w_remove) in
     let rel' = RD.remove_vars rel remove_local_vars in
     (* remove global vars *)
     RD.remove_filter rel' (fun var ->
         match AV.find_metadata var with
-        | Some (Unprot g | Prot g) -> is_unprot g
+        | Some (Unprot g | Prot g) -> is_unprot (Var.Cil g)
         | _ -> false
       )
 
@@ -244,15 +244,15 @@ struct
     let g_local_var = AV.local g in
     let x_var = AV.local x in
     let rel_local =
-      if W.mem (Cil g) w then
+      if W.mem g w then
         RD.assign_var rel x_var g_local_var
       else
         RD.bot ()
     in
     let rel_local' =
-      if P.mem (Cil g) p then
+      if P.mem g p then
         rel_local
-      else if is_unprotected ask (Cil g) then (
+      else if is_unprotected ask g then (
         let g_unprot_var = AV.unprot g in
         let rel_unprot = RD.add_vars rel [g_unprot_var] in
         let rel_unprot = RD.assign_var rel_unprot x_var g_unprot_var in
@@ -271,7 +271,7 @@ struct
         RD.join rel_local rel_prot
       )
     in
-    let rel_local' = restrict_local (fun g -> is_unprotected ask (Cil g)) rel_local' (W.empty ()) in
+    let rel_local' = restrict_local (is_unprotected ask) rel_local' (W.empty ()) in
     let rel_local' = RD.meet rel_local' (getg ()) in
     rel_local'
 
@@ -294,12 +294,12 @@ struct
          else
          (* restricting g#unprot-s out from oct' gives oct_local *)
          {oct = oct_local; priv = (P.add g p, W.add g w)} *)
-      if is_unprotected ask (Cil g) then
-        {st with rel = restrict_local (fun g -> is_unprotected ask (Cil g)) rel' (W.singleton (Cil g))}
+      if is_unprotected ask g then
+        {st with rel = restrict_local (is_unprotected ask) rel' (W.singleton g)}
       else (
-        let p' = P.add (Cil g) p in
-        let w' = W.add (Cil g) w in
-        {rel = restrict_local (fun g -> is_unprotected ask (Cil g)) rel' (W.empty ()); priv = (p', w')}
+        let p' = P.add g p in
+        let w' = W.add g w in
+        {rel = restrict_local (is_unprotected ask) rel' (W.empty ()); priv = (p', w')}
       )
     in
     let rel_local' = RD.meet st'.rel (getg ()) in
@@ -331,7 +331,6 @@ struct
         )
     in
     let rel_side = List.fold_left (fun acc omega ->
-        let omega = List.map (fun (Var.Cil g) -> g) omega in
         let g_prot_vars = List.map AV.prot omega in
         let g_local_vars = List.map AV.local omega in
         let rel_side1 = RD.add_vars rel g_prot_vars in
@@ -342,7 +341,7 @@ struct
     let rel' = rel_side in
     let rel_side = restrict_global rel_side in
     sideg () rel_side;
-    let rel_local = restrict_local (fun g -> is_unprotected_without ask (Cil g) m) rel' w_remove in
+    let rel_local = restrict_local (fun g -> is_unprotected_without ask g m) rel' w_remove in
     let rel_local' = RD.meet rel_local (getg ()) in
     {rel = rel_local'; priv = (p', w')}
 
@@ -362,7 +361,7 @@ struct
           |> List.to_seq
           |> Seq.filter_map (fun var ->
               match RD.V.find_metadata var with
-              | Some (Global g) -> Some (var, g)
+              | Some (Global g) -> Some (var, Var.Cil g)
               | _ -> None
             )
           |> Seq.unzip
@@ -410,7 +409,7 @@ struct
       |> List.to_seq
       |> Seq.filter_map (fun var ->
           match RD.V.find_metadata var with
-          | Some (Global g) -> Some (var, g)
+          | Some (Global g) -> Some (var, Var.Cil g)
           | _ -> None
         )
       |> Seq.unzip
@@ -432,7 +431,7 @@ struct
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
   let invariant_global ask getg g = Invariant.none
-  let invariant_vars ask getg st = List.map (fun (Var.Cil g) -> g) @@ protected_vars ask ~kind:Write (* TODO: is this right? *)
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let finalize () = ()
 
@@ -467,7 +466,7 @@ struct
     RD.vars st.rel
     |> List.filter_map (fun var ->
         match RD.V.find_metadata var with
-        | Some (Global g) -> Some g
+        | Some (Global g) -> Some (Var.Cil g)
         | _ -> None
       )
 end
@@ -507,7 +506,7 @@ struct
         RD.keep_vars (getg (V.mutex atomic_mutex)) [g_var]
       )
       else
-        getg (V.global (Cil g))
+        getg (V.global g)
     in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
@@ -543,7 +542,7 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_local' =
-        if is_unprotected ask (Cil g) then
+        if is_unprotected ask g then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
@@ -579,9 +578,9 @@ struct
       if Param.handle_atomic then
         sideg (V.mutex atomic_mutex) rel_side (* Unprotected invariant is one big relation. *)
       else
-        sideg (V.global (Cil g)) rel_side;
+        sideg (V.global g) rel_side;
       let rel_local' =
-        if is_unprotected ask (Cil g) then
+        if is_unprotected ask g then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
@@ -707,8 +706,8 @@ struct
 
   let escape node ask getg sideg (st:relation_components_t) escaped : relation_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
-    let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
-    let escape_one (x:varinfo) st = write_escape ask getg sideg st x x in
+    let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local (Cil v))) esc_vars in
+    let escape_one (x:varinfo) st = write_escape ask getg sideg st (Cil x) (Cil x) in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let threadenter ask getg (st: relation_components_t): relation_components_t =
@@ -767,7 +766,7 @@ sig
   module Cluster: Printable.S
 
   val keep_only_protected_globals: Q.ask -> LockDomain.MustLock.t -> LRD.t -> LRD.t
-  val keep_global: varinfo -> LRD.t -> LRD.t
+  val keep_global: Var.t -> LRD.t -> LRD.t
 
   val lock: RD.t -> LRD.t -> LRD.t -> RD.t
   val unlock: W.t -> RD.t -> LRD.t * (Cluster.t list)
@@ -807,7 +806,7 @@ end
 
 module type ClusteringArg =
 sig
-  val generate: varinfo list -> varinfo list list
+  val generate: Var.t list -> Var.t list list
   val name: unit -> string
 end
 
@@ -816,7 +815,7 @@ module Clustering12: ClusteringArg =
 struct
   let generate gs =
     List.cartesian_product gs gs
-    |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
+    |> List.filter (fun (g1, g2) -> Var.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
     |> List.map (fun (g1, g2) -> [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
 
   let name () = "cluster12"
@@ -830,7 +829,7 @@ struct
     | [_] -> [gs] (* use clusters of size 1 if only 1 variable *)
     | _ ->
       List.cartesian_product gs gs
-      |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
+      |> List.filter (fun (g1, g2) -> Var.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
       |> List.map (fun (g1, g2) -> [g1; g2])
 
   let name () = "cluster2"
@@ -871,7 +870,7 @@ module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (RD: Rela
 struct
   open CommonPerMutex(RD)
 
-  module VS = SetDomain.Make (CilType.Varinfo)
+  module VS = SetDomain.Make (Var)
   module LRD = MapDomain.MapBot (VS) (RD)
 
   module Cluster = VS
@@ -880,7 +879,7 @@ struct
     (* normal (strong) mapping: contains only still fully protected *)
     (* must filter by protection to avoid later meeting with non-protecting *)
     LRD.filter (fun gs _ ->
-        VS.for_all (fun g -> is_protected_by ask m (Cil g)) gs
+        VS.for_all (is_protected_by ask m) gs
       ) octs
 
   let keep_global g octs =
@@ -913,14 +912,14 @@ struct
   let unlock w oct_side =
     let vars = RD.vars oct_side in
     let gs = List.map (fun var -> match V.find_metadata var with
-        | Some (Global g) -> g
+        | Some (Global g) -> Var.Cil g
         | _ -> assert false (* oct_side should only contain (protected) globals *)
       ) vars
     in
     let clusters =
       ClusteringArg.generate gs
       |> List.map VS.of_list
-      |> List.filter (VS.exists (fun g -> W.mem (Cil g) w)) (* cluster intersection w is non-empty *)
+      |> List.filter (VS.exists (fun g -> W.mem g w)) (* cluster intersection w is non-empty *)
     in
     let oct_side_cluster gs =
       RD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
@@ -963,7 +962,7 @@ struct
       (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
       filter_map' (fun gs oct ->
           (* must filter by protection to avoid later meeting with non-protecting *)
-          let gs' = VS.filter (fun g -> is_protected_by ask m (Cil g)) gs in
+          let gs' = VS.filter (is_protected_by ask m) gs in
           if VS.is_empty gs' then
             None
           else
@@ -1066,9 +1065,9 @@ struct
         |> Cluster.keep_global g
       )
       else
-        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global (Cil g))
+        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g)
     in
-    if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
+    if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a" Var.pretty g LRD.pretty get_mutex_global_g;
     let r =
       let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
@@ -1090,7 +1089,7 @@ struct
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let _,lmust,l = st.priv in
     let rel = st.rel in
-    let lm = LLock.global (Var.Cil g) in
+    let lm = LLock.global g in
     (* lock *)
     let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -1110,7 +1109,7 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_local' =
-        if is_unprotected ask (Cil g) then
+        if is_unprotected ask g then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
@@ -1123,7 +1122,7 @@ struct
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let w,lmust,l = st.priv in
-    let lm = LLock.global (Var.Cil g) in
+    let lm = LLock.global g in
     let rel = st.rel in
     (* lock *)
     let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
@@ -1144,26 +1143,26 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_side = RD.keep_vars rel_local [g_var] in
-      let rel_side, clusters = Cluster.unlock (W.singleton (Cil g)) rel_side in
+      let rel_side, clusters = Cluster.unlock (W.singleton g) rel_side in
       let digest = Digest.current ask in
       let sidev = GMutex.singleton digest rel_side in
       if Param.handle_atomic then
         sideg (V.mutex atomic_mutex) (G.create_global sidev) (* Unprotected invariant is one big relation. *)
       else
-        sideg (V.global (Cil g)) (G.create_global sidev);
+        sideg (V.global g) (G.create_global sidev);
       let l' = L.add lm rel_side l in
       let rel_local' =
-        if is_unprotected ask (Cil g) then
+        if is_unprotected ask g then
           RD.remove_vars rel_local [g_var]
         else
           rel_local
       in
       let lmust' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
-      {rel = rel_local'; priv = (W.add (Cil g) w,lmust',l')}
+      {rel = rel_local'; priv = (W.add g w,lmust',l')}
     )
     else
       (* Delay publishing unprotected write in the atomic section. *)
-      {rel = rel_local; priv = (W.add (Cil g) w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
+      {rel = rel_local; priv = (W.add g w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
 
   let lock ask getg (st: relation_components_t) m =
     let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
@@ -1303,8 +1302,8 @@ struct
 
   let escape node ask getg sideg (st: relation_components_t) escaped: relation_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
-    let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local v)) esc_vars in
-    let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
+    let esc_vars = List.filter (fun v -> not v.vglob && RD.Tracked.varinfo_tracked v && RD.mem_var st.rel (AV.local (Cil v))) esc_vars in
+    let escape_one (x:varinfo) st = write_global ask getg sideg st (Cil x) (Cil x) in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let enter_multithreaded (ask:Q.ask) getg sideg (st: relation_components_t): relation_components_t =
@@ -1350,7 +1349,7 @@ struct
   module RelComponents = RelationDomain.RelComponents (RD) (D)
 
   let read_global ask getg st g x =
-    if M.tracing then M.traceli "relationpriv" "read_global %a %a" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
+    if M.tracing then M.traceli "relationpriv" "read_global %a %a" Var.pretty g Var.pretty x;
     if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -1362,7 +1361,7 @@ struct
     r
 
   let write_global ?invariant ask getg sideg st g x =
-    if M.tracing then M.traceli "relationpriv" "write_global %a %a" CilType.Varinfo.pretty g CilType.Varinfo.pretty x;
+    if M.tracing then M.traceli "relationpriv" "write_global %a %a" Var.pretty g Var.pretty x;
     if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
