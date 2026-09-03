@@ -29,8 +29,8 @@ int main() {
       else
         u.y = 0;
 
-      __goblint_check(u.x == 0); // TODO
-      __goblint_check(u.y == 0); // TODO
+      __goblint_check(u.x == 0);
+      __goblint_check(u.y == 0);
       break;
 
     default:
