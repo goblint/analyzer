@@ -1714,8 +1714,12 @@ struct
       let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
       let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
       (* if WeakUpdates.mem x st.weak then *)
-      if man.ask (IsMultiple x) then
-        VD.join old_value new_value
+      if man.ask (IsMultiple x) then (
+        if invariant then
+          old_value
+        else
+          VD.join old_value new_value
+      )
       else if invariant then (
         (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
         try
