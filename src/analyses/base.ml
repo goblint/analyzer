@@ -1713,7 +1713,8 @@ struct
       (* Projection globals to highest Precision *)
       let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
       let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
-      if WeakUpdates.mem x st.weak then
+      (* if WeakUpdates.mem x st.weak then *)
+      if man.ask (IsMultiple x) then
         VD.join old_value new_value
       else if invariant then (
         (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
@@ -2084,7 +2085,8 @@ struct
       (* TODO: move into sync `Init *)
       Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st
     | _ ->
-      let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
+      (* let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in *)
+      let locals = List.filter (fun v -> not (man.ask (IsMultiple v))) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_partitioning (Queries.to_value_domain_ask ask) man.local locals in
       let nst: store = rem_many ask nst_part locals in
       Option.map_default (fun exp ->
@@ -2206,7 +2208,8 @@ struct
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> GobOption.exists (CilType.Fundec.equal fundec) @@ Cilfacade.find_scope_fundec v) reachable in
     (* Add to the set of weakly updated variables *)
-    let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
+    (* let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in *)
+    let new_weak = st.weak in
     {st' with cpa = new_cpa; weak = new_weak}
 
   let enter man lval fn args : (D.t * D.t) list =
@@ -3177,7 +3180,7 @@ let get_main (): (module MainSpec) =
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
+  MCP.register_analysis ~dep:["mallocWrapper";"weakUpdates"] (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config
