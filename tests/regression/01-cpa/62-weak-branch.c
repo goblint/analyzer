@@ -16,7 +16,7 @@ void foo(int i, int *p) { // p is actually unused - only used to make x weakly u
     int r; // rand
     int *q = r ? &x : &y;
 
-    // Spurious branching, which makes x[0] less precise!
+    // Spurious branching, which used to make x[0] less precise!
     if (*q != 42); // NB! Semicolon - no body for if branches.
     // *q evaluates to [0,1]
     // In true branch:
