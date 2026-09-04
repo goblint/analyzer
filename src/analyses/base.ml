@@ -1520,7 +1520,8 @@ struct
     | Q.EvalMutexAttr e -> begin
         match eval_rv_address ~man man.local e with
         | Address a ->
-          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *) (* TODO: assume *)
+          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in
+          Assumptions.add "Mutexes are non-recursive by default";
           begin match get ~man ~top:(MutexAttr default) man.local a None with (* ~top corresponds to default NULL with assume_top *)
             | MutexAttr a -> a
             | Bot -> default (* corresponds to default NULL with assume_none *)
