@@ -40,6 +40,10 @@
     "malloc": {
       "fail": true,
       "zero": "either"
+    },
+    "alloca": {
+      "fail": false,
+      "zero": "pointer"
     }
   },
   "witness": {
