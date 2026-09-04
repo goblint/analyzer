@@ -25,7 +25,6 @@ module PU = PrecisionUtil
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
-module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
 
@@ -80,8 +79,8 @@ struct
 
   let name () = "base"
 
-  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
-  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
 
   (**************************************************************************
    * Helpers
@@ -1643,8 +1642,6 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
-    | Q.IsMultiple v -> WeakUpdates.mem v man.local.weak ||
-                        (hasAttribute "thread" v.vattr && v.vaddrof) (* thread-local variables if they have their address taken, as one could then compare several such variables *)
     | Q.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr (V.priv x)) in
       Priv.iter_sys_vars (priv_getg man.global) vq vf'
@@ -1713,8 +1710,12 @@ struct
       (* Projection globals to highest Precision *)
       let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
       let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
-      if WeakUpdates.mem x st.weak then
-        VD.join old_value new_value
+      if man.ask (IsMultiple x) then (
+        if invariant then
+          old_value
+        else
+          VD.join old_value new_value
+      )
       else if invariant then (
         (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
         try
@@ -2084,7 +2085,7 @@ struct
       (* TODO: move into sync `Init *)
       Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st
     | _ ->
-      let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
+      let locals = List.filter (fun v -> not (man.ask (IsMultiple v))) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_partitioning (Queries.to_value_domain_ask ask) man.local locals in
       let nst: store = rem_many ask nst_part locals in
       Option.map_default (fun exp ->
@@ -2203,11 +2204,7 @@ struct
     let p = PU.int_precision_from_fundec fundec in
     let new_cpa = project (Queries.to_value_domain_ask ask) (Some p) new_cpa fundec in
 
-    (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
-    let reachable_other_copies = List.filter (fun v -> GobOption.exists (CilType.Fundec.equal fundec) @@ Cilfacade.find_scope_fundec v) reachable in
-    (* Add to the set of weakly updated variables *)
-    let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
-    {st' with cpa = new_cpa; weak = new_weak}
+    {st' with cpa = new_cpa}
 
   let enter man lval fn args : (D.t * D.t) list =
     [man.local, make_entry man fn args]
@@ -2934,7 +2931,7 @@ struct
 
       if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
 
-      { nst with cpa = cpa'; weak = st.weak } (* keep weak from caller *)
+      { nst with cpa = cpa' }
     in
     combine_one man.local au
 
@@ -3177,7 +3174,7 @@ let get_main (): (module MainSpec) =
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
+  MCP.register_analysis ~dep:["mallocWrapper";"weakUpdates"] (module Main : MCPSpec)
 
 let _ =
   AfterConfig.register after_config
