@@ -36,22 +36,14 @@ sig
   (** changes the way in which the array is partitioned if this is necessitated by a change
     * to the variable **)
 
-  val get_vars_in_e: t -> Cil.varinfo list
-  (** returns the variables occuring in the expression according to which the
-    * array was partitioned (if any) *)
-
   val map: (value -> value) -> t -> t
   (** Apply a function to all elements of the array. *)
-
-  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
-  (** Left fold (like List.fold_left) over the arrays elements *)
 
   val smart_join: VDQ.t -> VDQ.t -> t -> t  -> t
   val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
   val smart_leq: VDQ.t -> VDQ.t -> t -> t  -> bool
   val update_length: idx -> t -> t
   val project: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> VDQ.t -> t -> t
-  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 (** Abstract domains representing arrays. *)
@@ -64,6 +56,15 @@ sig
 
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
   (** Returns the element residing at the given index. *)
+
+  val get_vars_in_e: t -> Cil.varinfo list
+  (** returns the variables occuring in the expression according to which the
+    * array was partitioned (if any) *)
+
+  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+  (** Left fold (like List.fold_left) over the arrays elements *)
+
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 (** Abstract domains representing strings a.k.a. null-terminated char arrays. *)

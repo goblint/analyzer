@@ -49,16 +49,13 @@ sig
   val length: t -> idx option
 
   val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
-  val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
-  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
   val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
   val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
   val update_length: idx -> t -> t
 
   val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
-  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type S =
@@ -67,6 +64,11 @@ sig
 
   val domain_of_t: t -> domain
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+
+  val get_vars_in_e: t -> Cil.varinfo list
+  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type Str =
@@ -1191,16 +1193,12 @@ struct
 
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
 
-  let get_vars_in_e _ = []
-
   let map f (nulls, size) =
     (* if f(null) = null, all values in must_nulls_set still are surely null;
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
     match Val.is_null (f (Val.null ())) with
     | Null -> (Nulls.add_all Possibly nulls, size)
     | _ -> (Nulls.top (), size) (* else also return top for must_nulls_set *)
-
-  let fold_left f acc _ = f acc (Val.top ())
 
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -1696,8 +1694,6 @@ struct
   let update_length new_size (nulls, size) = (nulls, new_size)
 
   let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
-
-  let invariant ~value_invariant ~offset ~lval x = Invariant.none
 end
 
 module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
