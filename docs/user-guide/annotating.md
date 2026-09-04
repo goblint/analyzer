@@ -26,6 +26,7 @@ The following string arguments are supported:
 4. `base.non-ptr`/`base.no-non-ptr` to override the `ana.base.context.non-ptr` option.
 5. `relation.context`/`relation.no-context` to override the `ana.relation.context` option.
 6. `widen`/`no-widen` to override the `ana.context.widen` option.
+7. `no-context` to disable context-sensitivity for this function entirely (for all analyses).
 
 ### Apron attributes
 The Apron library can be set to only track variables with the attribute `goblint_apron_track`
