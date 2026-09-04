@@ -38,7 +38,7 @@
       "dereference": "assume_none"
     },
     "malloc": {
-      "fail": false,
+      "fail": true,
       "zero": "either"
     }
   },
