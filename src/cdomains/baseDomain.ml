@@ -46,8 +46,8 @@ struct
   let show r =
     let first  = CPA.show r.cpa in
     let second  = PartDeps.show r.deps in
-    let fourth =  PrivD.show r.priv in
-    "(" ^ first ^ ", " ^ second ^ ", " ^ fourth  ^ ")"
+    let third =  PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
@@ -77,16 +77,16 @@ struct
     let tr = QCheck.triple (CPA.arbitrary ()) (PartDeps.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let pretty_diff () (({cpa=x1; deps=x2; priv=x4}:t),({cpa=y1; deps=y2; priv=y4}:t)): Pretty.doc =
+  let pretty_diff () (({cpa=x1; deps=x2; priv=x3}:t),({cpa=y1; deps=y2; priv=y3}:t)): Pretty.doc =
     if not (CPA.leq x1 y1) then
       CPA.pretty_diff () (x1,y1)
     else if not (PartDeps.leq x2 y2) then
       PartDeps.pretty_diff () (x2,y2)
     else
-      PrivD.pretty_diff () (x4,y4)
+      PrivD.pretty_diff () (x3,y3)
 
-  let op_scheme op1 op2 op4 {cpa=x1; deps=x2; priv=x4} {cpa=y1; deps=y2; priv=y4}: t =
-    {cpa = op1 x1 y1; deps = op2 x2 y2; priv = op4 x4 y4 }
+  let op_scheme op1 op2 op3 {cpa=x1; deps=x2; priv=x3} {cpa=y1; deps=y2; priv=y3}: t =
+    {cpa = op1 x1 y1; deps = op2 x2 y2; priv = op3 x3 y3 }
 end
 
 module type ExpEvaluator =
