@@ -48,14 +48,8 @@ sig
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
 
-  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val map: (value -> value) -> t -> t
-  val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
-  val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
-  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
   val update_length: idx -> t -> t
-
-  val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
 end
 
 module type S =
@@ -65,9 +59,14 @@ sig
   val domain_of_t: t -> domain
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
 
+  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+  val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
 
+  val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
   val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
@@ -1191,18 +1190,12 @@ struct
 
   let length (_, size) = Some size
 
-  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
-
   let map f (nulls, size) =
     (* if f(null) = null, all values in must_nulls_set still are surely null;
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
     match Val.is_null (f (Val.null ())) with
     | Null -> (Nulls.add_all Possibly nulls, size)
     | _ -> (Nulls.top (), size) (* else also return top for must_nulls_set *)
-
-  let smart_join _ _ = join
-  let smart_widen _ _ = widen
-  let smart_leq _ _ = leq
 
   (* string functions *)
 
@@ -1692,8 +1685,6 @@ struct
     | _ -> Idx.top_of IInt
 
   let update_length new_size (nulls, size) = (nulls, new_size)
-
-  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
 end
 
 module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -1867,10 +1858,10 @@ struct
   let map f (t_f, t_n) = construct (A.map f t_f) (fun () -> N.map f t_n)
   let update_length newl (t_f, t_n) = construct (A.update_length newl t_f) (fun () -> N.update_length newl t_n)
 
-  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = construct (op_a x y t_f1 t_f2) (fun () -> op_n x y t_n1 t_n2)
+  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = construct (op_a x y t_f1 t_f2) (fun () -> op_n t_n1 t_n2)
 
-  let smart_join = smart_binop A.smart_join N.smart_join
-  let smart_widen = smart_binop A.smart_widen N.smart_widen
+  let smart_join = smart_binop A.smart_join N.join
+  let smart_widen = smart_binop A.smart_widen N.widen
 
   let string_op op (t_f1, t_n1) (_, t_n2) n = construct (A.map Val.invalidate_abstract_value t_f1) (fun () -> op t_n1 t_n2 n)
   let string_copy = string_op N.string_copy
@@ -1892,13 +1883,13 @@ struct
       N.length t_n
     else
       A.length t_f
-  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (A.move_if_affected ~replace_with_const ask t_f v f, N.move_if_affected ~replace_with_const ask t_n v f)
+  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (A.move_if_affected ~replace_with_const ask t_f v f, t_n)
   let get_vars_in_e (t_f, _) = A.get_vars_in_e t_f
   let fold_left f acc (t_f, _) = A.fold_left f acc t_f
 
   let smart_leq x y (t_f1, t_n1) (t_f2, t_n2) =
     if get_bool "ana.base.arrays.nullbytes" then
-      A.smart_leq x y t_f1 t_f2 && N.smart_leq x y t_n1 t_n2
+      A.smart_leq x y t_f1 t_f2 && N.leq t_n1 t_n2
     else
       A.smart_leq x y t_f1 t_f2
 
@@ -1913,6 +1904,6 @@ struct
     else
       Idx.top_of !Cil.kindOfSizeOf
 
-  let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, N.project ~varAttr ~typAttr ask t_n)
+  let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
 end
