@@ -2,13 +2,18 @@
 
 open GoblintCil
 open Analyses
+open SimplifiedAnalysis
 
 (** An analysis specification for didactic purposes.
  It only considers definite values of local variables.
  We do not pass information interprocedurally. *)
-module Spec : Analyses.MCPSpec =
+module Spec : SimplifiedSpec =
 struct
-  let name () = "constants"
+  include SimplifiedAnalysis.DefaultSpec
+
+  let name = "constants"
+  module V = Printable.Unit
+  module G = Lattice.Unit
 
   module I = IntDomain.Flattened
 
@@ -16,7 +21,7 @@ struct
   module D = MapDomain.MapBot (Basetype.Variables) (I)
 
   (* No contexts *)
-  include Analyses.IdentityUnitContextsSpec
+  module C = Printable.Unit
 
   let get_local = function
     | Var v, NoOffset when isIntegralType v.vtype && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
@@ -44,29 +49,29 @@ struct
     | _ -> I.top ()
 
   (* transfer functions *)
-  let assign man (lval:lval) (rval:exp) : D.t =
-    match get_local lval with
-    | Some loc -> D.add loc (eval man.local rval) man.local
-    | None -> man.local
 
-  let branch man (exp:exp) (tv:bool) : D.t =
-    let v = eval man.local exp in
+  let assign man state (lval:lval) (rval:exp) : D.t =
+    match get_local lval with
+    | Some loc -> D.add loc (eval state rval) state
+    | None -> state
+
+  let branch man state (exp:exp) (tv:bool) : D.t =
+    let v = eval state exp in
     match I.to_bool v with
       | Some b when b <> tv -> raise Deadcode (* if the expression evaluates to not tv, the tv branch is not reachable *)
-      | _ -> man.local
+      | _ -> state
 
-  let body man (f:fundec) : D.t =
+  let body man state (f:fundec) : D.t =
     (* Initialize locals to top *)
-    List.fold_left (fun m l -> D.add l (I.top ()) m) man.local f.slocals
+    List.fold_left (fun m l -> D.add l (I.top ()) m) state f.slocals
 
-  let return man (exp:exp option) (f:fundec) : D.t =
+  let return man state (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
-    man.local
+    state
 
-  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+  let enter man caller_state (lval: lval option) (f:fundec) (args: exp list) : D.t =
     (* Set the formal int arguments to top *)
-    let callee_state = List.fold_left (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals in
-    [(man.local, callee_state)]
+    List.fold_left (fun m l -> D.add l (I.top ()) m) (D.bot ()) f.sformals
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
     match lval with
@@ -77,22 +82,19 @@ struct
         )
       |_ -> state
 
-  let combine_env man lval fexp f args fc au f_ask =
-    man.local (* keep local as opposed to IdentitySpec *)
-
-  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask): D.t =
+  let combine man state (callee_local: D.t) (lval:lval option) (f: fundec) (args: exp list): D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
       with a local int variable x on the left, we set it to top *)
-    set_local_int_lval_top man.local lval
+    set_local_int_lval_top state lval
 
-  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man state (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
-    set_local_int_lval_top man.local lval
+    set_local_int_lval_top state lval
 
-  let startstate v = D.bot ()
-  let exitstate v = D.top () (* TODO: why is this different from startstate? *)
+  let startstate = D.bot ()
+  let threadenter man state f args = D.top ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCPRegistry.registered_simplified_analysis (module Spec : SimplifiedSpec)
