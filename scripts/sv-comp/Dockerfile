@@ -36,6 +36,7 @@ WORKDIR /root/goblint
 RUN ./smoketest.sh
 
 FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2026 AS smoketest-competition
+# TODO: FROM :2027
 
 RUN apt-get update \
     && apt-get install -y unzip \
