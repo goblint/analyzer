@@ -6,8 +6,14 @@ open Analyses
 module M = Messages
 module AD = Queries.AD
 module Q = Queries
-module WeakUpdates = BaseDomain.WeakUpdates
 
+(** Maintains a set of local variables that need to be weakly updated, because multiple reachable copies of them may *)
+(* exist on the call stack *)
+module WeakUpdates =
+struct
+  include SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
+  let name () = "Vars with Weak Update"
+end
 
 module Spec =
 struct
