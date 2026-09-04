@@ -1033,7 +1033,7 @@ struct
                 if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
                     (* TODO: Is this ok? *)
-                    M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                    M.info ~category:Unsound "Casting involving a VLA is assumed to work"; (* TODO: assume *)
                     true
                   end
                 else
@@ -1521,7 +1521,7 @@ struct
     | Q.EvalMutexAttr e -> begin
         match eval_rv_address ~man man.local e with
         | Address a ->
-          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *)
+          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *) (* TODO: assume *)
           begin match get ~man ~top:(MutexAttr default) man.local a None with (* ~top corresponds to default NULL with assume_top *)
             | MutexAttr a -> a
             | Bot -> default (* corresponds to default NULL with assume_none *)
@@ -1857,7 +1857,7 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "set" "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
+      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st (* TODO: assume *)
 
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)

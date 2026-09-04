@@ -59,6 +59,7 @@ struct
       false
     | _ ->
       (* We assume using a tainted offset does not taint the expression, and that our language has no pointers *)
+      (* TODO: assume? *)
       false
 
   (* transfer functions *)
