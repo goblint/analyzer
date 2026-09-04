@@ -24,14 +24,6 @@ struct
   let name () = "array partitioning deps"
 end
 
-(** Maintains a set of local variables that need to be weakly updated, because multiple reachable copies of them may *)
-(* exist on the call stack *)
-module WeakUpdates =
-struct
-  include SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
-  let name () = "Vars with Weak Update"
-end
-
 
 type 'a basecomponents_t = {
   cpa: CPA.t;
