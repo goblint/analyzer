@@ -631,7 +631,7 @@ struct
     let tids = ask.f (Q.EvalThread exp) in
     if force then (
       if ConcDomain.ThreadSet.is_top tids then (
-        M.info ~category:Unsound "Unknown thread ID assume-joined, privatization unsound"; (* TODO: something more sound *) (* TODO: assume *)
+        Assumptions.add "Unknown thread ID assume-joined, privatization unsound"; (* TODO: something more sound *)
         st (* cannot find all thread IDs to join them all *)
       )
       else (

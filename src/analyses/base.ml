@@ -1032,8 +1032,7 @@ struct
               | exception (SizeOfError _) ->
                 if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
-                    (* TODO: Is this ok? *)
-                    M.info ~category:Unsound "Casting involving a VLA is assumed to work"; (* TODO: assume *)
+                    Assumptions.add "Casting involving a VLA is assumed to work";
                     true
                   end
                 else
@@ -1857,7 +1856,8 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "set" "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st (* TODO: assume *)
+      Assumptions.add "Assignment to unknown address, assuming no write happened.";
+      st
 
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
