@@ -960,7 +960,7 @@ struct
             end
           | `Field (fld, offs) -> begin
               match x with
-              | Union (`Lifted l_fld, value) ->
+              | Union (_, value) ->
                 (match value, Cil.unrollType fld.ftype with
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
