@@ -1,8 +1,8 @@
-(** Interprocedural analysis of OCaml C-stubs ([ocaml2]). *)
+(** Interprocedural analysis of OCaml C-stubs ([ocaml]). *)
 
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
 (* Helpful link on CIL: https://goblint.github.io/cil/ *)
-(* TODO: Write tests and test them with `ruby scripts/update_suite.rb group ocaml2` *)
+(* TODO: Write tests and test them with `ruby scripts/update_suite.rb group ocaml` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/90-ocaml/{01-bagnall.c,04-o_inter.c} *)
 
 open GoblintCil
@@ -14,7 +14,7 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "ocaml2"
+  let name () = "ocaml"
   module D =
   struct
     (* The first set contains variables of type value that are definitely accounted for. The second contains definitely registered variables. There is a flag for the first function. *)
@@ -161,7 +161,7 @@ struct
     | _ -> false
 
   let assignment (v:varinfo) (rval:exp) (rval_type:typ) (state:D.t) (warning:string): D.t =
-    (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *)    
+    (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *)
     if Cil.isPointerType rval_type || is_value_type rval_type then
       if exp_accounted_for state rval then
         D.add_a v state
