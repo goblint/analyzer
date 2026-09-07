@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml4 --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Artificial test where the argument v is registered after GC could delete it.
 // TODO: Add late local as well.

@@ -1,8 +1,8 @@
-(** Interprocedural analysis of OCaml C-stubs ([ocaml2]). *)
+(** Interprocedural analysis of OCaml C-stubs ([ocaml4]). *)
 
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
 (* Helpful link on CIL: https://goblint.github.io/cil/ *)
-(* TODO: Write tests and test them with `ruby scripts/update_suite.rb group ocaml2` *)
+(* TODO: Write tests and test them with `ruby scripts/update_suite.rb group ocaml4` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/90-ocaml/{01-bagnall.c,04-o_inter.c} *)
 
 open GoblintCil
@@ -14,25 +14,36 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "ocaml2"
+  let name () = "ocaml4"
   module D =
   struct
     (* The first set contains variables of type value that are definitely accounted for. The second contains definitely registered variables. There is a flag for the first function. *)
-    (* TODO: Lift ocaml and ocaml2 using Lift2, later only put the lifting in the middle, where registered variables are tracked *)
-    module P = Lattice.Prod3 (Lattice.Reverse (VarinfoSet)) (Lattice.Liszt (Lattice.Reverse (VarinfoSet))) (BoolDomain.MayBool)
+    (* TODO: Only put the lifting in the middle, where registered variables are tracked. Otherwise, it cannot put the initial values into the accounted-set. *)
+    module P = Lattice.Prod3 (Lattice.Reverse (VarinfoSet)) (Lattice.Lift2 (Lattice.Reverse (VarinfoSet)) (Lattice.Liszt (Lattice.Reverse (VarinfoSet)))) (BoolDomain.MayBool)
     include P
 
-    let empty () = (VarinfoSet.empty (), [], (false))
+    let empty () = (VarinfoSet.empty (), `Bot, false)
 
-    let is_empty_r (_, r, _) = r = []
+    let is_empty_r (accounted, registered, first) =
+      match registered with
+      | `Bot -> true
+      | `Lifted2 r -> r = []
+      | _ -> false (* TODO: When is a simple set empty with regard to the analysis? *)
 
     (* Puts all registered variables into a single set. *)
     let flatten_r (accounted, registered, first) =
-      List.fold_left (fun acc r -> VarinfoSet.union acc r) (VarinfoSet.empty ()) registered
+      match registered with
+      | `Lifted1 r -> r
+      | `Lifted2 r -> List.fold_left (fun acc r -> VarinfoSet.union acc r) (VarinfoSet.empty ()) r
+      | _ -> VarinfoSet.empty () (* TODO: In the top case, should the set be full? *)
 
     (* After garbage collection, the first set loses variables not in the registered stack. *)
     let after_gc (accounted, registered, first) =
-      (VarinfoSet.inter accounted (flatten_r (accounted, registered, first)), registered, first)
+      match registered with
+      | `Bot -> (VarinfoSet.empty (), registered, first)
+      | `Lifted1 r -> (VarinfoSet.inter accounted r, `Lifted1 r, first)
+      | `Lifted2 r -> (VarinfoSet.inter accounted (flatten_r (accounted, registered, first)), `Lifted2 r, first)
+      | `Top -> (VarinfoSet.empty (), registered, first) (* Top means that we do not know the format of registrations and therefore cannot retrieve info about registered variables. *)
 
     let mem_a v (accounted, registered, first) =
       VarinfoSet.mem v accounted
@@ -43,16 +54,25 @@ struct
     let add_a v (accounted, registered, first) =
       (VarinfoSet.add v accounted, registered, first)
 
-    (* Opens a new block. *)
-    let push_r (accounted, registered, first) =
-      (accounted, VarinfoSet.empty () :: registered, first)
+    (* Opens a new block in the stack in the right mode *)
+    let push_r mode (accounted, registered, first) =
+      match registered with
+      | `Bot -> if (mode = "CAMLparam0" || mode = "") then (accounted, `Lifted1 (VarinfoSet.empty ()), first) else (accounted, `Lifted2 [VarinfoSet.empty ()], first)
+      | `Lifted1 r -> if (mode = "CAMLparam0" || mode = "") then (accounted, registered, first) else (M.warn "Begin_roots used with CAMLparam0"; (accounted, `Lifted2 (VarinfoSet.empty () :: [r]), first))
+      | `Lifted2 r -> if (mode = "CAMLBegin_roots" || mode = "") then (accounted, `Lifted2 (VarinfoSet.empty () :: r), first) else (M.warn "CAMLparam0 used with Begin_roots"; (accounted, `Top, first))
+      | `Top -> (accounted, registered, first)
 
     (* Registers a variable in the current block. *)
     let add_r v (accounted, registered, first) =
       match registered with
-      | [] -> M.warn "Variable %a registered without CAMLparam0" CilType.Varinfo.pretty v;
-        (accounted, [VarinfoSet.singleton v], first)
-      | r::rs -> (accounted, (VarinfoSet.add v r)::rs, first)
+      | `Lifted1 r -> (accounted, `Lifted1 (VarinfoSet.add v r), first)
+      | `Lifted2 r ->
+        (match r with
+         | [] -> M.warn "Variable %a registered without CAMLparam0" CilType.Varinfo.pretty v;
+           (accounted, `Lifted2 [VarinfoSet.singleton v], first)
+         | regd::regds -> (accounted, `Lifted2 ((VarinfoSet.add v regd)::regds), first)
+        )
+      | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the bottom value *)
 
     let remove_a v (accounted, registered, first) =
       (VarinfoSet.remove v accounted, registered, first)
@@ -63,26 +83,37 @@ struct
       | r::rs -> (VarinfoSet.remove v r)::(remover v rs)
 
     let remove_r v (accounted, registered, first) =
-      (accounted, remover v registered, first)
+      match registered with
+      | `Lifted1 r -> (accounted, `Lifted1 (VarinfoSet.remove v r), first)
+      | `Lifted2 r -> (accounted, `Lifted2 (remover v r), first)
+      | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     (* Simulates End_roots by removing one block. *)
     (* TODO: End_roots actually removes blocks until it has removed one named caml_roots_block. *)
     let pop_r (accounted, registered, first) =
       match registered with
-      | [] -> (accounted, [], first)
-      | _::rs -> (accounted, rs, first)
+      | `Lifted1 r -> failwith "Roots ended on a simple set"
+      | `Lifted2 r -> 
+        (match r with
+         | [] -> (accounted, `Lifted2 [], first)
+         | _::rs -> (accounted, `Lifted2 rs, first))
+      | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     (* Removes all blocks created in the current scope, like CAMLreturn. *)
     (* vs: current function's formals and locals *)
     let rec after_drop vs (accounted, registered, first) =
       match registered with
-      | [] -> (accounted, [], first)
-      | r::rs ->
-        (* Checks whether any of the variables in vs is in the current block. *)
-        (* TODO: If CAMLparam0 is not used, this will also delete the previous block. Could this be improved? *)
-        if List.exists (fun v -> VarinfoSet.mem v r) vs then
-          after_drop vs (accounted, rs, first)
-        else (accounted, registered, first)
+      | `Lifted1 r -> (accounted, `Lifted1 (VarinfoSet.diff r (VarinfoSet.of_list vs)), first)
+      | `Lifted2 r -> 
+        (match r with
+         | [] -> (accounted, `Lifted2 [], first)
+         | regd::regds ->
+           (* Checks whether any of the variables in vs is in the current block. *)
+           (* TODO: If CAMLparam0 is not used, this will also delete the previous block. Could this be improved? *)
+           if List.exists (fun v -> VarinfoSet.mem v regd) vs then
+             after_drop vs (accounted, `Lifted2 regds, first)
+           else (accounted, registered, first))
+      | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     let set_first_function (accounted, registered, first) =
       (accounted, registered, true)
@@ -90,7 +121,7 @@ struct
     let clear_first_function (accounted, registered, first) =
       (accounted, registered, false)
 
-    let is_first_function (_, _, first) =
+    let is_first_function (accounted, registered, first) =
       first
   end
 
@@ -108,7 +139,10 @@ struct
     [@@deriving eq, ord, show, hash]
     include Printable.SimpleShow(struct type nonrec t = t let show = show end)
     include Printable.StdLeaf
-    let of_elt (a, r, f) = List.length r
+    let of_elt (accounted, registered, first) = M.debug "path sensitive"; match registered with
+      | `Lifted1 _ -> -1
+      | `Lifted2 r -> List.length r
+      | _ -> -1
   end
 
   (** Determines whether an expression [e] is healthy, given a [state]. *)
@@ -167,7 +201,7 @@ struct
         D.add_a v state
       else (M.info "%s" warning; D.remove_a v state)
       (* TODO: End_roots should not remove untracked variables like tracked ones. *)
-    else D.add_a v (D.add_r v (if D.is_empty_r state then D.push_r state else state))
+    else D.add_a v (D.add_r v (if D.is_empty_r state then D.push_r "" state else state))
 
   (* transfer functions *)
 
@@ -223,16 +257,17 @@ struct
         (* At the start, arguments are accounted for and not registered. The first_function flag is set.*)
         if rval == MyCFG.unknown_exp then
           if is_value_type v.vtype then D.set_first_function (D.add_a v st)
-          else D.add_a v (D.add_r v (D.push_r st))
+          (* TODO: The mode should be allowed to change as a new function is entered. *)
+          else D.add_a v (D.add_r v (D.push_r "" st))
           (* Arguments of inner functions inherit the caller's state. *)
           (* Every registration copied becomes its own set to avoid them going to a previous bigger set. *)
         else (*assignment v rval (Cil.typeOf rval) st "Entering function with possibly deleted argument")*)
         if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
           if exp_accounted_for st rval then
-            if exp_registered st rval then D.add_a v (D.add_r v (D.push_r st))
+            if exp_registered st rval then D.add_a v (D.add_r v (D.push_r "" st))
             else D.add_a v (D.remove_r v st)
           else (M.info "Entering function with possibly deleted argument"; D.remove_a v st)
-        else D.add_a v (D.add_r v (D.push_r st)))
+        else D.add_a v (D.add_r v (D.push_r "" st)))
         caller_state f.sformals args in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
@@ -270,7 +305,7 @@ struct
     let desc = LibraryFunctions.find f in
     List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to special functions *)
     match desc.special arglist with
-    | OCamlParam0 -> D.push_r caller_state
+    | OCamlParam0 -> D.push_r "CAMLparam0" caller_state
     | OCamlParam params ->
       (* Variables are registered with a Param macro. *)
       List.fold_left (fun state param -> match param with
@@ -293,6 +328,7 @@ struct
       (* Deregisters all formal and local variables. *)
       let caller_fun = Node.find_fundec man.node in
       D.after_drop (caller_fun.sformals @ caller_fun.slocals) caller_state
+    | OCamlBeginRoots -> D.push_r "CAMLBegin_roots" caller_state
     | OCamlEndRoots -> D.pop_r caller_state
     | _ -> caller_state
 

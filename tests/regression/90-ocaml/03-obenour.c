@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml4 --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Buggy code from https://github.com/ocaml/ocaml/pull/13370 where unregistered temporary variables may be garbage-collected.
 
@@ -39,9 +39,9 @@ CAMLprim value caml_gc_counters_correct_1(value v)
   double prowords = 0;
   double majwords = 0;
 
-  minwords_ = caml_copy_double(minwords);
-  prowords_ = caml_copy_double(prowords);
-  majwords_ = caml_copy_double(majwords);
+  minwords_ = caml_copy_double(minwords); // NOWARN
+  prowords_ = caml_copy_double(prowords); // NOWARN
+  majwords_ = caml_copy_double(majwords); // NOWARN
   v = caml_alloc_small(3, 0);
   Field(v, 0) = minwords_;
   Field(v, 1) = prowords_;
@@ -65,6 +65,6 @@ CAMLprim value caml_gc_counters_correct_2(value v)
   minwords_ = caml_copy_double(minwords);
   prowords_ = caml_copy_double(prowords);
   majwords_ = caml_copy_double(majwords);
-  res = caml_alloc_3(0, minwords_, prowords_, majwords_);
+  res = caml_alloc_3(0, minwords_, prowords_, majwords_); // NOWARN
   CAMLreturn(res);
 }
