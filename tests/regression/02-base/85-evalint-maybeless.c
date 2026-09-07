@@ -1,4 +1,3 @@
-// PARAM: --set ana.activated[+] expRelation
 #include <goblint.h>
 #include <stddef.h>
 

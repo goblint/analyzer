@@ -19,7 +19,6 @@
       "access",
       "race",
       "escape",
-      "expRelation",
       "assert",
       "var_eq",
       "symb_locks",

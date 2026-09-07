@@ -1,7 +1,6 @@
 {
   "ana": {
     "activated": [
-      "expRelation",
       "base",
       "threadid",
       "threadflag",

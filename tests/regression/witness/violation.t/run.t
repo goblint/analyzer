@@ -20,7 +20,7 @@ Violation witness for a correct program can be refuted by proving the program co
 
 If a correct progtam cannot be proven correct, return `unknown` for the violation witness:
 
-  $ goblint --set ana.activated[-] expRelation --enable ana.sv-comp.functions --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct-hard.c --set witness.yaml.validate correct-hard.yml
+  $ goblint --disable ana.queryproviders.exprelation --enable ana.sv-comp.functions --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct-hard.c --set witness.yaml.validate correct-hard.yml
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7

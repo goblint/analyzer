@@ -10,7 +10,7 @@ tests_root_path = Path("./tests/regression")
 
 # copied from options
 activated_default = set([
-    "expRelation", "base", "threadid", "threadflag", "threadreturn",
+    "base", "threadid", "threadflag", "threadreturn",
     "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
     "assert"
 ])

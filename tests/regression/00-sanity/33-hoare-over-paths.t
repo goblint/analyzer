@@ -9,8 +9,7 @@
   $ cat pretty.txt
   Mapping {
     33-hoare-over-paths.c:9:7-9:8(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -31,8 +30,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:10:5-10:10(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -54,8 +52,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:11:5-11:24(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -76,8 +73,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:15:5-15:27(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -98,8 +94,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:16:5-16:24(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -120,8 +115,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:33:10-33:11(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -141,8 +135,7 @@
                                                            mhp:(),
                                                            assert:(),
                                                            pthreadMutexType:()], map:{}),
-                                                   (MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+                                                   (MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -163,8 +156,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:7:1-34:1(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -182,8 +174,7 @@
                                                            assert:(),
                                                            pthreadMutexType:()], map:{})}
     33-hoare-over-paths.c:7:1-34:1(main) ->
-      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+      PathSensitive (ProjectiveSet (MCP.D * map)):{(MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
@@ -203,8 +194,7 @@
                                                            mhp:(),
                                                            assert:(),
                                                            pthreadMutexType:()], map:{}),
-                                                   (MCP.D:[expRelation:(),
-                                                           mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+                                                   (MCP.D:[mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
                                                            base:({
                                                                    Global {
                                                                      m ->   mutex
