@@ -51,13 +51,13 @@ struct
 
   (* Functions for manipulating globals as temporary locals. *)
 
-  let read_global ask getg st g x =
+  let read_global ask getg st (Var.Cil vi as g) x =
     if ThreadFlag.has_ever_been_multi ask then
       Priv.read_global ask getg st g x
     else (
       let rel = st.rel in
       (* If it has escaped and we have never been multi-threaded, we can still refer to the local *)
-      let g_var = if g.vglob then RV.global g else RV.local g in
+      let g_var = if vi.vglob then RV.global g else RV.local g in
       let x_var = RV.local x in
       let rel' = RD.add_vars rel [g_var] in
       let rel' = RD.assign_var rel' x_var g_var in
@@ -87,10 +87,10 @@ struct
     end
     in
     let e' = visitCilExpr visitor e in
-    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> Seq.map (fun v_in -> Var.Cil v_in) |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
         if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
-        read_global ask getg {st with rel} v v_in (* g#in = g; *)
+        read_global ask getg {st with rel} (Cil v) (Cil v_in) (* g#in = g; *)
       ) v_ins rel
     in
     (rel', e', v_ins)
@@ -102,9 +102,9 @@ struct
         v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
         VH.replace v_ins_inv v_in v;
       ) vs;
-    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_keys v_ins_inv |> List.of_seq)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_keys v_ins_inv |> Seq.map (fun v_in -> Var.Cil v_in) |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v_in v rel ->
-        read_global ask getg {st with rel} v v_in (* g#in = g; *)
+        read_global ask getg {st with rel} (Cil v) (Cil v_in) (* g#in = g; *)
       ) v_ins_inv rel
     in
     let visitor_inv = object
@@ -126,7 +126,7 @@ struct
     let (rel', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a" d_exp e';
     let rel' = f rel' e' in (* x = e; *)
-    let rel'' = RD.remove_vars rel' (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
+    let rel'' = RD.remove_vars rel' (List.map RV.local (VH.to_seq_values v_ins |> Seq.map (fun v_in -> Var.Cil v_in) |> List.of_seq)) in (* remove temporary g#in-s *)
     rel''
 
   let write_global ask getg sideg st g x =
@@ -153,11 +153,11 @@ struct
       else (
         let v_out = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
-        let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
+        let st = {st with rel = RD.add_vars st.rel [RV.local (Cil v_out)]} in (* add temporary g#out *)
         let st' = {st with rel = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "relation" "write_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
-        let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
-        let rel'' = RD.remove_vars st'.rel [RV.local v_out] in (* remove temporary g#out *)
+        let st' = write_global ask getg sideg st' (Cil v) (Cil v_out) in (* g = g#out; *)
+        let rel'' = RD.remove_vars st'.rel [RV.local (Cil v_out)] in (* remove temporary g#out *)
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
@@ -255,7 +255,7 @@ struct
         assign_from_globals_wrapper ask man.global st simplified_e (fun apr' e' ->
             if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
             if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
-            let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
+            let r = RD.assign_exp ask apr' (RV.local (Cil v)) e' (no_overflow ask simplified_e) in
             let r' = assert_type_bounds ask r v in
             if M.tracing then M.traceu "relation" "-> %a" RD.pretty r';
             r'
@@ -306,7 +306,7 @@ struct
     let st = man.local in
     let arg_assigns =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg x, e) else None)
+      |> List.filter_map (fun (x, e) ->  if RD.Tracked.varinfo_tracked x then Some (RV.arg (Cil x), e) else None)
     in
     let arg_vars = List.map fst arg_assigns in
     let new_rel = RD.add_vars st.rel arg_vars in
@@ -343,13 +343,13 @@ struct
     let ask = Analyses.ask_of_man man in
     let formals = List.filter RD.Tracked.varinfo_tracked f.sformals in
     let locals = List.filter RD.Tracked.varinfo_tracked f.slocals in
-    let new_rel = RD.add_vars st.rel (List.map RV.local (formals @ locals)) in
+    let new_rel = RD.add_vars st.rel (List.map (fun x -> RV.local (Cil x)) (formals @ locals)) in
     (* TODO: do this after local_assigns? *)
     let new_rel = List.fold_left (fun new_rel x ->
         assert_type_bounds ask new_rel x
       ) new_rel (formals @ locals)
     in
-    let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
+    let local_assigns = List.map (fun x -> (RV.local (Cil x), RV.arg (Cil x))) formals in
     RD.assign_var_parallel_with new_rel local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with rel = new_rel}
 
@@ -371,7 +371,7 @@ struct
     let local_vars =
       f.sformals @ f.slocals
       |> List.filter RD.Tracked.varinfo_tracked
-      |> List.map RV.local
+      |> List.map (fun x -> RV.local (Cil x))
     in
     RD.remove_vars_with new_rel local_vars;
     let st' = {st with rel = new_rel} in
@@ -400,7 +400,7 @@ struct
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       (* Do not do replacement for actuals whose value may be modified after the call *)
       |> List.filter filter_actuals
-      |> List.map (Tuple2.map1 RV.arg)
+      |> List.map (Tuple2.map1 (fun x -> RV.arg (Cil x)))
     in
     (* RD.substitute_exp_parallel_with new_fun_rel arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
@@ -415,7 +415,7 @@ struct
       ) new_fun_rel arg_substitutes
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
-    let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
+    let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map (fun x -> RV.arg (Cil x)) in
     if M.tracing then M.tracel "combine-rel" "relation remove vars: %a" (docList (GobApron.Var.pretty ())) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
@@ -443,7 +443,7 @@ struct
       let unify_st' = Option.map_default (fun lv ->
           let ask = Analyses.ask_of_man man in
           assign_to_global_wrapper ask man.global man.sideg unify_st lv (fun st v ->
-              let rel = RD.assign_var st.rel (RV.local v) RV.return in
+              let rel = RD.assign_var st.rel (RV.local (Cil v)) RV.return in
               assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
         ) unify_st r
@@ -456,7 +456,7 @@ struct
 
   let invalidate_one ask man st lv =
     assign_to_global_wrapper ask man.global man.sideg st lv (fun st v ->
-        let rel' = RD.forget_vars st.rel [RV.local v] in
+        let rel' = RD.forget_vars st.rel [RV.local (Cil v)] in
         assert_type_bounds ask rel' v (* re-establish type bounds after forget *) (* TODO: no_overflow on wrapped *)
       )
 
@@ -581,6 +581,7 @@ struct
           else
             [] (* avoid pointless queries *)
         in
+        let priv_vars = List.map (fun (Var.Cil g) -> g) priv_vars in
         let (rel, e_inv, v_ins_inv) = read_globals_to_locals_inv ask man.global man.local priv_vars in
         (* filter variables *)
         let var_filter v = match RV.find_metadata v with
@@ -707,7 +708,7 @@ struct
       let (rel, e, v_ins) = read_globals_to_locals ask man.global man.local e in
 
       let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
-      let rel = RD.forget_vars rel (List.map RV.local vars) in (* havoc *)
+      let rel = RD.forget_vars rel (List.map (fun x -> RV.local (Cil x)) vars) in (* havoc *)
       let rel = List.fold_left (assert_type_bounds ask) rel vars in (* add type bounds to avoid overflow in top state *)
       let rec dummyask =
         (* assert_inv calls texpr1_expr_of_cil_exp, which simplifies the constraint based on the pre-state of the transition;
@@ -734,7 +735,7 @@ struct
       let rel = RD.assert_inv dummyask rel e false (no_overflow ask e_orig) in (* assume *)
       let rel =
         if GobConfig.get_bool "ana.apron.strengthening" then
-          RD.keep_vars rel (List.map RV.local vars) (* restrict *)
+          RD.keep_vars rel (List.map (fun x -> RV.local (Cil x)) vars) (* restrict *)
         else
           rel (* naive unassume: will be homogeneous join below *)
       in
@@ -744,11 +745,11 @@ struct
         WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list tokens) (fun () ->
             VH.fold (fun v v_in st ->
                 (* TODO: is this sideg fine? *)
-                write_global ask man.global man.sideg st v v_in
+                write_global ask man.global man.sideg st (Cil v) (Cil v_in)
               ) v_ins {man.local with rel}
           )
       in
-      let rel = RD.remove_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
+      let rel = RD.remove_vars st.rel (List.map (fun x -> RV.local (Cil x)) (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
 
       if M.tracing then M.traceli "apron" "unassume join";
       let st = D.join man.local {st with rel} in (* (strengthening) join *)

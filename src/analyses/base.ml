@@ -137,7 +137,7 @@ struct
     VD.project ask p a value
 
   let project ask p_opt cpa fundec =
-    CPA.mapi (fun varinfo value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
+    CPA.mapi (fun (Cil varinfo) value -> project_val ask (attributes_varinfo varinfo fundec) p_opt value (is_privglob varinfo)) cpa
 
 
   (**************************************************************************
@@ -536,7 +536,7 @@ struct
     ignore (sync' reason man)
 
   (* TODO: This isn't a simpler version of get_mval, it doesn't do some Blob handling that get_mval does with `NoOffset, so use that instead if in doubt. *)
-  let get_var ~man (st: store) (x: varinfo): value =
+  let get_var ~man (st: store) (x: Var.t): value =
     let ask = Analyses.ask_of_man man in
     if (!earlyglobs || ThreadFlag.has_ever_been_multi ask) && is_global ask x then
       Priv.read_global ask (priv_getg man.global) st x
@@ -547,7 +547,7 @@ struct
 
   let rec get_mval ~man ?(full=false) (st: store) ((x, offs): Addr.Mval.t) (exp:exp option) =
     (* get hold of the variable value, either from local or global state *)
-    let var = get_var ~man st x in
+    let var = get_var ~man st (Cil x) in (* TODO: move Var into Mval *)
     let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
     if M.tracing then M.tracec "get" "var = %a, %a = %a" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
     if full then var else match v with
@@ -714,7 +714,7 @@ struct
     st |>
     (* Here earlyglobs only drops syntactic globals from the context and does not consider e.g. escaped globals. *)
     (* This is equivalent to having escaped globals excluded from earlyglobs for contexts *)
-    f (not !earlyglobs) (CPA.filter (fun k v -> (not k.vglob) || is_excluded_from_earlyglobs k))
+    f (not !earlyglobs) (CPA.filter (fun (Cil vi as k) v -> (not vi.vglob) || is_excluded_from_earlyglobs k))
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
@@ -1161,7 +1161,7 @@ struct
             );
             (* Warn if any of the addresses contains a non-local and non-global variable *)
             if AD.exists (function
-                | AD.Addr.Addr (v, _) -> not (CPA.mem v st.cpa) && not (is_global (Analyses.ask_of_man man) v)
+                | AD.Addr.Addr (v, _) -> not (CPA.mem (Cil v) st.cpa) && not (is_global (Analyses.ask_of_man man) (Cil v))
                 | _ -> false
               ) adr then (
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
@@ -1287,8 +1287,8 @@ struct
         keep_local
     in
 
-    let var_invariant ?offset v =
-      if not (InvariantCil.var_is_heap v) then
+    let var_invariant ?offset (Var.Cil vi as v) =
+      if not (InvariantCil.var_is_heap vi) then (* TODO: move var_is_heap natively into Var *)
         I.key_invariant v ?offset (Arg.find v)
       else
         Invariant.none
@@ -1334,8 +1334,8 @@ struct
       Lval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var v, offset) when var_filter v && not (InvariantCil.var_is_heap v) ->
-              (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
+            | (Var v, offset) when var_filter (Cil v) && not (InvariantCil.var_is_heap v) ->
+              (try I.key_invariant_lval v ~offset ~lval:k (Arg.find (Cil v)) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
           Invariant.(a && i)
@@ -1657,9 +1657,9 @@ struct
                                )
     | _ -> Q.Result.top q
 
-  let update_variable variable typ value cpa =
+  let update_variable (Var.Cil vi as variable) typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-      CPA.add variable (VD.top_value ~varAttr:variable.vattr typ) cpa
+      CPA.add variable (VD.top_value ~varAttr:vi.vattr typ) cpa
     else
       CPA.add variable value cpa
 
@@ -1682,10 +1682,10 @@ struct
     (* Blob cannot contain arrays *)
     | _ ->  st
 
-  let update_variable x t y z =
-    if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a" x.vname VD.pretty y CPA.pretty z;
+  let update_variable (Var.Cil vi as x) t y z =
+    if M.tracing then M.tracel "set" ~var:vi.vname "update_variable: start '%a' '%a'\nto\n%a" Var.pretty x VD.pretty y CPA.pretty z;
     let r = update_variable x t y z in (* refers to definition above *)
-    if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
+    if M.tracing then M.tracel "set" ~var:vi.vname "update_variable: start '%a' '%a'\nto\n%a\nresults in\n%a" Var.pretty x VD.pretty y CPA.pretty z CPA.pretty r;
     r
 
   (* Updating a single varinfo*offset pair. NB! This function's type does
@@ -1711,7 +1711,7 @@ struct
     in
     let update_offset old_value =
       (* Projection globals to highest Precision *)
-      let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
+      let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask (Cil x)) in
       let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
       if WeakUpdates.mem x st.weak then (
         if invariant then
@@ -1736,11 +1736,11 @@ struct
     end else
     if get_bool "exp.globs_are_top" then begin
       if M.tracing then M.tracel "set" "update_one_addr: BAD? exp.globs_are_top is set ";
-      { st with cpa = CPA.add x Top st.cpa }
+      { st with cpa = CPA.add (Cil x) Top st.cpa }
     end else
       (* Check if we need to side-effect this one. We no longer generate
        * side-effects here, but the code still distinguishes these cases. *)
-    if (!earlyglobs || ThreadFlag.has_ever_been_multi ask) && is_global ask x then begin
+    if (!earlyglobs || ThreadFlag.has_ever_been_multi ask) && is_global ask (Cil x) then begin
       if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ..." x.vname;
       let priv_getg = priv_getg man.global in
       (* Optimization to avoid evaluating integer values when setting them.
@@ -1749,17 +1749,17 @@ struct
       let old_value = if not invariant && Cil.isIntegralType x.vtype && not (man.ask (IsAllocVar x)) && offs = `NoOffset then begin
           VD.bot_value ~varAttr:x.vattr lval_type
         end else
-          Priv.read_global ask priv_getg st x
+          Priv.read_global ask priv_getg st (Cil x)
       in
       let new_value = update_offset old_value in
       if M.tracing then M.tracel "set" "update_offset %a -> %a" VD.pretty old_value VD.pretty new_value;
-      let r = Priv.write_global ~invariant ask priv_getg (priv_sideg man.sideg) st x new_value in
+      let r = Priv.write_global ~invariant ask priv_getg (priv_sideg man.sideg) st (Cil x) new_value in
       if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a" x.vname D.pretty r;
       r
     end else begin
       if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a local var '%s' ..." x.vname;
       (* Normal update of the local state *)
-      let new_value = update_offset (CPA.find x st.cpa) in
+      let new_value = update_offset (CPA.find (Cil x) st.cpa) in
       (* what effect does changing this local variable have on arrays -
          we only need to do this here since globals are not allowed in the
          expressions for partitioning *)
@@ -1784,7 +1784,7 @@ struct
               None
         in
         let effect_on_array actually_moved arr (st: store):store =
-          let v = CPA.find arr st.cpa in
+          let v = CPA.find (Cil arr) st.cpa in
           let nval =
             if actually_moved then
               match lval_raw, rval_raw with
@@ -1820,15 +1820,15 @@ struct
               (* TODO: why does affect_move need general ask (of any query) instead of to_value_domain_ask? *)
               VD.affect_move (Queries.to_value_domain_ask patched_ask) v x moved_by     (* was a set call caused e.g. by a guard *)
           in
-          { st with cpa = update_variable arr arr.vtype nval st.cpa }
+          { st with cpa = update_variable (Cil arr) arr.vtype nval st.cpa }
         in
         (* within invariant, a change to the way arrays are partitioned is not necessary *)
         List.fold_left (fun x y -> effect_on_array (not invariant) y x) st affected_arrays
       in
-      if VD.is_bot new_value && invariant && not (CPA.mem x st.cpa) then
+      if VD.is_bot new_value && invariant && not (CPA.mem (Cil x) st.cpa) then
         st
       else
-        let x_updated = update_variable x t new_value st.cpa in
+        let x_updated = update_variable (Cil x) t new_value st.cpa in
         let with_dep = add_partitioning_dependencies x new_value {st with cpa = x_updated } in
         effect_on_arrays ask with_dep
       end
@@ -1872,7 +1872,7 @@ struct
     List.fold_left f st lval_value_list
 
   let rem_many a (st: store) (v_list: varinfo list): store =
-    let f acc v = CPA.remove v acc in
+    let f acc v = CPA.remove (Cil v) acc in
     let g dep v = Dep.remove v dep in
     { st with cpa = List.fold_left f st.cpa v_list; deps = List.fold_left g st.deps v_list }
 
@@ -1885,9 +1885,9 @@ struct
         Dep.VarSet.elements set
       in
       let effect_on_array arr st =
-        let v = CPA.find arr st in
+        let v = CPA.find (Cil arr) st in
         let nval = VD.affect_move ~replace_with_const:(get_bool ("ana.base.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
-        update_variable arr arr.vtype nval st
+        update_variable (Cil arr) arr.vtype nval st
       in
       { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
     in
@@ -1984,7 +1984,7 @@ struct
     let not_local xs =
       let not_local x =
         match Addr.to_var_may x with
-        | Some x -> is_global (Analyses.ask_of_man man) x
+        | Some x -> is_global (Analyses.ask_of_man man) (Cil x)
         | None -> x = Addr.UnknownPtr
       in
       AD.is_top xs || AD.exists not_local xs
@@ -2197,11 +2197,11 @@ struct
     (* Assign parameters to arguments *)
     let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
     add_to_array_map fundec pa;
-    let new_cpa = CPA.add_list pa st'.cpa in
+    let new_cpa = CPA.add_list (List.map (Tuple2.map1 (fun x -> Var.Cil x)) pa) st'.cpa in
     (* List of reachable variables *)
     let reachable = AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
-    let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    let reachable = List.filter (fun v -> CPA.mem (Cil v) st.cpa) reachable in
+    let new_cpa = CPA.add_list_fun (List.map (fun x -> Var.Cil x) reachable) (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
@@ -2864,16 +2864,16 @@ struct
   let combine_st man (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
     AD.fold (fun addr (st: store) ->
         match addr with
-        | Addr.Addr ((v,o) as mval) when CPA.mem v fun_st.cpa ->
+        | Addr.Addr ((v,o) as mval) when CPA.mem (Cil v) fun_st.cpa ->
           begin
             let lval_type = Addr.type_of addr in
             if M.tracing then M.trace "taintPC" "updating %a; type: %a" Addr.Mval.pretty (v,o) d_type lval_type;
-            match CPA.find_opt v (fun_st.cpa) with
+            match CPA.find_opt (Cil v) (fun_st.cpa) with
             | None -> st
             (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
-            | Some (Array a) when CArrays.domain_of_t a = PartitionedDomain -> {st with cpa = CPA.add v (Array a) st.cpa}
+            | Some (Array a) when CArrays.domain_of_t a = PartitionedDomain -> {st with cpa = CPA.add (Cil v) (Array a) st.cpa}
             (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
-            | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = CPA.add v voidVal st.cpa}
+            | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = CPA.add (Cil v) voidVal st.cpa}
             | _ ->
               let address = AD.singleton addr in
               let new_val = get_mval ~man fun_st mval None in
@@ -2883,8 +2883,8 @@ struct
               Option.map_default (fun deps ->
                   {st' with cpa = (Dep.VarSet.fold
                                      (fun v accCPA ->
-                                        let val_opt = CPA.find_opt v fun_st.cpa in
-                                        Option.map_default (fun new_val -> CPA.add v new_val accCPA) accCPA val_opt
+                                        let val_opt = CPA.find_opt (Cil v) fun_st.cpa in
+                                        Option.map_default (fun new_val -> CPA.add (Cil v) new_val accCPA) accCPA val_opt
                                      ) deps st'.cpa)}
                 ) st' (Dep.find_opt v fun_st.deps)
           end
@@ -2901,7 +2901,7 @@ struct
        * variables of the called function from cpa_s. *)
       let add_globals (st: store) (fun_st: store) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+        let cpa_noreturn = CPA.remove (Cil (return_varinfo ())) fun_st.cpa in (* TODO: add Return to Var.t *)
         let ask = Analyses.ask_of_man man in
         let tainted = f_ask.f Q.MayBeTainted in
         if M.tracing then M.trace "taintPC" "combine for %s in base: tainted: %a" f.svar.vname AD.pretty tainted;
@@ -2922,7 +2922,7 @@ struct
           if M.tracing then M.trace "taintPC" "cpa_caller': %a" CPA.pretty cpa_caller';
           (* remove lvals from the tainted set that correspond to variables for which we just added a new mapping from the callee*)
           let tainted = AD.filter (function
-              | Addr.Addr (v,_) -> not (CPA.mem v cpa_new)
+              | Addr.Addr (v,_) -> not (CPA.mem (Cil v) cpa_new)
               | _ -> false
             ) tainted in
           let st_combined = combine_st man {st with cpa = cpa_caller'} fun_st tainted in
@@ -2946,7 +2946,7 @@ struct
     let combine_one (st: D.t) (fun_st: D.t) =
       let return_var = return_varinfo () in
       let return_val =
-        if CPA.mem return_var fun_st.cpa
+        if CPA.mem (Cil return_var) fun_st.cpa
         then get_mval ~man fun_st (return_var, `NoOffset) None
         else VD.top ()
       in
@@ -3115,7 +3115,7 @@ struct
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
       WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
-          CPA.fold (fun x v acc ->
+          CPA.fold (fun (Cil x) v acc ->
               set_var ~man ~invariant:false acc x x.vtype v
             ) e_d.cpa man.local
         )
@@ -3151,7 +3151,7 @@ struct
     | Events.Longjmped {lval} ->
       Option.map_default (fun lval ->
           let st' = assign man lval (Lval (Cil.var !longjmp_return)) in
-          {st' with cpa = CPA.remove !longjmp_return st'.cpa}
+          {st' with cpa = CPA.remove (Cil !longjmp_return) st'.cpa} (* TODO: add longjmp_return to Var.t *)
         ) man.local lval
     | _ ->
       man.local

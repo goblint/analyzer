@@ -1346,7 +1346,7 @@ module type InvariantArg =
 sig
   val context: Invariant.context
   val scope: fundec
-  val find: varinfo -> Compound.t
+  val find: Var.t -> Compound.t
 end
 
 module ValueInvariant (Arg: InvariantArg) =
@@ -1443,7 +1443,7 @@ struct
     | _ -> Invariant.none (* TODO *)
 
   and deref_invariant ~vs vi ~offset ~lval =
-    let v = find vi in
+    let v = find (Cil vi) in
     key_invariant_lval ~vs vi ~offset ~lval v
 
   and key_invariant_lval ?(vs=VS.empty) k ~offset ~lval v =
@@ -1453,7 +1453,7 @@ struct
     else
       Invariant.none
 
-  let key_invariant k ?(offset=NoOffset) v = key_invariant_lval k ~offset ~lval:(var k) v
+  let key_invariant (Var.Cil k) ?(offset=NoOffset) v = key_invariant_lval k ~offset ~lval:(var k) v
 end
 
 let invariant_global find g =

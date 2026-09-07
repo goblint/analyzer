@@ -131,9 +131,9 @@ struct
           if not v.vglob || Arg.allow_global then
             let var =
               if v.vglob then
-                V.global v
+                V.global (Cil v)
               else
-                V.local v
+                V.local (Cil v)
             in
             if Environment.mem_var env var then
               Var var
