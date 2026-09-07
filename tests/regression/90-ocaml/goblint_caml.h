@@ -46,7 +46,7 @@ struct LXM_state { uint64_t a; uint64_t x[2]; uint64_t s; };
 // Marking roots is like registering and deregistering them.
 #undef Begin_roots1
 #undef End_roots
-#define Begin_roots1(x) __goblint_caml_param0(); __goblint_caml_param1(&x)
+#define Begin_roots1(x) __goblint_caml_begin_roots(); __goblint_caml_param1(&x)
 #define End_roots() __goblint_caml_end_roots()
 
 // A reference to caml_gc_minor_words_unboxed can be found in _opam/lib/ocaml/ml/gc.ml.

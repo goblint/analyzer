@@ -1259,6 +1259,7 @@ let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_caml_param4", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []] @@ fun param1 param2 param3 param4 -> OCamlParam [param1; param2; param3; param4]);
     ("__goblint_caml_param5", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []; __ "param5" []] @@ fun param1 param2 param3 param4 param5 -> OCamlParam [param1; param2; param3; param4; param5]);
     ("__goblint_caml_drop", special [] @@ OCamlDrop);
+    ("__goblint_caml_begin_roots", special [] @@ OCamlBeginRoots);
     ("__goblint_caml_end_roots", special [] @@ OCamlEndRoots);
   ]
 [@@coverage off]
