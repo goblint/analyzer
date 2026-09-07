@@ -20,3 +20,15 @@ CAMLprim value branching_test(value v, bool b)
     memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
     CAMLreturn(res);
 }
+
+CAMLprim value branching_test2(value v, bool b)
+{
+    if (b)
+    {
+        Begin_roots1(v); // TODO NOWARN
+    }
+    value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+    memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
+    End_roots();
+    return res;
+}
