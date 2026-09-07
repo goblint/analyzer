@@ -54,7 +54,7 @@ CAMLprim value registration_test_5(value v)
   CAMLlocal2(res, res2);
   res = v;
   caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
-  res2 = v;
+  res2 = v; // TODO NOWARN
   CAMLreturn(res2); // TODO NOWARN
 }
 
@@ -68,7 +68,7 @@ CAMLprim value registration_test_6(value v)
   return res; // WARN
 }
 
-// With two begin_roots and one end_roots, something stays, but the analysis does not warn.
+// With two begin_roots and one end_roots, something stays and the analysis should warn.
 CAMLprim value registration_test_7(value v)
 {
   value res = Val_unit;
@@ -76,5 +76,5 @@ CAMLprim value registration_test_7(value v)
   Begin_roots1(res);
   res = v;
   End_roots();
-  return res; // TODO WARN
+  return res; // WARN
 }

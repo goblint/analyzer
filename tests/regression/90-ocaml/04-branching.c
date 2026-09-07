@@ -14,7 +14,7 @@ CAMLprim value branching_test(value v, bool b)
 {
     if (b)
     {
-        CAMLparam1(v);
+        CAMLparam1(v); // NOWARN
     }
     value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
     memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN

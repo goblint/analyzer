@@ -10,7 +10,7 @@
 #include "goblint_caml.h"
 
 CAMLprim value pringo_LXM_copy(value v)
-{ 
+{
   value res1 = pringo_LXM_copy_correct(v); // NOWARN
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
@@ -26,7 +26,7 @@ CAMLprim value pringo_LXM_copy_correct(value v)
 }
 
 CAMLprim value pringo_LXM_copy_1(value v)
-{ 
+{
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
   return v; // WARN
