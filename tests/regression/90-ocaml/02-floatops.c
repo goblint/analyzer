@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml4 --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Code from stubs.c in src/common/cdomains/floatOps that should be correct despite missing CAMLparam, as discussed in https://github.com/goblint/analyzer/issues/1371.
 

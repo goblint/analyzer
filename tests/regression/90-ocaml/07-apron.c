@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml4 --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Buggy code from https://github.com/antoinemine/apron/pull/112 where v and v2 are initialised as 0.
 // TODO: It should warn when a value initialised as 0 is used without being registered after a garbage collection.
