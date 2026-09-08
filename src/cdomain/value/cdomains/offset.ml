@@ -221,7 +221,7 @@ struct
         let bits_offset = Cilfacade.fieldBitsOffsetOnly field in
         let bits_offset = Z.of_int bits_offset in
         (* Interval of floor and ceil division in case bitfield offset. *)
-        let bytes_offset = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) Z.(fdiv bits_offset eight, cdiv bits_offset eight) in
+        let bytes_offset = Idx.of_interval Z.(fdiv bits_offset eight, cdiv bits_offset eight) in
         let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
         let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
         Idx.add bytes_offset remaining_offset

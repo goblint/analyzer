@@ -338,7 +338,7 @@ sig
   (** Transform a known boolean value to the default internal representation of the specified ikind. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 

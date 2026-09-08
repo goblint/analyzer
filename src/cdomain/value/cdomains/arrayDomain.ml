@@ -1182,7 +1182,7 @@ struct
         Checks.safe Checks.Category.NegativeArraySize;
         Z.zero, None
     in
-    let size = BatOption.map_default (fun max -> Idx.of_interval ILong (min_i, max)) (Idx.starting ILong min_i) max_i in
+    let size = BatOption.map_default (fun max -> Idx.of_interval (min_i, max)) (Idx.starting ILong min_i) max_i in (* TODO: used ILong *)
     match Val.is_null v with
     | Null -> (Nulls.make_all_must (), size)
     | NotNull -> (Nulls.empty (), size)
@@ -1338,7 +1338,7 @@ struct
       (* else return interval [minimal may null, minimal must null] *)
     else (
       Checks.safe Checks.Category.InvalidMemoryAccess;
-      Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls))
+      Idx.of_interval (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)) (* TODO: used !Cil.kindOfSizeOf *)
 
   let string_copy (dstnulls, dstsize) ((srcnulls, srcsize) as src) n =
     let must_nulls_set1, may_nulls_set1 = dstnulls in

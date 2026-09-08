@@ -281,6 +281,7 @@ struct
   let bot () = I.bot_of (Ik.ikind ())
   let of_int ?suppress_ovwarn x = I.of_int ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let of_bool x = I.of_bool (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
+  let of_interval ?suppress_ovwarn x = I.of_interval ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
