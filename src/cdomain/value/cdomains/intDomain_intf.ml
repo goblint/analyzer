@@ -334,7 +334,7 @@ sig
   val of_int: ?suppress_ovwarn:bool -> int_t -> t
   (** Transform an integer literal to your internal domain representation with the specified ikind. *)
 
-  val of_bool: Cil.ikind -> bool -> t
+  val of_bool: bool -> t
   (** Transform a known boolean value to the default internal representation of the specified ikind. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
