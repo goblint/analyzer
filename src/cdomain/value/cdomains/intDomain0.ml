@@ -273,12 +273,13 @@ struct
   let ikind = Cilfacade.ptrdiff_ikind
 end
 
-module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t =
+module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : YDefault with type t = I.t and type int_t = I.int_t =
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
   let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
+  let of_int ?suppress_ovwarn x = I.of_int ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
 end
 
 module Size = struct (* size in bits as int, range as int64 *)

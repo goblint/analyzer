@@ -157,7 +157,7 @@ struct
 
   let array_length_idx default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
-    BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) default l
+    BatOption.map_default IndexDomain.of_int default l
 
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
@@ -447,7 +447,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               if M.tracing then M.tracel "casta" "cast array to its first element";
-              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int Z.zero, `NoOffset))) (Some false)
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
@@ -1134,10 +1134,10 @@ struct
                           match Cil.unrollType fld.ftype with
                           | TArray(_, l, _) ->
                             let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
-                            Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
+                            Array(CArrays.make (IndexDomain.of_int (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
-                      | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) ->
+                      | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int Z.zero) ->
                         (* Why does cil index unions? We'll just pick the first field. *)
                         top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                       | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
@@ -1166,7 +1166,7 @@ struct
                   let new_value_at_index = do_update_offset Bot offs l' o' in
                   let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
                   let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
-                  let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
+                  let len_id = BatOption.map IndexDomain.of_int len_ci in
                   let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
                   let new_array_value = CArrays.update_length newl new_array_value in
                   Array new_array_value
