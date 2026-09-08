@@ -139,7 +139,7 @@ struct
     [@@deriving eq, ord, show, hash]
     include Printable.SimpleShow(struct type nonrec t = t let show = show end)
     include Printable.StdLeaf
-    let of_elt (accounted, registered, first) = M.debug "path sensitive"; match registered with
+    let of_elt (accounted, registered, first) = match registered with
       | `Lifted1 _ -> -1
       | `Lifted2 r -> List.length r
       | _ -> -1

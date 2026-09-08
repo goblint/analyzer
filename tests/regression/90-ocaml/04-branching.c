@@ -29,6 +29,9 @@ CAMLprim value branching_test2(value v, bool b)
     }
     value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
     memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
-    End_roots();
+    if (b)
+    {
+        End_roots();
+    }
     return res;
 }
