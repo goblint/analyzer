@@ -2562,6 +2562,12 @@
           "title": "solvers.td3",
           "type": "object",
           "properties": {
+            "always_warrow": {
+              "title": "solvers.td3.always_warrow",
+              "description": "Always warrow local contributions in td_simplified_ref_improved, instead of only those of unknowns detected as widening points via cyclic re-query (wpoint).",
+              "type": "boolean",
+              "default": false
+            },
             "term": {
               "title": "solvers.td3.term",
               "description":

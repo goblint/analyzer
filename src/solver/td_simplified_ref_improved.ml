@@ -61,6 +61,8 @@ module Base : GenericEqSolver =
 
     let abs_GC = ref true
 
+    let always_warrow = GobConfig.get_bool "solvers.td3.always_warrow"
+
     let get_global_value init from = OM.fold (fun _ oc a -> S.Dom.join a oc.contrib.value) from init
 
     let is_global y = (S.system y = None)
@@ -224,7 +226,7 @@ alternatively, distinguish contribs by session number?
                 *)
           let old = !x_ref.value in (* d from older iterate *)
           let new_lc =
-            if not wp then { !x_ref.local_contrib with value = eqd }
+            if not wp && not always_warrow then { !x_ref.local_contrib with value = eqd }
             else (
               if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
               LocalDomWarrow.warrow !x_ref.local_contrib eqd)
