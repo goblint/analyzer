@@ -6,6 +6,7 @@ open FlagHelper
 module M = Messages
 module A = Array
 module VDQ = ValueDomainQueries
+module ID = PreValueDomain.ID
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
@@ -84,7 +85,7 @@ sig
   val string_copy: t -> t -> int option -> t
   val string_concat: t -> t -> int option -> t
   val substring_extraction: t -> t -> substr
-  val string_comparison: t -> t -> int option -> idx
+  val string_comparison: t -> t -> int option -> ID.t
 end
 
 module type StrWithDomain =
@@ -1625,13 +1626,13 @@ struct
     let cmp n =
       (* if s1 = s2 = empty string, i.e. certain null byte at index 0, or n = 0, return 0 *)
       if (Nulls.mem Definitely Z.zero nulls1 && Nulls.mem Definitely Z.zero nulls2) || (BatOption.map_default (Z.equal Z.zero) false n) then
-        Idx.of_int IInt Z.zero
+        ID.of_int IInt Z.zero
         (* if only s1 = empty string, return negative integer *)
       else if Nulls.mem Definitely Z.zero nulls1 && not (Nulls.mem Possibly Z.zero nulls2) then
-        Idx.ending IInt Z.minus_one
+        ID.ending IInt Z.minus_one
         (* if only s2 = empty string, return positive integer *)
       else if Nulls.mem Definitely Z.zero nulls2 then
-        Idx.starting IInt Z.one
+        ID.starting IInt Z.one
       else
         try
           let min_must1 = Nulls.min_elem Definitely nulls1 in
@@ -1642,10 +1643,10 @@ struct
           && (BatOption.map_default (fun x -> min_must1 <. x || min_must2 <. x) true n)
           then
             (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
-            Idx.of_excl_list IInt [Z.zero]
+            ID.of_excl_list IInt [Z.zero]
           else
-            Idx.top_of IInt
-        with Not_found -> Idx.top_of IInt
+            ID.top_of IInt
+        with Not_found -> ID.top_of IInt
     in
 
     match n with
@@ -1682,7 +1683,7 @@ struct
       warn_size size2 "2";
       (* compute abstract value for result of strncmp *)
       cmp (Some n)
-    | _ -> Idx.top_of IInt
+    | _ -> ID.top_of IInt
 
   let update_length new_size (nulls, size) = (nulls, new_size)
 end
@@ -1876,7 +1877,7 @@ struct
       default ()
 
   let substring_extraction x y = extract (fun x y _  -> N.substring_extraction x y) (fun () -> IsMaybeSubstr) x y None
-  let string_comparison = extract N.string_comparison (fun () -> Idx.top_of IInt)
+  let string_comparison = extract N.string_comparison (fun () -> ID.top_of IInt)
 
   let length (t_f, t_n) =
     if get_bool "ana.base.arrays.nullbytes" then

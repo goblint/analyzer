@@ -98,8 +98,8 @@ sig
     * the abstract value [needle] surely isn't a substring of [haystack], {!IsSubstrAtIndex0} if
     * [needle] is the empty string, else {!IsMaybeSubstr} *)
 
-  val string_comparison: t -> t -> int option -> idx
-  (** [string_comparison s1 s2 n] returns a negative / positive idx element if the string
+  val string_comparison: t -> t -> int option -> PreValueDomain.ID.t
+  (** [string_comparison s1 s2 n] returns a negative / positive integer if the string
     * represented by [s1] is less / greater than the one by [s2] or zero if they are equal;
     * only compares the first [n] bytes if present *)
 end
