@@ -19,6 +19,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
 
   let abort = GobConfig.get_bool "solvers.bu.abort"
 
+  let always_warrow = GobConfig.get_bool "solvers.bu.always_warrow"
+
   let get_global x g =
     let glob_data = Gbl.get g in
     Gbl.add_infl glob_data g x;
@@ -45,7 +47,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     else
       (* Commented out for the TODO below, should also be removed *)
       (* let old_y_record = Lcl.get y in *)
-      match Lcl.update_contribution contributor y d false with
+      match Lcl.update_contribution contributor y d always_warrow with
       | Updated y_record -> (
           if y_record.called then y_record.aborted <- true
           else (

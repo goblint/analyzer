@@ -2548,6 +2548,12 @@
               "description": "Suppress propagations from contributor locals that are currently being iterated and have been aborted.",
               "type": "boolean",
               "default": true
+            },
+            "always_warrow": {
+              "title": "solvers.bu.always_warrow",
+              "description": "Always warrow local contributions, instead of only those of unknowns that are currently being iterated (automatic detection of warrowing points).",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
