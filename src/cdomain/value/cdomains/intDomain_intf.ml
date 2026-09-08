@@ -340,7 +340,7 @@ sig
 
   val of_interval: ?suppress_ovwarn:bool -> int_t * int_t -> t
 
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_congruence: int_t * int_t -> t
 
   val of_bitfield: Cil.ikind -> int_t * int_t -> t
   val to_bitfield: Cil.ikind -> t -> int_t * int_t
