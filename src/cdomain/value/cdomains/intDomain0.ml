@@ -286,6 +286,7 @@ struct
   let of_bitfield x = I.of_bitfield (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let starting ?suppress_ovwarn x = I.starting ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let ending ?suppress_ovwarn x = I.ending ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
+  let of_excl_list x = I.of_excl_list (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
 end
 
 module Size = struct (* size in bits as int, range as int64 *)

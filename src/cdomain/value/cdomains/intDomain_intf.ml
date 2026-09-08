@@ -348,10 +348,16 @@ sig
   val starting   : ?suppress_ovwarn:bool -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> int_t -> t
 
+  val of_excl_list: int_t list -> t
+
   val is_top_of: Cil.ikind -> t -> bool
 
   val project: PrecisionUtil.int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
+  (* TODO: no bot_of *)
+  (* TODO: no top_of *)
+  (* TODO: no is_bot_of *)
+  (* TODO: no is_top_of *)
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
