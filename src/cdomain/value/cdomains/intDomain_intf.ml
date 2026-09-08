@@ -345,8 +345,8 @@ sig
   val of_bitfield: int_t * int_t -> t
   val to_bitfield: Cil.ikind -> t -> int_t * int_t
 
-  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val starting   : ?suppress_ovwarn:bool -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
 

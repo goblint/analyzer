@@ -1182,7 +1182,7 @@ struct
         Checks.safe Checks.Category.NegativeArraySize;
         Z.zero, None
     in
-    let size = BatOption.map_default (fun max -> Idx.of_interval (min_i, max)) (Idx.starting ILong min_i) max_i in (* TODO: used ILong *)
+    let size = BatOption.map_default (fun max -> Idx.of_interval (min_i, max)) (Idx.starting min_i) max_i in (* TODO: used ILong *)
     match Val.is_null v with
     | Null -> (Nulls.make_all_must (), size)
     | NotNull -> (Nulls.empty (), size)
@@ -1329,12 +1329,12 @@ struct
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
     if Nulls.is_empty Definitely nulls then
       (warn_past_end "Array doesn't contain a null byte: buffer overflow";
-       Idx.starting !Cil.kindOfSizeOf (BatOption.default Z.zero (Idx.minimal size))
+       Idx.starting (BatOption.default Z.zero (Idx.minimal size)) (* TODO: used !Cil.kindOfSizeOf *)
       )
       (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
-       Idx.starting !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls))
+       Idx.starting (Nulls.min_elem Possibly nulls)) (* TODO: used !Cil.kindOfSizeOf *)
       (* else return interval [minimal may null, minimal must null] *)
     else (
       Checks.safe Checks.Category.InvalidMemoryAccess;
