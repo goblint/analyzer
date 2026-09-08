@@ -279,6 +279,7 @@ struct
   let top () = I.top_of (Ik.ikind ())
   let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
+  (* let is_bot x = I.is_bot_of (Ik.ikind ()) x *) (* TODO: add this? *)
   let of_int ?suppress_ovwarn x = I.of_int ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let of_bool x = I.of_bool (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let of_interval ?suppress_ovwarn x = I.of_interval ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
@@ -287,6 +288,12 @@ struct
   let starting ?suppress_ovwarn x = I.starting ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let ending ?suppress_ovwarn x = I.ending ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let of_excl_list x = I.of_excl_list (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
+
+  let bot_of = Printable.Empty.show
+  let top_of = Printable.Empty.show
+  let is_bot_of = Printable.Empty.show
+  let is_top_of = Printable.Empty.show
+  let cast_to = Printable.Empty.show
 end
 
 module Size = struct (* size in bits as int, range as int64 *)

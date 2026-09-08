@@ -354,10 +354,12 @@ sig
 
   val project: PrecisionUtil.int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
-  (* TODO: no bot_of *)
-  (* TODO: no top_of *)
-  (* TODO: no is_bot_of *)
-  (* TODO: no is_top_of *)
+
+  val bot_of: Printable.Empty.t -> string (* TODO: properly remove *)
+  val top_of: Printable.Empty.t -> string (* TODO: properly remove *)
+  val is_bot_of: Printable.Empty.t -> string (* TODO: properly remove *)
+  val is_top_of: Printable.Empty.t -> string (* TODO: properly remove *)
+  val cast_to: Printable.Empty.t -> string (* TODO: properly remove *)
 end
 (** The signature of integral value domains keeping track of ikind information *)
 

@@ -1248,7 +1248,7 @@ struct
     * an n bytes string. *)
   let to_n_string (nulls, size) n:t =
     if n < 0 then
-      (Nulls.top (), Idx.top_of ILong)
+      (Nulls.top (), Idx.top ()) (* TODO: used ILong *)
     else
       let n = Z.of_int n in
       let warn_no_null min_must_null min_may_null =
@@ -1896,14 +1896,14 @@ struct
 
   let to_null_byte_domain s =
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.make (Idx.top_of ILong) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
+      (A.make (Idx.top ()) (* TODO: used ILong *) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
     else
       (A.top (), N.top ())
   let to_string_length (_, t_n) =
     if get_bool "ana.base.arrays.nullbytes" then
       N.to_string_length t_n
     else
-      Idx.top_of !Cil.kindOfSizeOf
+      Idx.top () (* TODO: used !Cil.kindOfSizeOf *)
 
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
