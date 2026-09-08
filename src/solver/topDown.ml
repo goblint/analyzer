@@ -79,11 +79,11 @@ module WP =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
-          let effects = ref Set.empty in
+          let effects = ref VS.empty in
           let sidef y d =
-            if not (Set.mem y !effects) then (
+            if not (VS.mem y !effects) then (
               HPM.replace rho' (x,y) (S.Dom.bot ()); (* TODO needed? tests also work without this... *)
-              effects := Set.add y !effects
+              effects := VS.add y !effects
             );
             set y d
           in
