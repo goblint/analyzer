@@ -283,6 +283,7 @@ struct
   let of_bool x = I.of_bool (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let of_interval ?suppress_ovwarn x = I.of_interval ?suppress_ovwarn (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
   let of_congruence x = I.of_congruence (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
+  let of_bitfield x = I.of_bitfield (Ik.ikind ()) x (* TODO: add cast? (somewhere) *)
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
