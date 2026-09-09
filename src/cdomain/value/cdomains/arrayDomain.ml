@@ -7,6 +7,7 @@ module M = Messages
 module A = Array
 module VDQ = ValueDomainQueries
 module ID = PreValueDomain.ID
+module SizeDomain = PreValueDomain.SizeDomain
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
@@ -46,11 +47,11 @@ sig
   type value
 
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
-  val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
-  val length: t -> idx option
+  val make: ?varAttr:attributes -> ?typAttr:attributes -> SizeDomain.t -> value -> t
+  val length: t -> SizeDomain.t option
 
   val map: (value -> value) -> t -> t
-  val update_length: idx -> t -> t
+  val update_length: SizeDomain.t -> t -> t
 end
 
 module type S =
@@ -81,7 +82,7 @@ sig
   val get: VDQ.t -> t -> Basetype.CilExp.t option * idx -> ret
 
   val to_null_byte_domain: string -> t
-  val to_string_length: t -> idx
+  val to_string_length: t -> SizeDomain.t
   val string_copy: t -> t -> int option -> t
   val string_concat: t -> t -> int option -> t
   val substring_extraction: t -> t -> substr
@@ -302,11 +303,11 @@ end
 module type SPartitioned =
 sig
   include S
-  val set_with_length: idx option -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
-  val smart_join_with_length: idx option -> VDQ.t -> VDQ.t -> t -> t -> t
-  val smart_widen_with_length: idx option -> VDQ.t -> VDQ.t  -> t -> t-> t
-  val smart_leq_with_length: idx option -> VDQ.t -> VDQ.t -> t -> t -> bool
-  val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val set_with_length: SizeDomain.t option -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
+  val smart_join_with_length: SizeDomain.t option -> VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen_with_length: SizeDomain.t option -> VDQ.t -> VDQ.t  -> t -> t-> t
+  val smart_leq_with_length: SizeDomain.t option -> VDQ.t -> VDQ.t -> t -> t -> bool
+  val move_if_affected_with_length: ?replace_with_const:bool -> SizeDomain.t option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
 module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.ZDefault): SPartitioned with type value = Val.t and type idx = Idx.t =
@@ -517,7 +518,7 @@ struct
         let e_must_bigger_max_index = GobOption.exists (fun i ->
             let b = VDQ.may_be_less ask.eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
             not b (* !(e <_{may} length) => e >=_{must} length *)
-          ) (Option.bind length Idx.to_int)
+          ) (Option.bind length SizeDomain.to_int)
         in
 
         if e_must_bigger_max_index then
@@ -560,7 +561,7 @@ struct
       (* TODO: use ID.equal_to here, VDQ.ID doesn't have though *)
       let equals_zero e = GobOption.exists (Z.equal Z.zero) (exp_value e) in
       let equals_maxIndex e =
-        GobOption.exists2 (fun l -> Z.equal (Z.pred l)) (Option.bind length Idx.to_int) (exp_value e)
+        GobOption.exists2 (fun l -> Z.equal (Z.pred l)) (Option.bind length SizeDomain.to_int) (exp_value e)
       in
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       match x with
@@ -663,7 +664,7 @@ struct
   let length _ = None
 
   let must_i_one_smaller l (VDQ.{eval_int; _}, e) =
-    GobOption.exists (fun l -> VDQ.must_be_equal eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) (Z.pred l))) (Option.bind l Idx.to_int)
+    GobOption.exists (fun l -> VDQ.must_be_equal eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) (Z.pred l))) (Option.bind l SizeDomain.to_int)
 
   let must_be_zero (VDQ.{eval_int; _}, e) = VDQ.must_be_equal eval_int e Cil.zero
 
@@ -816,7 +817,7 @@ let array_oob_check ( type a ) (module Idx: IntDomain.ZDefault with type t = a) 
   if !AnalysisState.executing_speculative_computations then
     ()
   else if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
-    let idx_before_end = Idx.lt v l in (* check whether index is before the end of the array *)
+    let idx_before_end = None in (* check whether index is before the end of the array *)
     let idx_after_start = Idx.ge v (Idx.of_int Z.zero) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)
     match idx_after_start, idx_before_end with
@@ -847,13 +848,13 @@ let array_oob_check ( type a ) (module Idx: IntDomain.ZDefault with type t = a) 
 module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
-  include Lattice.Prod (Base) (Idx)
+  include Lattice.Prod (Base) (SizeDomain)
   type idx = Idx.t
   type value = Val.t
 
   let domain_of_t _ = TrivialDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, l) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
@@ -882,22 +883,22 @@ struct
     Base.invariant ~value_invariant ~offset ~lval x
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" SizeDomain.printXml y
 
-  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", SizeDomain.to_yojson y) ]
 end
 
 
 module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Partitioned (Val) (Idx)
-  include Lattice.Prod (Base) (Idx)
+  include Lattice.Prod (Base) (SizeDomain)
   type idx = Idx.t
   type value = Val.t
 
   let domain_of_t _ = PartitionedDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, l) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
@@ -912,16 +913,16 @@ struct
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
   let smart_join x_vdq y_vdq (x,xl) (y,yl) =
-    let l = Idx.join xl yl in
+    let l = SizeDomain.join xl yl in
     (Base.smart_join_with_length (Some l) x_vdq y_vdq x y , l)
 
   let smart_widen x_vdq y_vdq (x,xl) (y,yl) =
-    let l = Idx.join xl yl in
+    let l = SizeDomain.join xl yl in
     (Base.smart_widen_with_length (Some l) x_vdq y_vdq x y, l)
 
   let smart_leq x_vdq y_vdq (x,xl) (y,yl)  =
-    let l = Idx.join xl yl in
-    Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_vdq y_vdq x y
+    let l = SizeDomain.join xl yl in
+    SizeDomain.leq xl yl && Base.smart_leq_with_length (Some l) x_vdq y_vdq x y
 
   (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (* Any array can only be declared in one location. The value for newl that we get there is  *)
@@ -937,21 +938,21 @@ struct
     Base.invariant ~value_invariant ~offset ~lval x
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" SizeDomain.printXml y
 
-  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", SizeDomain.to_yojson y) ]
 end
 
 module UnrollWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Unroll (Val) (Idx)
-  include Lattice.Prod (Base) (Idx)
+  include Lattice.Prod (Base) (SizeDomain)
   type idx = Idx.t
   type value = Val.t
 
   let domain_of_t _ = UnrolledDomain
 
-  let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
+  let get ?(checkBounds=true) (ask : VDQ.t) (x, l) (e, v) =
     if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
@@ -981,9 +982,9 @@ struct
     Base.invariant ~value_invariant ~offset ~lval x
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" SizeDomain.printXml y
 
-  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", SizeDomain.to_yojson y) ]
 end
 
 module NullByte (Val: LatticeWithNull) (Idx: IntDomain.ZDefault): Str with type value = Val.t and type idx = Idx.t =
@@ -1000,7 +1001,7 @@ struct
   let (+.) = Z.add
 
   (* (Must Null Set, May Null Set, Array Size) *)
-  include Lattice.Prod (Nulls) (struct include Idx let name () = "length" end)
+  include Lattice.Prod (Nulls) (struct include SizeDomain let name () = "length" end)
 
   let name () = "ArrayNullBytes"
   type idx = Idx.t
@@ -1020,13 +1021,14 @@ struct
       ) fmt
 
   let min_nat_of_idx i = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal i))
+  let min_nat_of_size i = Z.max Z.zero (BatOption.default Z.zero (SizeDomain.minimal i))
 
   let get (ask: VDQ.t) (nulls, size) (e, i) =
     let min_i = min_nat_of_idx i in
     let max_i = Idx.maximal i in
-    let min_size = min_nat_of_idx size in
+    let min_size = min_nat_of_size size in
 
-    match max_i, Idx.maximal size with
+    match max_i, SizeDomain.maximal size with
     (* if there is no maximum value in index interval *)
     | None, _ when not (Nulls.exists Possibly ((<=.) min_i) nulls) ->
       (* ... return NotNull if no i >= min_i in may_nulls_set *)
@@ -1057,12 +1059,12 @@ struct
     | _ -> Maybe
 
   let set (ask: VDQ.t) (nulls, size) (e, i) v =
-    let min_size = min_nat_of_idx size in
+    let min_size = min_nat_of_size size in
     let min_i = min_nat_of_idx i in
     let max_i = Idx.maximal i in
 
     let set_exact_nulls i =
-      match Idx.maximal size with
+      match SizeDomain.maximal size with
       (* if size has no upper limit *)
       | None ->
         (match Val.is_null v with
@@ -1094,12 +1096,12 @@ struct
 
     let set_interval min_i max_i =
       (* Update max_i so it is capped at the maximum size *)
-      let max_i = BatOption.map_default (fun x -> Z.min max_i @@ Z.pred x) max_i (Idx.maximal size) in
+      let max_i = BatOption.map_default (fun x -> Z.min max_i @@ Z.pred x) max_i (SizeDomain.maximal size) in
       match Val.is_null v with
       | NotNull -> Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
-      | Null -> Nulls.add_interval ~maxfull:(Idx.maximal size) Possibly (min_i, max_i) nulls
+      | Null -> Nulls.add_interval ~maxfull:(SizeDomain.maximal size) Possibly (min_i, max_i) nulls
       | Maybe ->
-        let nulls = Nulls.add_interval ~maxfull:(Idx.maximal size) Possibly (min_i, max_i) nulls in
+        let nulls = Nulls.add_interval ~maxfull:(SizeDomain.maximal size) Possibly (min_i, max_i) nulls in
         Nulls.remove_interval Possibly (min_i, max_i) min_size nulls
     in
 
@@ -1109,8 +1111,8 @@ struct
       (* if no maximum number in index interval *)
       | None ->
         (* ..., value = null *)
-        (if Val.is_null v = Null && Idx.maximal size = None then
-           match Idx.maximal size with
+        (if Val.is_null v = Null && SizeDomain.maximal size = None then
+           match SizeDomain.maximal size with
            (* ... and there is no maximal size, modify may_nulls_set to top *)
            | None ->  Nulls.add_all Possibly nulls
            (* ... and there is a maximal size, add all i from minimal index to maximal size to may_nulls_set *)
@@ -1120,7 +1122,7 @@ struct
            Nulls.filter_musts (Z.gt min_i) min_size nulls
            (*..., value unknown *)
          else
-           match Idx.minimal size, Idx.maximal size with
+           match SizeDomain.minimal size, SizeDomain.maximal size with
            (* ... and size unknown, modify both sets to top *)
            | None, None -> Nulls.top ()
            (* ... and only minimal size known, remove all indexes < minimal size from must_nulls_set and modify may_nulls_set to top *)
@@ -1148,7 +1150,7 @@ struct
 
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v =
-    let min_i, max_i = match Idx.minimal i, Idx.maximal i with
+    let min_i, max_i = match SizeDomain.minimal i, SizeDomain.maximal i with
       | Some min_i, Some max_i ->
         if min_i <. Z.zero && max_i <. Z.zero then
           (M.error ~category:ArrayOobMessage.before_start "Tries to create an array of negative size";
@@ -1182,7 +1184,7 @@ struct
         Checks.safe Checks.Category.NegativeArraySize;
         Z.zero, None
     in
-    let size = BatOption.map_default (fun max -> Idx.of_interval (min_i, max)) (Idx.starting min_i) max_i in (* TODO: used ILong *)
+    let size = BatOption.map_default (fun max -> SizeDomain.of_interval (min_i, max)) (SizeDomain.starting min_i) max_i in (* TODO: used ILong *)
     match Val.is_null v with
     | Null -> (Nulls.make_all_must (), size)
     | NotNull -> (Nulls.empty (), size)
@@ -1210,7 +1212,7 @@ struct
         | Some i -> build_set (i + 1) (Nulls.Set.add (Z.of_int i) set)
         | None -> Nulls.Set.add last_null set in
     let set = build_set 0 (Nulls.Set.empty ()) in
-    (Nulls.precise_set set, Idx.of_int (Z.succ last_null)) (* TODO: used ILong *)
+    (Nulls.precise_set set, SizeDomain.of_int (Z.succ last_null)) (* TODO: used ILong *)
 
   (** Returns an abstract value with at most one null byte marking the end of the string *)
   let to_string ((nulls, size) as x:t):t =
@@ -1223,7 +1225,7 @@ struct
     else
       (Checks.safe Checks.Category.InvalidMemoryAccess;
       let min_must_null = Nulls.min_elem Definitely nulls in
-      let new_size = Idx.of_int (Z.succ min_must_null) in (* TODO: used ILong *)
+      let new_size = SizeDomain.of_int (Z.succ min_must_null) in (* TODO: used ILong *)
       let min_may_null = Nulls.min_elem Possibly nulls in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
       let nulls =
@@ -1231,7 +1233,7 @@ struct
           Nulls.precise_singleton min_must_null
           (* else return empty must_nulls_set and keep every index up to smallest index of must_nulls_set included in may_nulls_set *)
         else
-          match Idx.maximal size with
+          match SizeDomain.maximal size with
           | Some max_size ->
             let nulls' = Nulls.remove_all Possibly nulls in
             Nulls.filter ~max_size (Z.leq min_must_null) nulls'
@@ -1248,7 +1250,7 @@ struct
     * an n bytes string. *)
   let to_n_string (nulls, size) n:t =
     if n < 0 then
-      (Nulls.top (), Idx.top ()) (* TODO: used ILong *)
+      (Nulls.top (), SizeDomain.top ()) (* TODO: used ILong *)
     else
       let n = Z.of_int n in
       let warn_no_null min_must_null min_may_null =
@@ -1263,7 +1265,7 @@ struct
              Checks.warn Checks.Category.StubCondition "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
           )
       in
-      (match Idx.minimal size, Idx.maximal size with
+      (match SizeDomain.minimal size, SizeDomain.maximal size with
        | Some min_size, Some max_size ->
          if n >. max_size then
            warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
@@ -1287,7 +1289,7 @@ struct
         if Nulls.is_empty Definitely nulls then
           (warn_past_end
              "Resulting string might not be null-terminated because src doesn't contain a null byte";
-           match Idx.maximal size with
+           match SizeDomain.maximal size with
            (* ... there *may* be null bytes from maximal size to n - 1 if maximal size < n (i.e. past end) *)
            | Some max_size when Z.geq max_size Z.zero -> Nulls.add_interval Possibly (max_size, Z.pred n) nulls
            | _ -> nulls)
@@ -1323,29 +1325,29 @@ struct
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls)
       in
-      (nulls,  Idx.of_int n) (* TODO: used ILong *)
+      (nulls,  SizeDomain.of_int n) (* TODO: used ILong *)
 
   let to_string_length (nulls, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
     if Nulls.is_empty Definitely nulls then
       (warn_past_end "Array doesn't contain a null byte: buffer overflow";
-       Idx.starting (BatOption.default Z.zero (Idx.minimal size)) (* TODO: used !Cil.kindOfSizeOf *)
+       SizeDomain.starting (BatOption.default Z.zero (SizeDomain.minimal size)) (* TODO: used !Cil.kindOfSizeOf *)
       )
       (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
-       Idx.starting (Nulls.min_elem Possibly nulls)) (* TODO: used !Cil.kindOfSizeOf *)
+       SizeDomain.starting (Nulls.min_elem Possibly nulls)) (* TODO: used !Cil.kindOfSizeOf *)
       (* else return interval [minimal may null, minimal must null] *)
     else (
       Checks.safe Checks.Category.InvalidMemoryAccess;
-      Idx.of_interval (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)) (* TODO: used !Cil.kindOfSizeOf *)
+      SizeDomain.of_interval (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)) (* TODO: used !Cil.kindOfSizeOf *)
 
   let string_copy (dstnulls, dstsize) ((srcnulls, srcsize) as src) n =
     let must_nulls_set1, may_nulls_set1 = dstnulls in
     (* filter out indexes before strlen(src) from dest sets and after strlen(src) from src sets and build union, keep size of dest *)
     let update_sets (truncatednulls, truncatedsize) len2 =
       let must_nulls_set2',may_nulls_set2' = truncatednulls in
-      match Idx.minimal dstsize, Idx.maximal dstsize, Idx.minimal len2, Idx.maximal len2 with
+      match SizeDomain.minimal dstsize, SizeDomain.maximal dstsize, SizeDomain.minimal len2, SizeDomain.maximal len2 with
       | Some min_dstsize, Some max_dstsize, Some min_srclen, Some max_srclen ->
         (if max_dstsize <. min_srclen then
            warn_past_end "The length of string src is greater than the allocated size for dest"
@@ -1354,13 +1356,13 @@ struct
          else
            Checks.safe Checks.Category.InvalidMemoryAccess);
         let must_nulls_set_result =
-          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
+          let min_size2 = BatOption.default Z.zero (SizeDomain.minimal truncatedsize) in
           (* get must nulls from src string < minimal size of dest *)
           MustSet.filter ~min_size:min_size2 (Z.gt min_dstsize) must_nulls_set2'
           (* and keep indexes of dest >= maximal strlen of src *)
           |> MustSet.union (MustSet.filter ~min_size:min_dstsize (Z.leq max_srclen) must_nulls_set1) in
         let may_nulls_set_result =
-          let max_size2 = BatOption.default max_dstsize (Idx.maximal truncatedsize) in
+          let max_size2 = BatOption.default max_dstsize (SizeDomain.maximal truncatedsize) in
           (* get may nulls from src string < maximal size of dest *)
           MaySet.filter ~max_size:max_size2 (Z.gt max_dstsize) may_nulls_set2'
           (* and keep indexes of dest >= minimal strlen of src *)
@@ -1374,7 +1376,7 @@ struct
          else
            Checks.safe Checks.Category.InvalidMemoryAccess);
         let must_nulls_set_result =
-          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
+          let min_size2 = BatOption.default Z.zero (SizeDomain.minimal truncatedsize) in
           MustSet.filter ~min_size: min_size2 (Z.gt min_size1) must_nulls_set2'
           |> MustSet.union (MustSet.filter ~min_size:min_size1 (Z.leq max_len2) must_nulls_set1) in
         let may_nulls_set_result =
@@ -1391,10 +1393,10 @@ struct
            Checks.safe Checks.Category.InvalidMemoryAccess);
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result =
-          let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
+          let min_size2 = BatOption.default Z.zero (SizeDomain.minimal truncatedsize) in
           MustSet.filter ~min_size:min_size2 (Z.gt min_size1) must_nulls_set2' in
         let may_nulls_set_result =
-          let max_size2 = BatOption.default max_size1 (Idx.maximal truncatedsize) in
+          let max_size2 = BatOption.default max_size1 (SizeDomain.maximal truncatedsize) in
           MaySet.filter ~max_size:max_size2 (Z.gt max_size1) may_nulls_set2'
           |> MaySet.union (MaySet.filter ~max_size:max_size1 (Z.leq min_len2) may_nulls_set1) in
         ((must_nulls_set_result, may_nulls_set_result), dstsize)
@@ -1404,7 +1406,7 @@ struct
          else
            Checks.safe Checks.Category.InvalidMemoryAccess);
         (* do not keep any index of dest as no maximal strlen of src *)
-        let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
+        let min_size2 = BatOption.default Z.zero (SizeDomain.minimal truncatedsize) in
         let truncatednulls = Nulls.remove_interval Possibly (Z.zero, min_size1) min_size2 truncatednulls in
         let filtered_dst = Nulls.filter ~max_size:(Z.succ min_len2) (Z.leq min_len2) dstnulls in
         (* get all may nulls from src string as no maximal size of dest *)
@@ -1414,7 +1416,7 @@ struct
 
     (* warn if size of dest is (potentially) smaller than size of src and the latter (potentially) has no null byte at index < size of dest *)
     let sizes_warning srcsize =
-      (match Idx.minimal dstsize, Idx.maximal dstsize, Idx.minimal srcsize, Idx.maximal srcsize with
+      (match SizeDomain.minimal dstsize, SizeDomain.maximal dstsize, SizeDomain.minimal srcsize, SizeDomain.maximal srcsize with
        | Some min_dstsize, _, Some min_srcsize, _ when min_dstsize <. min_srcsize ->
          if not (Nulls.exists Possibly (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src doesn't contain a null byte at an index smaller than the size of dest"
@@ -1454,9 +1456,9 @@ struct
       update_sets truncated (to_string_length src)
     (* strncpy = exactly n bytes from src are copied to dest *)
     | Some n when n >= 0 ->
-      sizes_warning (Idx.of_int (Z.of_int n)); (* TODO: used ILong *)
+      sizes_warning (SizeDomain.of_int (Z.of_int n)); (* TODO: used ILong *)
       let truncated = to_n_string src n in
-      update_sets truncated (Idx.of_int (Z.of_int n)) (* TODO: used !Cil.kindOfSizeOf *)
+      update_sets truncated (SizeDomain.of_int (Z.of_int n)) (* TODO: used !Cil.kindOfSizeOf *)
     | _ -> (Nulls.top (), dstsize)
 
   let string_concat (nulls1, size1) (nulls2, size2) n =
@@ -1534,7 +1536,7 @@ struct
         let (must_nulls_set1, may_nulls_set1) = nulls1 in
         let (must_nulls_set2', may_nulls_set2') = nulls2' in
         let may_nulls_set2'_until_min_i2 =
-          match Idx.maximal size2 with
+          match SizeDomain.maximal size2 with
           | Some max_size2 -> MaySet.filter ~max_size:max_size2 (Z.geq min_i2) may_nulls_set2'
           | None -> MaySet.filter ~max_size:(Z.succ min_i2) (Z.geq min_i2) may_nulls_set2' in
         let must_nulls_set_result =
@@ -1572,11 +1574,11 @@ struct
     let compute_concat nulls2' =
       let strlen1 = to_string_length (nulls1, size1) in
       let strlen2 = to_string_length (nulls2', size2) in
-      match Idx.minimal size1, Idx.minimal strlen1, Idx.minimal strlen2 with
+      match SizeDomain.minimal size1, SizeDomain.minimal strlen1, SizeDomain.minimal strlen2 with
       | Some min_size1, Some minlen1, Some minlen2 ->
         begin
-          let f = update_sets min_size1 (Idx.maximal size1) minlen1 in
-          match Idx.maximal strlen1, Idx.maximal strlen2 with
+          let f = update_sets min_size1 (SizeDomain.maximal size1) minlen1 in
+          match SizeDomain.maximal strlen1, SizeDomain.maximal strlen2 with
           | (Some _ as maxlen1), (Some _ as maxlen2) -> f maxlen1 minlen2 maxlen2 nulls2'
           | _ -> f None minlen2 None nulls2'
         end
@@ -1597,13 +1599,13 @@ struct
         if not (Nulls.exists Possibly (Z.gt n) nulls2) then
           Nulls.precise_singleton n
         else if not (Nulls.exists Definitely (Z.gt n) nulls2) then
-          let max_size = BatOption.default (Z.succ n) (Idx.maximal size2) in
+          let max_size = BatOption.default (Z.succ n) (SizeDomain.maximal size2) in
           let nulls2 = Nulls.remove_all Possibly nulls2 in
           let nulls2 = Nulls.filter ~max_size (Z.geq n) nulls2 in
           Nulls.add Possibly n nulls2
         else
-          let min_size = BatOption.default Z.zero (Idx.minimal size2) in
-          let max_size = BatOption.default n (Idx.maximal size2) in
+          let min_size = BatOption.default Z.zero (SizeDomain.minimal size2) in
+          let max_size = BatOption.default n (SizeDomain.maximal size2) in
           Nulls.filter ~max_size ~min_size (Z.gt n) nulls2
       in
       compute_concat nulls2'
@@ -1616,7 +1618,7 @@ struct
     else
       let haystack_len = to_string_length haystack in
       let needle_len = to_string_length needle in
-      match Idx.maximal haystack_len, Idx.minimal needle_len with
+      match SizeDomain.maximal haystack_len, SizeDomain.minimal needle_len with
       | Some haystack_max, Some needle_min when haystack_max <. needle_min ->
         (* if strlen(haystack) < strlen(needle), needle can never be substring of haystack => return None *)
         IsNotSubstr
@@ -1669,8 +1671,8 @@ struct
     | Some n when n >= 0 ->
       let n = Z.of_int n in
       let warn_size size name =
-        let min = min_nat_of_idx size in
-        match Idx.maximal size with
+        let min = min_nat_of_size size in
+        match SizeDomain.maximal size with
         | Some max when n >. max ->
           warn_past_end "The size of the array of string %s is smaller than n bytes" name
         | Some max when n >. min ->
@@ -1761,32 +1763,32 @@ struct
   (* convert to another domain *)
   let index_as_expression i = (Some (Cil.integer i), Idx.of_int (Z.of_int i)) (* TODO: used IInt *)
 
-  let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
+  let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(SizeDomain.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
 
   let partitioned_of_unroll ask u =
     (* We end with a partition at "ana.base.arrays.unrolling-factor", which keeps the most information. Maybe first element is more commonly useful? *)
     let rest = (U.get ~checkBounds:false ask u (index_as_expression (factor ()))) in
-    let p = P.make (Option.value (U.length u) ~default:(Idx.top ())) rest in
+    let p = P.make (Option.value (U.length u) ~default:(SizeDomain.top ())) rest in
     let get_i i = (i, P.get ~checkBounds:false ask p (index_as_expression i)) in
     let set_i p (i,v) =  P.set ask p (index_as_expression i) v in
     List.fold_left set_i p @@ List.init (factor ()) get_i
 
   let trivial_of_partitioned ask p =
     let element = (P.get ~checkBounds:false ask p (None, Idx.top ()))
-    in T.make (Option.value (P.length p) ~default:(Idx.top ())) element
+    in T.make (Option.value (P.length p) ~default:(SizeDomain.top ())) element
 
   let trivial_of_unroll ask u =
     let get_i i = U.get ~checkBounds:false ask u (index_as_expression i) in
     let element = List.fold_left Val.join (get_i (factor ())) @@ List.init (factor ()) get_i in (*join all single elements and the element at  *)
-    T.make (Option.value (U.length u) ~default:(Idx.top ())) element
+    T.make (Option.value (U.length u) ~default:(SizeDomain.top ())) element
 
-  let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
+  let unroll_of_trivial ask t = U.make (Option.value (T.length t) ~default:(SizeDomain.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
 
   let unroll_of_partitioned ask p =
     let unrolledValues = List.init (factor ()) (fun i ->(i, P.get ~checkBounds:false ask p (index_as_expression i))) in
     (* This could be more precise if we were able to compare this with the partition index, but we can not access it here *)
     let rest = (P.get ~checkBounds:false ask p (None, Idx.top ())) in
-    let u = U.make (Option.value (P.length p) ~default:(Idx.top ())) (Val.bot ()) in
+    let u = U.make (Option.value (P.length p) ~default:(SizeDomain.top ())) (Val.bot ()) in
     let set_i u (i,v) =  U.set ask u (index_as_expression i) v in
     set_i (List.fold_left set_i u unrolledValues) (factor (), rest)
 
@@ -1896,14 +1898,14 @@ struct
 
   let to_null_byte_domain s =
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.make (Idx.top ()) (* TODO: used ILong *) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
+      (A.make (SizeDomain.top ()) (* TODO: used ILong *) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
     else
       (A.top (), N.top ())
   let to_string_length (_, t_n) =
     if get_bool "ana.base.arrays.nullbytes" then
       N.to_string_length t_n
     else
-      Idx.top () (* TODO: used !Cil.kindOfSizeOf *)
+      SizeDomain.top () (* TODO: used !Cil.kindOfSizeOf *)
 
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
