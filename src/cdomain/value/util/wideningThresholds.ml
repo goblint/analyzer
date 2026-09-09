@@ -56,6 +56,20 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold octagon_thresholds @@ doubleI;
       addThreshold octagon_thresholds @@ Z.neg doubleI;
       DoChildren
+
+    (* Modulo by a constant: expr % 10 *)
+    (* The result of expr % c is contained in [-(|c|-1), |c|-1], so |c|-1 is the tightest bound *)
+    | BinOp (Mod, _, (Const (CInt(i,_,_))), _) when not (Z.equal i Z.zero) ->
+      let i = Z.pred @@ Z.abs i in
+      addThreshold upper_thresholds @@ i;
+      addThreshold lower_thresholds @@ Z.neg i;
+
+      addThreshold octagon_thresholds @@ i;
+      addThreshold octagon_thresholds @@ Z.neg i;
+      let doubleI = Z.add i i in
+      addThreshold octagon_thresholds @@ doubleI;
+      addThreshold octagon_thresholds @@ Z.neg doubleI;
+      DoChildren
     | _ -> DoChildren
 end
 
