@@ -136,15 +136,12 @@ sig
 end
 
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)
-module type B =
+module type BDefault =
 sig
   include Lattice.PO
   include Lattice.Bot with type t := t
   type int_t
   (** {b Accessing values of the ADT} *)
-
-  val bot_of: Cil.ikind -> t
-  val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val to_int: t -> int_t option
   (** Return a single integer value if the value is a known constant, otherwise
@@ -159,9 +156,6 @@ sig
   val to_excl_list: t -> (int_t list * (int * int)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
-  val of_excl_list: Cil.ikind -> int_t list -> t
-  (** Creates an exclusion set from a given list of integers. *)
-
   val is_excl_list: t -> bool
   (** Checks if the element is an exclusion set. *)
 
@@ -170,6 +164,18 @@ sig
 
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
+end
+
+(* Shared signature of IntDomain implementations and the lifted IntDomains *)
+module type B =
+sig
+  include BDefault
+
+  val bot_of: Cil.ikind -> t
+  val top_of: ?bitfield:int -> Cil.ikind -> t
+
+  val of_excl_list: Cil.ikind -> int_t list -> t
+  (** Creates an exclusion set from a given list of integers. *)
 
   (** {b Cast} *)
 
@@ -327,7 +333,7 @@ end
 
 module type YDefault =
 sig
-  include B
+  include BDefault
   include Lattice.Top with type t := t
   include Arith with type t:=t
 
@@ -350,16 +356,8 @@ sig
 
   val of_excl_list: int_t list -> t
 
-  val is_top_of: Cil.ikind -> t -> bool
-
   val project: PrecisionUtil.int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
-
-  val bot_of: Printable.Empty.t -> string (* TODO: properly remove *)
-  val top_of: Printable.Empty.t -> string (* TODO: properly remove *)
-  val is_bot_of: Printable.Empty.t -> string (* TODO: properly remove *)
-  val is_top_of: Printable.Empty.t -> string (* TODO: properly remove *)
-  val cast_to: Printable.Empty.t -> string (* TODO: properly remove *)
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
