@@ -119,6 +119,7 @@ module ThreadFlag = ThreadFlag
 module ThreadId = ThreadId
 module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
+module ThreadJoinsPool = ThreadJoinsPool
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
 module ThreadDescendants = ThreadDescendants
