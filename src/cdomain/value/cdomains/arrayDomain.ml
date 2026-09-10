@@ -187,7 +187,7 @@ module Unroll (Val: LatticeWithInvalidate) (Idx:IntDomain.Z): S with type value 
 struct
   module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
   module Base = Lattice.ProdList (Val) (Factor)
-  include Lattice.ProdSimple(Base) (Val)
+  include Lattice.Prod (Base) (Val)
 
   let name () = "unrolled arrays"
   type idx = Idx.t

@@ -33,7 +33,7 @@ struct
       include Base2
       let name () = "context gas"
     end
-    include Lattice.Prod (Base1) (Base2) (* TODO: suppress S.D name? *)
+    include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (Base1) (Base2)
     let printXml f (x,y) =
       BatPrintf.fprintf f "\n%a<analysis name=\"context gas value\">\n%a\n</analysis>" Base1.printXml x Base2.printXml y
   end

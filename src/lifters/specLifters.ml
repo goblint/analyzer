@@ -334,7 +334,7 @@ module LevelSliceLifter (S:Spec)
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (LevelSliceDomain) (* TODO: suppress Base name? *)
+  module D = Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (S.D) (LevelSliceDomain)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -467,7 +467,7 @@ struct
   end
 
   module D = struct
-    include Lattice.Prod (S.D) (M) (* TODO: suppress S.D name? *)
+    include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
