@@ -28,7 +28,12 @@ struct
 
   module Context_Gas_Prod (Base1: Lattice.S) (Base2: Lattice.S) =
   struct
-    include Lattice.Prod (Base1) (Base2)
+    module Base2 =
+    struct
+      include Base2
+      let name () = "context gas"
+    end
+    include Lattice.Prod (Base1) (Base2) (* TODO: suppress S.D name? *)
     let printXml f (x,y) =
       BatPrintf.fprintf f "\n%a<analysis name=\"context gas value\">\n%a\n</analysis>" Base1.printXml x Base2.printXml y
   end

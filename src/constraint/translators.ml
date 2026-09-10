@@ -35,14 +35,7 @@ module EqConstrSysFromGlobConstrSys (S:DemandGlobConstrSys)
 =
 struct
   module Var = Var2(S.LVar)(S.GVar)
-  module Dom =
-  struct
-    include Lattice.Lift2 (S.G) (S.D)
-    let printXml f = function
-      | `Lifted1 a -> S.G.printXml f a
-      | `Lifted2 a -> S.D.printXml f a
-      | (`Bot | `Top) as x -> printXml f x
-  end
+  module Dom = Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (S.G) (S.D)
   type v = Var.t
   type d = Dom.t
 

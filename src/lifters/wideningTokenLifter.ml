@@ -9,7 +9,11 @@
 module Token = WideningToken
 
 (** Widening token set. *)
-module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
+module TS =
+struct
+  include SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
+  let name () = "widen-tokens"
+end
 
 (** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
 let add_ref: (Token.t -> unit) Domain.DLS.key = Domain.DLS.new_key (fun () _ ->
@@ -58,7 +62,7 @@ open Analyses
     except widening tokens are used to delay widenings. *)
 module Dom (D: Lattice.S) =
 struct
-  include Lattice.Prod (D) (TS)
+  include Lattice.Prod (D) (TS) (* TODO: suppress Base name? *)
   let unlift (d, _) = d
   let lift d = (d, TS.bot ())
 
