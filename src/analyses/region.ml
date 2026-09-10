@@ -82,8 +82,7 @@ struct
     let reg = man.local in
     let old_regpart = man.global () in
     let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
-    if not (RegPart.leq regpart old_regpart) then
-      man.sideg () regpart;
+    man.sideg () regpart;
     reg
 
   let branch man (exp:exp) (tv:bool) : D.t =
@@ -102,8 +101,7 @@ struct
       | None -> (old_regpart, reg)
     in
     let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
-    if not (RegPart.leq regpart old_regpart) then
-      man.sideg () regpart;
+    man.sideg () regpart;
     reg
 
 
@@ -117,8 +115,7 @@ struct
     let f x r reg = Reg.assign (var x) r reg in
     let old_regpart = man.global () in
     let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
-    if not (RegPart.leq regpart old_regpart) then
-      man.sideg () regpart;
+    man.sideg () regpart;
     [man.local, reg]
 
   let combine_env man lval fexp f args fc au f_ask =
@@ -132,8 +129,7 @@ struct
       | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
     in
     let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
-    if not (RegPart.leq regpart old_regpart) then
-      man.sideg () regpart;
+    man.sideg () regpart;
     reg
 
   let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -146,8 +142,7 @@ struct
           let old_regpart = man.global () in
           (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
-          if not (RegPart.leq regpart old_regpart) then
-            man.sideg () regpart;
+          man.sideg () regpart;
           reg
         | _ -> man.local
       end
@@ -163,8 +158,7 @@ struct
     let reg = man.local in
     let old_regpart = man.global () in
     let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
-    if not (RegPart.leq regpart old_regpart) then
-      man.sideg () regpart;
+    man.sideg () regpart;
     reg
 
   let exitstate v = RegMap.bot ()
