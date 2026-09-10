@@ -362,7 +362,9 @@ module Checker (System: FwdGlobConstrSys)
   module GM = Gbl.GM
   module LS = Gbl.LS
 
-
+  (* Global dependencies may discover an influence after its local RHS has
+     already been checked. Keep all scheduled locals in the set so such late
+     discoveries do not evaluate the same final RHS again. *)
   let work = ref (([] : System.LVar.t list), LS.empty)
 
   let add_work x = let (l,s) = !work in
@@ -373,11 +375,11 @@ module Checker (System: FwdGlobConstrSys)
     match l with
     | [] -> None
     | x::xs ->
-      let s = LS.remove x s in
       let _ = work := (xs,s) in
       Some x
 
   let check localinit globalinit xs =
+    work := ([], LS.empty);
 
     let sigma_out = LM.create 100 in
     let tau_out   = GM.create 100 in
