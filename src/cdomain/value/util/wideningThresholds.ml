@@ -22,23 +22,28 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i *)
 
   method! vexpr = function
-    (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
-    | BinOp (Le, (Const (CInt(i,_,_))), _, _)
-    | BinOp (Ge, _, (Const (CInt(i,_,_))), _)
+    (* Comparisons of type: expr < 10, 10 > expr *)
     | BinOp (Lt, _, (Const (CInt(i,_,_))), _)
     | BinOp (Gt, (Const (CInt(i,_,_))), _, _) ->
       self#addUpper i;
+      DoChildren
+
+    (* Comparisons of type: 10 <= expr, expr >= 10 *)
+    | BinOp (Le, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Ge, _, (Const (CInt(i,_,_))), _) ->
       self#addLower (Z.pred i);
       DoChildren
 
-    (* Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr *)
-    | BinOp (Lt, (Const (CInt(i,_,_))), _, _)
-    | BinOp (Gt, _, (Const (CInt(i,_,_))), _)
+    (* Comparisons of type: expr <= 10, 10 >= expr *)
     | BinOp (Le, _, (Const (CInt(i,_,_))), _)
     | BinOp (Ge, (Const (CInt(i,_,_))), _, _) ->
-      let i = Z.succ i in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
-      self#addUpper i;
-      self#addLower (Z.pred i);
+      self#addUpper (Z.succ i); (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
+      DoChildren
+
+    (* Comparisons of type: 10 < expr, expr > 10 *)
+    | BinOp (Lt, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Gt, _, (Const (CInt(i,_,_))), _) ->
+      self#addLower i; (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
       DoChildren
 
     (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
