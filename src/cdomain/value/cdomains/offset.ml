@@ -205,7 +205,9 @@ struct
      element) answers with any_index_exp on all non-concrete cases. *)
   let rec of_exp: exp offs -> t = function (* TODO: Poly.map_indices *)
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ik,s)),o) -> `Index (Idx.of_int ik i, of_exp o)
+    | `Index (Const (CInt (i,ik,s)),o) ->
+      let index = Idx.of_int ik i in
+      `Index (Idx.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) index, of_exp o)
     | `Index (_,o) -> `Index (Idx.top (), of_exp o)
     | `Field (f,o) -> `Field (f, of_exp o)
 
