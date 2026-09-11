@@ -1,6 +1,6 @@
 // PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
-// Artificial test where one branch registers the argument v and the other does not, but both branches use v.
+// Artificial tests where one branch registers the argument v and the other does not, but both branches use v.
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -29,7 +29,7 @@ CAMLprim value branching_test2(value v, bool b)
     }
     value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
     memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
-    if (b)
+    if (b) // TODO NOWARN
     {
         End_roots();
     }

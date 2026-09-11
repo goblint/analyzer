@@ -18,24 +18,18 @@ struct
   module D =
   struct
     (* The first set contains variables of type value that are definitely accounted for. The second contains definitely registered variables. There is a flag for the first function. *)
-    (* TODO: Only put the lifting in the middle, where registered variables are tracked. Otherwise, it cannot put the initial values into the accounted-set. *)
-    module P = Lattice.Prod3 (Lattice.Reverse (VarinfoSet)) (Lattice.Lift2 (Lattice.Reverse (VarinfoSet)) (Lattice.Liszt (Lattice.Reverse (VarinfoSet)))) (BoolDomain.MayBool)
+    module P = Lattice.Prod3 (Lattice.Reverse (VarinfoSet)) (Lattice.Lift3 (Lattice.Reverse (VarinfoSet)) (Lattice.Liszt (Lattice.Reverse (VarinfoSet))) (Lattice.Reverse (VarinfoSet))) (BoolDomain.MayBool)
     include P
 
     let empty () = (VarinfoSet.empty (), `Bot, false)
-
-    let is_empty_r (accounted, registered, first) =
-      match registered with
-      | `Bot -> true
-      | `Lifted2 r -> r = []
-      | _ -> false (* TODO: When is a simple set empty with regard to the analysis? *)
 
     (* Puts all registered variables into a single set. *)
     let flatten_r (accounted, registered, first) =
       match registered with
       | `Lifted1 r -> r
-      | `Lifted2 r -> List.fold_left (fun acc r -> VarinfoSet.union acc r) (VarinfoSet.empty ()) r
-      | _ -> VarinfoSet.empty () (* TODO: In the top case, should the set be full? *)
+      | `Lifted2 r -> List.fold_left (fun acc rr -> VarinfoSet.union acc rr) (VarinfoSet.empty ()) r
+      | `Lifted3 r -> r
+      | _ -> VarinfoSet.empty ()
 
     (* After garbage collection, the first set loses variables not in the registered stack. *)
     let after_gc (accounted, registered, first) =
@@ -43,6 +37,7 @@ struct
       | `Bot -> (VarinfoSet.empty (), registered, first)
       | `Lifted1 r -> (VarinfoSet.inter accounted r, `Lifted1 r, first)
       | `Lifted2 r -> (VarinfoSet.inter accounted (flatten_r (accounted, registered, first)), `Lifted2 r, first)
+      | `Lifted3 r -> (VarinfoSet.inter accounted r, `Lifted3 r, first)
       | `Top -> (VarinfoSet.empty (), registered, first) (* Top means that we do not know the format of registrations and therefore cannot retrieve info about registered variables. *)
 
     let mem_a v (accounted, registered, first) =
@@ -54,25 +49,38 @@ struct
     let add_a v (accounted, registered, first) =
       (VarinfoSet.add v accounted, registered, first)
 
-    (* Opens a new block in the stack in the right mode *)
-    let push_r mode (accounted, registered, first) =
+    (* Initialises the registration set in the right mode and/or opens a new block in the stack*)
+    let add_r vs mode (accounted, registered, first) =
       match registered with
-      | `Bot -> if (mode = "CAMLparam0" || mode = "") then (accounted, `Lifted1 (VarinfoSet.empty ()), first) else (accounted, `Lifted2 [VarinfoSet.empty ()], first)
-      | `Lifted1 r -> if (mode = "CAMLparam0" || mode = "") then (accounted, registered, first) else (M.warn "Begin_roots used with CAMLparam0"; (accounted, `Lifted2 (VarinfoSet.empty () :: [r]), first))
-      | `Lifted2 r -> if (mode = "CAMLBegin_roots" || mode = "") then (accounted, `Lifted2 (VarinfoSet.empty () :: r), first) else (M.warn "CAMLparam0 used with Begin_roots"; (accounted, `Top, first))
+      | `Bot -> (match mode with
+          | "CAMLparam0" -> (accounted, `Lifted1 (VarinfoSet.empty ()), first)
+          | "CAMLparam" -> failwith "CAMLlocal used without CAMLparam"
+          | "Begin_roots" -> (accounted, `Lifted2 [vs], first)
+          | "" -> (accounted, `Lifted3 vs, first)
+          | _ -> failwith "Undefined mode")
+      | `Lifted1 r -> (match mode with
+          | "CAMLparam0" -> (accounted, registered, first)
+          | "CAMLparam" -> (accounted, `Lifted1 (VarinfoSet.union vs r), first)
+          | "Begin_roots" -> M.warn "Begin_roots used with CAMLparam0"; (accounted, `Lifted2 [vs; r], first)
+          | "" -> (accounted, `Lifted1 (VarinfoSet.union vs r), first)
+          | _ -> failwith "Undefined mode")
+      | `Lifted2 (r::rs) -> (match mode with
+          | "CAMLparam0" -> failwith "CAMLparam used with Begin_roots"
+          | "CAMLparam" -> failwith "CAMLlocal used with Begin_roots"
+          | "Begin_roots" -> (accounted, `Lifted2 (vs::r::rs), first)
+          | "" -> (accounted, `Lifted2 ((VarinfoSet.union vs r)::rs), first) (* TODO: When a untracked variable is added this way, the next End_roots will remove it together with what is needed. *)
+          | _ -> failwith "Undefined mode")
+      | `Lifted3 r -> (match mode with
+          | "CAMLparam0" -> (accounted, `Lifted1 r, first)
+          | "CAMLparam" -> failwith "CAMLlocal used without CAMLparam"
+          | "Begin_roots" -> M.tracel "Ocaml" "%a" VarinfoSet.pretty vs; (accounted, `Lifted2 [vs; r], first)
+          | "" -> (accounted, `Lifted3 (VarinfoSet.union vs r), first)
+          | _ -> failwith "Undefined mode")
       | `Top -> (accounted, registered, first)
+      | _ -> failwith "Registration stack in analysis is empty, but not in bottom state. This should not happen."
 
-    (* Registers a variable in the current block. *)
-    let add_r v (accounted, registered, first) =
-      match registered with
-      | `Lifted1 r -> (accounted, `Lifted1 (VarinfoSet.add v r), first)
-      | `Lifted2 r ->
-        (match r with
-         | [] -> M.warn "Variable %a registered without CAMLparam0" CilType.Varinfo.pretty v;
-           (accounted, `Lifted2 [VarinfoSet.singleton v], first)
-         | regd::regds -> (accounted, `Lifted2 ((VarinfoSet.add v regd)::regds), first)
-        )
-      | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the bottom value *)
+    let add_r_v v mode (accounted, registered, first) =
+      add_r (VarinfoSet.singleton v) mode (accounted, registered, first)
 
     let remove_a v (accounted, registered, first) =
       (VarinfoSet.remove v accounted, registered, first)
@@ -86,6 +94,7 @@ struct
       match registered with
       | `Lifted1 r -> (accounted, `Lifted1 (VarinfoSet.remove v r), first)
       | `Lifted2 r -> (accounted, `Lifted2 (remover v r), first)
+      | `Lifted3 r -> (accounted, `Lifted3 (VarinfoSet.remove v r), first)
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     (* Simulates End_roots by removing one block. *)
@@ -97,6 +106,7 @@ struct
         (match r with
          | [] -> (accounted, `Lifted2 [], first)
          | _::rs -> (accounted, `Lifted2 rs, first))
+      | `Lifted3 r -> failwith "Roots ended before beginning"
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     (* Removes all blocks created in the current scope, like CAMLreturn. *)
@@ -113,6 +123,7 @@ struct
            if List.exists (fun v -> VarinfoSet.mem v regd) vs then
              after_drop vs (accounted, `Lifted2 regds, first)
            else (accounted, registered, first))
+      | `Lifted3 r -> (accounted, `Lifted3 (VarinfoSet.diff r (VarinfoSet.of_list vs)), first)
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     let set_first_function (accounted, registered, first) =
@@ -139,10 +150,13 @@ struct
     [@@deriving eq, ord, show, hash]
     include Printable.SimpleShow(struct type nonrec t = t let show = show end)
     include Printable.StdLeaf
+    (* To get path sensitivity, the name of this analysis must be put into options.schema.json. *)
     let of_elt (accounted, registered, first) = match registered with
-      | `Lifted1 _ -> -1
+      | `Bot -> -3
+      | `Lifted1 _ -> -2
       | `Lifted2 r -> List.length r
-      | _ -> -1
+      | `Lifted3 _ -> -1
+      | _ -> -4
   end
 
   (** Determines whether an expression [e] is healthy, given a [state]. *)
@@ -200,8 +214,8 @@ struct
       if exp_accounted_for state rval then
         D.add_a v state
       else (M.info "%s" warning; D.remove_a v state)
-      (* TODO: End_roots should not remove untracked variables like tracked ones. *)
-    else D.add_a v (D.add_r v (if D.is_empty_r state then D.push_r "" state else state))
+      (* If an untracked variable is assigned to another, it is already in R, so R cannot be empty. *)
+    else D.add_a v (D.add_r_v v "" state)
 
   (* transfer functions *)
 
@@ -258,16 +272,16 @@ struct
         if rval == MyCFG.unknown_exp then
           if is_value_type v.vtype then D.set_first_function (D.add_a v st)
           (* TODO: The mode should be allowed to change as a new function is entered. *)
-          else D.add_a v (D.add_r v (D.push_r "" st))
+          else D.add_a v (D.add_r_v v "" st)
           (* Arguments of inner functions inherit the caller's state. *)
-          (* Every registration copied becomes its own set to avoid them going to a previous bigger set. *)
+          (* Every registration copied becomes its own set to avoid them going to a previous bigger set. TODO: This comment is false. Rethink. *)
         else (*assignment v rval (Cil.typeOf rval) st "Entering function with possibly deleted argument")*)
         if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
           if exp_accounted_for st rval then
-            if exp_registered st rval then D.add_a v (D.add_r v (D.push_r "" st))
+            if exp_registered st rval then D.add_a v (D.add_r_v v "" st)
             else D.add_a v (D.remove_r v st)
           else (M.info "Entering function with possibly deleted argument"; D.remove_a v st)
-        else D.add_a v (D.add_r v (D.push_r "" st)))
+        else D.add_a v (D.add_r_v v "" st))
         caller_state f.sformals args in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
@@ -305,16 +319,16 @@ struct
     let desc = LibraryFunctions.find f in
     List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to special functions *)
     match desc.special arglist with
-    | OCamlParam0 -> D.push_r "CAMLparam0" caller_state
+    | OCamlParam0 -> D.add_r (VarinfoSet.empty ()) "CAMLparam0" caller_state
     | OCamlParam params ->
-      (* Variables are registered with a Param macro. *)
+      (* Variables are registered. *)
       List.fold_left (fun state param -> match param with
           | AddrOf (Var v, _) -> (match man.ask (Queries.EvalInt (Cil.Lval (Cil.var v))) with
               | `Bot -> ()
               | `Lifted x -> if IntDomain.IntDomTuple.equal_to Z.zero x <> `Neq then M.warn "Null pointer registered"
               | `Top -> M.warn "Null pointer possibly registered"
             );
-            D.add_r v state
+            D.add_r_v v "CAMLparam" state
           | _ -> state
         ) caller_state params
     | OCamlAlloc size_exp ->
@@ -328,7 +342,18 @@ struct
       (* Deregisters all formal and local variables. *)
       let caller_fun = Node.find_fundec man.node in
       D.after_drop (caller_fun.sformals @ caller_fun.slocals) caller_state
-    | OCamlBeginRoots -> D.push_r "CAMLBegin_roots" caller_state
+    | OCamlBeginRoots params ->
+      D.add_r
+        (* Variables are registered as a single block. *)
+        (List.fold_left (fun block param -> match param with
+             | AddrOf (Var v, _) -> (match man.ask (Queries.EvalInt (Cil.Lval (Cil.var v))) with
+                 | `Bot -> ()
+                 | `Lifted x -> if IntDomain.IntDomTuple.equal_to Z.zero x <> `Neq then M.warn "Null pointer registered"
+                 | `Top -> M.warn "Null pointer possibly registered"
+               ); VarinfoSet.add v block
+             | _ -> block
+           ) (VarinfoSet.empty ()) params)
+        "Begin_roots" caller_state
     | OCamlEndRoots -> D.pop_r caller_state
     | _ -> caller_state
 

@@ -52,7 +52,7 @@ type special =
   | OCamlParam0
   | OCamlParam of Cil.exp list
   | OCamlDrop
-  | OCamlBeginRoots
+  | OCamlBeginRoots of Cil.exp list
   | OCamlEndRoots
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
