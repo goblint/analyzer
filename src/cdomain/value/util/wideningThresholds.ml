@@ -16,11 +16,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i *)
 
   method private addLower i =
-    addThreshold lower_thresholds @@ Z.pred i;
-    let negI = Z.succ @@ Z.neg i in
-    addThreshold octagon_thresholds @@ negI; (* lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
-    (* addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i *) *) (* TODO: wrong? *)
-    addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= 2(-i+1)=-2i+2=-2(i-1) -> X >= i-1 *)
+    addThreshold lower_thresholds @@ i;
+    let negI = Z.neg i in
+    addThreshold octagon_thresholds @@ negI; (* lower, just small enough: -X -Y  <= -i -> X + Y >= i -> X + Y >= i *)
+    addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i *)
 
   method! vexpr = function
     (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
@@ -29,7 +28,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Lt, _, (Const (CInt(i,_,_))), _)
     | BinOp (Gt, (Const (CInt(i,_,_))), _, _) ->
       self#addUpper i;
-      self#addLower i;
+      self#addLower (Z.pred i);
       DoChildren
 
     (* Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr *)
@@ -39,7 +38,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Ge, (Const (CInt(i,_,_))), _, _) ->
       let i = Z.succ i in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
       self#addUpper i;
-      self#addLower i;
+      self#addLower (Z.pred i);
       DoChildren
 
     (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
@@ -48,7 +47,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Ne, _, (Const (CInt(i,_,_))), _)
     | BinOp (Ne, (Const (CInt(i,_,_))), _, _) ->
       self#addUpper i;
-      self#addLower (Z.succ i);
+      self#addLower i;
       DoChildren
     | _ -> DoChildren
 end
