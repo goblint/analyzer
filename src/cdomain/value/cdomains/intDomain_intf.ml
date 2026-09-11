@@ -136,15 +136,12 @@ sig
 end
 
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)
-module type B =
+module type BDefault =
 sig
   include Lattice.PO
   include Lattice.Bot with type t := t
   type int_t
   (** {b Accessing values of the ADT} *)
-
-  val bot_of: Cil.ikind -> t
-  val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val to_int: t -> int_t option
   (** Return a single integer value if the value is a known constant, otherwise
@@ -159,9 +156,6 @@ sig
   val to_excl_list: t -> (int_t list * (int * int)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
-  val of_excl_list: Cil.ikind -> int_t list -> t
-  (** Creates an exclusion set from a given list of integers. *)
-
   val is_excl_list: t -> bool
   (** Checks if the element is an exclusion set. *)
 
@@ -170,6 +164,18 @@ sig
 
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
+end
+
+(* Shared signature of IntDomain implementations and the lifted IntDomains *)
+module type B =
+sig
+  include BDefault
+
+  val bot_of: Cil.ikind -> t
+  val top_of: ?bitfield:int -> Cil.ikind -> t
+
+  val of_excl_list: Cil.ikind -> int_t list -> t
+  (** Creates an exclusion set from a given list of integers. *)
 
   (** {b Cast} *)
 
@@ -325,7 +331,38 @@ sig
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
+module type YDefault =
+sig
+  include BDefault
+  include Lattice.Top with type t := t
+  include Arith with type t:=t
+
+  val of_int: ?suppress_ovwarn:bool -> int_t -> t
+  (** Transform an integer literal to your internal domain representation with the specified ikind. *)
+
+  val of_bool: bool -> t
+  (** Transform a known boolean value to the default internal representation of the specified ikind. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
+  val of_interval: ?suppress_ovwarn:bool -> int_t * int_t -> t
+
+  val of_congruence: int_t * int_t -> t
+
+  val of_bitfield: int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
+
+  val starting   : ?suppress_ovwarn:bool -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> int_t -> t
+
+  val of_excl_list: int_t list -> t
+
+  val project: PrecisionUtil.int_precision -> t -> t
+  val invariant: Cil.exp -> t -> Invariant.t
+end
+(** The signature of integral value domains keeping track of ikind information *)
+
 module type Z = Y with type int_t = Z.t
+module type ZDefault = YDefault with type int_t = Z.t
 
 module type Ikind =
 sig
@@ -353,7 +390,9 @@ sig
   module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t
 
   module type Y = Y
+  module type YDefault = YDefault
   module type Z = Z
+  module type ZDefault = ZDefault
 
   module IntDomLifter (I: S2): Y with type int_t = I.int_t
 
@@ -361,7 +400,7 @@ sig
 
   module PtrDiffIkind : Ikind
 
-  module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
+  module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : YDefault with type t = I.t and type int_t = I.int_t
 
   (* module ManyInts : S *)
   (* module IntDomList : S *)

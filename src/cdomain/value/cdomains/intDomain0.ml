@@ -273,12 +273,21 @@ struct
   let ikind = Cilfacade.ptrdiff_ikind
 end
 
-module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t =
+module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : YDefault with type t = I.t and type int_t = I.int_t =
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
   let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
+  (* let is_bot x = I.is_bot_of (Ik.ikind ()) x *) (* TODO: add this? *)
+  let of_int ?suppress_ovwarn x = I.of_int ?suppress_ovwarn (Ik.ikind ()) x
+  let of_bool x = I.of_bool (Ik.ikind ()) x
+  let of_interval ?suppress_ovwarn x = I.of_interval ?suppress_ovwarn (Ik.ikind ()) x
+  let of_congruence x = I.of_congruence (Ik.ikind ()) x
+  let of_bitfield x = I.of_bitfield (Ik.ikind ()) x
+  let starting ?suppress_ovwarn x = I.starting ?suppress_ovwarn (Ik.ikind ()) x
+  let ending ?suppress_ovwarn x = I.ending ?suppress_ovwarn (Ik.ikind ()) x
+  let of_excl_list x = I.of_excl_list (Ik.ikind ()) x
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
