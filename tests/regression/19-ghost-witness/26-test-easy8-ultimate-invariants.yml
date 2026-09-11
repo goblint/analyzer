@@ -1,0 +1,57 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000255
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [25-test-easy8-ultimate.c]
+      input_file_hashes:
+        25-test-easy8-ultimate.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_thread2_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 25-test-easy8-ultimate.c, line: 54, column: 3, function: thread2}
+      updates:
+      - variable: ghost_thread2_phase
+        value: "1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000256
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [25-test-easy8-ultimate.c]
+      input_file_hashes:
+        25-test-easy8-ultimate.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: 25-test-easy8-ultimate.c, line: 66, column: 3, function: main}
+      value: ghost_thread2_phase == 1
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 25-test-easy8-ultimate.c, line: 66, column: 3, function: main}
+      value: b == 1
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 25-test-easy8-ultimate.c, line: 66, column: 3, function: main}
+      value: c == 1
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 25-test-easy8-ultimate.c, line: 66, column: 3, function: main}
+      value: ghost_thread2_phase == c
+      format: c_expression

@@ -46,6 +46,18 @@ struct
   let is_all (set: t) = set = `Top
 end
 
+module AppearingMutexes =
+struct
+  include SetDomain.Make (MustLock)
+  let name () = "appearing mutexes"
+end
+
+module AppearingMutexesQuery =
+struct
+  include SetDomain.LiftTop (AppearingMutexes) (struct let topname = "All appearing mutexes" end)
+  let name () = "appearing mutexes query"
+end
+
 (* true means exclusive lock and false represents reader lock*)
 module RW   = BoolDomain.MayBool (* TODO: name booleans? *)
 

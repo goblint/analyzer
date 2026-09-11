@@ -407,16 +407,6 @@ struct
       write ()
 end
 
-let init () =
-  match GobConfig.get_string "witness.yaml.validate" with
-  | "" -> ()
-  | path ->
-    (* Check witness existence before doing the analysis. *)
-    if not (Sys.file_exists path) then (
-      Logs.error "witness.yaml.validate: %s not found" path;
-      Svcomp.errorwith "witness missing"
-    )
-
 let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
   file = location.file_name;
   line = location.line;
@@ -427,6 +417,280 @@ let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
   endByte = -1;
   synthetic = false;
 }
+
+(** Get the source location of an instruction, if available. *)
+let ghost_instr_loc = function
+  | Set (_, _, loc, _)
+  | Call (_, _, _, loc, _)
+  | Asm (_, _, _, _, _, loc) -> Some loc
+  | _ -> None
+
+let show_ghost_update_location (loc: Cil.location) =
+  Printf.sprintf "%s:%d:%d" loc.file loc.line loc.column
+
+module GhostUpdateLocator = WitnessUtil.Locator (CilType.Location)
+module GhostUpdateLocationH = Hashtbl.Make (CilType.Location)
+
+let rhs_needs_separate_evaluation rhs =
+  let needs_separate_evaluation = ref false in
+  let visitor = object
+    inherit nopCilVisitor
+
+    method! vvrbl v =
+      if v.vglob || v.vaddrof then
+        needs_separate_evaluation := true;
+      SkipChildren
+
+    method! vexpr e =
+      match e with
+      | Lval (Mem _, _)
+      | AddrOf (Mem _, _)
+      | StartOf (Mem _, _) ->
+        needs_separate_evaluation := true;
+        SkipChildren
+      | _ ->
+        DoChildren
+  end
+  in
+  ignore (visitCilExpr visitor rhs);
+  !needs_separate_evaluation
+
+class ghostUpdateLocationVisitor (locations : GhostUpdateLocator.t) = object
+  inherit nopCilVisitor
+
+  method! vstmt s =
+    (match s.skind with
+     | Instr il ->
+       List.iter (fun instr ->
+           Option.iter (fun loc ->
+               GhostUpdateLocator.add locations loc loc
+             ) (ghost_instr_loc instr)
+         ) il
+     | _ -> ());
+    DoChildren
+end
+
+(** CIL visitor that inserts ghost updates around matching statements.
+    [updates] maps exact resolved instruction locations to the list of
+    assignment instructions to insert after the original instruction at that
+    location. For an assignment, the right-hand side is first evaluated into a
+    fresh local outside the atomic instrumentation. Only assigning that local
+    to the left-hand side together with the ghost updates is wrapped in
+    [__VERIFIER_atomic_instrument_begin()] / [__VERIFIER_atomic_instrument_end()]:
+    {[
+      tmp = rhs;
+      __VERIFIER_atomic_instrument_begin();
+      lhs = tmp;
+      ghostupdate;
+      __VERIFIER_atomic_instrument_end();
+    ]}
+    [placed] is populated with every location from [updates] that was successfully
+    matched; callers can use this to warn about unmatched keys. *)
+class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (placed : unit GhostUpdateLocationH.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
+  inherit nopCilVisitor
+
+  val mutable fundec = None
+
+  method! vfunc f =
+    fundec <- Some f;
+    DoChildren
+
+  method! vstmt s =
+    let instrument s =
+      (match s.skind with
+       | Instr il ->
+         let new_il = List.concat_map (fun instr ->
+             match ghost_instr_loc instr with
+             | None -> [instr]
+             | Some loc ->
+               (match GhostUpdateLocationH.find_opt updates loc with
+                | None | Some [] -> [instr]
+                | Some update_instrs ->
+                  GhostUpdateLocationH.replace placed loc ();
+                  let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_instrument_begin();" loc
+                      [("__VERIFIER_atomic_instrument_begin", Cil.Fv atomic_begin)] in
+                  let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_instrument_end();" loc
+                      [("__VERIFIER_atomic_instrument_end", Cil.Fv atomic_end)] in
+                  (match instr with
+                   | Set (lhs, rhs, loc, eloc) when rhs_needs_separate_evaluation rhs ->
+                     let fundec = Option.get fundec in
+                     let tmp = GoblintCil.makeTempVar fundec ~name:"__goblint_ghost_rhs" (Cilfacade.typeOf rhs) in
+                     let evaluate_rhs = Set (GoblintCil.var tmp, rhs, loc, eloc) in
+                     let atomic_assign = Set (lhs, Lval (GoblintCil.var tmp), loc, eloc) in
+                     evaluate_rhs :: abegin :: atomic_assign :: update_instrs @ [aend]
+                   | _ ->
+                     abegin :: instr :: update_instrs @ [aend]))
+           ) il in
+         s.skind <- Instr new_il
+       | _ -> ());
+      s
+    in
+    ChangeDoChildrenPost (s, instrument)
+end
+
+
+module VarSet = Set.Make (CilType.Varinfo)
+let ghostVars = ref VarSet.empty
+
+(** Ghost updates from [init] that could not be placed in the CIL AST.
+    Checked by [Validator.validate] to emit per-key warnings and prevent a successful validation result. *)
+let unplaced_ghost_updates : string list ref = ref []
+
+let init () =
+  unplaced_ghost_updates := [];
+  let file = !Cilfacade.current_file in
+  let find_global_var name =
+    List.find_map (function
+        | Cil.GVar (v, _, _)
+        | Cil.GVarDecl (v, _)
+        | Cil.GFun ({svar = v; _}, _) when String.equal v.vname name -> Some v
+        | _ -> None
+      ) file.globals
+  in
+  match GobConfig.get_string "witness.yaml.validate" with
+  | "" -> ()
+  | path ->
+    (* Check witness existence before doing the analysis. *)
+    if not (Sys.file_exists path) then (
+      Logs.error "witness.yaml.validate: %s not found" path;
+      Svcomp.errorwith "witness missing"
+    );
+    let global_vars =
+      file.globals
+      |> List.filter_map (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) -> Some (v.vname, Cil.Fv v)
+          | _ -> None
+        )
+    in
+    let has_global name =
+      List.exists (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) -> String.equal v.vname name
+          | _ -> false
+        ) file.globals
+    in
+    let parse_type (type_: string): Cil.typ option =
+      try Some (Formatcil.cType type_ []) with
+      | exn when GobExn.catch_all_filter exn ->
+        M.warn_noloc ~category:Witness "ghost variable type parse failed: %s" type_;
+        None
+    in
+    let parse_init (init: string): Cil.exp option =
+      try Some (Formatcil.cExp init global_vars) with
+      | exn when GobExn.catch_all_filter exn ->
+        M.warn_noloc ~category:Witness "ghost variable initializer parse failed: %s" init;
+        None
+    in
+    let instrument_ghost_variable (variable: YamlWitnessType.GhostInstrumentation.Variable.t): unit =
+      if not (String.equal variable.scope "global") then (
+        M.warn_noloc ~category:Witness "unsupported ghost variable scope: %s" variable.scope
+      )
+      else if has_global variable.name then (
+        M.error_noloc ~category:Witness "ghost variable already declared in program: %s" variable.name;
+        Svcomp.errorwith "witness error"
+      )
+      else
+        match parse_type variable.type_, parse_init variable.initial.value with
+        | Some typ, Some init ->
+          let v = makeGlobalVar variable.name typ in
+          let g = GVar (v, {init = Some (SingleInit init)}, locUnknown) in
+          file.globals <- g :: file.globals;
+          ghostVars := VarSet.add v !ghostVars
+        | _ ->
+          M.error_noloc ~category:Witness "failed to instrument ghost variable declaration: %s" variable.name
+    in
+    let instrument_ghost_variables yaml_entry =
+      match YamlWitnessType.Entry.of_yaml yaml_entry with
+      | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_variables; _}; _} ->
+        List.iter instrument_ghost_variable ghost_variables
+      | Ok _ ->
+        ()
+      | Error (`Msg m) ->
+        M.error_noloc ~category:Witness "couldn't parse entry while extracting ghost instrumentation: %s" m
+    in
+    let yaml = match GobResult.Syntax.(Fpath.of_string path >>= Yaml_unix.of_file) with
+      | Ok yaml -> yaml
+      | Error (`Msg m) ->
+        Logs.error "Yaml_unix.of_file: %s" m;
+        Svcomp.errorwith "witness missing"
+    in
+    let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
+    (* Phase 1: instrument ghost variable declarations. *)
+    List.iter instrument_ghost_variables yaml_entries;
+    (* Phase 2: instrument ghost updates into the CIL statements.
+       Recompute global_vars after phase 1 so that ghost variables are in scope
+       when parsing update value expressions. *)
+    let global_vars_with_ghosts =
+      file.globals
+      |> List.filter_map (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) -> Some (v.vname, Cil.Fv v)
+          | _ -> None
+        )
+    in
+    let instruction_locations = GhostUpdateLocator.create () in
+    visitCilFile (new ghostUpdateLocationVisitor instruction_locations) file;
+    let updates : Cil.instr list GhostUpdateLocationH.t = GhostUpdateLocationH.create 16 in
+    let add_update_instrs resolved_loc instrs =
+      match GhostUpdateLocationH.find_opt updates resolved_loc with
+      | Some old_instrs ->
+        GhostUpdateLocationH.replace updates resolved_loc (old_instrs @ instrs)
+      | None ->
+        GhostUpdateLocationH.replace updates resolved_loc instrs
+    in
+    let collect_ghost_updates yaml_entry =
+      match YamlWitnessType.Entry.of_yaml yaml_entry with
+      | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_updates; _}; _} ->
+        List.iter (fun (lu: YamlWitnessType.GhostInstrumentation.LocationUpdate.t) ->
+            let loc = loc_of_location lu.location in
+            let instrs = List.filter_map (fun (upd: YamlWitnessType.GhostInstrumentation.Update.t) ->
+                match find_global_var upd.variable with
+                | None ->
+                  M.warn_noloc ~category:Witness "ghost update variable not found: %s" upd.variable;
+                  None
+                | Some v ->
+                  (match
+                     try Some (Formatcil.cExp upd.value global_vars_with_ghosts) with
+                     | exn when GobExn.catch_all_filter exn ->
+                       M.warn_noloc ~category:Witness "ghost update value parse failed for %s: %s" upd.variable upd.value;
+                       None
+                   with
+                   | None -> None
+                   | Some value_exp -> Some (Set (Cil.var v, value_exp, loc, locUnknown)))
+              ) lu.updates in
+            if instrs <> [] then
+              match GhostUpdateLocator.find_opt instruction_locations loc with
+              | Some resolved_locs ->
+                GhostUpdateLocator.ES.iter (fun resolved_loc ->
+                    add_update_instrs resolved_loc instrs
+                  ) resolved_locs
+              | None ->
+                unplaced_ghost_updates := show_ghost_update_location loc :: !unplaced_ghost_updates
+          ) ghost_updates
+      | Ok _ -> ()
+      | Error (`Msg m) ->
+        M.error_noloc ~category:Witness "couldn't parse entry while extracting ghost updates: %s" m
+    in
+    List.iter collect_ghost_updates yaml_entries;
+    if GhostUpdateLocationH.length updates > 0 then begin
+      let find_or_make name =
+        match find_global_var name with
+        | Some v -> v
+        | None -> makeVarinfo true name (TFun (TVoid [], Some [], false, []))
+      in
+      let atomic_begin = find_or_make "__VERIFIER_atomic_instrument_begin" in
+      let atomic_end = find_or_make "__VERIFIER_atomic_instrument_end" in
+      let placed : unit GhostUpdateLocationH.t = GhostUpdateLocationH.create 16 in
+      visitCilFile (new ghostUpdateVisitor updates placed atomic_begin atomic_end) file;
+      GhostUpdateLocationH.iter (fun loc _ ->
+          if not (GhostUpdateLocationH.mem placed loc) then
+            unplaced_ghost_updates := show_ghost_update_location loc :: !unplaced_ghost_updates
+        ) updates
+    end
 
 module ValidationResult =
 struct
@@ -455,6 +719,7 @@ let cnt_unsupported = ref 0
 let cnt_error = ref 0
 let cnt_disabled = ref 0
 
+
 module Validator (R: ResultQuery.SpecSysSol2) =
 struct
   open R
@@ -465,6 +730,71 @@ struct
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
+
+  let local_event ((n, _) as lvar) local event =
+    let rec man =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query man q)
+      ; emit   = (fun _ -> ())
+      ; node   = n
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
+      ; context = (fun () -> snd lvar)
+      ; edge    = MyCFG.Skip
+      ; local
+      ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ())
+      ; spawn  = (fun ?(multiple=false) _ _ _ -> ())
+      ; split  = (fun _ _ -> ())
+      ; sideg  = (fun _ _ -> ())
+      }
+    in
+    Spec.event man event man
+
+  let lock_verifier_atomic_if_multithreaded lvar local =
+    let ask = fun (type a) (q: a Queries.t) -> ask_local lvar ~local q in
+    if ThreadFlag.has_ever_been_multi {f = ask} then (
+      let lock = LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var in
+      if LockDomain.MustLockset.mem lock (ask Queries.MustLockset) then
+        local
+      else
+        let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval lock) in
+        local_event lvar local (Events.Lock (addr, true))
+    )
+    else
+      local
+
+  let mutex_ghost_lock lvar local inv_exp =
+    match constFold true inv_exp with
+    (* ! v1 || ( v2 || e3 ) *)
+    | BinOp(LOr, UnOp (LNot, Lval (Var v1, ofs), _), BinOp (LOr, Lval (Var v2, _), e3, _), _) ->
+      begin match ask_local lvar ~local (Queries.IsMutexGhost v2) with
+        | `Lifted lock ->
+          Some (Some (Lval (Var v1, ofs)), lock, e3)
+        | _ ->
+          None
+      end
+    (* v2 || e1 *)
+    | BinOp (LOr, Lval (Var v1, _), e1, _) ->
+      begin match ask_local lvar ~local (Queries.IsMutexGhost v1) with
+        | `Lifted lock ->
+          Some (None, lock, e1)
+        | _ ->
+          None
+      end
+    (* v2 = e2 || e1 *)
+    | BinOp (LOr, BinOp (Eq, Lval (Var v, _), e2, _), e1, _) ->
+      begin match ask_local lvar ~local (Queries.EvalInt e2), ask_local lvar ~local (Queries.IsMutexGhost v) with
+        | `Lifted n, `Lifted lock ->
+          begin match IntDomain.IntDomTuple.to_int n with
+            | Some value when Z.equal value Z.one ->
+              Some (None, lock, e1)
+            | _ ->
+              None
+          end
+        | _ ->
+          None
+      end
+    | _ ->
+      None
 
   let validate () =
     let location_locator = Locator.create () in
@@ -496,6 +826,16 @@ struct
     cnt_unsupported := 0;
     cnt_error := 0;
     cnt_disabled := 0;
+    (* If any ghost update could not be placed during instrumentation, treat it
+       as a validation error so the result cannot be reported as successful. *)
+    if !unplaced_ghost_updates <> [] then begin
+      incr cnt_error;
+      List.iter (fun key ->
+          M.warn_noloc ~category:Witness "ghost update at %s could not be placed: no matching instruction found" key
+        ) !unplaced_ghost_updates;
+      M.warn_noloc ~category:Witness "validation result cannot be successful: some ghost updates could not be placed"
+    end;
+
 
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
@@ -503,14 +843,43 @@ struct
       let validate_lvars_invariant ~loc ~lvars inv =
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
-        | Ok inv_cabs ->
-
+        | Ok inv_cabs when !unplaced_ghost_updates = []  ->
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let fundec = Node.find_fundec n in
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
-                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
+                  let local = try LHT.find lh lvar with Not_found -> Spec.D.bot () in
+                  let local, inv_exp =
+                    begin match mutex_ghost_lock lvar local inv_exp with
+                      | Some (lval', lock, e3) ->
+                        let premise =
+                          begin match lval' with
+                            | Some lval' ->
+                              begin match Queries.eval_bool {f = fun (type a) (q: a Queries.t) ->
+                                  ask_local lvar ~local q} lval' with
+                              | `Lifted false -> false
+                              | _ -> true
+                              end
+                            | _ -> true
+                          end
+                        in
+                        if not premise then
+                          local, Cil.Const (CInt (Z.one, Cil.IInt, None))
+                        else
+                          let addr = LockDomain.Addr.Addr (LockDomain.MustLock.to_mval lock) in
+                          let must_lockSet = ask_local lvar ~local (Queries.MustLockset) in
+                          if LockDomain.MustLockset.mem lock must_lockSet then
+                            local, Cil.Const (CInt (Z.one, Cil.IInt, None))
+                          else
+                            local_event lvar local (Events.Lock (addr, true)), e3
+                      | None ->
+                        local, inv_exp
+                    end
+                  in
+                  let local = lock_verifier_atomic_if_multithreaded lvar local in
+                  let ask = fun (type a) (q: a Queries.t) -> ask_local lvar ~local q in
+                  begin match Queries.eval_bool {f = ask} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
                     | `Lifted true -> Confirmed
                     | `Lifted false -> Refuted
@@ -538,6 +907,8 @@ struct
               M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
               M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
           end
+        | Ok _ ->
+          incr cnt_error
         | Error e ->
           incr cnt_error;
           M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
@@ -615,9 +986,8 @@ struct
       | false, (InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
-      | _ ->
-        incr cnt_unsupported;
-        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type
+      | _, GhostInstrumentation _ ->
+        ()
     in
 
     List.iter (fun yaml_entry ->
@@ -641,6 +1011,9 @@ struct
     ];
 
     match GobConfig.get_bool "witness.yaml.strict" with
+    | _ when !unplaced_ghost_updates <> [] ->
+      (* Some ghost updates could not be placed; validation cannot be confirmed. *)
+      Error "some ghost updates could not be placed"
     | true when !cnt_error > 0 ->
       Error "witness error"
     | true when !cnt_unsupported > 0 ->

@@ -1,0 +1,26 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 77c06fda-c6f9-4ea3-b341-5e3313abbfc1
+    creation_time: 2026-06-30T00:00:00Z
+    producer:
+      name: Test
+      version: n/a
+    task:
+      input_files:
+      - incorrect.c
+      input_file_hashes:
+        incorrect.c: 1af4fd9e76418e4b95af9950b58248127e7c2d9eb791e1c9b92da53952e0fca2
+      specification: G ! call(reach_error())
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: incorrect.c
+        line: 4
+        column: 3
+        function: main
+      value: "1"
+      format: c_expression

@@ -18,5 +18,6 @@ val is_special: Cil.varinfo -> bool
 
 
 val verifier_atomic_var: Cil.varinfo
+val verifier_atomic_instrument_var: Cil.varinfo
 
 val reset_lazy: unit -> unit
