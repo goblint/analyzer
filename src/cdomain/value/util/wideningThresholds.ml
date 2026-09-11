@@ -7,8 +7,20 @@ module Thresholds = Set.Make(Z)
 (* apron octagons use thresholds for c in inequalities +/- x +/- y <= c *)
 let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref
 
-class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, octagon_thresholds) = object
+class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, octagon_thresholds) = object (self)
   inherit nopCilVisitor
+
+  method private addUpper i =
+    addThreshold upper_thresholds @@ i;
+    addThreshold octagon_thresholds @@ i; (* upper, just large enough: x + Y <= i *)
+    addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i *)
+
+  method private addLower i =
+    addThreshold lower_thresholds @@ Z.pred i;
+    let negI = Z.succ @@ Z.neg i in
+    addThreshold octagon_thresholds @@ negI; (* lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
+    (* addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i *) *) (* TODO: wrong? *)
+    addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= 2(-i+1)=-2i+2=-2(i-1) -> X >= i-1 *)
 
   method! vexpr = function
     (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
@@ -16,14 +28,8 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Ge, _, (Const (CInt(i,_,_))), _)
     | BinOp (Lt, _, (Const (CInt(i,_,_))), _)
     | BinOp (Gt, (Const (CInt(i,_,_))), _, _) ->
-      addThreshold upper_thresholds @@ i;
-      addThreshold lower_thresholds @@ Z.pred i;
-
-      let negI = Z.succ @@ Z.neg i in
-      addThreshold octagon_thresholds @@ i; (* upper, just large enough: x + Y <= i *)
-      addThreshold octagon_thresholds @@ negI; (* lower, just small enough: -X -Y  <= -i+1 -> X + Y >= i-1 -> X + Y >= i-1 *)
-      addThreshold octagon_thresholds @@ Z.add i i; (* double upper: X + X <= 2i -> X <= i *)
-      addThreshold octagon_thresholds @@ Z.add negI negI; (* double lower: -X -X <= -2i -> X >= i *)
+      self#addUpper i;
+      self#addLower i;
       DoChildren
 
     (* Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr *)
@@ -32,14 +38,8 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Le, _, (Const (CInt(i,_,_))), _)
     | BinOp (Ge, (Const (CInt(i,_,_))), _, _) ->
       let i = Z.succ i in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
-      addThreshold upper_thresholds @@ i;
-      addThreshold lower_thresholds @@ Z.pred i;
-
-      let negI = Z.succ @@ Z.neg i in
-      addThreshold octagon_thresholds @@ i;
-      addThreshold octagon_thresholds @@ negI;
-      addThreshold octagon_thresholds @@ Z.add i i;
-      addThreshold octagon_thresholds @@ Z.add negI negI;
+      self#addUpper i;
+      self#addLower i;
       DoChildren
 
     (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
@@ -47,14 +47,8 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     | BinOp (Eq, _, (Const (CInt(i,_,_))), _)
     | BinOp (Ne, _, (Const (CInt(i,_,_))), _)
     | BinOp (Ne, (Const (CInt(i,_,_))), _, _) ->
-      addThreshold upper_thresholds @@ i;
-      addThreshold lower_thresholds @@ i;
-
-      addThreshold octagon_thresholds @@ i;
-      addThreshold octagon_thresholds @@ Z.neg i;
-      let doubleI = Z.add i i in
-      addThreshold octagon_thresholds @@ doubleI;
-      addThreshold octagon_thresholds @@ Z.neg doubleI;
+      self#addUpper i;
+      self#addLower (Z.succ i);
       DoChildren
     | _ -> DoChildren
 end
