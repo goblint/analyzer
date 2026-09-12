@@ -29,19 +29,20 @@ struct
   let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v : D.t = D.empty ()
 
-  let access_address (ask: Queries.ask) write lv =
+  let access_address (ask: Queries.ask) on_unknown write lv =
     match ask.f (Queries.MayPointTo (AddrOf lv)) with
     | ad when not (Queries.AD.is_top ad) ->
       let to_extra addr xs =
         match addr with
         | Queries.AD.Addr.Addr (v,o) -> (v, o, write) :: xs
+        | Queries.AD.Addr.UnknownPtr -> on_unknown (); xs
         | _ -> xs
       in
       Queries.AD.fold to_extra ad []
     | _ ->
-      M.info ~category:Unsound "Access to unknown address could be global"; []
+      on_unknown (); []
 
-  let rec access_one_byval a rw (exp:exp) =
+  let rec access_one_byval a on_unknown rw (exp:exp) =
     match exp with
     | Const _
     | SizeOf _
@@ -49,47 +50,58 @@ struct
     | AlignOf _
     | AddrOfLabel _ -> []
     (* Variables and address expressions *)
-    | Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
+    | Lval lval -> access_address a on_unknown rw lval @ (access_lv_byval a on_unknown lval)
     (* Binary operators *)
     | BinOp (op,arg1,arg2,typ) ->
-      let a1 = access_one_byval a rw arg1 in
-      let a2 = access_one_byval a rw arg2 in
+      let a1 = access_one_byval a on_unknown rw arg1 in
+      let a2 = access_one_byval a on_unknown rw arg2 in
       a1 @ a2
     | UnOp (_,e,_)
     | Real e
     | Imag e
     | SizeOfE e
     | AlignOfE e ->
-      access_one_byval a rw e
+      access_one_byval a on_unknown rw e
     (* The address operators, we just check the accesses under them *)
-    | AddrOf lval -> access_lv_byval a lval
-    | StartOf lval -> access_lv_byval a lval
+    | AddrOf lval -> access_lv_byval a on_unknown lval
+    | StartOf lval -> access_lv_byval a on_unknown lval
     (* Most casts are currently just ignored, that's probably not a good idea! *)
-    | CastE  (_, t, exp) -> access_one_byval a rw exp
+    | CastE  (_, t, exp) -> access_one_byval a on_unknown rw exp
     | Question (b, t, f, _) ->
-      access_one_byval a rw b @ access_one_byval a rw t @ access_one_byval a rw f
+      access_one_byval a on_unknown rw b @ access_one_byval a on_unknown rw t @ access_one_byval a on_unknown rw f
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:lval) =
+  and access_lv_byval a on_unknown (lval:lval) =
     let rec access_offset (ofs: offset) =
       match ofs with
       | NoOffset -> []
       | Field (fld, ofs) -> access_offset ofs
-      | Index (exp, ofs) -> access_one_byval a false exp @ access_offset ofs
+      | Index (exp, ofs) -> access_one_byval a on_unknown false exp @ access_offset ofs
     in
     match lval with
     | Var x, ofs -> access_offset ofs
-    | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
+    | Mem n, ofs -> access_one_byval a on_unknown false n @ access_offset ofs
 
   (* list accessed addresses *)
-  let varoffs a (rval:exp) =
+  let varoffs a on_unknown (rval:exp) =
     let f vs (v,o,_) = (v,o) :: vs in
-    List.fold_left f [] (access_one_byval a false rval)
+    List.fold_left f [] (access_one_byval a on_unknown false rval)
 
   let is_prefix_of m1 m2 = Option.is_some (Addr.Mval.prefix m1 m2)
 
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
-    let mvals = varoffs a expr in
+    let unknown = ref false in
+    let mvals = varoffs a (fun () -> unknown := true) expr in
+    (* Unknown pointers may reach address-taken locals, including their fields.
+       Do not silently discard such reads when initialization is uncertain. *)
+    let unknown_uninit = !unknown && (D.is_top st || D.exists (function
+        | Addr.Addr (v, _) -> v.vaddrof
+        | _ -> true
+      ) st)
+    in
+    if unknown_uninit then
+      M.warn ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457]
+        "Read through an unknown pointer may access uninitialized storage.";
     let will_mval_init (t:bool) mval =
       let f addr =
         GobOption.exists (is_prefix_of mval) (Addr.to_mval addr)
@@ -101,7 +113,7 @@ struct
       else
         t
     in
-    List.fold_left will_mval_init true mvals
+    List.fold_left will_mval_init (not unknown_uninit) mvals
 
   let remove_if_prefix (pr: Addr.Mval.t) (uis: D.t) : D.t =
     let f ad =
