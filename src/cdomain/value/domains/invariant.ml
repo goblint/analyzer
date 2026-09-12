@@ -53,6 +53,7 @@ struct
       inv
       |> exp_deep_unroll_types
       |> InvariantCil.exp_replace_original_name
+      |> InvariantCil.exp_remove_anon_comp_offset
     in
     if GobConfig.get_bool "witness.invariant.split-conjunction" then
       ES.elements (pullOutCommonConjuncts inv')
