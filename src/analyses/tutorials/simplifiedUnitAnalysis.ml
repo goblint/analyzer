@@ -1,6 +1,5 @@
 (** Simplest possible analysis with unit domain ([simplifiedUnit]). *)
 
-open GoblintCil
 open SimplifiedAnalysis
 
 module Spec : SimplifiedSpec =
