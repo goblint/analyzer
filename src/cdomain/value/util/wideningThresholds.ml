@@ -25,25 +25,31 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
     (* Comparisons of type: expr < 10, 10 > expr *)
     | BinOp (Lt, _, (Const (CInt(i,_,_))), _)
     | BinOp (Gt, (Const (CInt(i,_,_))), _, _) ->
-      self#addUpper i;
+      self#addUpper i; (* if used as loop condition *)
+      self#addLower i; (* if used as reset condition inside loop *)
       DoChildren
 
     (* Comparisons of type: 10 <= expr, expr >= 10 *)
     | BinOp (Le, (Const (CInt(i,_,_))), _, _)
     | BinOp (Ge, _, (Const (CInt(i,_,_))), _) ->
-      self#addLower (Z.pred i);
+      self#addUpper (Z.pred i); (* if used as reset condition inside loop *)
+      self#addLower (Z.pred i); (* if used as loop condition *)
       DoChildren
 
     (* Comparisons of type: expr <= 10, 10 >= expr *)
     | BinOp (Le, _, (Const (CInt(i,_,_))), _)
     | BinOp (Ge, (Const (CInt(i,_,_))), _, _) ->
-      self#addUpper (Z.succ i); (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
+      (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
+      self#addUpper (Z.succ i); (* if used as loop condition *)
+      self#addLower (Z.succ i); (* if used as reset condition inside loop *)
       DoChildren
 
     (* Comparisons of type: 10 < expr, expr > 10 *)
     | BinOp (Lt, (Const (CInt(i,_,_))), _, _)
     | BinOp (Gt, _, (Const (CInt(i,_,_))), _) ->
-      self#addLower i; (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
+      (* The same as above with i+1 because for integers expr > 10 <=> expr >= 11 *)
+      self#addUpper i; (* if used as reset condition inside loop *)
+      self#addLower i; (* if used as loop condition *)
       DoChildren
 
     (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
