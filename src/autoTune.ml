@@ -503,6 +503,16 @@ let activatePthreadBarriers () =
   if hasBarrierInit then
     enableAnalyses "Barrier initialization" "pthread barrier analysis" ["pthreadBarriers"]
 
+let activatePthreadOnce () =
+  let isOnce (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.Once _ -> true
+    | _ -> false 
+  in
+  let hasOnce = hasFunction isOnce in
+  if hasOnce then
+    enableAnalyses "Once usage" "pthread once analysis" ["pthreadOnce"]
+
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
@@ -572,6 +582,9 @@ let chooseConfig file =
 
   if isActivated "pthreadBarriers" then
     activatePthreadBarriers ();
+
+  if isActivated "pthreadOnce" then
+    activatePthreadOnce ();
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in

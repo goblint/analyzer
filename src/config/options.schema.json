@@ -563,7 +563,8 @@
                   "noOverflows",
                   "termination",
                   "tmpSpecialAnalysis",
-                  "pthreadBarriers"
+                  "pthreadBarriers",
+                  "pthreadOnce"
                 ]
               },
               "default": [
@@ -581,7 +582,8 @@
                 "noOverflows",
                 "termination",
                 "tmpSpecialAnalysis",
-                "pthreadBarriers"
+                "pthreadBarriers",
+                "pthreadOnce"
               ]
             }
           },
