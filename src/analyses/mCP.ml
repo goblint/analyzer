@@ -171,6 +171,15 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
+  let consume_aux_phase_info (d:D.t) (pinfo:MCPAccess.AuxiliaryPhaseInfo.t) =
+    let f (n,(module S:MCPSpec),(d, pinfo)) =
+      let d' = S.consume_aux_phase_info (Obj.obj d) (Obj.obj pinfo) in
+      n, Obj.repr d'
+    in
+    let ls = spec_list2 d pinfo in
+    let d = map f ls in
+    (d:D.t)
+
   let rec do_splits man pv (xs:(int * (Obj.t * Events.t list)) list) emits =
     let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
@@ -199,6 +208,10 @@ struct
         man_with_local man (branch man exp tv)
       | Events.Assign {lval; exp} ->
         man_with_local man (assign man lval exp)
+      | Events.PropAuxiliaryPhaseInfo pinfo ->
+        let pinfo:MCPAccess.AuxiliaryPhaseInfo.t = Obj.obj pinfo in
+        if M.tracing then M.tracel "phaseProp" "consume_aux_phase_info: %s\n" (MCPAccess.AuxiliaryPhaseInfo.show pinfo);
+        man_with_local man (consume_aux_phase_info man.local pinfo)
       | e ->
         let spawns = ref [] in
         let splits = ref [] in
@@ -307,6 +320,8 @@ struct
             f ~q:(YamlEntryGlobal (Obj.repr g, task)) (Result.top ()) (n, spec n, assoc n man.local)
           | Queries.PartAccess a ->
             Obj.repr (access man a)
+          | Queries.PhaseInfo ->
+            Obj.repr (aux_phase_info man)
           | Queries.IterSysVars (vq, fi) ->
             (* IterSysVars is special: argument function is lifted for each analysis *)
             iter (fun ((n,(module S:MCPSpec),d) as t) ->
@@ -348,6 +363,14 @@ struct
     let f (n, (module S: MCPSpec), d) =
       let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "access" man'' n d in
       (n, Obj.repr (S.access man' a))
+    in
+    BatList.map f (spec_list man.local) (* map without deadcode *)
+
+  and aux_phase_info (man:(D.t, G.t, C.t, V.t) man): MCPAccess.AuxiliaryPhaseInfo.t =
+    let man'' = outer_man "aux_phase_info" man in
+    let f (n, (module S: MCPSpec), d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "aux_phase_info" man'' n d in
+      (n, Obj.repr (S.aux_phase_info man'))
     in
     BatList.map f (spec_list man.local) (* map without deadcode *)
 

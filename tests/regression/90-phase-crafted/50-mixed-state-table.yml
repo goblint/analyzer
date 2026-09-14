@@ -1,0 +1,47 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009050
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [50-mixed-state-table.c]
+      input_file_hashes:
+        50-mixed-state-table.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_updater_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_reader_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_collector_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 50-mixed-state-table.c, line: 13, column: 3, function: updater_thread}
+      updates:
+      - variable: ghost_updater_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 50-mixed-state-table.c, line: 16, column: 3, function: updater_thread}
+      updates:
+      - variable: ghost_updater_thread_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 50-mixed-state-table.c, line: 26, column: 3, function: reader_thread}
+      updates:
+      - variable: ghost_reader_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 50-mixed-state-table.c, line: 33, column: 3, function: collector_thread}
+      updates:
+      - variable: ghost_collector_thread_phase
+        value: "1"
+        format: c_expression

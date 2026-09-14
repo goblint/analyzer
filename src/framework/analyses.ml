@@ -196,7 +196,7 @@ sig
   val context: (D.t, G.t, C.t, V.t) man -> fundec -> D.t -> C.t
   val startcontext: unit -> C.t
 
-  val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
+  val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `NormalInCallTF | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) man -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,
@@ -276,7 +276,11 @@ sig
   include Spec
 
   module A: MCPA
+  module AuxiliaryPhaseInfo: Lattice.S
+
   val access: (D.t, G.t, C.t, V.t) man -> Queries.access -> A.t
+  val aux_phase_info: (D.t, G.t, C.t, V.t) man -> AuxiliaryPhaseInfo.t
+  val consume_aux_phase_info: D.t -> AuxiliaryPhaseInfo.t -> D.t
 end
 
 type increment_data = {
@@ -350,6 +354,10 @@ struct
   module G = Lattice.Unit
   module V = EmptyV
   module P = EmptyP
+
+  module AuxiliaryPhaseInfo = Lattice.Unit
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info d () = d
 
   type marshal = unit
   let init _ = ()
