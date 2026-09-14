@@ -1,4 +1,5 @@
-// CRAM
+// PARAM: --set ana.activated[+] branchSet
+// CRAM: Demonstrates the difference between branchSet and branchSetLocal.
 #include <goblint.h>
 
 int x, y;
