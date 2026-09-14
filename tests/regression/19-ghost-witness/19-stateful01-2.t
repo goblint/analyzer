@@ -52,8 +52,8 @@ Run with the second witness, which additionally contains invariants
     dead: 2 (1 in uncalled functions)
     total lines: 29
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.c:49:7-49:28)
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 2
     unconfirmed: 0
@@ -90,8 +90,8 @@ Run with the second witness, which additionally contains invariants and unassume
     dead: 2 (1 in uncalled functions)
     total lines: 29
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.c:49:7-49:28)
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and has known lower and upper bounds
   [Info][Witness] unassume invariant: (data1 == 16 && data2 == 5) && (ghost_thread1_phase == 2 && ghost_thread2_phase == 2) (19-stateful01-2.c:48:3-48:22)
   [Info][Witness] unassume invariant: (data1 == 16 && data2 == 5) && (ghost_thread1_phase == 2 && ghost_thread2_phase == 2) (19-stateful01-2.c:49:7-49:28)
   [Info][Witness] witness validation summary:
@@ -128,8 +128,8 @@ Run with witness validation and recognize both thread-owned phase ghosts
     dead: 2 (1 in uncalled functions)
     total lines: 29
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.c:49:7-49:28)
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.c:45:3-45:37] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.c:46:3-46:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0
@@ -198,8 +198,8 @@ Run the preprocessed input with the second witness, which additionally contains 
     dead: 7 (6 in uncalled functions)
     total lines: 34
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.i:725:7-725:28)
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.i:721:3-721:37] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.i:722:3-722:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.i:721:3-721:37] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.i:722:3-722:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 2
     unconfirmed: 0
@@ -239,8 +239,8 @@ Run the preprocessed input with the second witness and unassume the invariants
     dead: 7 (6 in uncalled functions)
     total lines: 34
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.i:725:7-725:28)
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.i:721:3-721:37] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.i:722:3-722:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.i:721:3-721:37] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.i:722:3-722:37] and has known lower and upper bounds
   [Info][Witness] unassume invariant: (data1 == 16 && data2 == 5) && (ghost_thread1_phase == 2 && ghost_thread2_phase == 2) (19-stateful01-2.i:724:3-724:22)
   [Info][Witness] unassume invariant: (data1 == 16 && data2 == 5) && (ghost_thread1_phase == 2 && ghost_thread2_phase == 2) (19-stateful01-2.i:725:7-725:28)
   [Info][Witness] witness validation summary:
@@ -282,8 +282,8 @@ Run the preprocessed input with witness validation and recognize both thread-own
     dead: 7 (6 in uncalled functions)
     total lines: 34
   [Warning][Deadcode][CWE-570] condition 'data1 != 16' is always false (19-stateful01-2.i:725:7-725:28)
-  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.i:721:3-721:37] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.i:722:3-722:37] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_thread1_phase is only accessed by unique thread [main, thread1@19-stateful01-2.i:721:3-721:37] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_thread2_phase is only accessed by unique thread [main, thread2@19-stateful01-2.i:722:3-722:37] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 0

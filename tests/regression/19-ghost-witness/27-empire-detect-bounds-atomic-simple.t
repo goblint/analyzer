@@ -7,8 +7,8 @@ evaluation from the instrumented atomic assignment.
     live: 16
     dead: 0
     total lines: 16
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@27-empire-detect-bounds-atomic-simple.c:27:5-27:51] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@27-empire-detect-bounds-atomic-simple.c:27:5-27:51] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
