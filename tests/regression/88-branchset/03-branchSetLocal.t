@@ -1,7 +1,7 @@
 Should succeed with branchSetFull.
 
   $ goblint --set ana.activated[+] branchSetFull 03-branchSetLocal.c
-  [Success][Assert] Assertion "x == y" will succeed (03-branchSetLocal.c:16:3-16:26)
+  [Success][Assert] Assertion "x == y" will succeed (03-branchSetLocal.c:17:3-17:26)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 9
     dead: 0
@@ -10,7 +10,7 @@ Should succeed with branchSetFull.
 Should succeed with branchSet.
 
   $ goblint --set ana.activated[+] branchSet 03-branchSetLocal.c
-  [Success][Assert] Assertion "x == y" will succeed (03-branchSetLocal.c:16:3-16:26)
+  [Success][Assert] Assertion "x == y" will succeed (03-branchSetLocal.c:17:3-17:26)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 9
     dead: 0
@@ -19,7 +19,7 @@ Should succeed with branchSet.
 Should not succeed with branchSetLocal.
 
   $ goblint --set ana.activated[+] branchSetLocal 03-branchSetLocal.c
-  [Warning][Assert] Assertion "x == y" is unknown. (03-branchSetLocal.c:16:3-16:26)
+  [Warning][Assert] Assertion "x == y" is unknown. (03-branchSetLocal.c:17:3-17:26)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 9
     dead: 0

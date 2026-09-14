@@ -51,7 +51,9 @@ struct
   let name () = "branchSet"
 
   let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [man.local, D.empty ()]
+    [man.local, man.local]
+
+  let body man f = D.empty ()
 
   let combine_env man lval fexp f args fc au f_ask =
     D.join man.local au
@@ -67,7 +69,9 @@ struct
   let name () = "branchSetLocal"
 
   let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [man.local, D.empty ()]
+    [man.local, man.local]
+
+  let body man f = D.empty ()
 
   let combine_env man lval fexp f args fc au f_ask =
     man.local
