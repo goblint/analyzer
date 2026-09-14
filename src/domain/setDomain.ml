@@ -208,9 +208,9 @@ end
   * analysis whenever the user elements coincide. Just as above there is no top
   * element, and calling [top ()] will raise an exception *)
 (* TODO: unused *)
-module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: Printable.S) =
+module SensitiveConf (Conf: Printable.ProdConf) (Base: Lattice.S) (User: Printable.S) =
 struct
-  module Elt = Printable.ProdConf (C) (Base) (User)
+  module Elt = Printable.ProdConf (Conf) (Base) (User)
   include Make(Elt)
   let name () = "Sensitive " ^ name ()
 
@@ -381,7 +381,7 @@ struct
     | `Top, _ -> `Top
     | _, `Top -> `Top
     | `Lifted x, `Lifted y -> `Lifted (S.join x y)
-  let widen x y = (* assumes y to be bigger than x *)
+  let widen x y =
     match x, y with
     | `Top, _
     | _, `Top -> `Top

@@ -97,7 +97,7 @@ struct
     let name () = "contexts"
   end
 
-  include Lattice.Lift2 (G) (CSet)
+  include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (G) (CSet)
 
   let spec = function
     | `Bot -> G.bot ()
@@ -123,9 +123,9 @@ exception Deadcode
 module Dom (LD: Lattice.S) =
 struct
   include Lattice.LiftConf (struct
-      include Printable.DefaultConf
       let bot_name = "Dead code"
       let top_name = "Totally unknown and messed up"
+      let expand1 = false
     end) (LD)
 
   let unlift x =

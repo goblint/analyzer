@@ -31,7 +31,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (G) (CallerSet)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (G) (CallerSet)
 
     let spec = function
       | `Bot -> G.bot ()
