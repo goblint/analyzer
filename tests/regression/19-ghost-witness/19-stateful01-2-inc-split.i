@@ -694,10 +694,10 @@ int data1, data2;
 void * thread1(void * arg)
 {
   pthread_mutex_lock(&ma);
-  data1 = data1+1;
+  data1 += 1;
   pthread_mutex_unlock(&ma);
   pthread_mutex_lock(&ma);
-  data2 = data2+1;
+  data2 += 1;
   pthread_mutex_unlock(&ma);
   return 0;
 }
