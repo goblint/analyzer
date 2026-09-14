@@ -612,4 +612,6 @@ module Mpqf = struct
 
   let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
+
+  let pretty () x = GoblintCil.Pretty.text (to_string x)
 end

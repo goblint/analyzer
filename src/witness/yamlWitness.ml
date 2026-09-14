@@ -421,8 +421,7 @@ let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
 (** Get the source location of an instruction, if available. *)
 let ghost_instr_loc = function
   | Set (_, _, loc, _)
-  | Call (_, _, _, loc, _)
-  | Asm (_, _, _, _, _, loc) -> Some loc
+  | Call (_, _, _, loc, _)-> Some loc
   | _ -> None
 
 let show_ghost_update_location (loc: Cil.location) =

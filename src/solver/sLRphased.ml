@@ -69,12 +69,12 @@ module Make =
           HM.replace infl y (VS.add x (HM.find infl y));
           HM.find rho y
         in
-        let effects = ref Set.empty in
+        let effects = ref VS.empty in
         let side y d =
           assert (not (S.Dom.is_bot d));
           if tracing then trace "sol" "SIDE: Var: %a\nVal: %a" S.Var.pretty_trace y S.Dom.pretty d;
-          let first = not (Set.mem y !effects) in
-          effects := Set.add y !effects;
+          let first = not (VS.mem y !effects) in
+          effects := VS.add y !effects;
           if first then (
             (* let old = try HPM.find rho' (x,y) with _ -> S.Dom.bot () in *)
             (* let d = S.Dom.join old d in *)
@@ -111,7 +111,7 @@ module Make =
               if tracing then trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
               nar
             else
-              let wid = S.Dom.widen old (S.Dom.join old tmp) in
+              let wid = S.Dom.widen old tmp in
               if tracing then trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
               wid
           else

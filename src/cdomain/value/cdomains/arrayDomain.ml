@@ -6,6 +6,7 @@ open FlagHelper
 module M = Messages
 module A = Array
 module VDQ = ValueDomainQueries
+module ID = PreValueDomain.ID
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
@@ -48,17 +49,8 @@ sig
   val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
   val length: t -> idx option
 
-  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
-  val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
-  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
-  val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
-  val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
-  val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
-
-  val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
-  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type S =
@@ -67,6 +59,16 @@ sig
 
   val domain_of_t: t -> domain
   val get: ?checkBounds:bool -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value
+
+  val move_if_affected: ?replace_with_const:bool -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val get_vars_in_e: t -> Cil.varinfo list
+  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+  val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
+
+  val project: ?varAttr:attributes -> ?typAttr:attributes -> VDQ.t -> t -> t
+  val invariant: value_invariant:(offset:Cil.offset -> lval:Cil.lval -> value -> Invariant.t) -> offset:Cil.offset -> lval:Cil.lval -> t -> Invariant.t
 end
 
 module type Str =
@@ -83,7 +85,7 @@ sig
   val string_copy: t -> t -> int option -> t
   val string_concat: t -> t -> int option -> t
   val substring_extraction: t -> t -> substr
-  val string_comparison: t -> t -> int option -> idx
+  val string_comparison: t -> t -> int option -> ID.t
 end
 
 module type StrWithDomain =
@@ -101,9 +103,9 @@ end
 module type LatticeWithSmartOps =
 sig
   include LatticeWithInvalidate
-  val smart_join: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> t
-  val smart_widen: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> t
-  val smart_leq: (Cil.exp -> Z.t option) -> (Cil.exp -> Z.t option) -> t -> t -> bool
+  val smart_join: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen: VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
 end
 
 module type Null =
@@ -185,7 +187,7 @@ module Unroll (Val: LatticeWithInvalidate) (Idx:IntDomain.Z): S with type value 
 struct
   module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
   module Base = Lattice.ProdList (Val) (Factor)
-  include Lattice.ProdSimple(Base) (Val)
+  include Lattice.Prod (Base) (Val)
 
   let name () = "unrolled arrays"
   type idx = Idx.t
@@ -301,9 +303,9 @@ module type SPartitioned =
 sig
   include S
   val set_with_length: idx option -> VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
-  val smart_join_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> t
-  val smart_widen_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option)  -> t -> t-> t
-  val smart_leq_with_length: idx option -> (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
+  val smart_join_with_length: idx option -> VDQ.t -> VDQ.t -> t -> t -> t
+  val smart_widen_with_length: idx option -> VDQ.t -> VDQ.t  -> t -> t-> t
+  val smart_leq_with_length: idx option -> VDQ.t -> VDQ.t -> t -> t -> bool
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
@@ -361,11 +363,25 @@ struct
 
   let widen (x:t) (y:t) = normalize @@ match x,y with
     | Joint x, Joint y -> Joint (Val.widen x y)
-    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y))
+    | Partitioned (e,(xl, xm, xr)), Joint y -> Partitioned (e,(Val.widen xl y, Val.widen xm y, Val.widen xr y)) (* TODO: This case is strange, see below. *)
     | Joint x, Partitioned (e,(yl, ym, yr)) -> Partitioned (e,(Val.widen x yl, Val.widen x ym, Val.widen x yr))
     | Partitioned (e,(xl, xm, xr)), Partitioned (e',(yl, ym, yr)) ->
       if CilType.Exp.equal e e' then Partitioned (e,(Val.widen xl yl, Val.widen xm ym, Val.widen xr yr))
       else Joint (Val.widen (join_of_all_parts x) (join_of_all_parts y))
+
+  (** The non-smart {!widen} has some strange behavior, e.g. with
+      - [x = Partitioned (foo, 1, 2, 3)],
+      - [y = Partitioned (bar, 4, 5, 6)].
+
+      On the one hand:
+      - [join x y = Joint [1,6]],
+      - [widen x (join x y) = Partitioned (foo, widen 1 [1,6], widen 2 [1,6], widen 3 [1,6]) = Partitioned (foo, [1,inf], top, top)].
+
+      On the other hand:
+      - [widen x y = Joint (widen [1,3] [4,6]) = Joint [1,inf]].
+
+      So it's not the same. The first one widens from [Partitioned] to [Joint] goes back to [Partitioned].
+      {!smart_widen} below doesn't have this issue. *)
 
   let show = function
     | Joint x ->  "Array (no part.): " ^ Val.show x
@@ -642,21 +658,16 @@ struct
 
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v:t =
-    if Idx.to_int i = Some Z.one  then
-      Partitioned ((Cil.integer 0), (v, v, v))
-    else if Val.is_bot v then
-      Joint (Val.bot ())
-    else
-      Joint v
+    Joint v
 
   let length _ = None
 
-  let must_i_one_smaller l i =
-    GobOption.exists2 (fun l i -> Z.equal i (Z.pred l)) (Option.bind l Idx.to_int) i
+  let must_i_one_smaller l (VDQ.{eval_int; _}, e) =
+    GobOption.exists (fun l -> VDQ.must_be_equal eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) (Z.pred l))) (Option.bind l Idx.to_int)
 
-  let must_be_zero = GobOption.exists (Z.equal Z.zero)
+  let must_be_zero (VDQ.{eval_int; _}, e) = VDQ.must_be_equal eval_int e Cil.zero
 
-  let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 x1_eval_int x2_eval_int =
+  let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 (x1_vdq: VDQ.t) (x2_vdq: VDQ.t) =
     normalize @@
     let must_be_length_minus_one = must_i_one_smaller length in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
@@ -665,11 +676,11 @@ struct
       Partitioned (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
       if get_string "ana.base.partition-arrays.keep-expr" = "last" || get_bool "ana.base.partition-arrays.smart-join" then
-        let op = Val.join in (* widen between different components isn't called validly *)
+        let op = Val.join in (* widen between different components isn't called validly *) (* TODO: can remove join now? overrides argument op *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
-        let e1_in_state_of_x2 = x2_eval_int e1 in
-        let e2_in_state_of_x1 = x1_eval_int e2 in
+        let e1_in_state_of_x2 = (x2_vdq, e1) in
+        let e2_in_state_of_x1 = (x1_vdq, e2) in
         (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
         (* It is mostly SOME order to ensure commutativity of join *)
         let e1_is_better = (not (Cil.isConstant e1) && Cil.isConstant e2) || Basetype.CilExp.compare e1 e2 < 0 in
@@ -700,28 +711,28 @@ struct
     | Joint _, Joint _ ->
       Joint op_over_all
     | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
-      if must_be_zero (x1_eval_int e2) then
+      if must_be_zero (x1_vdq, e2) then
         Partitioned (e2, (xl2, op x1 xm2, op x1 xr2))
-      else if must_be_length_minus_one (x1_eval_int e2) then
+      else if must_be_length_minus_one (x1_vdq, e2) then
         Partitioned (e2, (op x1 xl2, op x1 xm2, xr2))
       else
         Joint op_over_all
     | Partitioned (e1, (xl1, xm1, xr1)), Joint x2 ->
-      if must_be_zero (x2_eval_int e1) then
+      if must_be_zero (x2_vdq, e1) then
         Partitioned (e1, (xl1, op xm1 x2, op xr1 x2))
-      else if must_be_length_minus_one (x2_eval_int e1) then
+      else if must_be_length_minus_one (x2_vdq, e1) then
         Partitioned (e1, (op xl1 x2, op xm1 x2, xr1))
       else
         Joint op_over_all
 
-  let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
-    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+  let smart_join_with_length length x1_vdq x2_vdq x1 x2 =
+    smart_op (Val.smart_join x1_vdq x2_vdq) length x1 x2 x1_vdq x2_vdq
 
-  let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
-    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
+  let smart_widen_with_length length x1_vdq x2_vdq x1 x2  =
+    smart_op (Val.smart_widen x1_vdq x2_vdq) length x1 x2 x1_vdq x2_vdq
 
-  let smart_leq_with_length length x1_eval_int x2_eval_int x1 x2 =
-    let leq' = Val.smart_leq x1_eval_int x2_eval_int in
+  let smart_leq_with_length length x1_vdq x2_vdq x1 x2 =
+    let leq' = Val.smart_leq x1_vdq x2_vdq in
     let must_be_length_minus_one = must_i_one_smaller length in
     match x1, x2 with
     | Joint x1, Joint x2 ->
@@ -732,20 +743,20 @@ struct
     | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) ->
       if Basetype.CilExp.equal e1 e2 then
         leq' xl1 xl2 && leq' xm1 xm2 && leq' xr1 xr2
-      else if must_be_zero (x1_eval_int e2) then
+      else if must_be_zero (x1_vdq, e2) then
         (* A read will never be from xl2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
         leq' l xm2 && leq' l xr2
-      else if must_be_length_minus_one (x1_eval_int e2) then
+      else if must_be_length_minus_one (x1_vdq, e2) then
         (* A read will never be from xr2 -> we can ignore that here *)
         let l = join_of_all_parts x1 in
         leq' l xl2 && leq' l xm2
       else
         false
     | Joint x1, Partitioned (e2, (xl2, xm2, xr2)) ->
-      if must_be_zero (x1_eval_int e2) then
+      if must_be_zero (x1_vdq, e2) then
         leq' x1 xm2 && leq' x1 xr2
-      else if must_be_length_minus_one (x1_eval_int e2) then
+      else if must_be_length_minus_one (x1_vdq, e2) then
         leq' x1 xl2 && leq' x1 xm2
       else
         leq' x1 xl2 && leq' x1 xr2 && leq' x1 xm2 && leq' x1 xr2
@@ -900,17 +911,17 @@ struct
   let fold_left f a (x, l) = Base.fold_left f a x
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 
-  let smart_join x_eval_int y_eval_int (x,xl) (y,yl) =
+  let smart_join x_vdq y_vdq (x,xl) (y,yl) =
     let l = Idx.join xl yl in
-    (Base.smart_join_with_length (Some l) x_eval_int y_eval_int x y , l)
+    (Base.smart_join_with_length (Some l) x_vdq y_vdq x y , l)
 
-  let smart_widen x_eval_int y_eval_int (x,xl) (y,yl) =
+  let smart_widen x_vdq y_vdq (x,xl) (y,yl) =
     let l = Idx.join xl yl in
-    (Base.smart_widen_with_length (Some l) x_eval_int y_eval_int x y, l)
+    (Base.smart_widen_with_length (Some l) x_vdq y_vdq x y, l)
 
-  let smart_leq x_eval_int y_eval_int (x,xl) (y,yl)  =
+  let smart_leq x_vdq y_vdq (x,xl) (y,yl)  =
     let l = Idx.join xl yl in
-    Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_eval_int y_eval_int x y
+    Idx.leq xl yl && Base.smart_leq_with_length (Some l) x_vdq y_vdq x y
 
   (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
   (* Any array can only be declared in one location. The value for newl that we get there is  *)
@@ -1180,22 +1191,12 @@ struct
 
   let length (_, size) = Some size
 
-  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
-
-  let get_vars_in_e _ = []
-
   let map f (nulls, size) =
     (* if f(null) = null, all values in must_nulls_set still are surely null;
      * assume top for may_nulls_set as checking effect of f for every possible value is unfeasbile *)
     match Val.is_null (f (Val.null ())) with
     | Null -> (Nulls.add_all Possibly nulls, size)
     | _ -> (Nulls.top (), size) (* else also return top for must_nulls_set *)
-
-  let fold_left f acc _ = f acc (Val.top ())
-
-  let smart_join _ _ = join
-  let smart_widen _ _ = widen
-  let smart_leq _ _ = leq
 
   (* string functions *)
 
@@ -1625,13 +1626,13 @@ struct
     let cmp n =
       (* if s1 = s2 = empty string, i.e. certain null byte at index 0, or n = 0, return 0 *)
       if (Nulls.mem Definitely Z.zero nulls1 && Nulls.mem Definitely Z.zero nulls2) || (BatOption.map_default (Z.equal Z.zero) false n) then
-        Idx.of_int IInt Z.zero
+        ID.of_int IInt Z.zero
         (* if only s1 = empty string, return negative integer *)
       else if Nulls.mem Definitely Z.zero nulls1 && not (Nulls.mem Possibly Z.zero nulls2) then
-        Idx.ending IInt Z.minus_one
+        ID.ending IInt Z.minus_one
         (* if only s2 = empty string, return positive integer *)
       else if Nulls.mem Definitely Z.zero nulls2 then
-        Idx.starting IInt Z.one
+        ID.starting IInt Z.one
       else
         try
           let min_must1 = Nulls.min_elem Definitely nulls1 in
@@ -1642,10 +1643,10 @@ struct
           && (BatOption.map_default (fun x -> min_must1 <. x || min_must2 <. x) true n)
           then
             (* if first null bytes are certain, have different indexes and are before index n if n present, return integer <> 0 *)
-            Idx.of_excl_list IInt [Z.zero]
+            ID.of_excl_list IInt [Z.zero]
           else
-            Idx.top_of IInt
-        with Not_found -> Idx.top_of IInt
+            ID.top_of IInt
+        with Not_found -> ID.top_of IInt
     in
 
     match n with
@@ -1682,13 +1683,9 @@ struct
       warn_size size2 "2";
       (* compute abstract value for result of strncmp *)
       cmp (Some n)
-    | _ -> Idx.top_of IInt
+    | _ -> ID.top_of IInt
 
   let update_length new_size (nulls, size) = (nulls, new_size)
-
-  let project ?(varAttr=[]) ?(typAttr=[]) _ t = t
-
-  let invariant ~value_invariant ~offset ~lval x = Invariant.none
 end
 
 module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -1862,10 +1859,10 @@ struct
   let map f (t_f, t_n) = construct (A.map f t_f) (fun () -> N.map f t_n)
   let update_length newl (t_f, t_n) = construct (A.update_length newl t_f) (fun () -> N.update_length newl t_n)
 
-  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = construct (op_a x y t_f1 t_f2) (fun () -> op_n x y t_n1 t_n2)
+  let smart_binop op_a op_n x y (t_f1, t_n1) (t_f2, t_n2) = construct (op_a x y t_f1 t_f2) (fun () -> op_n t_n1 t_n2)
 
-  let smart_join = smart_binop A.smart_join N.smart_join
-  let smart_widen = smart_binop A.smart_widen N.smart_widen
+  let smart_join = smart_binop A.smart_join N.join
+  let smart_widen = smart_binop A.smart_widen N.widen
 
   let string_op op (t_f1, t_n1) (_, t_n2) n = construct (A.map Val.invalidate_abstract_value t_f1) (fun () -> op t_n1 t_n2 n)
   let string_copy = string_op N.string_copy
@@ -1880,20 +1877,20 @@ struct
       default ()
 
   let substring_extraction x y = extract (fun x y _  -> N.substring_extraction x y) (fun () -> IsMaybeSubstr) x y None
-  let string_comparison = extract N.string_comparison (fun () -> Idx.top_of IInt)
+  let string_comparison = extract N.string_comparison (fun () -> ID.top_of IInt)
 
   let length (t_f, t_n) =
     if get_bool "ana.base.arrays.nullbytes" then
       N.length t_n
     else
       A.length t_f
-  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (A.move_if_affected ~replace_with_const ask t_f v f, N.move_if_affected ~replace_with_const ask t_n v f)
+  let move_if_affected ?(replace_with_const=false) (ask:VDQ.t) (t_f, t_n) v f = (A.move_if_affected ~replace_with_const ask t_f v f, t_n)
   let get_vars_in_e (t_f, _) = A.get_vars_in_e t_f
   let fold_left f acc (t_f, _) = A.fold_left f acc t_f
 
   let smart_leq x y (t_f1, t_n1) (t_f2, t_n2) =
     if get_bool "ana.base.arrays.nullbytes" then
-      A.smart_leq x y t_f1 t_f2 && N.smart_leq x y t_n1 t_n2
+      A.smart_leq x y t_f1 t_f2 && N.leq t_n1 t_n2
     else
       A.smart_leq x y t_f1 t_f2
 
@@ -1908,6 +1905,6 @@ struct
     else
       Idx.top_of !Cil.kindOfSizeOf
 
-  let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, N.project ~varAttr ~typAttr ask t_n)
+  let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
 end

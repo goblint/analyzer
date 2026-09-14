@@ -321,14 +321,20 @@ module OptEqual (S: Spec) = struct
   include (S : Spec with module D := D and module G := G and module C := C)
 end
 
+module LevelSliceDomain =
+struct
+  include Lattice.Reverse (IntDomain.Lifted)
+  let name () = "level"
+end
+
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  : Spec with module D = Lattice.Prod (S.D) (LevelSliceDomain)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  module D = Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (S.D) (LevelSliceDomain)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -454,10 +460,14 @@ struct
     include S.D
     let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
-  module M = MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+  module M =
+  struct
+    include MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+    let name () = "widen-context"
+  end
 
   module D = struct
-    include Lattice.Prod (S.D) (M)
+    include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
@@ -514,7 +524,7 @@ struct
     let d' v_cur =
       if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
         let v_old = M.find f.svar m in (* S.D.bot () if not found *)
-        let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
+        let v_new = S.D.widen v_old v_cur in
         Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s" f.svar.vname);
         v_new, M.add f.svar v_new m
       )
@@ -763,6 +773,11 @@ struct
 
   module V =
   struct
+    module Node =
+    struct
+      include Node
+      let name () = "deadbranch"
+    end
     include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (S.V) (Node)
     let name () = "DeadBranch"
     let s x = `Left x
@@ -780,7 +795,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (S.G) (EM)
     let name () = "deadbranch"
 
     let s = function

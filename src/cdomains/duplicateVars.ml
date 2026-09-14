@@ -71,6 +71,8 @@ module VarType = struct
     | DuplicVar v ->
       duplic_var_prefix ^ v.vname ^ duplic_var_postfix
 
+  let pretty () v = Pretty.text (show v)
+
   let get_type v = match v with
     | AssignAux t
     | ReturnAux t -> t
@@ -117,7 +119,10 @@ struct
     VarVarinfoMap.to_varinfo (ReturnAux typ)
 
   let to_varinfo v =
-    let res = VarVarinfoMap.to_varinfo v in
+    let res = match v with
+      | NormalVar v -> v
+      | v -> VarVarinfoMap.to_varinfo v
+    in
     if M.tracing then M.trace "c2po-varinfo" "to_varinfo: %a -> %a" d_type (get_type v) d_type res.vtype;
     res
 

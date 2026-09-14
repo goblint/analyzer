@@ -37,3 +37,19 @@ suite covers both pure phase guidance and combined phase/invariant validation.
 
 All programs use pthreads directly. There are no `__VERIFIER_atomic_begin` or
 `__VERIFIER_atomic_end` calls; synchronization is by pthread mutexes and joins.
+
+Run all 50 tasks and print a runtime table from the repository root:
+
+```sh
+python3 tests/regression/90-phase-crafted/run-times.py
+```
+
+The script runs the baseline and witness commands from each task's `.t` file
+sequentially (100 analyzer invocations), measuring wall-clock seconds. It saves
+`runtimes.csv`, `runtimes.md`, and separate logs for each invocation under
+`90-phase-crafted/result/runtimes/`. Existing files in that output directory are
+overwritten. Build Goblint first, or select an executable with `--goblint PATH`.
+Use `--output DIR` to change the output directory and `--timeout SECONDS` to
+change the default 300-second limit per invocation. Timeouts and failed runs
+remain in the table; the script continues through all tasks and exits nonzero
+if any baseline result differs from `unknown` or witness result from `true`.
