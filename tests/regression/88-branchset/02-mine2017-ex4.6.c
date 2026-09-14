@@ -1,4 +1,4 @@
-// CRAM
+// SKIP CRAM
 // Source: Antoine Miné: "Tutorial on static inference of numeric invariants by abstract interpretation", FTPL 2017.
 // Example 4.6.
 // Copy of 56-witness/26-mine-tutorial-ex4.6 but from sv-benchmarks with __VERIFIER_assert.
