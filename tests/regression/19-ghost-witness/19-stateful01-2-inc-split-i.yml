@@ -1,16 +1,16 @@
 - entry_type: ghost_instrumentation
   metadata:
     format_version: "2.1-goblint"
-    uuid: 00000000-0000-0000-0000-000000000197
+    uuid: 00000000-0000-0000-0000-000000000192
     creation_time: 2026-07-02T00:00:00Z
     producer:
       name: Test
       version: "0.0"
     task:
       input_files:
-      - 19-stateful01-2-ultimate.i
+      - 19-stateful01-2-inc-split.i
       input_file_hashes:
-        19-stateful01-2-ultimate.i: "0000000000000000000000000000000000000000000000000000000000000000"
+        19-stateful01-2-inc-split.i: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -29,8 +29,8 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 19-stateful01-2-ultimate.i
-        line: 704
+        file_name: 19-stateful01-2-inc-split.i
+        line: 697
         column: 3
         function: thread1
       updates:
@@ -38,8 +38,8 @@
         value: "1"
         format: c_expression
     - location:
-        file_name: 19-stateful01-2-ultimate.i
-        line: 710
+        file_name: 19-stateful01-2-inc-split.i
+        line: 700
         column: 3
         function: thread1
       updates:
@@ -47,8 +47,8 @@
         value: "2"
         format: c_expression
     - location:
-        file_name: 19-stateful01-2-ultimate.i
-        line: 722
+        file_name: 19-stateful01-2-inc-split.i
+        line: 707
         column: 3
         function: thread2
       updates:
@@ -56,8 +56,8 @@
         value: "1"
         format: c_expression
     - location:
-        file_name: 19-stateful01-2-ultimate.i
-        line: 728
+        file_name: 19-stateful01-2-inc-split.i
+        line: 710
         column: 3
         function: thread2
       updates:
