@@ -8,6 +8,7 @@ With ana.int.interval_threshold_widening enabled, the analysis is precise enough
     total lines: 10
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (02-mine2017-ex4.6.c:10:39-10:46)
 
+
 Similar to svcomp26/level03, with some unrolling and branchSet.
 
   $ goblint --enable ana.sv-comp.functions --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.activated[+] branchSet --set exp.unrolling-factor 10 --set dbg.timeout 5 02-mine2017-ex4.6.c
@@ -29,3 +30,42 @@ With branchSet context-insensitive, the analysis shouldn't suddenly be extremely
     dead: 1 (1 in uncalled functions)
     total lines: 10
   [Warning][Deadcode][CWE-570] condition '! cond' is always false (02-mine2017-ex4.6.c:10:39-10:46)
+
+
+Same with branchSetLocal.
+
+  $ goblint --enable ana.sv-comp.functions --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.activated[+] branchSetLocal --set exp.unrolling-factor 10 --set dbg.timeout 5 02-mine2017-ex4.6.c
+  [Info] unrolling loop at 02-mine2017-ex4.6.c:14:3-18:3 with factor 10
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (02-mine2017-ex4.6.c:9:1-9:43)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 9
+    dead: 1 (1 in uncalled functions)
+    total lines: 10
+  [Warning][Deadcode][CWE-570] condition '! cond' is always false (02-mine2017-ex4.6.c:10:39-10:46)
+
+With branchSetLocal context-insensitive, the analysis shouldn't suddenly be extremely slow.
+
+  $ goblint --enable ana.sv-comp.functions --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.activated[+] branchSetLocal --set ana.ctx_insens[+] branchSetLocal --set exp.unrolling-factor 10 --set dbg.timeout 5 02-mine2017-ex4.6.c
+  [Info] unrolling loop at 02-mine2017-ex4.6.c:14:3-18:3 with factor 10
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (02-mine2017-ex4.6.c:9:1-9:43)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 9
+    dead: 1 (1 in uncalled functions)
+    total lines: 10
+  [Warning][Deadcode][CWE-570] condition '! cond' is always false (02-mine2017-ex4.6.c:10:39-10:46)
+
+
+Same with branchSetFull.
+
+  $ goblint --enable ana.sv-comp.functions --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.activated[+] branchSetFull --set exp.unrolling-factor 10 --set dbg.timeout 5 02-mine2017-ex4.6.c
+  [Info] unrolling loop at 02-mine2017-ex4.6.c:14:3-18:3 with factor 10
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (02-mine2017-ex4.6.c:9:1-9:43)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 9
+    dead: 1 (1 in uncalled functions)
+    total lines: 10
+  [Warning][Deadcode][CWE-570] condition '! cond' is always false (02-mine2017-ex4.6.c:10:39-10:46)
+
+With branchSetFull context-insensitive, the analysis would be extremely slow for two reasons:
+1. All paths would go to a single context. Path-sensitivity has quadratic complexity.
+2. Branches that happen later in the program flow "backwards" to the earlier calls via the single context. This amplifies path-sensitivity slowdown even further.
