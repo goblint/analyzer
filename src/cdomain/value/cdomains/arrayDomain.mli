@@ -2,6 +2,7 @@
 
 open GoblintCil
 module VDQ = ValueDomainQueries
+module SizeDomain = PreValueDomain.SizeDomain
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
@@ -24,17 +25,17 @@ sig
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
 
-  val make: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> idx -> value -> t
+  val make: ?varAttr:Cil.attributes -> ?typAttr:Cil.attributes -> SizeDomain.t -> value -> t
   (** [make l e] creates an abstract representation of an array of length [l]
     * containing the element [e]. *)
 
-  val length: t -> idx option
+  val length: t -> SizeDomain.t option
   (** returns length of array if known *)
 
   val map: (value -> value) -> t -> t
   (** Apply a function to all elements of the array. *)
 
-  val update_length: idx -> t -> t
+  val update_length: SizeDomain.t -> t -> t
 end
 
 (** Abstract domains representing arrays. *)
@@ -80,7 +81,7 @@ sig
   val to_null_byte_domain: string -> t
   (* Converts a string to its abstract value in the NullByte domain *)
 
-  val to_string_length: t -> idx
+  val to_string_length: t -> SizeDomain.t
   (** Returns length of string represented by input abstract value *)
 
   val string_copy: t -> t -> int option -> t
