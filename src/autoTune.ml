@@ -493,6 +493,16 @@ let activateTmpSpecialAnalysis () =
     set_bool "ana.float.interval" true;
   )
 
+let activatePthreadBarriers () =
+  let isBarrierInit (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.BarrierInit _ -> true
+    | _ -> false 
+  in
+  let hasBarrierInit = hasFunction isBarrierInit in
+  if hasBarrierInit then
+    enableAnalyses "Barrier initialization" "pthread barrier analysis" ["pthreadBarriers"]
+
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
@@ -559,6 +569,9 @@ let chooseConfig file =
 
   if isActivated "tmpSpecialAnalysis" then
     activateTmpSpecialAnalysis ();
+
+  if isActivated "pthreadBarriers" then
+    activatePthreadBarriers ();
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
