@@ -2412,6 +2412,12 @@
           "type": "boolean",
           "default": true
         },
+        "assumption": {
+          "title": "warn.assumption",
+          "description": "Assumption messages",
+          "type": "boolean",
+          "default": true
+        },
         "imprecise": {
           "title": "warn.imprecise",
           "description": "Imprecision messages",

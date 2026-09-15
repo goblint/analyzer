@@ -1,4 +1,5 @@
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -17,6 +18,7 @@
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
   $ grep format_version witness.yml
       format_version: "2.1"
@@ -98,6 +100,7 @@
 Flow-insensitive invariants as location invariants.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.invariant.flow_insensitive-as invariant_set-location_invariant 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -116,6 +119,7 @@ Flow-insensitive invariants as location invariants.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
 TODO: should invariant_set-s which use ghosts also be 2.1?
   $ grep format_version witness.yml
@@ -149,6 +153,7 @@ Should also work with earlyglobs.
 Earlyglobs shouldn't cause protected writes in multithreaded mode from being immediately published to protected invariant.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable exp.earlyglobs 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -162,10 +167,12 @@ Earlyglobs shouldn't cause protected writes in multithreaded mode from being imm
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
 Same with ghost_instrumentation and invariant_set entries.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.invariant.flow_insensitive-as invariant_set-location_invariant 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -184,6 +191,7 @@ Same with ghost_instrumentation and invariant_set entries.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_instrumentation
@@ -271,6 +279,7 @@ Same with ghost_instrumentation and invariant_set entries.
 Same protected invariant with vojdani but no unprotected invariant.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -289,6 +298,7 @@ Same protected invariant with vojdani but no unprotected invariant.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_instrumentation
@@ -362,6 +372,7 @@ Same protected invariant with vojdani but no unprotected invariant.
 Same as protection with mutex-meet.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -380,6 +391,7 @@ Same as protection with mutex-meet.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_instrumentation
@@ -457,6 +469,7 @@ Same as protection with mutex-meet.
 Should also work with earlyglobs.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable exp.earlyglobs 74-mutex.c
+  [Info][Assumption] Mutexes are non-recursive by default (74-mutex.c:33:3-33:28)
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -470,3 +483,4 @@ Should also work with earlyglobs.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default

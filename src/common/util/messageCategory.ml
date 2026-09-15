@@ -46,6 +46,7 @@ type category =
   | Witness
   | Program
   | Termination
+  | Assumption
 [@@deriving eq, ord, hash]
 
 type t = category [@@deriving eq, ord, hash]
@@ -205,6 +206,7 @@ let should_warn e =
     | Witness -> "witness"
     | Program -> "program"
     | Termination -> "termination"
+    | Assumption -> "assumption"
     (* Don't forget to add option to schema! *)
   in get_bool ("warn." ^ (to_string e))
 
@@ -226,6 +228,7 @@ let path_show e =
   | Witness -> ["Witness"]
   | Program -> ["Program"]
   | Termination -> ["Termination"]
+  | Assumption -> ["Assumption"]
 
 let show x = String.concat " > " (path_show x)
 
@@ -266,6 +269,7 @@ let categoryName = function
       | DivByZero -> "DivByZero")
   | Float -> "Float"
   | Termination -> "Termination"
+  | Assumption -> "Assumption"
 
 
 let from_string_list (s: string list) =
@@ -287,6 +291,7 @@ let from_string_list (s: string list) =
     | "witness" -> Witness
     | "program" -> Program
     | "termination" -> Termination
+    | "assumption" -> Assumption
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))
