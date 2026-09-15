@@ -562,7 +562,9 @@
                   "concurrencySafetySpecification",
                   "noOverflows",
                   "termination",
-                  "tmpSpecialAnalysis"
+                  "tmpSpecialAnalysis",
+                  "pthreadBarriers",
+                  "pthreadOnce"
                 ]
               },
               "default": [
@@ -579,7 +581,9 @@
                 "concurrencySafetySpecification",
                 "noOverflows",
                 "termination",
-                "tmpSpecialAnalysis"
+                "tmpSpecialAnalysis",
+                "pthreadBarriers",
+                "pthreadOnce"
               ]
             }
           },
