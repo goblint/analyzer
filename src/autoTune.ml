@@ -215,8 +215,8 @@ let enableAnalyses reason description analyses =
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
-let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
-let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"; "mutexGhosts"; "threadDescendants"; "mustlockHistory"; "descendantLockset"; "creationLockset"]
+let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"; "threadDescendants"; "mustlockHistory"; "descendantLockset"; "creationLockset"]
+let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"; "mutexGhosts"]
 
 let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
 
