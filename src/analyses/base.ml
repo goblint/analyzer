@@ -2886,7 +2886,19 @@ struct
     in
     if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.vattr then raise Deadcode else st
 
+  (* Copy each tainted lvalue's binding from [fun_st] into [local_st]. Every
+     write here is governed by [local_st.weak]: where the variable is in it,
+     another live frame is represented by the same cell, so the callee's
+     binding is joined with the one already there instead of replacing it. Four
+     writes need that treatment -- a whole partitioned array, a [voidType]
+     lvalue, an array-partition dependency, and the ordinary case, which gets
+     it from [set_savetop]. *)
   let combine_st man (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
+    let bind weak cpa v value =
+      match CPA.find_opt v cpa with
+      | Some old when WeakUpdates.mem v weak -> CPA.add v (VD.join old value) cpa
+      | _ -> CPA.add v value cpa
+    in
     AD.fold (fun addr (st: store) ->
         match addr with
         | Addr.Addr ((v,o) as mval) when CPA.mem v fun_st.cpa ->
@@ -2896,9 +2908,9 @@ struct
             match CPA.find_opt v (fun_st.cpa) with
             | None -> st
             (* partitioned arrays cannot be copied by individual lvalues, so if tainted just copy the whole callee value for the array variable *)
-            | Some (Array a) when CArrays.domain_of_t a = PartitionedDomain -> {st with cpa = CPA.add v (Array a) st.cpa}
+            | Some (Array a) when CArrays.domain_of_t a = PartitionedDomain -> {st with cpa = bind st.weak st.cpa v (Array a)}
             (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
-            | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = CPA.add v voidVal st.cpa}
+            | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = bind st.weak st.cpa v voidVal}
             | _ ->
               let address = AD.singleton addr in
               let new_val = get_mval ~man fun_st mval None in
@@ -2909,7 +2921,7 @@ struct
                   {st' with cpa = (Dep.VarSet.fold
                                      (fun v accCPA ->
                                         let val_opt = CPA.find_opt v fun_st.cpa in
-                                        Option.map_default (fun new_val -> CPA.add v new_val accCPA) accCPA val_opt
+                                        Option.map_default (fun new_val -> bind st'.weak accCPA v new_val) accCPA val_opt
                                      ) deps st'.cpa)}
                 ) st' (Dep.find_opt v fun_st.deps)
           end
