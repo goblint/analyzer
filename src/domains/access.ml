@@ -604,11 +604,11 @@ struct
     let accs_list = AS.elements accs in
     let rec loop = function
       | [] -> ()
-      | a :: rest ->
+      | a :: rest as l ->
         List.iter (fun b ->
             if may_race a b then
               add_edge graph a b
-          ) rest;
+          ) l;
         loop rest
     in
     loop accs_list;
