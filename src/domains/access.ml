@@ -642,6 +642,7 @@ let print_accesses memo grouped_accs =
       AS.elements race_accs
       |> List.map h
     | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
+      let (self_race_accs, race_accs) = AS.partition (fun a -> may_race a a) race_accs in
       let graph = InterferenceGraph.of_accesses race_accs in
       let coloring = Coloring.color graph in
       let add_to_map acc map =
@@ -652,6 +653,7 @@ let print_accesses memo grouped_accs =
           ) map
       in
       let color_map = AS.fold add_to_map race_accs ColorMap.empty in
+      let color_map = ColorMap.add (-1) (AS.elements self_race_accs) color_map in (* TODO: less hacky self-race presentation *)
       ColorMap.bindings color_map
       |> List.concat_map (fun (color, accs) ->
           let header = (dprintf "Color %d" color, None) in
