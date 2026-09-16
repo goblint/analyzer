@@ -51,6 +51,8 @@ struct
       let next_color v =
         (* TODO: use saturation hashtbl like in Dsatur? *)
         let used = G.fold_succ (fun u used ->
+            if G.V.equal v u then (* loop *)
+              raise Graph.Coloring.NoColoring;
             match H.find_opt coloring u with
             | None -> used
             | Some c -> ColorSet.add c used
@@ -69,7 +71,8 @@ struct
     let color g =
       let n = G.nb_vertex g in
       let rec loop k =
-        assert (k <= n);
+        if k > n then (* loop *)
+          raise Graph.Coloring.NoColoring;
         try C.coloring g k
         with Graph.Coloring.NoColoring -> loop (k + 1)
       in
@@ -125,6 +128,8 @@ struct
           let c = pick_color v in
           H.replace coloring v c;
           G.iter_succ (fun u ->
+              if G.V.equal v u then (* loop *)
+                raise Graph.Coloring.NoColoring;
               if not (is_colored u) then
                 let s = H.find saturation u in
                 H.replace saturation u (ColorSet.add c s)
@@ -164,6 +169,8 @@ struct
       in
       let add_forbidden forbidden v =
         G.iter_succ (fun u ->
+            if G.V.equal v u then (* loop *)
+              raise Graph.Coloring.NoColoring;
             if VSet.mem uncolored u then
               VSet.add forbidden u
           ) g v
