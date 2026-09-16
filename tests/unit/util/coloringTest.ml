@@ -43,7 +43,7 @@ module Make (Algorithm: C.Algorithm) =
 struct
   let test_valid_coloring =
     QCheck2.Test.make ~name:"valid coloring" G.gen ~print:G.show (fun g ->
-        let c = C.Greedy.color g in
+        let c = Algorithm.color g in
         C.valid_coloring g c
       ) |> QCheck_ounit.to_ounit2_test
 
