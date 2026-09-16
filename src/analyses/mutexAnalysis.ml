@@ -238,7 +238,7 @@ struct
       held_locks
     | Queries.MustBeAtomic ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
-      MustLockset.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
+      MustLockset.mem (LF.verifier_atomic_var, `NoOffset) held_locks || MustLockset.mem (LF.verifier_atomic_instrument_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
     | Queries.MustProtectedVars {mutex; kind} ->
       let protected = GProtected.get ~kind Strong (G.protected (man.global (V.protected mutex))) in
       VarSet.fold (fun v acc ->

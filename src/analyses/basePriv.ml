@@ -15,12 +15,25 @@ module VarQuery = Goblint_constraint.VarQuery
 
 open CommonPriv
 
+let is_verifier_atomic_lock m =
+  LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var)
+  || LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var)
+
+let is_last_verifier_atomic_unlock ask m =
+  if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+    not (LockDomain.MustLockset.mem (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var) (ask Q.MustLockset))
+  else if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var) then
+    not (LockDomain.MustLockset.mem (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) (ask Q.MustLockset))
+  else
+    true
+
 
 module type S =
 sig
   module D: Lattice.S
   module G: Lattice.S
   module V: Printable.S
+  module AuxiliaryPhaseInfo: Lattice.S
 
   val startstate: unit -> D.t
 
@@ -33,12 +46,13 @@ sig
   val lock: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
   val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> BaseComponents (D).t
+  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread | `NormalInCallTF] -> BaseComponents (D).t
 
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
   val threadspawn: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
+  val phase_change: Q.ask -> Q.PhaseDigest.t -> Q.PhaseDigest.t -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
@@ -47,13 +61,21 @@ sig
   val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
   val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
+  val aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t
+  val consume_aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t -> BaseDomain.BaseComponents (D).t
+
   val init: unit -> unit
   val finalize: unit -> unit
 end
 
-module NoFinalize =
+module NoFinalizeNoPhase =
 struct
+  module AuxiliaryPhaseInfo = Lattice.Unit
   let finalize () = ()
+
+  let phase_change _ _ _ _ _ st = st
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info st _ = st
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
@@ -66,13 +88,16 @@ let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
 let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
   {st with cpa = CPA.bot (); priv = startstate ()}
 
-
 (** Wrappers. *)
 module type PrivatizationWrapper = functor(GBase:Lattice.S) ->
 sig
   module G: Lattice.S
+  module Digest: CommonPriv.Digest
+
+  val actionOnPhaseChange: (Digest.t phaseChange) option
 
   val getg: Q.ask -> ('a -> G.t) -> 'a -> GBase.t
+  val getg_digest_override: Digest.t -> Q.ask -> ('a -> G.t) -> 'a -> GBase.t
   val sideg: Q.ask -> ('a -> G.t -> unit) -> 'a -> GBase.t -> unit
 end
 
@@ -80,14 +105,21 @@ end
 module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
   (struct
     module G = GBase
+    module Digest = CommonPriv.UnitDigest
+
+    let actionOnPhaseChange = None
 
     let getg _ getg = getg
     let sideg _ sideg = sideg
+    let getg_digest_override _ = getg
   end)
 
 module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Lattice.S) ->
   (struct
     module G = MapDomain.MapBot_LiftTop (Digest) (GBase)
+    module Digest = Digest
+
+    let actionOnPhaseChange = Digest.actionOnPhaseChange
 
     let getg ask getg x =
       let vs = getg x in
@@ -96,6 +128,9 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
             GBase.join v acc
           else
             acc) vs (GBase.bot ())
+
+    let getg_digest_override digest ask getg x =
+      G.find digest (getg x)
 
     let sideg ask sideg x v =
       let sidev = G.singleton (Digest.current ask) v in
@@ -106,7 +141,7 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
 (** No Privatization. *)
 module NonePriv: S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
 
   module G = VD
   module V = VarinfoV
@@ -154,6 +189,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -201,7 +237,7 @@ end
 
 module PerMutexPrivBase =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   include MutexGlobals
   include Protection
@@ -353,6 +389,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -366,7 +403,7 @@ struct
 
   let invariant_global (ask: Q.ask) getg = function
     | `Left m' -> (* mutex *)
-      let atomic = LockDomain.MustLock.equal m' (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
+      let atomic = is_verifier_atomic_lock m' in
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         let cpa = get_m_with_mutex_inits ask getg m' in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv = CPA.fold (fun v _ acc ->
@@ -492,6 +529,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -502,6 +540,8 @@ struct
   open Queries.Protection
   include PerMutexMeetPrivBase
   include PerMutexTidCommonNC (Digest) (CPA)
+
+  module AuxiliaryPhaseInfo = LMust
 
   let iter_sys_vars getg vq vf =
     match vq with
@@ -704,6 +744,84 @@ struct
     (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
+  let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
+    let module Phase = Queries.PhaseDigest in
+    match Digest.actionOnPhaseChange with
+    | None -> st
+    | Some {of_phase; to_phase; patch_phase} ->
+      (* TODO: What if overall we're still in ST mode? *)
+      begin
+        (* What about other threads? Should only carry forward their globals? *)
+        (* What is the timing of the phaseChange Event relative to unlocks? *)
+        (* Skip those that are currently held, these will be published on unlock *)
+        let (w, lmust, l) = st.priv in
+        let current_digest = Digest.current ask in
+        let publish_l (lock:LLock.t) (value:L.value) =
+          (* Carry forward L component of current thread *)
+          let sideval = GMutex.singleton current_digest value in
+          match lock with
+          | `Left mutex ->
+            if Locksets.(MustLockset.mem mutex (current_lockset ask)) then
+              let will_side_on_unlock = W.exists (is_protected_by ~protection:Weak ask mutex) w in
+              if will_side_on_unlock then
+                (* Do not propagate to next phase here already, unlock will propagate appropriate value *)
+                ()
+              else
+                (* Propagate here, as a later unlock may or may not trigger a side-effect here *)
+                (* TODO: To improve precision, we could also consider adding things to W here? *)
+                sideg (V.mutex mutex) (G.create_mutex sideval)
+            else
+              sideg (V.mutex mutex) (G.create_mutex sideval)
+          | `Right g ->
+            (* Publishing here is unconditional, should this be like this ? *)
+            sideg (V.global g) (G.create_global sideval)
+        in
+        L.iter publish_l l;
+        let publish_others (mutex:V.t) =
+          let current_bindings = G.mutex @@ getg mutex in
+          (*
+            Look up all current bindings and if we find one that belongs to the old phase,
+            but is not accounted for, carry it forward.
+          *)
+          let carry_if_needed (digest:Digest.t) (value:L.value) (acc:GMutex.t) =
+            let entry_phase = to_phase digest in
+            let target = patch_phase digest new_phase in
+            if not @@ Phase.equal entry_phase old_phase then
+              (* The phase does not match the phase before, no need to propagate *)
+              acc
+            else if Digest.accounted_for ask ~current:current_digest ~other:target then
+              (* New digest would be accounted for; could be because it is the same thread, ... *)
+              (* TODO: Is this correct when considering must-joining? *)
+              (* Reasoning: If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
+              acc
+            else
+              GMutex.add target value acc
+          in
+          let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
+          sideg mutex (G.create_mutex res)
+        in
+        let mutexes = ask.f Queries.AppearingMutexes in
+        LockDomain.AppearingMutexesQuery.iter (fun mutex -> publish_others (V.mutex mutex)) mutexes;
+        (* Propagate for syntactic globals. *)
+        List.iter (function
+            | GVar (x, _, _) -> publish_others (V.global x)
+            | _ -> ()
+          ) !Cilfacade.current_file.globals;
+        (* Propagate for heap variables *)
+        let alloc_varinfos = ask.f Queries.AllocVars in
+        Q.VS.iter (fun v -> publish_others (V.global v)) alloc_varinfos;
+        st
+      end
+
+  let aux_phase_info (st: BaseComponents (D).t) =
+    let (_, lmust, _) = st.priv in
+    lmust
+
+  let consume_aux_phase_info (st: BaseComponents (D).t) (aux_info: AuxiliaryPhaseInfo.t) =
+    let (w, lmust_old, l) = st.priv in
+    let new_lmust = LMust.union lmust_old aux_info in
+    {st with priv = (w, new_lmust, l)}
+
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
     let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
@@ -739,7 +857,7 @@ end
 (** Vojdani privatization with eager reading. *)
 module VojdaniPriv: S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
@@ -801,6 +919,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -845,7 +964,7 @@ struct
          but conjunction is unsound when one of the mutexes is temporarily unlocked.
          Hypothetical read-protection is also somehow relevant. *)
       LockDomain.MustLockset.fold (fun m acc ->
-          if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+          if is_verifier_atomic_lock m then
             acc
           else if ask.f (GhostVarAvailable (Locked m)) then (
             let var = WitnessGhost.to_varinfo (Locked m) in
@@ -932,7 +1051,7 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (D: ProtectionDom) (Param: PerGlobalPrivParam)(Wrapper:PrivatizationWrapper): S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
@@ -977,10 +1096,11 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let sideg = Wrapper.sideg ask sideg in
-    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
+    let atomic = Param.handle_atomic && is_verifier_atomic_lock m in
+    let atomic_publish = atomic && is_last_verifier_atomic_unlock ask.f m in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if (atomic && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
+        if (atomic_publish && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
           (* Only apply sides for values that were actually written to globals!
              This excludes invariants inferred through guards. *)
           begin match D.precise_side x v st.priv with
@@ -990,7 +1110,7 @@ struct
                    then inner unlock shouldn't yet publish. *)
                 if not Param.check_read_unprotected || is_unprotected_without ask ~kind:ReadWrite x m then
                   sideg (V.protected x) v;
-                if atomic then
+                if atomic_publish then
                   sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
               end
             | None -> ()
@@ -1027,6 +1147,7 @@ struct
     | `JoinCall _
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Init
     | `Thread ->
       st
@@ -1060,6 +1181,49 @@ struct
   let threadenter = startstate_threadenter startstate
   let threadspawn ask get set st = st
 
+  let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
+    match Wrapper.actionOnPhaseChange with
+    | None -> st
+    | Some {of_phase; to_phase; patch_phase: _ } ->
+      let publish_global_to_newphase g =
+        if (P.mem g @@ D.getP st.priv) then (
+          (* TODO: Or propagate only unprotected, protected will be published later?
+             - unprotected needs to be published right away to account for other changing phase and observing this right away
+          *)
+          let v = CPA.find g st.cpa in
+          if M.tracing then M.tracel "phase" "Propagating !!local!! value %s for %s from %s to %s" g.vname (VD.show v) (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
+          Wrapper.sideg ask sideg (V.protected g) v;
+          Wrapper.sideg ask sideg (V.unprotected g) v;
+          ()
+        )
+        else (
+          if M.tracing then M.tracel "phase" "Propagating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
+          let old_phase = of_phase ask old_phase in
+          let old_phase_getg = Wrapper.getg_digest_override old_phase ask getg in
+          let old_protected = old_phase_getg (V.protected g) in
+          let old_unprotected = old_phase_getg (V.unprotected g) in
+          Wrapper.sideg ask sideg (V.protected g) old_protected;
+          Wrapper.sideg ask sideg (V.unprotected g) old_unprotected;
+          ()
+        )
+      in
+      let is_phase_ghost x =
+        YamlWitness.VarSet.mem x !(YamlWitness.ghostVars) && ask.f (Q.IsPhaseGhost x)
+      in
+      (* Propagate for syntactic globals. Phase ghosts are represented by the phase digest,
+         but non-phase witness ghosts are ordinary globals and still need their values
+         carried over to the new phase. *)
+      List.iter (function
+          | GVar (x, _, _) when not (is_phase_ghost x) ->
+            publish_global_to_newphase x
+          | _ -> ()
+        ) !Cilfacade.current_file.globals;
+      (* Propagate for heap variables *)
+      let alloc_varinfos = ask.f Queries.AllocVars in
+      Q.VS.iter publish_global_to_newphase alloc_varinfos;
+      st
+
+
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
 
@@ -1091,7 +1255,7 @@ struct
            but conjunction is unsound when one of the mutexes is temporarily unlocked.
            Hypothetical read-protection is also somehow relevant. *)
         LockDomain.MustLockset.fold (fun m acc ->
-            if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+            if is_verifier_atomic_lock m then
               acc
             else if ask.f (GhostVarAvailable (Locked m)) then (
               let var = WitnessGhost.to_varinfo (Locked m) in
@@ -1203,7 +1367,7 @@ end
 
 module MinePrivBase =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexPathSensOneMainInit
   include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
@@ -1297,6 +1461,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1353,6 +1518,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1425,6 +1591,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1584,6 +1751,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1763,6 +1931,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1946,6 +2115,7 @@ struct
     match reason with
     | `Return
     | `Normal
+    | `NormalInCallTF
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `JoinCall _
     | `Init
@@ -1985,6 +2155,7 @@ struct
   module D = Priv.D
   module G = Priv.G
   module V = Priv.V
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
 
   let time str f arg = Timing.wrap "priv" (Timing.wrap str f) arg
 
@@ -1994,6 +2165,7 @@ struct
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
   let sync ask getg sideg st reason = time "sync" (Priv.sync ask getg sideg st) reason
+  let phase_change ask old_phase new_phase getg sideg st = time "phase_change" (Priv.phase_change ask old_phase new_phase getg sideg) st
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
@@ -2007,6 +2179,8 @@ struct
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
+  let aux_phase_info st = time "aux_phase_info" (Priv.aux_phase_info) st
+  let consume_aux_phase_info st aux_info = time "consume_aux_phase_info" (Priv.consume_aux_phase_info st) aux_info
 end
 
 module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =
@@ -2168,9 +2342,11 @@ let priv_module: (module S) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
+        | "mutex-meet-tid-ghost" -> (module PerMutexMeetTIDPriv (GhostPhaseLifter(ThreadDigest)))
         | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
         | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection-atomic-ghost" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(DigestWrapper(GhostPhase))) (* experimental *)
         | "protection-read" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
         | "protection-read-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-read-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)

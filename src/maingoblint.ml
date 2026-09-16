@@ -127,6 +127,8 @@ let check_arguments () =
     failwith "Option error"
   in
   let warn m = Logs.warn "%s" m in
+  if List.mem "phaseGhostSplit" (get_string_list "ana.activated") && not (List.mem "phaseGhostSplit" (get_string_list "ana.path_sens")) then
+    fail "The phaseGhostSplit analysis must be path sensitive; add it to ana.path_sens";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.");
   if not (get_bool "exp.single-threaded") && not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global! (Except when exp.single-threaded is enabled.)";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
@@ -134,7 +136,7 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "ana.base.priv.protection.changes-only" && not @@ List.mem (get_string "ana.base.privatization") ["protection"; "protection-tid"; "protection-atomic"; "protection-read"; "protection-read-tid"; "protection-read-atomic"] then
+  if get_bool "ana.base.priv.protection.changes-only" && not @@ List.mem (get_string "ana.base.privatization") ["protection"; "protection-tid"; "protection-atomic"; "protection-read"; "protection-read-tid"; "protection-read-atomic"; "protection-atomic-ghost"] then
     warn "ana.base.priv.protection.changes-only requires ana.base.privatization to be protection based";
   if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analysis results are not reused.");
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
@@ -535,6 +537,7 @@ let do_analyze change_info merged_AST =
     Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
+  YamlWitness.init ();
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
