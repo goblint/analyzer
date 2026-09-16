@@ -26,11 +26,11 @@ struct
           G.iter_succ (fun v ->
               let cv = H.find c v in
               if Color.equal cu cv then
-                raise_notrace Exit
+                raise_notrace Stdlib.Exit
             ) g u
         ) g;
       true
-    with Exit ->
+    with Stdlib.Exit ->
       false
 
   module type Algorithm =
