@@ -12,6 +12,8 @@ sig
   module H: Hashtbl.S with type key = G.V.t
   type coloring = Color.t H.t
 
+  val valid_coloring: G.t -> coloring -> bool
+
   module type Algorithm =
   sig
     val color: G.t -> coloring

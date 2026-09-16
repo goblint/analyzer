@@ -19,6 +19,20 @@ struct
   module H = Hashtbl.Make (G.V)
   type coloring = Color.t H.t
 
+  let valid_coloring (g: G.t) (c: coloring) =
+    try
+      G.iter_vertex (fun u ->
+          let cu = H.find c u in
+          G.iter_succ (fun v ->
+              let cv = H.find c v in
+              if Color.equal cu cv then
+                raise_notrace Exit
+            ) g u
+        ) g;
+      true
+    with Exit ->
+      false
+
   module type Algorithm =
   sig
     val color: G.t -> coloring
