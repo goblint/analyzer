@@ -24,7 +24,7 @@ struct
     (** Convert to definite integer if possible. *)
   end
 
-  module type Lattice = IntDomain.Z
+  module type Lattice = IntDomain.ZDefault
 end
 
 exception Type_of_error of GoblintCil.typ * string
