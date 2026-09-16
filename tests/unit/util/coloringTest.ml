@@ -30,7 +30,7 @@ struct
   let gen =
     let module R = Graph.Rand.I (G0) in
     let open QCheck2.Gen in
-    sized_size nat_small (fun v ->
+    sized_size (int_bound 10) (fun v -> (* very small size bound because of Optimal performance *)
         let v = v + 1 in (* nat_small includes 0, but R.graph doesn't like it *)
         let* e = int_bound (v * (v - 1) / 2) in
         pure (R.graph ~loops:false ~v ~e ())
