@@ -2177,6 +2177,18 @@ struct
     List.fold_left f st invalids'
 
 
+  (* The state an activation of [fundec] with arguments [args] starts from:
+     [man.local]'s globals and shared locals, the formals bound to the argument
+     values, and the outer bindings of the variables those values reach — and,
+     when [fundec] may already be active, of the variables the globals reach.
+
+     An address-taken formal is bound by [VD.join] with the binding [man.local]
+     already has for it, rather than by replacing it, when that binding is in
+     [weak]: some other live frame is represented by the same cell, either
+     because the caller already marked it weak or because the callee can reach
+     an outer copy of this [fundec]'s own local. Both activations' values then
+     remain in the one cell. Every other formal is bound to the argument value
+     alone. *)
   let make_entry ?(thread=false) (man:(D.t, G.t, C.t, V.t) Analyses.man) fundec args: D.t =
     let ask = Analyses.ask_of_man man in
     let st: store = man.local in
@@ -2189,30 +2201,59 @@ struct
       if thread then (
         Priv.threadenter ask st
       ) else
-        (* use is_global to account for values that became globals because they were saved into global variables *)
-        let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
-        (* let new_cpa = if !earlyglobs || ThreadFlag.is_multi man.ask then CPA.filter (fun k v -> is_private man.ask man.local k) globals else globals in *)
-        let new_cpa = globals in
-        {st with cpa = new_cpa}
+        (* Keep globals visible to callees. *)
+        let shared = CPA.filter (fun k _ -> is_global ask k) st.cpa in
+        {st with cpa = shared}
     in
     (* Assign parameters to arguments *)
     let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
     add_to_array_map fundec pa;
-    let new_cpa = CPA.add_list pa st'.cpa in
+    (* An outer copy of one of [fundec]'s own locals can exist only when
+       [st.cpa] binds one of its locals. The callee can then reach that copy
+       through a global as well as through its arguments: a caller may have
+       stored the local's address in one. A global is the only memory besides
+       its own locals that the callee can name, so for such a call the globals
+       are reachability roots too; everything else it reaches through pointers
+       from these. A thread starts from [Priv.threadenter]'s globals rather
+       than from [st]'s, so a thread's entry is left as it is. *)
+    let roots = get_ptrs vals in
+    let roots =
+      if not thread && List.exists (fun v -> CPA.mem v st.cpa) (fundec.sformals @ fundec.slocals) then
+        CPA.fold (fun (v: varinfo) _ acc -> if v.vglob then AD.join (AD.of_var v) acc else acc) st'.cpa roots
+      else
+        roots
+    in
     (* List of reachable variables *)
-    let reachable = AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
+    let reachable = AD.to_var_may (reachable_vars ~man st roots) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
+    let reachable_other_copies = List.filter (fun v -> GobOption.exists (CilType.Fundec.equal fundec) @@ Cilfacade.find_scope_fundec v) reachable in
+    (* The variables whose cells stand for more than one live frame once this
+       activation begins. This is also the callee's weak set, so the binding
+       decision below and later updates in the callee agree. *)
+    let multiple = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
+    let bind_formal cpa ((formal: varinfo), v) =
+      (* Only an address-taken formal can share a cell with another activation.
+         Read its outer binding from the caller, before projecting globals. *)
+      match CPA.find_opt formal st.cpa with
+      | Some old when formal.vaddrof && WeakUpdates.mem formal multiple ->
+        CPA.add formal (VD.join old v) cpa
+      | _ -> CPA.add formal v cpa
+    in
+    let new_cpa = List.fold_left bind_formal st'.cpa pa in
+    (* Copy the outer bindings of the reachable variables, except the formals
+       just bound: a reachable formal is in [reachable_other_copies], so
+       [bind_formal] has already joined its outer binding into the fresh one,
+       and copying it here would overwrite the argument value. *)
+    let is_bound_formal v = List.exists (fun ((formal: varinfo), _) -> CilType.Varinfo.equal formal v) pa in
+    let reachable_others = List.filter (fun v -> not (is_bound_formal v)) reachable in
+    let new_cpa = CPA.add_list_fun reachable_others (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in
     let new_cpa = project (Queries.to_value_domain_ask ask) (Some p) new_cpa fundec in
 
-    (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
-    let reachable_other_copies = List.filter (fun v -> GobOption.exists (CilType.Fundec.equal fundec) @@ Cilfacade.find_scope_fundec v) reachable in
-    (* Add to the set of weakly updated variables *)
-    let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
-    {st' with cpa = new_cpa; weak = new_weak}
+    {st' with cpa = new_cpa; weak = multiple}
 
   let enter man lval fn args : (D.t * D.t) list =
     [man.local, make_entry man fn args]
