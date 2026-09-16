@@ -39,16 +39,29 @@ end
 
 module C = Goblint_ocamlgraph.Coloring.Make (G)
 
-let test_algorithm name (module Algorithm: C.Algorithm) =
-  QCheck2.Test.make ~name G.gen ~print:G.show (fun g ->
-      let c = C.Greedy.color g in
-      C.valid_coloring g c
-    ) |> QCheck_ounit.to_ounit2_test
+module Make (Algorithm: C.Algorithm) =
+struct
+  let test_valid_coloring =
+    QCheck2.Test.make ~name:"valid coloring" G.gen ~print:G.show (fun g ->
+        let c = C.Greedy.color g in
+        C.valid_coloring g c
+      ) |> QCheck_ounit.to_ounit2_test
+
+  let tests = [
+    test_valid_coloring;
+  ]
+end
+
+let algorithms = [
+  ("optimal", (module C.Optimal: C.Algorithm));
+  ("greedy", (module C.Greedy));
+  ("dsatur", (module C.Dsatur));
+  ("rlf", (module C.Rlf));
+]
 
 let tests =
-  "coloringTest" >::: [
-    test_algorithm "optimal" (module C.Optimal);
-    test_algorithm "greedy" (module C.Greedy);
-    test_algorithm "dsatur" (module C.Dsatur);
-    test_algorithm "rlf" (module C.Rlf);
-  ]
+  "coloringTest" >:::
+    List.map (fun (name, (module Algorithm: C.Algorithm)) ->
+        let module AlgorithmTest = Make (Algorithm) in
+        name >::: AlgorithmTest.tests
+      ) algorithms
