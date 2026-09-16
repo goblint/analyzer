@@ -47,6 +47,14 @@
       (apron -> linearTwoVarEqualityDomain.apron.ml)
       (-> linearTwoVarEqualityDomain.no-apron.ml)
     )
+    (select pentagonDomain.ml from
+      (apron -> pentagonDomain.apron.ml)
+      (-> pentagonDomain.no-apron.ml)
+    )
+    (select pentagonAnalysis.ml from
+      (apron -> pentagonAnalysis.apron.ml)
+      (-> pentagonAnalysis.no-apron.ml)
+    )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
       (-> relationAnalysis.no-apron.ml)
