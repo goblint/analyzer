@@ -1,4 +1,5 @@
   $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 68-ghost-ambiguous-idx.c
+  [Info][Assumption] Mutexes are non-recursive by default (68-ghost-ambiguous-idx.c:17:5-17:35)
   [Warning][Assert] Assertion "data == 0" is unknown. (68-ghost-ambiguous-idx.c:24:3-24:29)
   [Warning][Unknown] unlocking mutex (m[4]) which may not be held (68-ghost-ambiguous-idx.c:25:3-25:30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -19,6 +20,7 @@
     vulnerable: 0
     unsafe: 1
     total memory locations: 1
+  [Info][Assumption] Mutexes are non-recursive by default
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_instrumentation

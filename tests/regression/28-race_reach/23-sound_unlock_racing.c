@@ -26,7 +26,7 @@ int main(void) {
   create_threads(t);
   pthread_mutex_lock(&mutex1);
   pthread_mutex_unlock(m); // no UB because ERRORCHECK
-  assert_racefree(global); // UNKNOWN
+  assert_racefree(global); // UNKNOWN!
   pthread_mutex_unlock(&mutex1); // no UB because ERRORCHECK
   join_threads(t);
   return 0;

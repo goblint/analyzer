@@ -14,7 +14,7 @@ void *t_fun(void *arg) {
   struct s *p = &a[i];
   pthread_mutex_lock(&p->mutex);
   i++;
-  access_or_assert_racefree(a[i].datum); // UNKNOWN
+  access_or_assert_racefree(a[i].datum); // UNKNOWN!
   pthread_mutex_unlock(&p->mutex);
   return NULL;
 }
@@ -28,7 +28,7 @@ int main () {
   create_threads(t);
 
   pthread_mutex_lock(&a[i].mutex);
-  access_or_assert_racefree(a[i].datum); // UNKNOWN
+  access_or_assert_racefree(a[i].datum); // UNKNOWN!
   pthread_mutex_unlock(&a[i].mutex);
 
   join_threads(t);

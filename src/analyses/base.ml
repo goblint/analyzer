@@ -1032,8 +1032,7 @@ struct
               | exception (SizeOfError _) ->
                 if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
-                    (* TODO: Is this ok? *)
-                    M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                    Assumptions.add "Casting involving a VLA is assumed to work";
                     true
                   end
                 else
@@ -1204,7 +1203,7 @@ struct
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where man is not accessible. *)
   (* This will yield `Top for expressions containing any access to globals, and does not make use of the query system. *)
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
-  let eval_exp st (exp:exp) =
+  let to_value_domain_ask st =
     (* Since man is not available here, we need to make some adjustments *)
     let rec query: type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
       let anyq = Queries.Any q in
@@ -1218,22 +1217,20 @@ struct
     and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) (* the expression is guaranteed to not contain globals *)
     and man' asked =
       { ask = (fun (type a) (q: a Queries.t) -> query asked q)
-      ; emit   = (fun _ -> failwith "Cannot \"emit\" in base eval_exp context.")
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in base to_value_domain_ask context.")
       ; node    = MyCFG.dummy_node
       ; prev_node = MyCFG.dummy_node
-      ; control_context = (fun () -> man_failwith "Base eval_exp has no context.")
-      ; context = (fun () -> man_failwith "Base eval_exp has no context.")
+      ; control_context = (fun () -> man_failwith "Base to_value_domain_ask has no context.")
+      ; context = (fun () -> man_failwith "Base to_value_domain_ask has no context.")
       ; edge    = MyCFG.Skip
       ; local   = st
       ; global  = gs
-      ; spawn   = (fun ?(multiple=false) _ -> failwith "Base eval_exp should never spawn threads. What is going on?")
-      ; split   = (fun _ -> failwith "Base eval_exp trying to split paths.")
-      ; sideg   = (fun g d -> failwith "Base eval_exp trying to side effect.")
+      ; spawn   = (fun ?(multiple=false) _ -> failwith "Base to_value_domain_ask should never spawn threads. What is going on?")
+      ; split   = (fun _ -> failwith "Base to_value_domain_ask trying to split paths.")
+      ; sideg   = (fun g d -> failwith "Base to_value_domain_ask trying to side effect.")
       }
     in
-    match eval_rv ~man:(man' Queries.Set.empty) st exp with
-    | Int x -> ValueDomain.ID.to_int x
-    | _ -> None
+    Queries.to_value_domain_ask (Analyses.ask_of_man (man' Queries.Set.empty))
 
   let eval_funvar man fval: Queries.AD.t =
     let fp = eval_fv ~man man.local fval in
@@ -1523,7 +1520,8 @@ struct
     | Q.EvalMutexAttr e -> begin
         match eval_rv_address ~man man.local e with
         | Address a ->
-          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *)
+          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in
+          Assumptions.add "Mutexes are non-recursive by default";
           begin match get ~man ~top:(MutexAttr default) man.local a None with (* ~top corresponds to default NULL with assume_top *)
             | MutexAttr a -> a
             | Bot -> default (* corresponds to default NULL with assume_none *)
@@ -1715,8 +1713,12 @@ struct
       (* Projection globals to highest Precision *)
       let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
       let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
-      if WeakUpdates.mem x st.weak then
-        VD.join old_value new_value
+      if WeakUpdates.mem x st.weak then (
+        if invariant then
+          old_value (* without this, invariant for ambiguous pointer might worsen precision for each individual weakly updatable address to their join *)
+        else
+          VD.join old_value new_value
+      )
       else if invariant then (
         (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
         try
@@ -1815,7 +1817,7 @@ struct
                 Analyses.ask_of_man (man' Queries.Set.empty)
               in
               let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
-              (* TODO: why does affect_move need general ask (of any query) instead of eval_exp? *)
+              (* TODO: why does affect_move need general ask (of any query) instead of to_value_domain_ask? *)
               VD.affect_move (Queries.to_value_domain_ask patched_ask) v x moved_by     (* was a set call caused e.g. by a guard *)
           in
           { st with cpa = update_variable arr arr.vtype nval st.cpa }
@@ -1859,7 +1861,8 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "set" "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
+      Assumptions.add "Assignment to unknown address, assuming no write happened.";
+      st
 
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -2511,21 +2514,26 @@ struct
           set ~man st lv_a lv_typ (VD.top_value lv_typ)
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
-    let alloc loc size =
+    let alloc (loc: Q.AllocationLocation.t) size =
+      let zero_option, fail_option =
+        match loc with
+        | Heap -> "sem.malloc.zero", "sem.malloc.fail"
+        | Stack -> "sem.alloca.zero", "sem.alloca.fail"
+      in
       (* Whether malloc(0) is assumed to return the null pointer, a valid pointer, or both cases need to be considered. *)
-      let malloc_zero_null, malloc_zero_pointer =
-        match get_string "sem.malloc.zero" with
+      let alloc_zero_null, alloc_zero_pointer =
+        match get_string zero_option with
         | "null" -> true, false
         | "pointer" -> false, true
         | "either" -> true, true
-        | _ -> failwith "Invalid value for sem.malloc.zero."
+        | _ -> assert false
       in
       let bytes = eval_int ~man st size in
       let cmp_bytes_with_zero = ID.equal_to Z.zero bytes in
       let bytes_may_be_zero = cmp_bytes_with_zero <> `Neq in
       let bytes_may_be_nonzero = cmp_bytes_with_zero <> `Eq in
-      let include_null = (bytes_may_be_nonzero && get_bool "sem.malloc.fail") || (bytes_may_be_zero && malloc_zero_null) in
-      let include_pointer = bytes_may_be_nonzero || malloc_zero_pointer in
+      let include_null = (bytes_may_be_nonzero && get_bool fail_option) || (bytes_may_be_zero && alloc_zero_null) in
+      let include_pointer = bytes_may_be_nonzero || alloc_zero_pointer in
       if not include_pointer then
         (None, AD.null_ptr)
       else

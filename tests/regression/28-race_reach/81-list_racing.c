@@ -43,7 +43,7 @@ void *t1_fun(void *arg) {
 
 void *t2_fun(void *arg) {
   struct s *p = take(A);
-  access_or_assert_racefree(p->datum); // UNKNOWN
+  access_or_assert_racefree(p->datum); // UNKNOWN!
   return NULL;
 }
 

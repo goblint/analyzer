@@ -1,0 +1,7 @@
+(env
+ (_
+  (env-vars
+   ; graph-easy seems to use srand(), so fixing PERL_RAND_SEED, but that isn't enough.
+   ; It also seems to depend on hashtable hash order, so also fixing PERL_HASH_SEED.
+   (PERL_RAND_SEED 0)
+   (PERL_HASH_SEED 0))))

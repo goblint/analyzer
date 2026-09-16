@@ -38,7 +38,7 @@ int main() {
   pthread_mutex_unlock(&fm);
 
   pthread_mutex_lock(&gm);
-  assert_racefree(global); // UNKNOWN
+  assert_racefree(global); // UNKNOWN!
   pthread_mutex_unlock(&gm);
 
   join_threads(t);

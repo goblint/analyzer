@@ -470,47 +470,18 @@ struct
     | `Lifted2 x -> Base2.to_yojson x
 end
 
-module type ProdConfiguration =
+module type ProdConf =
 sig
-  val expand_fst: bool
-  val expand_snd: bool
+  val expand1: bool
+  val expand2: bool
 end
 
-module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
+module ProdConf (Conf: ProdConf) (Base1: S) (Base2: S) =
 struct
-  include C
-
   type t = Base1.t * Base2.t [@@deriving eq, ord, hash, relift]
-
   include Std
 
-  let show (x,y) =
-    (* TODO: remove ref *)
-    let first  = ref "" in
-    let second = ref "" in
-    first  := Base1.show x;
-    second := Base2.show y;
-    "(" ^ !first ^ ", " ^ !second ^ ")"
-
   let name () = Base1.name () ^ " * " ^ Base2.name ()
-
-  let pretty () (x,y) =
-    if expand_fst || expand_snd then
-      text "("
-      ++ text (Base1.name ())
-      ++ text ":"
-      ++ align
-      ++ (if expand_fst then Base1.pretty () x else text (Base1.show x))
-      ++ unalign
-      ++ text ", "
-      ++ text (Base2.name ())
-      ++ text ":"
-      ++ align
-      ++ (if expand_snd then Base2.pretty () y else text (Base2.show y))
-      ++ unalign
-      ++ text ")"
-    else
-      text (show (x,y))
 
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y
@@ -518,47 +489,35 @@ struct
   let to_yojson (x, y) =
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
+  (* Not using ProdConf for printXml and to_yojson, because cannot omit name there. *)
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+  end
+
+  let pretty () (x, y) =
+    Pretty.dprintf "(%a, %a)" Base1.pretty x Base2.pretty y
+
+  let show (x, y) =
+    "(" ^ Base1.show x ^ ", " ^ Base2.show y ^ ")"
+
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 end
 
-module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
-module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
+module Prod = ProdConf (DefaultConf)
 
-module Prod3 (Base1: S) (Base2: S) (Base3: S) =
+module type Prod3Conf =
+sig
+  include ProdConf
+  val expand3: bool
+end
+
+module Prod3Conf (Conf: Prod3Conf) (Base1: S) (Base2: S) (Base3: S) =
 struct
   type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash, relift]
   include Std
 
-  let show (x,y,z) =
-    (* TODO: remove ref *)
-    let first = ref "" in
-    let second= ref "" in
-    let third = ref "" in
-    first  := Base1.show x;
-    second := Base2.show y;
-    third  := Base3.show z;
-    "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
-
-  let pretty () (x,y,z) =
-    text "("
-    ++ text (Base1.name ())
-    ++ text ":"
-    ++ align
-    ++ Base1.pretty () x
-    ++ unalign
-    ++ text ", "
-    ++ text (Base2.name ())
-    ++ text ":"
-    ++ align
-    ++ Base2.pretty () y
-    ++ unalign
-    ++ text ", "
-    ++ text (Base3.name ())
-    ++ text ":"
-    ++ align
-    ++ Base3.pretty () z
-    ++ unalign
-    ++ text ")"
+  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z
@@ -566,10 +525,23 @@ struct
   let to_yojson (x, y, z) =
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z) ]
 
-  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
+  (* Not using Prod3Conf for printXml and to_yojson, because cannot omit name there. *)
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+    module Base3 = PrefixName (struct let expand = Conf.expand3 end) (Base3)
+  end
+
+  let pretty () (x, y, z) =
+    Pretty.dprintf "(%a, %a, %a)" Base1.pretty x Base2.pretty y Base3.pretty z
+
+  let show (x, y, z) =
+    "(" ^ Base1.show x ^ ", " ^ Base2.show y ^ ", " ^ Base3.show z ^ ")"
 
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
+
+module Prod3 = Prod3Conf (DefaultConf)
 
 module PQueue (Base: S) =
 struct

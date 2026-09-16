@@ -99,7 +99,7 @@ depends: [
   "odoc-parser" {= "3.0.0" & with-doc}
   "ordering" {= "3.21.1"}
   "ounit2" {= "2.2.7" & with-test}
-  "patricia-tree" {= "0.14.0"}
+  "patricia-tree" {= "0.15.0"}
   "pp" {= "2.0.0"}
   "ppx_blob" {= "0.9.0"}
   "ppx_derivers" {= "1.2.1"}
@@ -165,7 +165,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.1.0"
-    "git+https://github.com/goblint/cil.git#76083d655d56e4c7791d457db57f0dd6461faf71"
+    "git+https://github.com/goblint/cil.git#d97418f2e8d2aa88a36c22397c38ccf4d3ffbcde"
   ]
   [
     "batteries.3.11.0"

@@ -64,6 +64,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let nabla x y= if x =: (x |: y) then x else one_mask
 
   let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)
+  let widen x y = widen x (join x y) (* TODO: inline? *)
 
   let lognot (z,o) = (o,z)
 

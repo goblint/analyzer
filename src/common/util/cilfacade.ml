@@ -58,6 +58,12 @@ let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
 
+let findAttribute name attrs =
+  List.find_map (function
+      | Attr (name', params) when name' = name -> Some params
+      | _ -> None
+    ) attrs
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := (
@@ -600,6 +606,7 @@ class countFnVisitor = object
     | If (_,_,_,loc,_)
     | Switch (_,_,_,loc,_)
     | Loop (_,loc,_,_,_)
+    | Asm {loc; _}
       -> Hashtbl.replace locs loc.line (); DoChildren
     | _ ->
       DoChildren
@@ -607,7 +614,6 @@ class countFnVisitor = object
   method! vinst = function
     | Set (_,_,loc,_)
     | Call (_,_,_,loc,_)
-    | Asm (_,_,_,_,_,loc)
       -> Hashtbl.replace locs loc.line (); SkipChildren
     | _ -> SkipChildren
 

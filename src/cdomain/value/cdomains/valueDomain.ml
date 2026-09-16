@@ -27,9 +27,9 @@ sig
   val is_statically_safe_cast: typ -> typ -> bool
   val is_dynamically_safe_cast: typ -> typ -> t -> bool
   val cast: kind:castkind -> typ -> t -> t
-  val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t ->  t
-  val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) ->  t -> t -> t
-  val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
+  val smart_join: VDQ.t -> VDQ.t -> t -> t ->  t
+  val smart_widen: VDQ.t -> VDQ.t ->  t -> t -> t
+  val smart_leq: VDQ.t -> VDQ.t -> t -> t -> bool
   val is_immediate_type: typ -> bool
   val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t
@@ -649,7 +649,7 @@ struct
     | (Float x, Float y) -> Float (FD.widen x y)
     (* TODO: symmetric widen, wtf? *)
     | (Int x, Address y)
-    | (Address y, Int x) -> Address (AD.widen y (AD.join y (AD.of_int x)))
+    | (Address y, Int x) -> Address (AD.widen y (AD.of_int x))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)
@@ -657,9 +657,9 @@ struct
     | (Blob x, Blob y) -> Blob (Blobs.widen x y) (* TODO: why no blob special cases like in join? *)
     | (Thread x, Thread y) -> Thread (Threads.widen x y)
     | (Int x, Thread y)
-    | (Thread y, Int x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
+    | (Thread y, Int x) -> Thread (Threads.widen y (Threads.top ())) (* not just [Threads.top ()] because this keeps known IDs in y *)
     | (Address x, Thread y)
-    | (Thread y, Address x) -> Thread (Threads.widen y (Threads.join y (Threads.top ())))
+    | (Thread y, Address x) -> Thread (Threads.widen y (Threads.top ())) (* not just [Threads.top ()] because this keeps known IDs in y *)
     | (Mutex, Mutex) -> Mutex
     | (JmpBuf x, JmpBuf y) -> JmpBuf (JmpBufs.widen x y)
     | (MutexAttr x, MutexAttr y) -> MutexAttr (MutexAttr.widen x y)
@@ -667,37 +667,37 @@ struct
       warn_type "widen" x y;
       Top
 
-  let rec smart_join x_eval_int y_eval_int  (x:t) (y:t):t =
-    let join_elem: (t -> t -> t) = smart_join x_eval_int y_eval_int in  (* does not compile without type annotation *)
+  let rec smart_join x_vdq y_vdq  (x:t) (y:t):t =
+    let join_elem: (t -> t -> t) = smart_join x_vdq y_vdq in  (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.join_with_fct join_elem x y)
     | (Union (f,x), Union (g,y)) ->
       let field = UnionDomain.Field.join f g in
       let value = join_elem x y in
       Union (field, value)
-    | (Array x, Array y) -> Array (CArrays.smart_join x_eval_int y_eval_int x y)
+    | (Array x, Array y) -> Array (CArrays.smart_join x_vdq y_vdq x y)
     | _ -> join x y  (* Others can not contain array -> normal join  *)
 
-  let rec smart_widen x_eval_int y_eval_int x y:t =
-    let widen_elem: (t -> t -> t) = smart_widen x_eval_int y_eval_int in (* does not compile without type annotation *)
+  let rec smart_widen x_vdq y_vdq x y:t =
+    let widen_elem: (t -> t -> t) = smart_widen x_vdq y_vdq in (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) -> Struct (Structs.widen_with_fct widen_elem x y)
     | (Union (f,x), Union (g,y)) ->
       let field = UnionDomain.Field.widen f g in
       let value = widen_elem x y in
       Union (field, value)
-    | (Array x, Array y) -> Array (CArrays.smart_widen x_eval_int y_eval_int x y)
+    | (Array x, Array y) -> Array (CArrays.smart_widen x_vdq y_vdq x y)
     | _ -> widen x y  (* Others can not contain array -> normal widen  *)
 
 
-  let rec smart_leq x_eval_int y_eval_int x y =
-    let leq_elem:(t ->t -> bool) = smart_leq x_eval_int y_eval_int in (* does not compile without type annotation *)
+  let rec smart_leq x_vdq y_vdq x y =
+    let leq_elem:(t ->t -> bool) = smart_leq x_vdq y_vdq in (* does not compile without type annotation *)
     match (x,y) with
     | (Struct x, Struct y) ->
       Structs.leq_with_fct leq_elem x y
     | (Union (f, x), Union (g, y)) ->
       UnionDomain.Field.leq f g && leq_elem x y
-    | (Array x, Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
+    | (Array x, Array y) -> CArrays.smart_leq x_vdq y_vdq x y
     | _ -> leq x y (* Others can not contain array -> normal leq *)
 
   let rec meet x y =
