@@ -47,8 +47,17 @@ struct
         C.valid_coloring g c
       ) |> QCheck_ounit.to_ounit2_test
 
+  let test_loop _ =
+    let g = G.create () in
+    G.add_vertex g 0;
+    G.add_edge g 0 0;
+    assert_raises Graph.Coloring.NoColoring (fun () ->
+        Algorithm.color g
+      )
+
   let tests = [
     test_valid_coloring;
+    "loop" >:: test_loop;
   ]
 end
 
