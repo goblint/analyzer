@@ -59,7 +59,7 @@ struct
           | "" -> (accounted, `Lifted3 vs, first)
           | _ -> failwith "Undefined mode")
       | `Lifted1 r -> (match mode with
-          | "CAMLparam0" -> (accounted, registered, first)
+          | "CAMLparam0" -> (accounted, registered, first) (* TODO: Does using CAMLparam0 twice cause an error? *)
           | "CAMLparam" -> (accounted, `Lifted1 (VarinfoSet.union vs r), first)
           | "Begin_roots" -> M.warn "Begin_roots used with CAMLparam0"; (accounted, `Lifted2 [vs; r], first)
           | "" -> (accounted, `Lifted1 (VarinfoSet.union vs r), first)
@@ -73,7 +73,7 @@ struct
       | `Lifted3 r -> (match mode with
           | "CAMLparam0" -> (accounted, `Lifted1 r, first)
           | "CAMLparam" -> failwith "CAMLlocal used without CAMLparam"
-          | "Begin_roots" -> M.tracel "Ocaml" "%a" VarinfoSet.pretty vs; (accounted, `Lifted2 [vs; r], first)
+          | "Begin_roots" -> (accounted, `Lifted2 [vs; r], first)
           | "" -> (accounted, `Lifted3 (VarinfoSet.union vs r), first)
           | _ -> failwith "Undefined mode")
       | `Top -> (accounted, registered, first)
@@ -98,13 +98,15 @@ struct
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     (* Simulates End_roots by removing one block. *)
-    (* TODO: End_roots actually removes blocks until it has removed one named caml_roots_block. *)
+    (* End_roots actually removes blocks until it has removed one named caml_roots_block, but the analysis warns if a block of another kind is added to the caml_roots_block. *)
     let pop_r (accounted, registered, first) =
       match registered with
+      | `Bot -> failwith "Roots ended with nothing registered"
       | `Lifted1 r -> failwith "Roots ended on a simple set"
       | `Lifted2 r ->
         (match r with
-         | [] -> (accounted, `Lifted2 [], first)
+         | [] -> failwith "Too many roots ended"
+         | _::[] -> (accounted, `Bot, first)
          | _::rs -> (accounted, `Lifted2 rs, first))
       | `Lifted3 r -> failwith "Roots ended before beginning"
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
@@ -116,7 +118,7 @@ struct
       | `Lifted1 r -> (accounted, `Lifted1 (VarinfoSet.diff r (VarinfoSet.of_list vs)), first)
       | `Lifted2 r ->
         (match r with
-         | [] -> (accounted, `Lifted2 [], first)
+         | [] -> (accounted, `Bot, first)
          | regd::regds ->
            (* Checks whether any of the variables in vs is in the current block. *)
            (* TODO: If CAMLparam0 is not used, this will also delete the previous block. Could this be improved? *)
@@ -366,3 +368,11 @@ end
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
+
+let custom_include_dirs () =
+  [ Fpath.(GobSys.exe_dir / "lib" / "ocaml")
+  ; Fpath.(GobFpath.cwd () / "lib" / "ocaml")
+  ; Fpath.(GobSys.exe_dir / "_opam" / "lib" / "ocaml")
+  ; Fpath.(GobFpath.cwd () / "_opam" / "lib" / "ocaml")
+  ]
+  |> List.filter (fun path -> Sys.file_exists (Fpath.to_string path))
