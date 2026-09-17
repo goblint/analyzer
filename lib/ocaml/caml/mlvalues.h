@@ -392,7 +392,7 @@ CAMLextern header_t *caml_atom_table;
 
 /* The unit value is 0 (tagged) */
 
-#define Val_unit Val_int(0)
+#define Val_unit ((value) 1)
 
 /* List constructors */
 #define Val_emptylist Val_int(0)
