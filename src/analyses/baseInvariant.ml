@@ -337,40 +337,53 @@ struct
       | Mod    -> (* a % b == c *)
         (* If b must be zero, we have must UB *)
         let b = warn_and_top_on_zero b in
-        (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
-         * The idea is to formulate a' as quotient * divisor + remainder. *)
-        let a' = ID.add (ID.mul (ID.div a b) b) c in
-        let b' = ID.div (ID.sub a c) (ID.div a b) in
-        (* However, for [2,4]%2 == 1 this only gives [3,4].
-         * Since [a % b == c] implies that [a] is congruent to [c] modulo [b], every known
-         * bound of [a] can be moved inwards to the closest value congruent to [c] modulo [b].
-         * Here the upper bound 4 moves to 3, which gives the precise [3,3]. *)
-        let a'' =
-          match ID.to_int b, ID.to_int c with
-          | Some b, Some c when not (Z.equal b Z.zero) ->
-            (* To handle signs uniformly, we tighten the upper bound m by subtracting the
-             * always positive Euclidean remainder of (m - c) modulo b, which is the precise
-             * amount that m is too high. And symmetrically for the lower bound. *)
-            let a' = match ID.maximal a with
-              | Some m -> ID.meet a' (ID.ending ~suppress_ovwarn:true ikind (Z.sub m (Z.erem (Z.sub m c) b)))
-              | None -> a'
+        (* C11 6.5.5 gives three facts about a % b, which can each be used to refine,
+         * but the order here is critical: refine the sign before applying identities,
+         * and finally enforce the congruence for definite b and c. *)
+        let a, b =
+          (* Computations on bottom imply unreachability. *)
+          try
+            (* 1. The standard requires sign(a) = sign(c) and |c| <= |a|, so
+             * for definitely positive c, refine a >= c;
+             * for definitely negative c, refine a <= c. *)
+            let a_sign = match ID.minimal c with
+              | Some cl when Z.gt cl Z.zero -> ID.meet a (ID.starting ikind cl)
+              | _ -> a
             in
-            begin match ID.minimal a with
-              | Some m -> ID.meet a' (ID.starting ~suppress_ovwarn:true ikind (Z.add m (Z.erem (Z.sub c m) b)))
-              | None -> a'
-            end
-          | _, _ -> a'
+            let a_sign = match ID.maximal c with
+              | Some cu when Z.lt cu Z.zero -> ID.meet a_sign (ID.ending ikind cu)
+              | _ -> a_sign
+            in
+            (* 2. The identity (a / b) * b + a % b == a solves to: 
+             *      a == (a / b) * b + c
+             *      b == (a - c) / (a / b).
+             * If a_sign has been refined, a / b is has a definite sign; no case distinction here.
+             * ID.div conservative in returning top when the divisor contains zero. *)
+            let b_identity = ID.div (ID.sub a_sign c) (ID.div a_sign b) in
+            let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a_sign b) b) c) in
+            (* 3. With b and c definite, we rely on the congruence relation to refine a. *)
+            let a_congruence = match ID.to_int b, ID.to_int c with
+              | Some b, Some c when not (Z.equal b Z.zero) ->
+                (* Cases like a % 2 == 17 are impossible: *)
+                if Z.geq (Z.abs c) (Z.abs b) then raise Analyses.Deadcode;
+                (* Directly enforce the congruence for domains that can represent them: *)
+                let a_congruence = ID.meet a_identity (ID.of_congruence ikind (c, b)) in
+                (* For intervals, "of congruence" is top, so we move bounds manually
+                 * towards the closest value congruent to c modulo b. 
+                 * NB! Meet with half-planes to avoid bottomizing the congruences! *)
+                let a_congruence = match ID.maximal a_congruence with
+                  | Some m -> ID.meet a_congruence (ID.ending ikind (Z.sub m (Z.erem (Z.sub m c) b)))
+                  | None -> a_congruence
+                in
+                begin match ID.minimal a_congruence with
+                  | Some m -> ID.meet a_congruence (ID.starting ikind (Z.add m (Z.erem (Z.sub c m) b)))
+                  | None -> a_congruence
+                end
+              | _, _ -> a_identity
+            in
+            meet_bin a_congruence b_identity
+          with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode
         in
-        let a''' =
-          (* if both b and c are definite, we can get a precise value in the congruence domain *)
-          match ID.to_int b, ID.to_int c with
-          | Some b, Some c ->
-            (* a%b == c  -> a: c+bℤ *)
-            let t = ID.of_congruence ikind (c, b) in
-            ID.meet a'' t
-          | _, _ -> a''
-        in
-        let a,b = meet_bin a''' b' in
         (* Special handling for case a % 2 != c *)
         let callerFundec = Node.find_fundec man.node in
         let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
