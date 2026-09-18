@@ -92,6 +92,7 @@ module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
 module MemOutOfBounds = MemOutOfBounds
+module Ocaml = Ocaml
 
 (** {2 Concurrency}
 
