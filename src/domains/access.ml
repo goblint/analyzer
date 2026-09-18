@@ -633,19 +633,19 @@ let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h A.{conf; kind; node; exp; acc} =
-      let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
+    let acc_msg ?(indent="") A.{conf; kind; node; exp; acc} =
+      let doc = dprintf "%s%a with %a (conf. %d)  (exp: %a)" indent AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
     match coloring_module with
     | lazy None ->
       AS.elements race_accs
-      |> List.map h
+      |> List.map acc_msg
     | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
       let (self_race_accs, race_accs) = AS.partition (fun a -> may_race a a) race_accs in
       let self_race_msgs =
         let header = (dprintf "Self-races", None) in
-        let accs_msgs = AS.elements self_race_accs |> List.map h in
+        let accs_msgs = AS.elements self_race_accs |> List.map (acc_msg ~indent:"  ") in
         header :: accs_msgs
       in
       let race_msgs = (* non-self races *)
@@ -662,7 +662,7 @@ let print_accesses memo grouped_accs =
         ColorMap.bindings color_map
         |> List.concat_map (fun (color, accs) ->
             let header = (dprintf "Color %d" color, None) in
-            let accs_msgs = accs |> List.rev |> List.map h in (* reverse because add_to_map adds reversed *)
+            let accs_msgs = accs |> List.rev |> List.map (acc_msg ~indent:"  ") in (* reverse because add_to_map adds reversed *)
             header :: accs_msgs
           )
       in
