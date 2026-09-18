@@ -87,36 +87,33 @@ struct
       let coloring = H.create n in
       let saturation = H.create n in
       let degree = H.create n in
+      let uncolored = H.create n in (* TODO: use actual priority queue? *)
       G.iter_vertex (fun v ->
           H.replace saturation v ColorSet.empty;
-          H.replace degree v (G.out_degree g v) (* TODO: this is not correctly updated? *)
+          H.replace degree v (G.out_degree g v); (* TODO: this is not correctly updated? *)
+          H.replace uncolored v ();
         ) g;
-      let is_colored v = H.mem coloring v in
       let sat_count v =
         ColorSet.cardinal (H.find saturation v)
       in
       let choose_vertex () =
-        let pick v best_opt =
-          if is_colored v then
-            best_opt
-          else
-            match best_opt with
-            | None -> Some v
-            | Some best ->
-              let sv = sat_count v in
-              let sb = sat_count best in
-              if sv > sb then
-                Some v
-              else if sv < sb then
-                Some best
-              else (
-                let dv = H.find degree v in
-                let db = H.find degree best in
-                if dv > db then Some v else Some best
-              )
+        let pick v () best_opt =
+          match best_opt with
+          | None -> Some v
+          | Some best ->
+            let sv = sat_count v in
+            let sb = sat_count best in
+            if sv > sb then
+              Some v
+            else if sv < sb then
+              Some best
+            else (
+              let dv = H.find degree v in
+              let db = H.find degree best in
+              if dv > db then Some v else Some best
+            )
         in
-        (* TODO: uncolored set like in Rlf? *)
-        G.fold_vertex pick g None
+        H.fold pick uncolored None
       in
       let pick_color v =
         let used = H.find saturation v in
@@ -128,10 +125,11 @@ struct
         | Some v ->
           let c = pick_color v in
           H.replace coloring v c;
+          H.remove uncolored v;
           G.iter_succ (fun u ->
               if G.V.equal v u then (* loop *)
                 raise Graph.Coloring.NoColoring;
-              if not (is_colored u) then
+              if H.mem uncolored u then
                 let s = H.find saturation u in
                 H.replace saturation u (ColorSet.add c s)
             ) g v;
