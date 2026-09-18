@@ -5,7 +5,12 @@
 module Color = Int
 (** Colors are {e positive} integers. *)
 
-module ColorSet: Set.S with type elt = Color.t
+module ColorSet:
+sig
+  include Set.S with type elt = Color.t
+
+  val find_unused: t -> elt
+end
 
 module Make (G: Graph.Coloring.G):
 sig

@@ -5,14 +5,18 @@ struct
   include Set.Make (Color)
 
   let find_unused used =
-    (* TODO: could be imperatively optimized, or with DIET data structure *)
-    let rec loop c =
-      if mem c used then
-        loop (c + 1)
-      else
-        c
-    in
-    loop 1
+    (* TODO: could be optimized with DIET data structure *)
+    let i = ref 1 in
+    try
+      iter (fun j ->
+          if !i = j then
+            incr i
+          else
+            raise_notrace Stdlib.Exit
+        ) used;
+      !i
+    with Stdlib.Exit ->
+      !i
 end
 
 module Make (G: Graph.Coloring.G) =

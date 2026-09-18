@@ -1,5 +1,33 @@
 open OUnit2
 
+module ColorSet =
+struct
+  include Goblint_ocamlgraph.Coloring.ColorSet
+
+  let gen =
+    QCheck2.Gen.(map of_list (list (map ((+) 1) nat_small)))
+
+  let show s = [%show: int list] (elements s)
+
+  let find_unused_naive used =
+    let rec loop c =
+      if mem c used then
+        loop (c + 1)
+      else
+        c
+    in
+    loop 1
+
+  let test_find_unused =
+    QCheck2.Test.make ~name:"find_unused" gen ~print:show (fun used ->
+        find_unused used = find_unused_naive used
+      ) |> QCheck_ounit.to_ounit2_test
+
+  let tests = [
+    test_find_unused;
+  ]
+end
+
 module Int =
 struct
   include Int
@@ -69,7 +97,9 @@ let algorithms = [
 ]
 
 let tests =
-  "coloringTest" >:::
+  "coloringTest" >::: [
+    "ColorSet" >::: ColorSet.tests;
+   ] @
     List.map (fun (name, (module Algorithm: C.Algorithm)) ->
         let module AlgorithmTest = Make (Algorithm) in
         name >::: AlgorithmTest.tests
