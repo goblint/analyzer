@@ -159,16 +159,12 @@ struct
       G.iter_vertex (fun v -> VSet.add uncolored v) g;
       let degree v = G.out_degree g v in
       let pick_start () =
-        (* TODO: fold over uncolored? *)
-        G.fold_vertex (fun v best ->
-            if not (VSet.mem uncolored v) then
-              best
-            else
-              match best with
-              | None -> Some v
-              | Some b ->
-                if degree v > degree b then Some v else Some b
-          ) g None
+        H.fold (fun v () best ->
+            match best with
+            | None -> Some v
+            | Some b ->
+              if degree v > degree b then Some v else Some b
+          ) uncolored None
       in
       let add_forbidden forbidden v =
         G.iter_succ (fun u ->
@@ -187,9 +183,8 @@ struct
         !count
       in
       let pick_candidate forbidden =
-        (* TODO: fold over uncolored? *)
-        G.fold_vertex (fun v best ->
-            if not (VSet.mem uncolored v) || VSet.mem forbidden v then
+        H.fold (fun v () best ->
+            if VSet.mem forbidden v then
               best
             else
               match best with
@@ -205,7 +200,7 @@ struct
                   Some v
                 else
                   Some b
-          ) g None
+          ) uncolored None
       in
       let rec color_class color =
         match pick_start () with
