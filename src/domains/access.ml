@@ -644,9 +644,13 @@ let print_accesses memo grouped_accs =
     | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
       let (self_race_accs, race_accs) = AS.partition (fun a -> may_race a a) race_accs in
       let self_race_msgs =
-        let header = (dprintf "Self-races:", None) in
-        let accs_msgs = AS.elements self_race_accs |> List.map (acc_msg ~indent:"  ") in
-        header :: accs_msgs
+        if AS.is_empty self_race_accs then
+          []
+        else (
+          let header = (dprintf "Self-races:", None) in
+          let accs_msgs = AS.elements self_race_accs |> List.map (acc_msg ~indent:"  ") in
+          header :: accs_msgs
+        )
       in
       let race_msgs = (* non-self races *)
         let graph = InterferenceGraph.of_accesses race_accs in
