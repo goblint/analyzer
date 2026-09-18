@@ -90,7 +90,7 @@ struct
       let uncolored = H.create n in (* TODO: use actual priority queue? *)
       G.iter_vertex (fun v ->
           H.replace succ_used v ColorSet.empty;
-          H.replace degree v (G.out_degree g v); (* TODO: this is not correctly updated? *)
+          H.replace degree v (G.out_degree g v);
           H.replace uncolored v ();
         ) g;
       let saturation v =
@@ -129,9 +129,12 @@ struct
           G.iter_succ (fun u ->
               if G.V.equal v u then (* loop *)
                 raise Graph.Coloring.NoColoring;
-              if H.mem uncolored u then
+              if H.mem uncolored u then (
                 let used = H.find succ_used u in
-                H.replace succ_used u (ColorSet.add c used)
+                H.replace succ_used u (ColorSet.add c used);
+                let d = H.find degree u in
+                H.replace degree u (d - 1)
+              )
             ) g v;
           loop ()
       in
