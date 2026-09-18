@@ -149,13 +149,13 @@ struct
       let coloring = H.create n in
       let uncolored = H.create n in
       G.iter_vertex (fun v -> H.replace uncolored v ()) g;
-      let degree v = G.out_degree g v in
+      let degree v = G.out_degree g v in (* TODO: degrees should reduce like in DSatur? *)
       let pick_start () =
-        H.fold (fun v () best ->
-            match best with
+        H.fold (fun v () best_opt ->
+            match best_opt with
             | None -> Some v
-            | Some b ->
-              if degree v > degree b then Some v else Some b
+            | Some best ->
+              if degree v > degree best then Some v else Some best (* best is highest *)
           ) uncolored None
       in
       let add_forbidden forbidden v =
@@ -166,32 +166,32 @@ struct
               H.replace forbidden u ()
           ) g v
       in
-      let candidate_score forbidden v =
-        let count = ref 0 in
-        G.iter_succ (fun u ->
+      let forbidden_succs forbidden v =
+        G.fold_succ (fun u acc ->
             if H.mem forbidden u then
-              incr count
-          ) g v;
-        !count
+              acc + 1
+            else
+              acc
+          ) g v 0
       in
       let pick_candidate forbidden =
-        H.fold (fun v () best ->
+        H.fold (fun v () best_opt ->
             if H.mem forbidden v then
-              best
+              best_opt
             else
-              match best with
+              match best_opt with
               | None -> Some v
-              | Some b ->
-                let sv = candidate_score forbidden v in
-                let sb = candidate_score forbidden b in
+              | Some best ->
+                let sv = forbidden_succs forbidden v in
+                let sb = forbidden_succs forbidden best in
                 if sv > sb then
                   Some v
                 else if sv < sb then
-                  Some b
-                else if degree v > degree b then
+                  Some best
+                else if degree v > degree best then (* TODO: best should be lowest here *)
                   Some v
                 else
-                  Some b
+                  Some best
           ) uncolored None
       in
       let rec color_class color =
@@ -200,7 +200,7 @@ struct
         | Some v0 ->
           let forbidden = H.create n in
           let add_vertex v =
-            H.replace coloring v color;
+            H.replace coloring v c;
             H.remove uncolored v;
             add_forbidden forbidden v
           in
@@ -213,7 +213,7 @@ struct
               fill ()
           in
           fill ();
-          color_class (color + 1)
+          color_class (c + 1)
       in
       color_class 1;
       coloring
