@@ -644,7 +644,7 @@ let print_accesses memo grouped_accs =
     | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
       let (self_race_accs, race_accs) = AS.partition (fun a -> may_race a a) race_accs in
       let self_race_msgs =
-        let header = (dprintf "Self-races", None) in
+        let header = (dprintf "Self-races:", None) in
         let accs_msgs = AS.elements self_race_accs |> List.map (acc_msg ~indent:"  ") in
         header :: accs_msgs
       in
@@ -661,7 +661,7 @@ let print_accesses memo grouped_accs =
         let color_map = AS.fold add_to_map race_accs ColorMap.empty in
         ColorMap.bindings color_map
         |> List.concat_map (fun (color, accs) ->
-            let header = (dprintf "Color %d" color, None) in
+            let header = (dprintf "Safe subset %d:" color, None) in
             let accs_msgs = accs |> List.rev |> List.map (acc_msg ~indent:"  ") in (* reverse because add_to_map adds reversed *)
             header :: accs_msgs
           )
