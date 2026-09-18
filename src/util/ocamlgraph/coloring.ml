@@ -188,7 +188,7 @@ struct
                 else (
                   let dv = H.find degree v in
                   let db = H.find degree best in
-                  if dv > db then (* TODO: best should be lowest here *)
+                  if dv < db then (* best is lowest *)
                     Some v
                   else
                     Some best
