@@ -49,7 +49,7 @@ struct
         |> List.sort (fun (_, d1) (_, d2) -> compare d2 d1) (* compare argument swapped to sort highest degree first! *)
         |> List.map fst
       in
-      let next_color v =
+      let pick_color v =
         (* TODO: use saturation hashtbl like in Dsatur? *)
         let used = G.fold_succ (fun u used ->
             if G.V.equal v u then (* loop *)
@@ -61,7 +61,7 @@ struct
         in
         ColorSet.find_unused used
       in
-      List.iter (fun v -> H.replace coloring v (next_color v)) vertex_order;
+      List.iter (fun v -> H.replace coloring v (pick_color v)) vertex_order;
       coloring
   end
 
@@ -85,24 +85,24 @@ struct
     let color g =
       let n = G.nb_vertex g in
       let coloring = H.create n in
-      let saturation = H.create n in
+      let succ_used = H.create n in
       let degree = H.create n in
       let uncolored = H.create n in (* TODO: use actual priority queue? *)
       G.iter_vertex (fun v ->
-          H.replace saturation v ColorSet.empty;
+          H.replace succ_used v ColorSet.empty;
           H.replace degree v (G.out_degree g v); (* TODO: this is not correctly updated? *)
           H.replace uncolored v ();
         ) g;
-      let sat_count v =
-        ColorSet.cardinal (H.find saturation v)
+      let saturation v =
+        ColorSet.cardinal (H.find succ_used v)
       in
-      let choose_vertex () =
+      let pick_vertex () =
         let pick v () best_opt =
           match best_opt with
           | None -> Some v
           | Some best ->
-            let sv = sat_count v in
-            let sb = sat_count best in
+            let sv = saturation v in
+            let sb = saturation best in
             if sv > sb then
               Some v
             else if sv < sb then
@@ -116,11 +116,11 @@ struct
         H.fold pick uncolored None
       in
       let pick_color v =
-        let used = H.find saturation v in
+        let used = H.find succ_used v in
         ColorSet.find_unused used
       in
       let rec loop () =
-        match choose_vertex () with
+        match pick_vertex () with
         | None -> ()
         | Some v ->
           let c = pick_color v in
@@ -130,8 +130,8 @@ struct
               if G.V.equal v u then (* loop *)
                 raise Graph.Coloring.NoColoring;
               if H.mem uncolored u then
-                let s = H.find saturation u in
-                H.replace saturation u (ColorSet.add c s)
+                let used = H.find succ_used u in
+                H.replace succ_used u (ColorSet.add c used)
             ) g v;
           loop ()
       in
