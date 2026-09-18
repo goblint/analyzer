@@ -147,24 +147,21 @@ struct
     let color g =
       let n = G.nb_vertex g in
       let coloring = H.create n in
+      let degree = H.create n in
       let uncolored = H.create n in
-      G.iter_vertex (fun v -> H.replace uncolored v ()) g;
-      let degree v = G.out_degree g v in (* TODO: degrees should reduce like in DSatur? *)
+      G.iter_vertex (fun v ->
+          H.replace degree v (G.out_degree g v);
+          H.replace uncolored v ();
+        ) g;
       let pick_start () =
         H.fold (fun v () best_opt ->
             match best_opt with
             | None -> Some v
             | Some best ->
-              if degree v > degree best then Some v else Some best (* best is highest *)
+              let dv = H.find degree v in
+              let db = H.find degree best in
+              if dv > db then Some v else Some best (* best is highest *)
           ) uncolored None
-      in
-      let add_forbidden forbidden v =
-        G.iter_succ (fun u ->
-            if G.V.equal v u then (* loop *)
-              raise Graph.Coloring.NoColoring;
-            if H.mem uncolored u then
-              H.replace forbidden u ()
-          ) g v
       in
       let forbidden_succs forbidden v =
         G.fold_succ (fun u acc ->
@@ -188,13 +185,17 @@ struct
                   Some v
                 else if sv < sb then
                   Some best
-                else if degree v > degree best then (* TODO: best should be lowest here *)
-                  Some v
-                else
-                  Some best
+                else (
+                  let dv = H.find degree v in
+                  let db = H.find degree best in
+                  if dv > db then (* TODO: best should be lowest here *)
+                    Some v
+                  else
+                    Some best
+                )
           ) uncolored None
       in
-      let rec color_class color =
+      let rec color_class c =
         match pick_start () with
         | None -> ()
         | Some v0 ->
@@ -202,7 +203,15 @@ struct
           let add_vertex v =
             H.replace coloring v c;
             H.remove uncolored v;
-            add_forbidden forbidden v
+            G.iter_succ (fun u ->
+                if G.V.equal v u then (* loop *)
+                  raise Graph.Coloring.NoColoring;
+                if H.mem uncolored u then (
+                  H.replace forbidden u ();
+                  let d = H.find degree u in
+                  H.replace degree u (d - 1)
+                )
+              ) g v
           in
           add_vertex v0;
           let rec fill () =
