@@ -7,6 +7,7 @@ Disable info messages because race summary contains (safe) memory location count
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:28:3-28:16)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:29:3-29:15)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:34:3-34:9)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:35:3-35:26)
   [Warning][Race] Memory location (struct s).data (race with conf. 100):
     write with thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
     write with [symblock:{p-lock:*.mutex}, mhp:{created={[main, t_fun@21-mult_accs_rc.c:31:3-31:37]}}, thread:[main]] (conf. 100)  (exp: & *d) (21-mult_accs_rc.c:34:3-34:9)
@@ -28,6 +29,7 @@ Disable info messages because race summary contains (safe) memory location count
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:28:3-28:16)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:29:3-29:15)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:34:3-34:9)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (21-mult_accs_rc.c:35:3-35:26)
   [Success][Race] Memory location (struct s).data (safe):
     write with thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
   [Warning][Unknown] locking NULL mutex (21-mult_accs_rc.c:14:3-14:32)
@@ -44,7 +46,7 @@ Disable info messages because race summary contains (safe) memory location count
   $ goblint --enable warn.deterministic --disable warn.info --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable dbg.full-output 21-mult_accs_rc.c > full-output-1.txt 2>&1
 
   $ diff default-output-1.txt full-output-1.txt
-  8,9c8,9
+  9,10c9,10
   <   write with thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
   <   write with [symblock:{p-lock:*.mutex}, mhp:{created={[main, t_fun@21-mult_accs_rc.c:31:3-31:37]}}, thread:[main]] (conf. 100)  (exp: & *d) (21-mult_accs_rc.c:34:3-34:9)
   ---
@@ -55,7 +57,7 @@ Disable info messages because race summary contains (safe) memory location count
   $ goblint --enable warn.deterministic --disable warn.info --disable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --enable allglobs --enable dbg.full-output 21-mult_accs_rc.c > full-output-2.txt 2>&1
 
   $ diff default-output-2.txt full-output-2.txt
-  8c8
+  9c9
   <   write with thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
   ---
   >   write with [mhp:{tid=[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]}, thread:[main, t_fun@21-mult_accs_rc.c:31:3-31:37#⊤]] (conf. 100)  (exp: & s->data) (21-mult_accs_rc.c:16:3-16:14)
