@@ -2,9 +2,14 @@
 
 // Buggy code from https://github.com/ocaml/ocaml/pull/13370 where unregistered temporary variables may be garbage-collected.
 
+#define CAML_NAME_SPACE 1 // TODO: How to get Caml_state without this?
 #include <caml/mlvalues.h>
+#include <caml/memory.h>
 #include <caml/alloc.h>
-#include "goblint_caml.h"
+
+/* Caml_state is declared in lib/ocaml/caml/domain_state.h and exposed through
+   caml/mlvalues.h; the OCaml headers name the fields without a leading underscore
+   when CAML_NAME_SPACE is enabled, matching the raw field accesses in this test. */
 
 CAMLprim value caml_gc_counters(value v)
 {
@@ -67,4 +72,12 @@ CAMLprim value caml_gc_counters_correct_2(value v)
   majwords_ = caml_copy_double(majwords);
   res = caml_alloc_3(0, minwords_, prowords_, majwords_); // NOWARN
   CAMLreturn(res);
+}
+
+// TODO: Ensure Caml_state or whatever is never thought to be a null pointer.
+double caml_gc_minor_words_unboxed (void)
+{
+  return (Caml_state->stat_minor_words
+          + ((double) Wsize_bsize((uintnat)Caml_state->young_end -
+                                  (uintnat)Caml_state->young_ptr)));
 }

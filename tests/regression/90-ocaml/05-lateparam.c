@@ -8,12 +8,11 @@
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
-#include "goblint_caml.h"
 
 CAMLprim value late_test(value v)
 {
-  value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  value res = caml_alloc_small(1, Abstract_tag);
   CAMLparam1(v); // WARN
-  memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
+  memcpy((char *)&res, (char *)&v, sizeof(value)); // WARN
   CAMLreturn(res);
 }

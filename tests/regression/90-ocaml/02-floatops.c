@@ -10,7 +10,6 @@
 #include <assert.h>
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
-#include "goblint_caml.h"
 
 // Order must match with round_mode in floatOps.ml
 enum round_mode

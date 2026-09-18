@@ -8,7 +8,6 @@
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
-#include "goblint_caml.h"
 
 // In place of value, it was ap_policy_optr*.
 CAMLprim value camlidl_apron_policy_optr_c2ml(value p)

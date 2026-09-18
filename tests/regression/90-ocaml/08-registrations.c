@@ -7,14 +7,13 @@
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
-#include "goblint_caml.h"
 
 CAMLprim value registration_test_1(value v)
 {
   CAMLparam1(v);
   CAMLlocal1(res);
   res = v;
-  caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  caml_alloc_small(1, Abstract_tag);
   CAMLreturn(res); // NOWARN
 }
 
@@ -25,7 +24,7 @@ CAMLprim value registration_test_2(value v)
   CAMLparam0();
   CAMLlocal1(res);
   res = v;
-  caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  caml_alloc_small(1, Abstract_tag);
   CAMLreturn(res); // NOWARN
 }
 
@@ -34,14 +33,14 @@ CAMLprim value registration_test_3(value v)
 {
   CAMLparam1(v);
   value res = v;
-  caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  caml_alloc_small(1, Abstract_tag);
   CAMLreturn(res); // TODO NOWARN
 }
 
 CAMLprim value registration_test_4(value v)
 {
   value res = v;
-  caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  caml_alloc_small(1, Abstract_tag);
   return res; // WARN
 }
 
@@ -53,7 +52,7 @@ CAMLprim value registration_test_5(value v)
   CAMLparam0();
   CAMLlocal2(res, res2);
   res = v;
-  caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  caml_alloc_small(1, Abstract_tag);
   res2 = v; // TODO NOWARN
   CAMLreturn(res2); // TODO NOWARN
 }
@@ -64,7 +63,7 @@ CAMLprim value registration_test_6(value v)
   CAMLparam1(v);
   CAMLlocal1(res);
   res = v;
-  caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  caml_alloc_small(1, Abstract_tag);
   return res; // WARN
 }
 

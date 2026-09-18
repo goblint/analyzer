@@ -375,11 +375,12 @@ struct caml__roots_block {
 
 #define CAMLreturn0 __goblint_caml_drop(); return
 
-#define CAMLreturnT(type, result) do{ \
+// TODO: This was wrapped in a do-while(0). When does its removal for the analysis cause a semantic change?
+#define CAMLreturnT(type, result) \
   type caml__temp_result = (result); \
   CAMLdrop; \
   return caml__temp_result; \
-}while(0)
+
 
 #define CAMLreturn(result) CAMLreturnT(value, result)
 

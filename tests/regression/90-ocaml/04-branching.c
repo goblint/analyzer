@@ -8,7 +8,6 @@
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
-#include "goblint_caml.h"
 
 CAMLprim value branching_test(value v, bool b)
 {
@@ -16,8 +15,8 @@ CAMLprim value branching_test(value v, bool b)
     {
         CAMLparam1(v); // NOWARN
     }
-    value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
-    memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
+    value res = caml_alloc_small(1, Abstract_tag);
+    memcpy((char *)&res, (char *)&v, sizeof(value)); // WARN
     CAMLreturn(res);
 }
 
@@ -25,11 +24,11 @@ CAMLprim value branching_test2(value v, bool b)
 {
     if (b)
     {
-        Begin_roots1(v); // TODO NOWARN
+        Begin_roots1(v); // NOWARN
     }
-    value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
-    memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
-    if (b) // TODO NOWARN
+    value res = caml_alloc_small(1, Abstract_tag);
+    memcpy((char *)&res, (char *)&v, sizeof(value)); // WARN
+    if (b) // NOWARN
     {
         End_roots();
     }
