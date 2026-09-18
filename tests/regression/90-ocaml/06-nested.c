@@ -35,7 +35,7 @@ CAMLprim value pringo_LXM_copy_2(value v)
 {
   CAMLparam1(v);
   value res = caml_alloc_small(1, Abstract_tag);
-  v = pringo_LXM_copy_1(v); // WARN
+  v = pringo_LXM_copy_1(v); // This warns only in the inner function.
   memcpy((char *)&res, (char *)&v, sizeof(value)); // WARN
   CAMLreturn(res); // WARN
 }

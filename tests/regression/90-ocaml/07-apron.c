@@ -45,7 +45,7 @@ CAMLprim value camlidl_apron_policy_optr_c2ml_correct(value p)
 /*CAMLprim value camlidl_apron_policy_ptr_c2ml(ap_policy_ptr* p)
 {
   value v;
-  assert((*p)->pman!=NULL);
+  // The command "assert((*p)->pman!=NULL);" is at this spot, but Github somehow tests it despite this function being commented out if the command is not commented out with this comment.
   v = caml_alloc_custom(&camlidl_apron_custom_policy_ptr, sizeof(ap_policy_ptr),
 		   0,1);
   *((ap_policy_ptr *) Data_custom_val(v)) = *p;

@@ -24,10 +24,10 @@ CAMLprim value caml_gc_counters(value v)
   double prowords = 0; // It does not find the Caml_state so dummy values are used for the test.
   double majwords = 0;
 
-  res = caml_alloc_3(0,
+  res = caml_alloc_3(0, // WARN
     caml_copy_double(minwords),
     caml_copy_double(prowords),
-    caml_copy_double(majwords)); // WARN
+    caml_copy_double(majwords));
   CAMLreturn(res);
 }
 
