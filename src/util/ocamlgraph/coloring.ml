@@ -144,19 +144,11 @@ struct
 
   module Rlf: Algorithm =
   struct
-    module VSet =
-    struct
-      let create n = H.create n
-      let mem s v = H.mem s v
-      let add s v = H.replace s v ()
-      let remove s v = H.remove s v
-    end
-
     let color g =
       let n = G.nb_vertex g in
       let coloring = H.create n in
-      let uncolored = VSet.create n in
-      G.iter_vertex (fun v -> VSet.add uncolored v) g;
+      let uncolored = H.create n in
+      G.iter_vertex (fun v -> H.replace uncolored v ()) g;
       let degree v = G.out_degree g v in
       let pick_start () =
         H.fold (fun v () best ->
@@ -170,21 +162,21 @@ struct
         G.iter_succ (fun u ->
             if G.V.equal v u then (* loop *)
               raise Graph.Coloring.NoColoring;
-            if VSet.mem uncolored u then
-              VSet.add forbidden u
+            if H.mem uncolored u then
+              H.replace forbidden u ()
           ) g v
       in
       let candidate_score forbidden v =
         let count = ref 0 in
         G.iter_succ (fun u ->
-            if VSet.mem forbidden u then
+            if H.mem forbidden u then
               incr count
           ) g v;
         !count
       in
       let pick_candidate forbidden =
         H.fold (fun v () best ->
-            if VSet.mem forbidden v then
+            if H.mem forbidden v then
               best
             else
               match best with
@@ -206,10 +198,10 @@ struct
         match pick_start () with
         | None -> ()
         | Some v0 ->
-          let forbidden = VSet.create n in
+          let forbidden = H.create n in
           let add_vertex v =
             H.replace coloring v color;
-            VSet.remove uncolored v;
+            H.remove uncolored v;
             add_forbidden forbidden v
           in
           add_vertex v0;
