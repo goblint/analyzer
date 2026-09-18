@@ -44,10 +44,10 @@ struct
     let color g =
       let n = G.nb_vertex g in
       let coloring = H.create n in
-      let vertices =
-        G.fold_vertex (fun v acc -> (G.out_degree g v, v) :: acc) g []
-        |> List.sort (fun (d1, _) (d2, _) -> compare d2 d1)
-        |> List.map snd
+      let vertex_order =
+        G.fold_vertex (fun v acc -> (v, G.out_degree g v) :: acc) g []
+        |> List.sort (fun (_, d1) (_, d2) -> compare d2 d1) (* compare argument swapped to sort highest degree first! *)
+        |> List.map fst
       in
       let next_color v =
         (* TODO: use saturation hashtbl like in Dsatur? *)
@@ -61,7 +61,7 @@ struct
         in
         ColorSet.find_unused used
       in
-      List.iter (fun v -> H.replace coloring v (next_color v)) vertices;
+      List.iter (fun v -> H.replace coloring v (next_color v)) vertex_order;
       coloring
   end
 
