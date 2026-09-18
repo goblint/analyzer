@@ -5,6 +5,7 @@ struct
   include Set.Make (Color)
 
   let find_unused used =
+    (* TODO: could be imperatively optimized, or with DIET data structure *)
     let rec loop c =
       if mem c used then
         loop (c + 1)
@@ -88,7 +89,7 @@ struct
       let degree = H.create n in
       G.iter_vertex (fun v ->
           H.replace saturation v ColorSet.empty;
-          H.replace degree v (G.out_degree g v)
+          H.replace degree v (G.out_degree g v) (* TODO: this is not correctly updated? *)
         ) g;
       let is_colored v = H.mem coloring v in
       let sat_count v =
@@ -157,6 +158,7 @@ struct
       G.iter_vertex (fun v -> VSet.add uncolored v) g;
       let degree v = G.out_degree g v in
       let pick_start () =
+        (* TODO: fold over uncolored? *)
         G.fold_vertex (fun v best ->
             if not (VSet.mem uncolored v) then
               best
@@ -184,6 +186,7 @@ struct
         !count
       in
       let pick_candidate forbidden =
+        (* TODO: fold over uncolored? *)
         G.fold_vertex (fun v best ->
             if not (VSet.mem uncolored v) || VSet.mem forbidden v then
               best
