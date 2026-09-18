@@ -288,7 +288,6 @@ let preprocess_files () =
   (* TODO: split to include and src *)
   let custom_include_dirs =
     List.map Fpath.v (get_string_list "pre.custom_includes") @
-    (if List.mem "ocaml" (get_string_list "ana.activated") then Ocaml.custom_include_dirs () else []) @
     List.map (fun p -> Fpath.(p / "stub" / "include")) source_lib_dirs @
     Goblint_sites.lib_stub_include @
     List.map (fun p -> Fpath.(p / "runtime" / "include")) source_lib_dirs @

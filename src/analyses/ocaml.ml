@@ -368,11 +368,3 @@ end
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
-
-let custom_include_dirs () =
-  [ Fpath.(GobSys.exe_dir / "lib" / "ocaml")
-  ; Fpath.(GobFpath.cwd () / "lib" / "ocaml")
-  ; Fpath.(GobSys.exe_dir / "_opam" / "lib" / "ocaml")
-  ; Fpath.(GobFpath.cwd () / "_opam" / "lib" / "ocaml")
-  ]
-  |> List.filter (fun path -> Sys.file_exists (Fpath.to_string path))
