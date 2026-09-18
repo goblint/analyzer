@@ -1,0 +1,8 @@
+(include_subdirs no)
+
+(library
+ (name goblint_ocamlgraph)
+ (public_name goblint.ocamlgraph)
+ (libraries
+   ocamlgraph)
+ (instrumentation (backend bisect_ppx)))
