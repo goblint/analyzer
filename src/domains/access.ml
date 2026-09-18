@@ -620,7 +620,7 @@ module ColorMap = Map.Make (Goblint_ocamlgraph.Coloring.Color)
 let coloring_module =
   lazy (
     let open InterferenceGraphColoring in
-    match get_string "warn.race-coloring" with
+    match get_string "ana.race.graph-coloring" with
     | "none" -> None
     | "greedy" -> Some (module Greedy: Algorithm)
     | "dsatur" -> Some (module Dsatur)
