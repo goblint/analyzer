@@ -643,23 +643,30 @@ let print_accesses memo grouped_accs =
       |> List.map h
     | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
       let (self_race_accs, race_accs) = AS.partition (fun a -> may_race a a) race_accs in
-      let graph = InterferenceGraph.of_accesses race_accs in
-      let coloring = Coloring.color graph in
-      let add_to_map acc map =
-        let c = InterferenceGraphColoring.H.find coloring acc in
-        ColorMap.update c (function
-            | None -> Some [acc]
-            | Some accs -> Some (acc :: accs)
-          ) map
+      let self_race_msgs =
+        let header = (dprintf "Self-races", None) in
+        let accs_msgs = AS.elements self_race_accs |> List.map h in
+        header :: accs_msgs
       in
-      let color_map = AS.fold add_to_map race_accs ColorMap.empty in
-      let color_map = ColorMap.add (-1) (AS.elements self_race_accs) color_map in (* TODO: less hacky self-race presentation *)
-      ColorMap.bindings color_map
-      |> List.concat_map (fun (color, accs) ->
-          let header = (dprintf "Color %d" color, None) in
-          let acc_msgs = accs |> List.rev |> List.map h in
-          header :: acc_msgs
-        )
+      let race_msgs = (* non-self races *)
+        let graph = InterferenceGraph.of_accesses race_accs in
+        let coloring = Coloring.color graph in
+        let add_to_map acc map =
+          let c = InterferenceGraphColoring.H.find coloring acc in
+          ColorMap.update c (function
+              | None -> Some [acc]
+              | Some accs -> Some (acc :: accs)
+            ) map
+        in
+        let color_map = AS.fold add_to_map race_accs ColorMap.empty in
+        ColorMap.bindings color_map
+        |> List.concat_map (fun (color, accs) ->
+            let header = (dprintf "Color %d" color, None) in
+            let accs_msgs = accs |> List.rev |> List.map h in (* reverse because add_to_map adds reversed *)
+            header :: accs_msgs
+          )
+      in
+      self_race_msgs @ race_msgs
   in
   let group_loc = match memo with
     | (`Var v, _) -> Some (M.Location.CilLocation v.vdecl) (* TODO: offset location *)
