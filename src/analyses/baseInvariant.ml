@@ -337,35 +337,49 @@ struct
       | Mod    -> (* a % b == c *)
         (* If b must be zero, we have must UB *)
         let b = warn_and_top_on_zero b in
-        (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
-         * The idea is to formulate a' as quotient * divisor + remainder. *)
-        let a' = ID.add (ID.mul (ID.div a b) b) c in
-        let b' = ID.div (ID.sub a c) (ID.div a b) in
-        (* However, for [2,4]%2 == 1 this only gives [3,4].
-         * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
-         * If b is negative we have to look at the lower bound. *)
-        let is_divisible bound =
-          (* TODO: could check divisibility directly, instead of via ID? *)
-          GobOption.exists (fun ba -> ID.equal_to Z.zero (ID.rem (ID.of_int ikind ba) b) = `Eq) (bound a)
+        (* C11 6.5.5 defines a % b == c through the core identity a/b * b + c == a.
+         * Since division truncates towards zero, this implies sign(c) == sign(a).
+         * We first refine based on the sign, and then apply the identity refinement. *)
+        let a, b =
+          try (* Any ArithmeticOnIntegerBot implies unreachability. *)
+            (* We rely on sign(a) = sign(c) for nonzero c (and |c| <= |a|), so
+             * for definitely positive c, refine a >= c;
+             * for definitely negative c, refine a <= c. *)
+            let a_sign = match ID.minimal c with
+              | Some cl when Z.gt cl Z.zero -> ID.meet a (ID.starting ikind cl)
+              | _ -> a
+            in
+            let a_sign = match ID.maximal c with
+              | Some cu when Z.lt cu Z.zero -> ID.meet a_sign (ID.ending ikind cu)
+              | _ -> a_sign
+            in
+            (* When b and c are definite values, we can compute the most precise refinement of a. *)
+            match ID.to_int b, ID.to_int c with
+            | Some bv, Some cv when not (Z.equal bv Z.zero) ->
+              (* Cases like a % 2 == 17 are impossible: *)
+              if Z.geq (Z.abs cv) (Z.abs bv) then raise Analyses.Deadcode;
+              (* Directly enforce the congruence for domains that can represent them: *)
+              let a_congruence = ID.meet a_sign (ID.of_congruence ikind (cv, bv)) in
+              (* For intervals, we move bounds towards the closest value congruent to c mod b.
+               * BUT meet with half-planes to avoid bottomizing the congruences! *)
+              let a_congruence = match ID.maximal a_congruence with
+                | Some m -> ID.meet a_congruence (ID.ending ikind (Z.sub m (Z.erem (Z.sub m cv) bv)))
+                | None -> a_congruence
+              in
+              let a_congruence = match ID.minimal a_congruence with
+                | Some m -> ID.meet a_congruence (ID.starting ikind (Z.add m (Z.erem (Z.sub cv m) bv)))
+                | None -> a_congruence
+              in
+              meet_bin a_congruence b
+            | _, _ ->
+              (* The identity a/b * b + c == a solves to:
+               *      a == (a / b) * b + c
+               *      b == (a - c) / (a / b). *)
+              let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a_sign b) b) c) in
+              let b_identity = ID.div (ID.sub a_sign c) (ID.div a_sign b) in
+              meet_bin a_identity b_identity
+          with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode
         in
-        let max_pos = match ID.maximal b with None -> true | Some x -> Z.compare x Z.zero >= 0 in
-        let min_neg = match ID.minimal b with None -> true | Some x -> Z.compare x Z.zero < 0 in
-        let implies a b = not a || b in
-        let a'' =
-          if implies max_pos (is_divisible ID.maximal) && implies min_neg (is_divisible ID.minimal) then
-            ID.meet a' (ID.sub (ID.mul (ID.div a b) b) c)
-          else a'
-        in
-        let a''' =
-          (* if both b and c are definite, we can get a precise value in the congruence domain *)
-          match ID.to_int b, ID.to_int c with
-          | Some b, Some c ->
-            (* a%b == c  -> a: c+bℤ *)
-            let t = ID.of_congruence ikind (c, b) in
-            ID.meet a'' t
-          | _, _ -> a''
-        in
-        let a,b = meet_bin a''' b' in
         (* Special handling for case a % 2 != c *)
         let callerFundec = Node.find_fundec man.node in
         let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
