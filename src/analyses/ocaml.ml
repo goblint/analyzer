@@ -357,6 +357,9 @@ struct
            ) (VarinfoSet.empty ()) params)
         "Begin_roots" caller_state
     | OCamlEndRoots -> D.pop_r caller_state
+    | Memcpy a -> (match lval with
+        | Some (Var v, _) -> assignment v a.dest (Cil.typeOf a.dest) caller_state "The above is being memcpied"
+        | _ -> caller_state)
     | _ -> caller_state
 
   (* You may leave these alone *)
