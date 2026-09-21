@@ -21,6 +21,7 @@
       "threadflag",
       "threadreturn",
       "mallocWrapper",
+      "weakUpdates",
       "mutexEvents",
       "mutex",
       "access",

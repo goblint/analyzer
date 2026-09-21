@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated '["gStoreWideningSol","effectivelyLocalSol","assert","base","mallocWrapper","thread","threadid","escape"]' --set ana.base.privatization none --enable exp.globs_are_top ../07-gstore-mixed.c
+  $ goblint --set ana.activated '["gStoreWideningSol","effectivelyLocalSol","assert","base","mallocWrapper","weakUpdates","thread","threadid","escape"]' --set ana.base.privatization none --enable exp.globs_are_top ../07-gstore-mixed.c
   [Success][Assert] Assertion "thread_owned == 42" will succeed (/workspace_root/tests/regression/99-tutorials/07-gstore-mixed.c:11:3-11:38)
   [Success][Assert] Assertion "thread_owned == 11" will succeed (/workspace_root/tests/regression/99-tutorials/07-gstore-mixed.c:20:3-20:38)
   [Success][Assert] Assertion "global < 200" will succeed (/workspace_root/tests/regression/99-tutorials/07-gstore-mixed.c:38:3-38:32)

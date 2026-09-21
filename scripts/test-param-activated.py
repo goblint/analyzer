@@ -12,7 +12,7 @@ tests_root_path = Path("./tests/regression")
 activated_default = set([
     "expRelation", "base", "threadid", "threadflag", "threadreturn",
     "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-    "assert"
+    "assert" # TODO: this is out of date
 ])
 
 for test_path in tests_root_path.glob("*/*.c"):
