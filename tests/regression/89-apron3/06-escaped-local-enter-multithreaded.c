@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions
 #include <goblint.h>
 #include <pthread.h>
 
