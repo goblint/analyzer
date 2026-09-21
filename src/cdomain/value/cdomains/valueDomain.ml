@@ -960,7 +960,7 @@ struct
             end
           | `Field (fld, offs) -> begin
               match x with
-              | Union (`Lifted l_fld, value) ->
+              | Union (_, value) ->
                 (match value, Cil.unrollType fld.ftype with
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
@@ -970,7 +970,6 @@ struct
                    let x = cast ~kind:Internal fld.ftype value in (* TODO: proper castkind *)
                    let l', o' = shift_one_over l o in
                    do_eval_offset x offs l' o')
-              | Union _ -> top ()
               | Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
             end
