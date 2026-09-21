@@ -97,7 +97,7 @@ struct
     let name () = "contexts"
   end
 
-  include Lattice.Lift2 (G) (CSet)
+  include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (G) (CSet)
 
   let spec = function
     | `Bot -> G.bot ()
@@ -114,6 +114,11 @@ struct
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+
+  let to_yojson = function
+    | `Lifted1 x -> G.to_yojson x
+    | `Lifted2 x -> `Assoc [("fromspec-contexts", CSet.to_yojson x)]
+    | x -> `Assoc [("fromspec", to_yojson x)]
 end
 
 
@@ -123,9 +128,9 @@ exception Deadcode
 module Dom (LD: Lattice.S) =
 struct
   include Lattice.LiftConf (struct
-      include Printable.DefaultConf
       let bot_name = "Dead code"
       let top_name = "Totally unknown and messed up"
+      let expand1 = false
     end) (LD)
 
   let unlift x =

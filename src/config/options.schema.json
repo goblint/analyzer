@@ -562,7 +562,9 @@
                   "concurrencySafetySpecification",
                   "noOverflows",
                   "termination",
-                  "tmpSpecialAnalysis"
+                  "tmpSpecialAnalysis",
+                  "pthreadBarriers",
+                  "pthreadOnce"
                 ]
               },
               "default": [
@@ -579,7 +581,9 @@
                 "concurrencySafetySpecification",
                 "noOverflows",
                 "termination",
-                "tmpSpecialAnalysis"
+                "tmpSpecialAnalysis",
+                "pthreadBarriers",
+                "pthreadOnce"
               ]
             }
           },
@@ -2409,6 +2413,12 @@
         "unsound": {
           "title": "warn.unsound",
           "description": "Unsoundness messages",
+          "type": "boolean",
+          "default": true
+        },
+        "assumption": {
+          "title": "warn.assumption",
+          "description": "Assumption messages",
           "type": "boolean",
           "default": true
         },

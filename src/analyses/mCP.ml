@@ -36,7 +36,7 @@ struct
   let name () = "MCP2"
 
   let path_sens = ref []
-  let act_cont_sens = ref Set.empty
+  let act_cont_sens = ref Set.Int.empty
   let base_id   = ref (-1)
 
 
@@ -91,7 +91,7 @@ struct
         let cont_sens = map' find_id @@ sens in
         activated_context_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
     end;
-    act_cont_sens := Set.of_list (List.map (fun (n,p) -> n) !activated_context_sens);
+    act_cont_sens := Set.Int.of_list (List.map (fun (n,p) -> n) !activated_context_sens);
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
@@ -119,7 +119,7 @@ struct
 
   let startcontext () =
     filter_map (fun (n,{spec=(module S:MCPSpec); _}) ->
-        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
+        if Set.Int.is_empty !act_cont_sens || not (Set.Int.mem n !act_cont_sens) then (*n is insensitive*)
           None
         else
           Some (n, Obj.repr @@ S.startcontext ())
@@ -236,7 +236,7 @@ struct
     let man'' = outer_man "context_computation" man in
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
-        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
+        if Set.Int.is_empty !act_cont_sens || not (Set.Int.mem n !act_cont_sens) then (*n is insensitive*)
           None
         else
           let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "context_computation" man'' n d in
