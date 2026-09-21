@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt --set pre.cppflags[+] -D_FORTIFY_SOURCE=0 --set pre.cppflags[+] -O3
 
 // Buggy code from https://github.com/xavierleroy/pringo/issues/6 where value v is not registered.
 
