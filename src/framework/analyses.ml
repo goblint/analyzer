@@ -116,9 +116,9 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 
   let to_yojson = function
-  | `Lifted1 x -> G.to_yojson x
-  | `Lifted2 x -> `Assoc [("fromspec-contexts", CSet.to_yojson x)]
-  | x -> `Assoc [("fromspec", to_yojson x)]
+    | `Lifted1 x -> G.to_yojson x
+    | `Lifted2 x -> `Assoc [("fromspec-contexts", CSet.to_yojson x)]
+    | x -> `Assoc [("fromspec", to_yojson x)]
 end
 
 
