@@ -134,7 +134,7 @@ struct
     let system x =
       Option.map (fun f ->
           let f' get set demand =
-            GobRef.wrap current_var (Some x) (fun () ->
+            GobRef.wrap_ref current_var (Some x) (fun () ->
                 f get set demand
               )
           in

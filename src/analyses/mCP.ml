@@ -163,7 +163,7 @@ struct
       let side_one_ts ts d =
         (* Do side effects with the tokens that were active at the time.
            Transfer functions have exited the with_side_token wrappers by now. *)
-        GobRef.wrap WideningTokenLifter.side_tokens ts (fun () ->
+        GobRef.wrap_ref WideningTokenLifter.side_tokens ts (fun () ->
             man.sideg v @@ fold_left G.join (G.bot ()) d
           )
       in
