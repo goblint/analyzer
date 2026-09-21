@@ -1,4 +1,4 @@
-(** TODO *)
+(** Analysis of local variables escaping to called functions via arguments ([weakUpdates]). *)
 
 open GoblintCil
 open Analyses

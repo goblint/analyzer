@@ -193,6 +193,7 @@ module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
 module StartStateAnalysis = StartStateAnalysis
 module SingleThreadedLifter = SingleThreadedLifter
+module WeakUpdates = WeakUpdates
 
 
 (** {1 Analysis lifters}
