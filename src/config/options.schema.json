@@ -1315,6 +1315,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "demand-function": {
+          "title": "ana.demand-function",
+          "description": "If demand calls should be added for every function call, so that a parallel solver can start work on the callee.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
