@@ -67,14 +67,17 @@ module Base : DemandEqSolver =
           (S.Dom.show s.value) (Htbl.length s.infl) s.wpoint s.stable s.called s.top_level
     end
 
-    (** Concurrency safe hashmap for the state of the unknowns. *)
-    module CM = Data.ConcurrentHashmap (S.Var) (DefaultState) (HM)
     (* We need to keep track of this to avoid queueing multiple jobs for the same unknown. *)
     let unknowns_with_running_jobs = Htbl.create ()
     let job_id_counter = (Atomic.make 1)
 
     let solve st vs =
       solver_start_event ();
+      (* Concurrency safe hashmap for the state of the unknowns. *)
+      let (module CM) = Data.choose_impl (GobConfig.get_string "solvers.td3.parallel_hashmap") in
+      let module CM = struct
+        include CM (S.Var) (DefaultState) (HM)
+      end in
       let nr_domains = GobConfig.get_int "solvers.td3.parallel_domains" in
       let nr_domains = if nr_domains = 0 then (Domain.recommended_domain_count ()) else nr_domains in
 

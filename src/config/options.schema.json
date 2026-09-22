@@ -2678,6 +2678,13 @@
               "type": "integer",
               "default": -1
             },
+            "parallel_hashmap" :{
+              "title": "solvers.td3.parallel_hashmap",
+              "description": "Concurrent hashmap the 'td_parallel_*' solvers keep unknown states in: 'own' - the hand-written one, 'saturn' - backed by Saturn.Htbl.",
+              "type": "string",
+              "enum": ["own", "saturn"],
+              "default": "own"
+            },
             "weak-deps": {
               "title": "solvers.td3.weak-deps",
               "description": "Handling of weak dependencies from demand: 'none' - as normal dependencies, 'eager' - solve immediately, 'lazy' - solve at top level.",

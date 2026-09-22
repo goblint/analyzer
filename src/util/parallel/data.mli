@@ -8,30 +8,40 @@ module type DefaultType = sig
 end
 
 (** A lock free concurrency safe hashmap *)
-module ConcurrentHashmap
-    (H : Hashtbl.HashedType)
-    (D : DefaultType)
-    (HM : Hashtbl.S with type key = H.t) :
-sig
-  type key = H.t
-  type value = D.t Atomic.t
-  type t
+module type ConcurrentHashmap =
+  functor (H : Hashtbl.HashedType) ->
+  functor (D : DefaultType) ->
+  functor (HM : Hashtbl.S with type key = H.t) ->
+  sig
+    type key = H.t
+    type value = D.t Atomic.t
+    type t
 
-  val create : unit -> t
+    val create : unit -> t
 
-  val to_list : t -> (key * value) list
-  val to_seq : t -> (key * value) Seq.t
-  val to_seq_values : t -> value Seq.t
-  val to_hashtbl : t -> D.t HM.t
+    val to_list : t -> (key * value) list
+    val to_seq : t -> (key * value) Seq.t
+    val to_seq_values : t -> value Seq.t
+    val to_hashtbl : t -> D.t HM.t
 
-  val find_option : t -> key -> value option
+    val find_option : t -> key -> value option
 
-  (** [find t k] returns the value associated with [k] in [t]. If [k] is not present, it raises Not_found. Use this method if you expect the value to be present in the hashmap *)
-  val find : t -> key -> value
+    (** [find t k] returns the value associated with [k] in [t]. If [k] is not present, it raises Not_found. Use this method if you expect the value to be present in the hashmap *)
+    val find : t -> key -> value
 
-  val mem : t -> key -> bool
+    val mem : t -> key -> bool
 
-  (** [find_create t k] returns the value associated with [k] in [t]. If [k] is not present, it creates a new value using the default factory and adds it to [t]. It returns the new value and a boolean indicating whether it was created. *)
-  val find_create : t -> key -> value * bool
-end
+    (** [find_create t k] returns the value associated with [k] in [t]. If [k] is not present, it creates a new value using the default factory and adds it to [t]. It returns the new value and a boolean indicating whether it was created. *)
+    val find_create : t -> key -> value * bool
+  end
+
+(** Hand-written, leaving out the operations we do not need. *)
+module OwnConcurrentHashmap : ConcurrentHashmap
+
+(** Backed by {!Saturn.Htbl}. *)
+module SaturnConcurrentHashmap : ConcurrentHashmap
+
+(** [choose_impl name] is the implementation called [name], as accepted by
+    [solvers.td3.parallel_hashmap]. Raises [Failure] for any other name. *)
+val choose_impl : string -> (module ConcurrentHashmap)
 
