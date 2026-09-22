@@ -268,6 +268,13 @@ struct
     if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
     r
 
+  (** Refine the state by the condition [e] being [b].
+
+      Where [e] reads a variable [Queries.IsMultiple] holds of, the condition
+      holds of the one cell this execution reads, while the relational variable
+      also stands for the others — the same local of another live activation of
+      a recursive function, for instance — so the state is kept as it is. The
+      branch is still dead if no cell the variable stands for satisfies [e]. *)
   let branch man e b =
     let st = man.local in
     let ask = Analyses.ask_of_man man in
@@ -277,7 +284,11 @@ struct
       )
     in
     if RD.is_bot_env res then raise Deadcode;
-    {st with rel = res}
+    let reads_multiple =
+      List.exists (fun v -> RD.Tracked.varinfo_tracked v && ask.f (Queries.IsMultiple v))
+        (Basetype.CilExp.get_vars e)
+    in
+    if reads_multiple then st else {st with rel = res}
 
 
   (* Function call transfer functions. *)
