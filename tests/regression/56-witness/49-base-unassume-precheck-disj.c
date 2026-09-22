@@ -4,6 +4,6 @@
 int main() {
   int i;
   i = 0;
-  __goblint_check(i == 0); // TODO
+  __goblint_check(i == 0);
   return 0;
 }

@@ -164,18 +164,37 @@ struct
         | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
+  (* TODO: move this somewhere more general *)
+  let rec split_disj = function
+    | Cil.BinOp (LOr, a, b, _) ->
+      split_disj a @ split_disj b
+    | e -> [e]
+
   let emit_unassume man =
     let es = NH.find_all invs man.node in
+    let es =
+      if GobConfig.get_bool "ana.unassume.precheck" then (
+        List.concat_map (fun {exp; token} ->
+            let es = split_disj exp in
+            List.filter_map (fun e ->
+                if Queries.eval_bool (Analyses.ask_of_man man) e = `Lifted false then
+                  None
+                else
+                  Some {exp = e; token}
+              ) es
+          ) es
+      )
+      else
+        es
+    in
     match es with
     | x :: xs ->
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
       M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
       if not !AnalysisState.postsolving then (
-        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.eval_bool (Analyses.ask_of_man man) e = `Lifted false) then (
-          let tokens = x.token :: List.map (fun {token; _} -> token) xs in
-          man.emit (Unassume {exp = e; tokens});
-          List.iter WideningTokenLifter.add tokens
-        )
+        let tokens = x.token :: List.map (fun {token; _} -> token) xs in
+        man.emit (Unassume {exp = e; tokens});
+        List.iter WideningTokenLifter.add tokens
       )
     | [] ->
       ()
