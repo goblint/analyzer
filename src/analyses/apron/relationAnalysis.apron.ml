@@ -143,11 +143,23 @@ struct
       {st with rel = rel'}
     )
 
+  (** Write to the lvalue [lv] with [f], which assigns the value to the
+      relational variable it is passed: [lv]'s own variable for a local, and a
+      temporary [#out] copy for a global or an escaped local.
+
+      Where [Queries.IsMultiple] holds of that variable it stands for more than
+      one concrete cell in this state — a summarized allocation, or a frame
+      variable of a function with several live activations — so the assignment
+      joins with the constraints the variable already carries instead of
+      replacing them. Both branches need this. An allocation block from [malloc]
+      or [alloca] is created by [RichVarinfo.create_var], which sets [vglob], so
+      such a block always takes the [#out] branch. *)
   let rec assign_to_global_wrapper (ask:Queries.ask) getg sideg st lv f =
     match lv with
     | (Var v, NoOffset) when RD.Tracked.varinfo_tracked v ->
+      let is_multiple = ask.f (Queries.IsMultiple v) in
       if not v.vglob && not (ThreadEscape.has_escaped ask v) then (
-        if ask.f (Queries.IsMultiple v) then
+        if is_multiple then
           {st with rel = RD.join (f st v) st.rel}
         else
           {st with rel = f st v}
@@ -155,11 +167,14 @@ struct
       else (
         let v_out = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
-        let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
-        let st' = {st with rel = f st v_out} in (* g#out = e; *)
+        let st_out = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
+        let st' = {st_out with rel = f st_out v_out} in (* g#out = e; *)
         if M.tracing then M.trace "relation" "write_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let rel'' = RD.remove_vars st'.rel [RV.local v_out] in (* remove temporary g#out *)
+        (* Joining with [st.rel], the pre-state before [v_out] was added, keeps
+           [v_out] out of the result's environment. *)
+        let rel'' = if is_multiple then RD.join rel'' st.rel else rel'' in
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
