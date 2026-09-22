@@ -2666,12 +2666,6 @@
               "type": "boolean",
               "default": false
             },
-            "parallel_domains" :{
-              "title": "solvers.td3.parallel_domains",
-              "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used. If left at -1, the value of jobs will be used.",
-              "type": "integer",
-              "default": -1
-            },
             "weak-deps": {
               "title": "solvers.td3.weak-deps",
               "description": "Handling of weak dependencies from demand: 'none' - as normal dependencies, 'eager' - solve immediately, 'lazy' - solve at top level.",
@@ -2692,6 +2686,21 @@
                 "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
               "type": "integer",
               "default": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "td_parallel": {
+          "title": "solvers.td_parallel",
+          "description": "Options for the 'td_parallel_*' solvers. They do not read the solvers.td3 options: side-effects to globals are always widened, like TD3 with solvers.td3.side_widen set to 'always'.",
+          "type": "object",
+          "properties": {
+            "domains": {
+              "title": "solvers.td_parallel.domains",
+              "description": "Maximal number of Domains that the solver can use in parallel. If left at -1, the value of jobs will be used. If 0, the number is chosen automatically based on the available cores.",
+              "type": "integer",
+              "minimum": -1,
+              "default": -1
             }
           },
           "additionalProperties": false

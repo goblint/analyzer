@@ -28,6 +28,7 @@ depends: [
   "apron" {= "v0.9.15"}
   "arg-complete" {= "0.2.1"}
   "astring" {= "0.8.5"}
+  "backoff" {= "0.1.1"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base" & with-dev-setup}
   "base-threads" {= "base"}
@@ -81,6 +82,7 @@ depends: [
   "logs" {= "0.7.0"}
   "merlin-lib" {= "4.16-414" & with-dev-setup}
   "mlgmpidl" {= "1.3.0"}
+  "multicore-magic" {= "2.3.2"}
   "num" {= "1.5"}
   "ocaml" {= "4.14.2"}
   "ocaml-compiler-libs" {= "v0.12.4"}
@@ -113,6 +115,7 @@ depends: [
   "re" {= "1.11.0" & with-doc}
   "result" {= "1.5" & with-doc}
   "rresult" {= "0.7.0"}
+  "saturn" {= "1.0.0"}
   "seq" {= "base"}
   "sexplib0" {= "v0.16.0"}
   "sha" {= "1.15.4"}

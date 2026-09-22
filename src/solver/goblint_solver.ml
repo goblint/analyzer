@@ -11,6 +11,8 @@ module TopDown = TopDown
 module TopDown_term = TopDown_term
 module TopDown_space_cache_term = TopDown_space_cache_term
 module TopDown_deprecated = TopDown_deprecated
+module Td_parallel_base = Td_parallel_base
+module Td_parallel_dist_subscription = Td_parallel_dist_subscription
 
 (** {1 SLR}
 
@@ -30,6 +32,7 @@ module Selector = Selector
 module PostSolver = PostSolver
 module LocalFixpoint = LocalFixpoint
 module SolverStats = SolverStats
+module ParallelStats = ParallelStats
 module SolverBox = SolverBox
 
 module SideWPointSelect = SideWPointSelect
