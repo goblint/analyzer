@@ -1,0 +1,100 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000033
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 51-mutex-ghost-valid-munge.c
+      input_file_hashes:
+        51-mutex-ghost-valid-munge.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_1
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_2
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 51-mutex-ghost-valid-munge.c
+        line: 11
+        column: 3
+        function: munge1
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 51-mutex-ghost-valid-munge.c
+        line: 14
+        column: 3
+        function: munge1
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 51-mutex-ghost-valid-munge.c
+        line: 18
+        column: 3
+        function: munge2
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 51-mutex-ghost-valid-munge.c
+        line: 21
+        column: 3
+        function: munge2
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000034
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 51-mutex-ghost-valid-munge.c
+      input_file_hashes:
+        51-mutex-ghost-valid-munge.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 51-mutex-ghost-valid-munge.c
+        line: 37
+        column: 3
+        function: main
+      value: "ghost_2 == 1 || g2 == 37"
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 51-mutex-ghost-valid-munge.c
+        line: 37
+        column: 3
+        function: main
+      value: "ghost_1 == 1 || g1 == 42"
+      format: c_expression
