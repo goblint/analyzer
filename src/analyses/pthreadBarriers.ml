@@ -167,14 +167,14 @@ struct
     let to_yojson (d, _) = D.to_yojson d
     let printXml f (d, _) = D.printXml f d
 
-    let may_race ((may_await_t1, must_observed_by_t1), t1) ((may_await_t2, must_observed_by_t2), t2) =
-      let observed_from_t2 = MustObserved.find t2 must_observed_by_t1 in
-      if not (Barriers.subset observed_from_t2 may_await_t2) then
-        false
-      else
-        let observed_from_t1 = MustObserved.find t1 must_observed_by_t2 in
-        Barriers.subset observed_from_t1 may_await_t1
-    let should_print f = true
+    let may_race' ((_, must_observed_by_t), _) ((may_await_t', _), t') =
+      let observed_from_t' = MustObserved.find t' must_observed_by_t in
+      Barriers.subset observed_from_t' may_await_t'
+
+    let may_race a1 a2 =
+      may_race' a1 a2 && may_race' a2 a1
+
+    let should_print _ = true
   end
 
   let access man (a: Queries.access) =
