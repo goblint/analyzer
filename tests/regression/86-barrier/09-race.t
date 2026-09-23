@@ -4,8 +4,8 @@
     dead: 0
     total lines: 13
   [Warning][Race] Memory location h (race with conf. 110): (09-race.c:8:5-8:6)
-    write with [barriers:(mayBarriers:{}, bottom or map:{}, Thread:[main, f1@09-race.c:29:5-29:36]), thread:[main, f1@09-race.c:29:5-29:36]] (conf. 110)  (exp: & h) (09-race.c:15:5-15:10)
-    write with [barriers:(mayBarriers:{}, bottom or map:{}, Thread:[main]), mhp:{created={[main, f1@09-race.c:29:5-29:36]}}, thread:[main]] (conf. 110)  (exp: & h) (09-race.c:31:5-31:10)
+    write with [barriers:(mayBarriers:{}, must observed:{}), thread:[main, f1@09-race.c:29:5-29:36]] (conf. 110)  (exp: & h) (09-race.c:15:5-15:10)
+    write with [barriers:(mayBarriers:{}, must observed:{}), mhp:{created={[main, f1@09-race.c:29:5-29:36]}}, thread:[main]] (conf. 110)  (exp: & h) (09-race.c:31:5-31:10)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0

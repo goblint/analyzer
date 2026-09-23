@@ -38,7 +38,11 @@ struct
 
   let name () = "pthreadBarriers"
 
-  module MustObserved = MapDomain.MapTop_LiftBot (TID) (MustBarriers)
+  module MustObserved =
+  struct
+    include MapDomain.MapTop_LiftBot (TID) (MustBarriers)
+    let name () = "must observed"
+  end
   module D = Lattice.Prod (Barriers) (MustObserved)
 
   include Analyses.ValueContexts(D)
@@ -154,9 +158,16 @@ struct
 
   module A =
   struct
-    include Lattice.Prod3 (Barriers) (MustObserved) (TID)
+    include Lattice.Prod (D) (TID)
     let name () = "barriers"
-    let may_race (may_await_t1, must_observed_by_t1, t1) (may_await_t2, must_observed_by_t2, t2) =
+
+    (* TID is queried from other analysis which already prints it, so hide it here to avoid duplication in race warnings *)
+    let pretty () (d, _) = D.pretty () d
+    let show (d, _) = D.show d
+    let to_yojson (d, _) = D.to_yojson d
+    let printXml f (d, _) = D.printXml f d
+
+    let may_race ((may_await_t1, must_observed_by_t1), t1) ((may_await_t2, must_observed_by_t2), t2) =
       let observed_from_t2 = MustObserved.find t2 must_observed_by_t1 in
       if not (Barriers.subset observed_from_t2 may_await_t2) then
         false
@@ -167,9 +178,8 @@ struct
   end
 
   let access man (a: Queries.access) =
-    let (may,must) = man.local in
     let mhp = MHP.current (Analyses.ask_of_man man) in
-    (may, must, mhp.tid)
+    (man.local, mhp.tid)
 end
 
 let _ =
