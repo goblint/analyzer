@@ -9,6 +9,9 @@ static void f(int n, int *parent) {
     if (x == 1) {
       __goblint_check(*parent == 2); // UNKNOWN (the condition on the inner copy must not refine the outer one)
     }
+    if (*parent == 2) {
+      __goblint_check(x == 1); // UNKNOWN (the condition on the outer copy must not refine the inner one)
+    }
   } else {
     f(1, &x);
   }
