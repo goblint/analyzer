@@ -1,11 +1,7 @@
-  $ goblint --set ana.base.privatization write-tid --enable ana.int.interval --set ana.path_sens[+] mutex --set ana.race.graph-coloring greedy 78-write-tid.c
+  $ goblint --set ana.base.privatization write-tid --enable ana.int.interval --set ana.path_sens[+] mutex --set ana.race.graph-coloring greedy --enable warn.deterministic 78-write-tid.c
   [Success][Assert] Assertion "x >= 17" will succeed (78-write-tid.c:56:3-56:27)
   [Success][Assert] Assertion "x <= 42" will succeed (78-write-tid.c:59:3-59:27)
   [Success][Assert] Assertion "x <= 31" will succeed (78-write-tid.c:63:3-63:27)
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 31
-    dead: 0
-    total lines: 31
   [Warning][Race] Memory location g (race with conf. 110): (78-write-tid.c:6:5-6:6)
     Safe subset 1:
       write with [lock:{a, b}, thread:[main, t1@78-write-tid.c:45:3-45:34]] (conf. 110)  (exp: & g) (78-write-tid.c:16:3-16:9)
@@ -20,3 +16,7 @@
     vulnerable: 0
     unsafe: 1
     total memory locations: 1
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 31
+    dead: 0
+    total lines: 31

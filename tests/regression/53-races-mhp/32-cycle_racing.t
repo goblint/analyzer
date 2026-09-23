@@ -1,8 +1,4 @@
-  $ goblint --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] creationLockset --set ana.race.graph-coloring greedy 32-cycle_racing.c
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 18
-    dead: 0
-    total lines: 18
+  $ goblint --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] creationLockset --set ana.race.graph-coloring greedy --enable warn.deterministic 32-cycle_racing.c
   [Warning][Race] Memory location global (race with conf. 110): (32-cycle_racing.c:7:5-7:15)
     Self-races:
       write with [] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
@@ -21,3 +17,7 @@
     vulnerable: 0
     unsafe: 1
     total memory locations: 3
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 18
+    dead: 0
+    total lines: 18
