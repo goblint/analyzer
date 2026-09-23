@@ -99,7 +99,7 @@ let algorithms = [
 let tests =
   "coloringTest" >::: [
     "ColorSet" >::: ColorSet.tests;
-   ] @
+  ] @
     List.map (fun (name, (module Algorithm: C.Algorithm)) ->
         let module AlgorithmTest = Make (Algorithm) in
         name >::: AlgorithmTest.tests
