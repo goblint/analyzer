@@ -1,7 +1,9 @@
-// PARAM: --set ana.activated[+] deadlock
+// PARAM: --set ana.activated[+] deadlock --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+extern int __VERIFIER_nondet_int();
 
 typedef struct {
   int balance;
@@ -40,12 +42,12 @@ void deposit(bank_account *f, bank_account *t, int ammount) {
 
 
 void *t1(void *arg) {
-  deposit(&A, &B, rand() % 100);
+  deposit(&A, &B, __VERIFIER_nondet_int() % 100);
   return NULL;
 }
 
 void *t2(void *arg) {
-  deposit(&B, &A, rand() % 100);
+  deposit(&B, &A, __VERIFIER_nondet_int() % 100);
   return NULL;
 }
 
