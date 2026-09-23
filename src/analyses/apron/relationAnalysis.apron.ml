@@ -146,8 +146,9 @@ struct
   let rec assign_to_global_wrapper (ask:Queries.ask) getg sideg st lv f =
     match lv with
     | (Var v, NoOffset) when RD.Tracked.varinfo_tracked v ->
+      let is_multiple = ask.f (Queries.IsMultiple v) in
       if not v.vglob && not (ThreadEscape.has_escaped ask v) then (
-        if ask.f (Queries.IsMultiple v) then
+        if is_multiple then
           {st with rel = RD.join (f st v) st.rel}
         else
           {st with rel = f st v}
@@ -155,11 +156,12 @@ struct
       else (
         let v_out = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
-        let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
-        let st' = {st with rel = f st v_out} in (* g#out = e; *)
+        let st' = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
+        let st' = {st' with rel = f st' v_out} in (* g#out = e; *)
         if M.tracing then M.trace "relation" "write_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let rel'' = RD.remove_vars st'.rel [RV.local v_out] in (* remove temporary g#out *)
+        let rel'' = if is_multiple then RD.join rel'' st.rel else rel'' in
         {st' with rel = rel''}
       )
     | (Mem v, NoOffset) ->
