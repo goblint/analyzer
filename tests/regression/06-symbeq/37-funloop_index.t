@@ -7,19 +7,19 @@
     total lines: 18
   [Warning][Race] Memory location cache[?].refs (race with conf. 110): (37-funloop_index.c:9:3-9:12)
     Safe subset 1:
-      write with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:13:3-13:16)
-      write with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:14:4-14:18)
-      write with [mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & (entry + 0)->refs) (37-funloop_index.c:15:3-15:18)
-      read with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:13:3-13:16)
-      read with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:14:4-14:18)
-      read with [mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & (entry + 0)->refs) (37-funloop_index.c:15:3-15:18)
-    Safe subset 2:
       write with [symblock:{p-lock:*.refs_mutex}, thread:[main, t_fun@37-funloop_index.c:32:3-32:40]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:13:3-13:16)
       write with [symblock:{p-lock:*.refs_mutex}, thread:[main, t_fun@37-funloop_index.c:32:3-32:40]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:14:4-14:18)
       write with thread:[main, t_fun@37-funloop_index.c:32:3-32:40] (conf. 110)  (exp: & (entry + 0)->refs) (37-funloop_index.c:15:3-15:18)
       read with [symblock:{p-lock:*.refs_mutex}, thread:[main, t_fun@37-funloop_index.c:32:3-32:40]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:13:3-13:16)
       read with [symblock:{p-lock:*.refs_mutex}, thread:[main, t_fun@37-funloop_index.c:32:3-32:40]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:14:4-14:18)
       read with thread:[main, t_fun@37-funloop_index.c:32:3-32:40] (conf. 110)  (exp: & (entry + 0)->refs) (37-funloop_index.c:15:3-15:18)
+    Safe subset 2:
+      write with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:13:3-13:16)
+      write with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:14:4-14:18)
+      write with [mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & (entry + 0)->refs) (37-funloop_index.c:15:3-15:18)
+      read with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:13:3-13:16)
+      read with [symblock:{p-lock:*.refs_mutex}, mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & entry->refs) (37-funloop_index.c:14:4-14:18)
+      read with [mhp:{created={[main, t_fun@37-funloop_index.c:32:3-32:40]}}, thread:[main]] (conf. 110)  (exp: & (entry + 0)->refs) (37-funloop_index.c:15:3-15:18)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

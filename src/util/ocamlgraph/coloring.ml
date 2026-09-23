@@ -50,7 +50,11 @@ struct
       let coloring = H.create n in
       let vertex_order =
         G.fold_vertex (fun v acc -> (v, G.out_degree g v) :: acc) g []
-        |> List.sort (fun (_, d1) (_, d2) -> compare d2 d1) (* compare argument swapped to sort highest degree first! *)
+        |> List.sort (fun (v1, d1) (v2, d2) ->
+            match Int.compare d1 d2 with
+            | 0 -> G.V.compare v1 v2 (* make vertex order deterministic, i.e., independent of ocamlgraph hashtable element order *)
+            | c -> -c (* negate to sort highest degree first! *)
+          )
         |> List.map fst
       in
       let pick_color v =

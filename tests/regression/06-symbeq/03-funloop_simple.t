@@ -7,11 +7,11 @@
     total lines: 17
   [Warning][Race] Memory location cache[?].refs (race with conf. 110): (03-funloop_simple.c:8:3-8:12)
     Safe subset 1:
-      write with [mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}}, thread:[main]] (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
-      read with [mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}}, thread:[main]] (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
-    Safe subset 2:
       write with [symblock:{p-lock:*.refs_mutex}, thread:[main, t_fun@03-funloop_simple.c:29:3-29:40]] (conf. 110)  (exp: & entry->refs) (03-funloop_simple.c:12:3-12:16)
       read with [symblock:{p-lock:*.refs_mutex}, thread:[main, t_fun@03-funloop_simple.c:29:3-29:40]] (conf. 110)  (exp: & entry->refs) (03-funloop_simple.c:12:3-12:16)
+    Safe subset 2:
+      write with [mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}}, thread:[main]] (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
+      read with [mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}}, thread:[main]] (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

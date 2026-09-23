@@ -9,11 +9,11 @@
     total lines: 42
   [Warning][Race] Memory location g (race with conf. 110): (79-write-lock-tid.c:6:5-6:6)
     Safe subset 1:
-      write with [lock:{c}, thread:[main, t2@79-write-lock-tid.c:58:3-58:34]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:36:3-36:9)
-      write with [mhp:{created={[main, t1@79-write-lock-tid.c:57:3-57:34], [main, t2@79-write-lock-tid.c:58:3-58:34]}}, lock:{c}, thread:[main]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:61:3-61:7)
-    Safe subset 2:
       write with [lock:{a, b}, thread:[main, t1@79-write-lock-tid.c:57:3-57:34]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:20:3-20:9)
       write with [lock:{b}, thread:[main, t1@79-write-lock-tid.c:57:3-57:34]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:22:3-22:9)
+    Safe subset 2:
+      write with [lock:{c}, thread:[main, t2@79-write-lock-tid.c:58:3-58:34]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:36:3-36:9)
+      write with [mhp:{created={[main, t1@79-write-lock-tid.c:57:3-57:34], [main, t2@79-write-lock-tid.c:58:3-58:34]}}, lock:{c}, thread:[main]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:61:3-61:7)
     Safe subset 3:
       write with [lock:{a}, thread:[main, there_i_ruined_it@79-write-lock-tid.c:89:3-89:49]] (conf. 110)  (exp: & g) (79-write-lock-tid.c:44:3-44:9)
   [Warning][Race] Memory location xg (race with conf. 110): (79-write-lock-tid.c:11:5-11:7)
