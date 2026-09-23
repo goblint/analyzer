@@ -278,7 +278,12 @@ struct
       )
     in
     if RD.is_bot_env res then raise Deadcode;
-    {st with rel = res}
+    (* Note that we always do the bottom check, but if any read variable is multiple, we do not refine. *)
+    let reads_multiple =
+      List.exists (fun v -> RD.Tracked.varinfo_tracked v && ask.f (Queries.IsMultiple v))
+        (Basetype.CilExp.get_vars e)
+    in
+    if reads_multiple then st else {st with rel = res}
 
 
   (* Function call transfer functions. *)
