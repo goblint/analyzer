@@ -109,17 +109,21 @@ struct
           match best_opt with
           | None -> Some v
           | Some best ->
-            let sv = saturation v in
-            let sb = saturation best in
-            if sv > sb then
-              Some v
-            else if sv < sb then
-              Some best
-            else (
-              let dv = H.find degree v in
-              let db = H.find degree best in
-              if dv > db then Some v else Some best
-            )
+            match Int.compare (saturation v) (saturation best) with
+            | 0 ->
+              begin match Int.compare (H.find degree v) (H.find degree best) with
+                | 0 ->
+                  (* make vertex order deterministic, i.e., independent of ocamlgraph hashtable element order *)
+                  begin match G.V.compare v best with
+                    | 0 -> assert false (* same vertex can't appear twice in uncolored *)
+                    | c when c > 0 -> Some v
+                    | c (* when c < 0 *) -> Some best
+                  end
+                | c when c > 0 -> Some v
+                | c (* when c < 0 *) -> Some best
+              end
+            | c when c > 0 -> Some v
+            | c (* when c < 0 *) -> Some best
         in
         H.fold pick uncolored None
       in
