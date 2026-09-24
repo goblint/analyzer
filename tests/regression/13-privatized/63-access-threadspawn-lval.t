@@ -7,10 +7,10 @@ Should have (safe) write accesses to id1 and id2:
     unsafe: 0
     total memory locations: 2
   [Success][Race] Memory location id1 (safe): (63-access-threadspawn-lval.c:4:11-4:14)
-    write with [thread:[main], multi:false] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id1))) (63-access-threadspawn-lval.c:27:3-27:37)
+    write with thread:[main], multi:false (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id1))) (63-access-threadspawn-lval.c:27:3-27:37)
   [Success][Race] Memory location id2 (safe): (63-access-threadspawn-lval.c:5:11-5:14)
-    write with [thread:[main], mhp:{created={[main, f@63-access-threadspawn-lval.c:27:3-27:37]}}] (conf. 110)  (exp: (pthread_t * __restrict  )(& id2)) (63-access-threadspawn-lval.c:28:3-28:37)
-    write with [thread:[main], mhp:{created={[main, f@63-access-threadspawn-lval.c:27:3-27:37]}}] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id2))) (63-access-threadspawn-lval.c:28:3-28:37)
+    write with thread:[main], mhp:{created={[main, f@63-access-threadspawn-lval.c:27:3-27:37]}} (conf. 110)  (exp: (pthread_t * __restrict  )(& id2)) (63-access-threadspawn-lval.c:28:3-28:37)
+    write with thread:[main], mhp:{created={[main, f@63-access-threadspawn-lval.c:27:3-27:37]}} (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id2))) (63-access-threadspawn-lval.c:28:3-28:37)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 13
     dead: 0

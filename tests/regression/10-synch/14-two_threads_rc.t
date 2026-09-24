@@ -1,11 +1,11 @@
   $ goblint --set ana.activated[+] thread --set ana.activated[+] threadJoins --set ana.race.graph-coloring greedy --enable warn.deterministic 14-two_threads_rc.c
   [Warning][Race] Memory location myglobal (race with conf. 110): (14-two_threads_rc.c:5:5-5:13)
     Safe subset 1:
-      write with [thread:[main, t_fun@14-two_threads_rc.c:15:3-15:40]] (conf. 110)  (exp: & myglobal) (14-two_threads_rc.c:8:3-8:14)
+      write with thread:[main, t_fun@14-two_threads_rc.c:15:3-15:40] (conf. 110)  (exp: & myglobal) (14-two_threads_rc.c:8:3-8:14)
     Safe subset 2:
-      write with [thread:[main, t_fun@14-two_threads_rc.c:16:3-16:40]] (conf. 110)  (exp: & myglobal) (14-two_threads_rc.c:8:3-8:14)
+      write with thread:[main, t_fun@14-two_threads_rc.c:16:3-16:40] (conf. 110)  (exp: & myglobal) (14-two_threads_rc.c:8:3-8:14)
     Safe subset 3:
-      write with [thread:[main], mhp:{created={[main, t_fun@14-two_threads_rc.c:15:3-15:40], [main, t_fun@14-two_threads_rc.c:16:3-16:40]}}] (conf. 110)  (exp: & myglobal) (14-two_threads_rc.c:17:3-17:15)
+      write with thread:[main], mhp:{created={[main, t_fun@14-two_threads_rc.c:15:3-15:40], [main, t_fun@14-two_threads_rc.c:16:3-16:40]}} (conf. 110)  (exp: & myglobal) (14-two_threads_rc.c:17:3-17:15)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

@@ -1,11 +1,11 @@
   $ goblint --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.race.graph-coloring greedy --enable warn.deterministic 03-funloop_simple.c
   [Warning][Race] Memory location cache[?].refs (race with conf. 110): (03-funloop_simple.c:8:3-8:12)
     Safe subset 1:
-      write with [thread:[main, t_fun@03-funloop_simple.c:29:3-29:40], symblock:{p-lock:*.refs_mutex}] (conf. 110)  (exp: & entry->refs) (03-funloop_simple.c:12:3-12:16)
-      read with [thread:[main, t_fun@03-funloop_simple.c:29:3-29:40], symblock:{p-lock:*.refs_mutex}] (conf. 110)  (exp: & entry->refs) (03-funloop_simple.c:12:3-12:16)
+      write with thread:[main, t_fun@03-funloop_simple.c:29:3-29:40], symblock:{p-lock:*.refs_mutex} (conf. 110)  (exp: & entry->refs) (03-funloop_simple.c:12:3-12:16)
+      read with thread:[main, t_fun@03-funloop_simple.c:29:3-29:40], symblock:{p-lock:*.refs_mutex} (conf. 110)  (exp: & entry->refs) (03-funloop_simple.c:12:3-12:16)
     Safe subset 2:
-      write with [thread:[main], mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}}] (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
-      read with [thread:[main], mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}}] (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
+      write with thread:[main], mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}} (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
+      read with thread:[main], mhp:{created={[main, t_fun@03-funloop_simple.c:29:3-29:40]}} (conf. 110)  (exp: & cache[5].refs) (03-funloop_simple.c:32:3-32:18)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

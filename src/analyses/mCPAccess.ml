@@ -36,5 +36,5 @@ struct
         a
     in
     let doc = BatOption.default Pretty.nil (unop_fold pretty_one None xs) in
-    Pretty.dprintf "[@[%a@]]" Pretty.insert doc
+    Pretty.dprintf "@[%a@]" Pretty.insert doc
 end

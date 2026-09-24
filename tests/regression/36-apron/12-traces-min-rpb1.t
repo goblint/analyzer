@@ -3,11 +3,11 @@
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:16:3-16:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:29:3-29:26)
   [Warning][Race] Memory location g (race with conf. 110): (12-traces-min-rpb1.c:7:5-7:10)
-    write with [thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A}] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:14:3-14:8)
-    read with [thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}}] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:27:3-27:26)
+    write with thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A} (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:14:3-14:8)
+    read with thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}} (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:27:3-27:26)
   [Warning][Race] Memory location h (race with conf. 110): (12-traces-min-rpb1.c:8:5-8:10)
-    write with [thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A}] (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:15:3-15:8)
-    read with [thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}}] (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:27:3-27:26)
+    write with thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A} (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:15:3-15:8)
+    read with thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}} (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:27:3-27:26)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
@@ -60,11 +60,11 @@
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:16:3-16:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:29:3-29:26)
   [Warning][Race] Memory location g (race with conf. 110): (12-traces-min-rpb1.c:7:5-7:10)
-    write with [thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A}] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:14:3-14:8)
-    read with [thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}}] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:27:3-27:26)
+    write with thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A} (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:14:3-14:8)
+    read with thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}} (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:27:3-27:26)
   [Warning][Race] Memory location h (race with conf. 110): (12-traces-min-rpb1.c:8:5-8:10)
-    write with [thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A}] (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:15:3-15:8)
-    read with [thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}}] (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:27:3-27:26)
+    write with thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40], lock:{A} (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:15:3-15:8)
+    read with thread:[main], mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}} (conf. 110)  (exp: & h) (12-traces-min-rpb1.c:27:3-27:26)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
