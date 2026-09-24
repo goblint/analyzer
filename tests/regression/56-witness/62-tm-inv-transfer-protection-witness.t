@@ -12,13 +12,13 @@ Same as regression test, but with manually written witness from Simmo's PhD thes
     dead: 0
     total lines: 19
   [Warning][Race] Memory location g (race with conf. 110): (62-tm-inv-transfer-protection-witness.c:5:5-5:11)
-    write with [lock:{B}, thread:[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:10:3-10:9)
-    write with [lock:{B}, thread:[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:11:3-11:9)
-    write with thread:[main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:17:3-17:9)
-    read with [mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}, lock:{B}, thread:[main]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:27:3-27:27)
-    read with [mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}, lock:{B}, thread:[main]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:28:3-28:27)
-    read with [mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}, thread:[main]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:31:3-31:27)
-    read with [mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}, thread:[main]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:32:3-32:27)
+    write with [thread:[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], lock:{B}] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:10:3-10:9)
+    write with [thread:[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], lock:{B}] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:11:3-11:9)
+    write with [thread:[main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:17:3-17:9)
+    read with [thread:[main], lock:{B}, mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:27:3-27:27)
+    read with [thread:[main], lock:{B}, mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:28:3-28:27)
+    read with [thread:[main], mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:31:3-31:27)
+    read with [thread:[main], mhp:{created={[main, t_fun@62-tm-inv-transfer-protection-witness.c:23:3-23:40], [main, t_fun2@62-tm-inv-transfer-protection-witness.c:24:3-24:42]}}] (conf. 110)  (exp: & g) (62-tm-inv-transfer-protection-witness.c:32:3-32:27)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

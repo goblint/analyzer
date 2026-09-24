@@ -13,9 +13,9 @@ Assertions should be unknown, race should be present.
     dead: 0
     total lines: 5
   [Warning][Race] Memory location g (race with conf. 110): (42-no-threadflag.c:4:5-4:6)
-    write with mhp:{created={Unknown thread id}} (conf. 110)  (exp: & g) (42-no-threadflag.c:8:3-8:8)
-    read with mhp:{created={Unknown thread id}} (conf. 110)  (exp: & g) (42-no-threadflag.c:7:3-7:26)
-    read with mhp:{created={Unknown thread id}} (conf. 110)  (exp: & g) (42-no-threadflag.c:9:3-9:26)
+    write with [mhp:{created={Unknown thread id}}] (conf. 110)  (exp: & g) (42-no-threadflag.c:8:3-8:8)
+    read with [mhp:{created={Unknown thread id}}] (conf. 110)  (exp: & g) (42-no-threadflag.c:7:3-7:26)
+    read with [mhp:{created={Unknown thread id}}] (conf. 110)  (exp: & g) (42-no-threadflag.c:9:3-9:26)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

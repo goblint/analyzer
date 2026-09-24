@@ -3,8 +3,8 @@
     Self-races:
       write with [] (conf. 110)  (exp: & *gp) (07-not-created5.c:9:6-9:12)
     Safe subset 1:
-      write with thread:[main, b, a] (conf. 110)  (exp: & *gp) (07-not-created5.c:9:6-9:12)
-      read with thread:[main, b, a] (conf. 110)  (exp: & *gp) (07-not-created5.c:9:6-9:12)
+      write with [thread:[main, b, a]] (conf. 110)  (exp: & *gp) (07-not-created5.c:9:6-9:12)
+      read with [thread:[main, b, a]] (conf. 110)  (exp: & *gp) (07-not-created5.c:9:6-9:12)
     Safe subset 2:
       read with [] (conf. 110)  (exp: & *gp) (07-not-created5.c:9:6-9:12)
   [Info][Race] Memory locations race summary:

@@ -7,10 +7,10 @@
     dead: 0
     total lines: 23
   [Warning][Race] Memory location (alloc@sid:$SID@tid:[main])[?].datum (race with conf. 110): (14-list_entry_rc.c:41:3-41:35)
-    write with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-    write with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-    read with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-    read with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    write with [thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    write with [thread:[main], mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    read with [thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+    read with [thread:[main], mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -27,14 +27,14 @@
   > [Warning][Unknown] unlocking mutex (((alloc@sid:$SID@tid:[main](#top)), 14-list_entry_rc.c:41:3-41:35)[def_exc:1].mutex) which may not be held (14-list_entry_rc.c:28:3-28:34)
   8,12c8,12
   < [Warning][Race] Memory location (alloc@sid:$SID@tid:[main])[?].datum (race with conf. 110): (14-list_entry_rc.c:41:3-41:35)
-  <   write with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-  <   write with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-  <   read with thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-  <   read with [mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  <   write with [thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  <   write with [thread:[main], mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  <   read with [thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  <   read with [thread:[main], mhp:{created={[main, t_fun@14-list_entry_rc.c:45:3-45:40]}}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
   ---
   > [Warning][Race] Memory location (alloc@sid:$SID@tid:[main](#top))[?].datum (race with conf. 110): (14-list_entry_rc.c:41:3-41:35)
-  >   write with [mhp:{tid=[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}, thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-  >   read with [mhp:{tid=[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}, thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
-  >   read with [mhp:{tid=[main]; created={[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}}, thread:[main]] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  >   write with [thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤], mhp:{tid=[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  >   write with [thread:[main], mhp:{tid=[main]; created={[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  >   read with [thread:[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤], mhp:{tid=[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
+  >   read with [thread:[main], mhp:{tid=[main]; created={[main, t_fun@14-list_entry_rc.c:45:3-45:40#⊤]}}] (conf. 110)  (exp: & s->datum) (14-list_entry_rc.c:27:3-27:13)
   [1]

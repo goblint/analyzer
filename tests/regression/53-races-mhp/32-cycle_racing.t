@@ -3,13 +3,13 @@
     Self-races:
       write with [] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
     Safe subset 1:
-      write with [lock:{mutex}, thread:[main, t1@32-cycle_racing.c:36:3-36:38]] (conf. 110)  (exp: & global) (32-cycle_racing.c:13:3-13:11)
-      read with [lock:{mutex}, thread:[main, t1@32-cycle_racing.c:36:3-36:38]] (conf. 110)  (exp: & global) (32-cycle_racing.c:13:3-13:11)
+      write with [thread:[main, t1@32-cycle_racing.c:36:3-36:38], lock:{mutex}] (conf. 110)  (exp: & global) (32-cycle_racing.c:13:3-13:11)
+      read with [thread:[main, t1@32-cycle_racing.c:36:3-36:38], lock:{mutex}] (conf. 110)  (exp: & global) (32-cycle_racing.c:13:3-13:11)
     Safe subset 2:
-      write with thread:[main, tc1@32-cycle_racing.c:37:3-37:40, tc2@32-cycle_racing.c:31:3-31:40, tc1@32-cycle_racing.c:23:3-23:40] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
-      write with thread:[main, tc1@32-cycle_racing.c:37:3-37:40] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
-      read with thread:[main, tc1@32-cycle_racing.c:37:3-37:40, tc2@32-cycle_racing.c:31:3-31:40, tc1@32-cycle_racing.c:23:3-23:40] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
-      read with thread:[main, tc1@32-cycle_racing.c:37:3-37:40] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
+      write with [thread:[main, tc1@32-cycle_racing.c:37:3-37:40, tc2@32-cycle_racing.c:31:3-31:40, tc1@32-cycle_racing.c:23:3-23:40]] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
+      write with [thread:[main, tc1@32-cycle_racing.c:37:3-37:40]] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
+      read with [thread:[main, tc1@32-cycle_racing.c:37:3-37:40, tc2@32-cycle_racing.c:31:3-31:40, tc1@32-cycle_racing.c:23:3-23:40]] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
+      read with [thread:[main, tc1@32-cycle_racing.c:37:3-37:40]] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
     Safe subset 3:
       read with [] (conf. 110)  (exp: & global) (32-cycle_racing.c:29:3-29:11)
   [Info][Race] Memory locations race summary:
