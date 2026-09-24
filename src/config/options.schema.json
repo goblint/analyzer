@@ -1157,6 +1157,13 @@
               "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
+            },
+            "graph-coloring": {
+              "title": "ana.race.graph-coloring",
+              "description": "Group accesses in race warnings into safe subgroups by coloring the race interference graph with the chosen algorithm (none, greedy, dsatur, rlf, optimal).",
+              "type": "string",
+              "enum": ["none", "greedy", "dsatur", "rlf", "optimal"],
+              "default": "none"
             }
           },
           "additionalProperties": false

@@ -93,6 +93,7 @@ depends: [
   "ocamlc-loc" {= "3.21.1" & with-dev-setup}
   "ocamlfind" {= "1.9.8"}
   "ocamlformat-rpc-lib" {= "0.29.0" & with-dev-setup}
+  "ocamlgraph" {= "2.2.0"}
   "ocp-indent" {= "1.8.1" & with-dev-setup}
   "odoc" {= "3.0.0" & with-doc}
   "odoc-parser" {= "3.0.0" & with-doc}

@@ -594,16 +594,83 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
+module InterferenceGraph =
+struct
+  include Graph.Imperative.Graph.Concrete (A)
+
+  let of_accesses (accs : AS.t) =
+    let graph = create () in
+    AS.iter (fun acc -> add_vertex graph acc) accs;
+    let accs_list = AS.elements accs in
+    let rec loop = function
+      | [] -> ()
+      | a :: rest as l ->
+        List.iter (fun b ->
+            if may_race a b then
+              add_edge graph a b
+          ) l;
+        loop rest
+    in
+    loop accs_list;
+    graph
+end
+module InterferenceGraphColoring = Goblint_ocamlgraph.Coloring.Make (InterferenceGraph)
+module ColorMap = Map.Make (Goblint_ocamlgraph.Coloring.Color)
+
+let coloring_module =
+  lazy (
+    let open InterferenceGraphColoring in
+    match get_string "ana.race.graph-coloring" with
+    | "none" -> None
+    | "greedy" -> Some (module Greedy: Algorithm)
+    | "dsatur" -> Some (module Dsatur)
+    | "rlf" -> Some (module Rlf)
+    | "optimal" -> Some (module Optimal)
+    | _ -> assert false
+  )
+
 let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h A.{conf; kind; node; exp; acc} =
-      let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
+    let acc_msg ?(indent="") A.{conf; kind; node; exp; acc} =
+      let doc = dprintf "%s%a with %a (conf. %d)  (exp: %a)" indent AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
-    AS.elements race_accs
-    |> List.map h
+    match coloring_module with
+    | lazy None ->
+      AS.elements race_accs
+      |> List.map acc_msg
+    | lazy (Some (module Coloring: InterferenceGraphColoring.Algorithm)) ->
+      let (self_race_accs, race_accs) = AS.partition (fun a -> may_race a a) race_accs in
+      let self_race_msgs =
+        if AS.is_empty self_race_accs then
+          []
+        else (
+          let header = (dprintf "Self-races:", None) in
+          let accs_msgs = AS.elements self_race_accs |> List.map (acc_msg ~indent:"  ") in
+          header :: accs_msgs
+        )
+      in
+      let race_msgs = (* non-self races *)
+        let graph = InterferenceGraph.of_accesses race_accs in
+        let coloring = Coloring.color graph in
+        let add_to_map acc map =
+          let c = InterferenceGraphColoring.H.find coloring acc in
+          ColorMap.update c (function
+              | None -> Some [acc]
+              | Some accs -> Some (acc :: accs)
+            ) map
+        in
+        let color_map = AS.fold add_to_map race_accs ColorMap.empty in
+        ColorMap.bindings color_map
+        |> List.concat_map (fun (color, accs) ->
+            let header = (dprintf "Safe subset %d:" color, None) in
+            let accs_msgs = accs |> List.rev |> List.map (acc_msg ~indent:"  ") in (* reverse because add_to_map adds reversed *)
+            header :: accs_msgs
+          )
+      in
+      self_race_msgs @ race_msgs
   in
   let group_loc = match memo with
     | (`Var v, _) -> Some (M.Location.CilLocation v.vdecl) (* TODO: offset location *)
