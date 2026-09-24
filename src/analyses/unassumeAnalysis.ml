@@ -213,7 +213,7 @@ struct
       ()
 
   let emit_unassume man =
-    if GobConfig.get_bool "ana.unassume.precheck" then
+    if GobConfig.get_bool "ana.unassume.precheck" && NH.mem invs man.node then (* only emit UnassumePrecheck if there are invariants to check at all *)
       man.emit UnassumePrecheck (* Must delay prechecking to happen on the post-state of other analyses via UnassumePrecheck event. *)
     else
       emit_unassume' man
