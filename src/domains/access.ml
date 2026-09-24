@@ -634,7 +634,13 @@ let print_accesses memo grouped_accs =
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let acc_msg ?(indent="") A.{conf; kind; node; exp; acc} =
-      let doc = dprintf "%s%a with %a (conf. %d)  (exp: %a)" indent AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
+      let acc_doc () =
+        if MCPAccess.A.should_print acc then
+          dprintf " with %a" MCPAccess.A.pretty acc
+        else
+          nil
+      in
+      let doc = dprintf "%s%a%t (conf. %d)  (exp: %a)" indent AccessKind.pretty kind acc_doc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
     match coloring_module with
