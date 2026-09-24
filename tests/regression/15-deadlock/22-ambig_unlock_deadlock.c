@@ -1,7 +1,9 @@
-// PARAM: --set ana.activated[+] deadlock --set ana.path_sens[-] mutex
+// PARAM: --set ana.activated[+] deadlock --set ana.path_sens[-] mutex --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+extern int __VERIFIER_nondet_int();
 
 int g1, g2;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -18,8 +20,8 @@ void *t1(void *arg) {
 }
 
 void *t2(void *arg) {
-  int k = rand() % 2;
-  int l = rand() % 2;
+  int k = __VERIFIER_nondet_int() % 2;
+  int l = __VERIFIER_nondet_int() % 2;
   pthread_mutex_t *m, *n;
   if (k)
     m = &mutex2;

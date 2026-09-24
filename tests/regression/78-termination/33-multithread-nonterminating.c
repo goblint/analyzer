@@ -1,9 +1,11 @@
-// SKIP NONTERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// SKIP NONTERM PARAM:  --enable ana.sv-comp.functions --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+
+extern int __VERIFIER_nondet_int();
 
 // Thread function
 void *printPID(void *arg)
@@ -16,7 +18,7 @@ void *printPID(void *arg)
     struct timespec sleepTime;
     sleepTime.tv_sec = 1; // Seconds
     sleepTime.tv_nsec =
-        100000000 + (rand() % 200000000); // Nanoseconds (0.1 seconds + rand)
+        100000000 + (__VERIFIER_nondet_int() % 200000000); // Nanoseconds (0.1 seconds + rand)
     printf("Sleep for %ld nsec\n", sleepTime.tv_nsec);
     nanosleep(&sleepTime, NULL);
   }
