@@ -1,14 +1,14 @@
   $ goblint --set ana.activated[+] thread --set ana.race.graph-coloring greedy --enable warn.deterministic 05-two_unique_two_lock.c
   [Warning][Race] Memory location myglobal (race with conf. 110): (05-two_unique_two_lock.c:5:5-5:13)
     Safe subset 1:
-      write with [lock:{A}, thread:[main, f1@05-two_unique_two_lock.c:31:3-31:37]] (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:11:3-11:13)
+      write with thread:[main, f1@05-two_unique_two_lock.c:31:3-31:37], lock:{A} (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:11:3-11:13)
     Safe subset 2:
-      write with [lock:{B}, thread:[main, f2@05-two_unique_two_lock.c:32:3-32:37]] (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:24:3-24:13)
+      write with thread:[main, f2@05-two_unique_two_lock.c:32:3-32:37], lock:{B} (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:24:3-24:13)
   [Warning][Race] Memory location myglobal (race with conf. 110): (05-two_unique_two_lock.c:5:5-5:13)
     Safe subset 1:
-      write with [lock:{B}, thread:[main, f1@05-two_unique_two_lock.c:31:3-31:37]] (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:14:3-14:13)
+      write with thread:[main, f1@05-two_unique_two_lock.c:31:3-31:37], lock:{B} (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:14:3-14:13)
     Safe subset 2:
-      write with [lock:{A}, thread:[main, f2@05-two_unique_two_lock.c:32:3-32:37]] (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:21:3-21:13)
+      write with thread:[main, f2@05-two_unique_two_lock.c:32:3-32:37], lock:{A} (conf. 110)  (exp: & myglobal) (05-two_unique_two_lock.c:21:3-21:13)
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0

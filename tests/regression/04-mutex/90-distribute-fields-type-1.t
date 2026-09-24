@@ -3,7 +3,7 @@
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (90-distribute-fields-type-1.c:39:3-39:17)
   [Warning][Race] Memory location (struct T).s.field (race with conf. 100):
     write with thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
-    write with [mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
+    write with thread:[main], mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}} (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -12,7 +12,7 @@
   [Success][Race] Memory location (struct S).field (safe):
     write with thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
   [Success][Race] Memory location (struct T).s (safe):
-    write with [mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
+    write with thread:[main], mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}} (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
@@ -32,16 +32,16 @@
   $ diff default-output.txt full-output.txt
   4,5c4,5
   <   write with thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
-  <   write with [mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
+  <   write with thread:[main], mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}} (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
   ---
-  >   write with [mhp:{tid=[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]}, thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
+  >   write with thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤], mhp:{tid=[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]} (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
+  >   write with thread:[main], mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]}} (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
   12c12
   <   write with thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
   ---
-  >   write with [mhp:{tid=[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]}, thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]] (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
+  >   write with thread:[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤], mhp:{tid=[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]} (conf. 100)  (exp: & tmp->field) (90-distribute-fields-type-1.c:31:3-31:20)
   14c14
-  <   write with [mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
+  <   write with thread:[main], mhp:{created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40]}} (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
   ---
-  >   write with [mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]}}, thread:[main]] (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
+  >   write with thread:[main], mhp:{tid=[main]; created={[main, t_fun@90-distribute-fields-type-1.c:37:3-37:40#⊤]}} (conf. 100)  (exp: & tmp->s) (90-distribute-fields-type-1.c:39:3-39:17)
   [1]
