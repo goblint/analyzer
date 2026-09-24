@@ -174,7 +174,7 @@ struct
     | [] -> None
     | x :: xs -> Some (List.fold_left (fun a b -> Cil.(BinOp (LOr, a, b, intType))) x xs)
 
-  let emit_unassume man =
+  let emit_unassume' man =
     let es = NH.find_all invs man.node in
     let es =
       if GobConfig.get_bool "ana.unassume.precheck" then (
@@ -204,6 +204,12 @@ struct
     | [] ->
       ()
 
+  let emit_unassume man =
+    if GobConfig.get_bool "ana.unassume.precheck" then
+      man.emit UnassumePrecheck
+    else
+      emit_unassume' man
+
   let assign man lv e =
     emit_unassume man
 
@@ -230,6 +236,11 @@ struct
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)
   (* not in vdecl, return, threadspawn because unnecessary targets for invariants? *)
+
+  let event man (event: Events.t) oman =
+    match event with
+    | UnassumePrecheck -> emit_unassume' man
+    | _ -> man.local
 end
 
 let _ =
