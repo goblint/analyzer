@@ -35,7 +35,7 @@ struct
     | _ -> None
 
   let to_mval ((v, o): t): Mval.t =
-    (v, Offset.Poly.map_indices (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) o)
+    (v, Offset.Poly.map_indices IndexDomain.of_int o)
 end
 
 module MustLockset =
