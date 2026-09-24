@@ -182,7 +182,7 @@ struct
     let f a n (module S : Printable.S) x =
       let name = find_spec_name n in
       (name, S.to_yojson (Obj.obj x)) :: a
-    in `Assoc (unop_fold f [] xs)
+    in `Assoc (rev (unop_fold f [] xs)) (* must reverse result, not [xs] because [unop_fold] requires original domain order *)
 
   let binop_for_all f (x:t) (y:t) =
     GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
