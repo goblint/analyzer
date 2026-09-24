@@ -15,7 +15,7 @@ type t =
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | Assert of exp
   | Unassume of {exp: CilType.Exp.t; tokens: WideningToken.t list}
-  | UnassumePrecheck
+  | UnassumePrecheck (** Used by unassume analysis to evaluate invariants on post-state. *)
   | Longjmped of {lval: CilType.Lval.t option}
   | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once(o) *)
   | LeaveOnce of {once_control: CilType.Exp.t}

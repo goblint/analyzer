@@ -214,7 +214,7 @@ struct
 
   let emit_unassume man =
     if GobConfig.get_bool "ana.unassume.precheck" then
-      man.emit UnassumePrecheck
+      man.emit UnassumePrecheck (* Must delay prechecking to happen on the post-state of other analyses via UnassumePrecheck event. *)
     else
       emit_unassume' man
 
