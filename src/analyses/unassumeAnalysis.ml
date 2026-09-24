@@ -164,6 +164,9 @@ struct
         | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
+  (** Precheck leaf expressions of the invariant expression.
+      Parts which contradict the current state are dropped to avoid unassuming something unrelated/unintended.
+      In particular, this is useful for disjunctive invariants over loop unrollings to only unassume the parts possibly related to the current unrolling. *)
   let rec precheck ask = function
     | Cil.BinOp (LAnd, a, b, _) ->
       begin match precheck ask a, precheck ask b with
@@ -191,6 +194,7 @@ struct
     let es = NH.find_all invs man.node in
     let es =
       if GobConfig.get_bool "ana.unassume.precheck" then (
+        (* TODO: This is inconsistent with actual LAnd-s in precheck: this just drops the None-s, precheck would drop everything if one is None. *)
         List.filter_map (fun {exp; token} ->
             M.debug ~category:Witness "unassume precheck invariant: %a" CilType.Exp.pretty exp;
             precheck (Analyses.ask_of_man man) exp
