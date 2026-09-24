@@ -164,15 +164,28 @@ struct
         | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
-  (* TODO: move this somewhere more general *)
-  let rec split_disj = function
+  let rec precheck ask = function
+    | Cil.BinOp (LAnd, a, b, _) ->
+      begin match precheck ask a, precheck ask b with
+        | Some a', Some b' -> Some (Cil.(BinOp (LAnd, a', b', intType)))
+        | Some _, None
+        | None, Some _
+        | None, None -> None
+      end
     | Cil.BinOp (LOr, a, b, _) ->
-      split_disj a @ split_disj b
-    | e -> [e]
-
-  let merge_disj = function
-    | [] -> None
-    | x :: xs -> Some (List.fold_left (fun a b -> Cil.(BinOp (LOr, a, b, intType))) x xs)
+      begin match precheck ask a, precheck ask b with
+        | Some a', Some b' -> Some (Cil.(BinOp (LOr, a', b', intType)))
+        | Some e, None
+        | None, Some e -> Some e
+        | None, None -> None
+      end
+    | e ->
+      let r = Queries.eval_bool ask e in
+      M.debug ~category:Witness "unassume precheck leaf: %a -> %a" CilType.Exp.pretty e BoolDomain.FlatBool.pretty r;
+      begin match r with
+        | `Top | `Lifted true -> Some e
+        | `Bot | `Lifted false -> None
+      end
 
   let emit_unassume' man =
     let es = NH.find_all invs man.node in
@@ -180,12 +193,7 @@ struct
       if GobConfig.get_bool "ana.unassume.precheck" then (
         List.filter_map (fun {exp; token} ->
             M.debug ~category:Witness "unassume precheck invariant: %a" CilType.Exp.pretty exp;
-            split_disj exp
-            |> List.filter (fun e ->
-                M.debug ~category:Witness "unassume precheck disjunct: %a" CilType.Exp.pretty e;
-                Queries.eval_bool (Analyses.ask_of_man man) e <> `Lifted false
-              )
-            |> merge_disj
+            precheck (Analyses.ask_of_man man) exp
             |> Option.map (fun e -> {exp = e; token})
           ) es
       )

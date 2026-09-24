@@ -24,7 +24,7 @@ int main()
 {
 	int i;
 	int c=__VERIFIER_nondet_int();
-	for(i = 0; i < SIZE; i++) // TODO SUCCESS (witness)
+	for(i = 0; i < SIZE; i++) // SUCCESS (witness)
 	{
 		if(c > 5)
 			break;
