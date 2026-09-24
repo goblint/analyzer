@@ -5,7 +5,7 @@ module Pretty = GoblintCil.Pretty
 
 (** Access module corresponding to MCP.
     Separate to avoid dependency cycle. *)
-module A =
+module A: Analyses.MCPA with type t = (int * Obj.t) list =
 struct
   open AccListSpec
   open List
@@ -18,9 +18,14 @@ struct
   let binop_for_all f (x:t) (y:t) =
     GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
+  let unop_exists f (x:t) =
+    List.exists2 (fun (n,d) (n',s) -> assert (n = n'); f n s d) x (domain_list ())
+
   let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
       S.may_race (Obj.obj x) (Obj.obj y)
     ) x y
+
+  let should_print = unop_exists (fun n (module S: Analyses.MCPA) x -> S.should_print (Obj.obj x))
 
   let pretty () xs =
     let open Pretty in
