@@ -170,18 +170,23 @@ struct
       split_disj a @ split_disj b
     | e -> [e]
 
+  let merge_disj = function
+    | [] -> None
+    | x :: xs -> Some (List.fold_left (fun a b -> Cil.(BinOp (LOr, a, b, intType))) x xs)
+
   let emit_unassume man =
     let es = NH.find_all invs man.node in
     let es =
       if GobConfig.get_bool "ana.unassume.precheck" then (
-        List.concat_map (fun {exp; token} ->
-            let es = split_disj exp in
-            List.filter_map (fun e ->
-                if Queries.eval_bool (Analyses.ask_of_man man) e = `Lifted false then
-                  None
-                else
-                  Some {exp = e; token}
-              ) es
+        List.filter_map (fun {exp; token} ->
+            M.debug ~category:Witness "unassume precheck invariant: %a" CilType.Exp.pretty exp;
+            split_disj exp
+            |> List.filter (fun e ->
+                M.debug ~category:Witness "unassume precheck disjunct: %a" CilType.Exp.pretty e;
+                Queries.eval_bool (Analyses.ask_of_man man) e <> `Lifted false
+              )
+            |> merge_disj
+            |> Option.map (fun e -> {exp = e; token})
           ) es
       )
       else

@@ -32,7 +32,7 @@ int main()
 		s[i].n = malloc(sizeof(int));
 	}
 
-	for(i = 0; i < SIZE; i++) // SUCCESS (witness)
+	for(i = 0; i < SIZE; i++) // TODO SUCCESS (witness)
 	{
 		if(c <= 5)
 			assert(s[i].n != NULL); // UNKNOWN
