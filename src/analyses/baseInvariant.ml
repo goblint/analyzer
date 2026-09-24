@@ -117,13 +117,13 @@ struct
       let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
       (* Additional offset of value being refined in Addr Offset type *)
       let original_offset = convert_offset ~man st off in
-      let res = AD.fold (fun base_a acc ->
-          Option.bind acc (fun acc ->
+      let res = AD.fold (fun base_a st ->
+          Option.bind st (fun (st, ad) ->
               match base_a with
               | Addr base_mval ->
                 let (lval_a:VD.t) = Address (AD.singleton base_a) in
                 if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty lval_a;
-                let st = set' lv lval_a st in
+                (* let st = set' lv lval_a st in *)
                 let orig = PreValueDomain.Addr.Mval.add_offset base_mval original_offset in
                 let old_val = get_mval ~man st orig None in
                 let old_val = VD.cast ~kind:Internal (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *) (* TODO: proper castkind *)
@@ -132,16 +132,26 @@ struct
                 let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
                 let v = apply_invariant ~old_val ~new_val:c' in
                 if is_some_bot v then
-                  Some (D.join acc (try contra st with Analyses.Deadcode -> D.bot ()))
+                  Some (st, ad) (* TODO: some contra thing? *)
                 else (
                   if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-                  Some (D.join acc (set' x v st))
+                  Some (set' x v st, AD.add base_a ad)
                 )
               | _ -> None
             )
-        ) lvals (Some (D.bot ()))
+        ) lvals (Some (st, AD.empty ()))
       in
-      BatOption.map_default_delayed (fun d -> if D.is_bot d then raise Analyses.Deadcode else d) default res
+      BatOption.map_default_delayed (fun (d, ad) ->
+          if AD.is_bot ad then
+            raise Analyses.Deadcode
+          else (
+            let d = set' lv (Address ad) d in
+            if AD.cardinal ad > 1 then
+              D.join st d
+            else
+              d
+          )
+        ) default res
     | Var _, _
     | Mem _, _ ->
       default ()
