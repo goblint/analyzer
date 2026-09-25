@@ -31,7 +31,12 @@ sig
   val map_oldval: VD.t -> typ -> VD.t
   val eval_rv_lval_refine: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> exp -> lval -> VD.t
 
+  (** [ID.meet] between [old] value of an expression and refinement [c] from the parent expression.
+      Unassume simply returns [c] to allow relaxation. *)
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
+
+  (** [FD.meet] between [old] value of an expression and refinement [c] from the parent expression.
+      Unassume simply returns [c] to allow relaxation. *)
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
 
   (** Handle contradiction.
