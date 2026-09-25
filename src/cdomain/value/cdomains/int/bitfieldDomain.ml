@@ -677,13 +677,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* if a bit is definitely 0 in b and definitely 1 in c, the same bit must be definitely 1 in a *)
     (* example (with t for top): (tttt) | (t010) = (1011) *)
     (* we can refine (tttt) to (ttt1) because the lowest 1 of c must come from a *)
-    let az = az &: (!: (bDef0 &: cDef1)) in
-    let bz = bz &: (!: (aDef0 &: cDef1)) in
+    let az = !: (bDef0 &: cDef1) in
+    let bz = !: (aDef0 &: cDef1) in
     (* if a bit is definitely 0 in c, the same bit must be definitely 0 in a too *)
     (* example (with t for top): (ttt1) | (t010) = (1011) *)
     (* we can refine (ttt1) to (t0t1) because the second bit of a cannot be a 1 *)
-    let ao = ao &: (!: cDef0) in
-    let bo = bo &: (!: cDef0) in
+    let ao = !: cDef0 in
+    let bo = !: cDef0 in
     ((az, ao), (bz, bo))
 
   let refine_band (az, ao) (bz, bo) (cz, co) =
@@ -694,13 +694,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* if a bit is definitely 1 in c, the same bit must be definitely 1 in a too *)
     (* example (with t for top): (tttt) & (t010) = (1011) *)
     (* we can refine (tttt) to (1t11) *)
-    let az = az &: (!: cDef1) in
-    let bz = bz &: (!: cDef1) in
+    let az = !: cDef1 in
+    let bz = !: cDef1 in
     (* if a bit is definitely 1 in b and definitely 0 in c, the same bit must be definitely 0 in a *)
     (* example (with t for top): (tttt) & (t110) = (1011) *)
     (* we can refine (tttt) to (t0tt) *)
-    let ao = ao &: (!: (bDef1 &: cDef0)) in
-    let bo = bo &: (!: (aDef1 &: cDef0)) in
+    let ao = !: (bDef1 &: cDef0) in
+    let bo = !: (aDef1 &: cDef0) in
     ((az, ao), (bz, bo))
 
   let arbitrary ik =
