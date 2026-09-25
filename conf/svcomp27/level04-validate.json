@@ -1,0 +1,76 @@
+{
+  "ana": {
+    "int": {
+      "congruence": true,
+      "bitfield":true,
+      "enums": true,
+      "interval": true,
+      "interval_threshold_widening": true
+    },
+    "float": {
+      "interval": true,
+      "evaluate_math_functions": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins",
+      "abortUnless",
+      "mutexGhosts",
+      "pthreadMutexType"
+    ],
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "memLeak",
+      "threadflag",
+      "base"
+    ],
+    "base": {
+      "arrays": {
+        "domain": "unroll",
+        "unrolling-factor": 16
+      },
+      "structs": {
+        "domain": "sets"
+      }
+    },
+    "autotune": {
+      "activated": [
+        "reduceAnalyses",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
+        "wideningThresholds",
+        "loopUnrollHeuristic",
+        "memsafetySpecification",
+        "noOverflows",
+        "termination",
+        "tmpSpecialAnalysis"
+      ]
+    }
+  },
+  "exp": {
+    "unrolling-factor": 4
+  }
+}
