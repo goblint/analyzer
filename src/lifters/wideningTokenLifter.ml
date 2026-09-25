@@ -92,6 +92,9 @@ struct
         D.join d1 d2
     in
     (d', TS.join t1 t2)
+
+  let pretty_diff () ((d1, _), (d2, _)) =
+    D.pretty_diff () (d1, d2) (* Tokens cannot violate leq. *)
 end
 
 (** Lift {!S} to carry widening tokens with both local and global states. *)
