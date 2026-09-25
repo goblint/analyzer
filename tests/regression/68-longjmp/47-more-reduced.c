@@ -24,6 +24,9 @@ main() {
     case 1:
       if (*t->g) { g=1; }
       // This refinement somehow adds bottom for keyword as an explicit binding (???)
+      // weakUpdates finds keyword to be reachable from argument t (via global)
+      // and that leaks to taintPC, modifiedsinceLongJmp, etc, causing a new warning
+      // base's version filters reachable with current CPA on entry and didn't consider it as weakly updatable
       set_key(t);
       longjmp(env_buffer, 2); //NOWARN
       break;
