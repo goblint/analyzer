@@ -37,13 +37,6 @@ let isFloatType t =
   | TFloat _ -> true
   | _ -> false
 
-let rec isVLAType t = (* TODO: use in base? *)
-  match Cil.unrollType t with
-  | TArray (et, len, _) ->
-    let variable_len = GobOption.exists (Fun.negate Cil.isConstant) len in
-    variable_len || isVLAType et
-  | _ -> false
-
 let isStructOrUnionType t =
   match Cil.unrollType t with
   | TComp _ -> true
@@ -405,6 +398,44 @@ and typeOffset basetyp =
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
     | t -> raise (TypeOfError (Field_NonCompound (fi, t)))
+
+
+(** Whether [t], with typedefs unrolled, is a variable-length array type: an array type whose length is not an integer constant expression, or an array of such arrays (C11 6.7.6.2p4). *)
+let rec isVLAType t = (* TODO: use in base? *)
+  match unrollType t with
+  | TArray (et, len, _) ->
+    let variable_len = GobOption.exists (Fun.negate isConstantArrayLength) len in
+    variable_len || isVLAType et
+  | _ -> false
+
+(** Whether the array length [e] is an integer constant expression, so that it does not make its array a variable-length array.
+    Like [Cil.isConstant], except that [sizeof] is constant only when its operand's type is not a variable-length array (C11 6.5.3.4p2):
+    [Cil.isConstant] considers every [sizeof] constant, so [int a[sizeof vla]] with [vla] a variable-length array would be classified as a fixed-size array.
+    When the type of a [sizeof] operand cannot be computed, [e] is considered not constant. *)
+and isConstantArrayLength e =
+  match e with
+  | SizeOf t -> not (isVLAType t)
+  | SizeOfE e ->
+    begin match typeOf e with
+      | t -> not (isVLAType t)
+      | exception TypeOfError _ -> false
+    end
+  (* [_Alignof] and GCC's [__alignof__] do not evaluate their operand and yield a constant, also for a variable-length array. *)
+  | AlignOf _ | AlignOfE _ -> true
+  | Const _ | SizeOfStr _ | AddrOfLabel _ | Lval _ -> Cil.isConstant e
+  | UnOp (_, e, _)
+  | Real e
+  | Imag e
+  | CastE (_, _, e) -> isConstantArrayLength e
+  | BinOp (_, e1, e2, _) -> isConstantArrayLength e1 && isConstantArrayLength e2
+  | Question (e1, e2, e3, _) -> isConstantArrayLength e1 && isConstantArrayLength e2 && isConstantArrayLength e3
+  | AddrOf (Var vi, off) | StartOf (Var vi, off) -> vi.vglob && isConstantArrayLengthOffset off
+  | AddrOf (Mem e, off) | StartOf (Mem e, off) -> isConstantArrayLength e && isConstantArrayLengthOffset off
+
+and isConstantArrayLengthOffset = function
+  | NoOffset -> true
+  | Field (_, off) -> isConstantArrayLengthOffset off
+  | Index (e, off) -> isConstantArrayLength e && isConstantArrayLengthOffset off
 
 
 let typeBlendAttributes baseAttrs = (* copied from Cilfacade.typeOffset *)

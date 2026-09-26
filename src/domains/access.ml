@@ -360,10 +360,19 @@ and distribute_access_exp f = function
 
   | UnOp (_,e,_)
   | Real e
-  | Imag e
-  | SizeOfE e
-  | AlignOfE e ->
+  | Imag e ->
     distribute_access_exp f e
+
+  (* The operand of sizeof is not evaluated unless its type is a variable-length array (C11 6.5.3.4p2).
+     Such an operand is an array lvalue whose elements are not read (C11 6.3.2.1p2-3): only the accesses that compute its address happen. *)
+  | SizeOfE (Lval lval) when Cilfacade.isVLAType (Cilfacade.typeOfLval lval) ->
+    distribute_access_lval_addr f lval
+  | SizeOfE _ ->
+    ()
+
+  (* The operand of GCC's __alignof__ is never evaluated, not even for a variable-length array. *)
+  | AlignOfE _ ->
+    ()
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
