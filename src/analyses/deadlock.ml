@@ -24,7 +24,7 @@ struct
     module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
 
     let side_lock_event_pair man ((before_node, _, _) as before) ((after_node, _, _) as after) =
-      if !AnalysisState.should_warn then
+      if Domain.DLS.get AnalysisState.should_warn then
         man.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
     let part_access man: MCPAccess.A.t =

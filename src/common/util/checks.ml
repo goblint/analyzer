@@ -160,7 +160,7 @@ let add_check check =
     ()
 
 let check kind title fmt =
-  if !AnalysisState.should_warn then (
+  if Domain.DLS.get AnalysisState.should_warn then (
     let finish doc =
       let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
       let messages = GobPretty.show doc in

@@ -5,6 +5,7 @@
  (public_name goblint.solver)
  (libraries
    batteries.unthreaded
+   saturn
    goblint_std
    goblint_parallel
    goblint_logs

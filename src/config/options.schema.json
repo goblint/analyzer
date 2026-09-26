@@ -1322,6 +1322,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "demand-function": {
+          "title": "ana.demand-function",
+          "description": "If demand calls should be added for every function call, so that a parallel solver can start work on the callee.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -2678,6 +2684,13 @@
               "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used. If left at -1, the value of jobs will be used.",
               "type": "integer",
               "default": -1
+            },
+            "parallel_hashmap" :{
+              "title": "solvers.td3.parallel_hashmap",
+              "description": "Concurrent hashmap the 'td_parallel_*' solvers keep unknown states in: 'own' - the hand-written one, 'saturn' - backed by Saturn.Htbl.",
+              "type": "string",
+              "enum": ["own", "saturn"],
+              "default": "own"
             },
             "weak-deps": {
               "title": "solvers.td3.weak-deps",

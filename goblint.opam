@@ -73,6 +73,7 @@ depends: [
   "conf-gcc"
   "domain-local-await"
   "domain_shims"
+  "saturn"
   "ocaml-lsp-server" {with-dev-setup}
   "ocp-indent" {with-dev-setup}
 ]
