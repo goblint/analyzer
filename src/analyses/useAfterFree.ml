@@ -115,7 +115,7 @@ struct
     let state = man.local in
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
-    | Free ptr ->
+    | Free ptr | Realloc {ptr; _} ->
       (* TODO: do this using Free Access events? *)
       begin match man.ask (Queries.MayPointTo ptr) with
         | ad when not (Queries.AD.is_top ad) ->
