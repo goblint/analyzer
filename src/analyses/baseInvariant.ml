@@ -370,19 +370,18 @@ struct
             ID.meet a'' t
           | _, _ -> a''
         in
-        let a,b = meet_bin a''' b' in
         (* Special handling for case a % 2 != c *)
         let callerFundec = Node.find_fundec man.node in
-        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
+        let a'''' = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
             let two = Z.of_int 2 in
             match ID.to_excl_list c with
             | Some ([v], _) when ID.equal_to two b = `Eq ->
               let k = if Z.equal (Z.abs (Z.rem v two)) Z.zero then Z.one else Z.zero in
-              id_meet_down ~old:a ~c:(ID.of_congruence ikind (k, two))
-            | _ -> a
-          else a
+              ID.meet a''' (ID.of_congruence ikind (k, two))
+            | _ -> a'''
+          else a'''
         in
-        a, b
+        meet_bin a'''' b'
       | Eq | Ne as op ->
         begin match op, ID.to_bool c with
           | Eq, Some true

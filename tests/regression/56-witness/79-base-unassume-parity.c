@@ -12,10 +12,10 @@ int main() {
 
   int a2 = 0;
   __goblint_check(a2 == 0); // UNKNOWN (intentional by unassume)
-  __goblint_check(a2 % 2 != 1); // TODO
+  __goblint_check(a2 % 2 != 1);
 
   int b2 = 1;
   __goblint_check(b2 == 1); // UNKNOWN (intentional by unassume)
-  __goblint_check(b2 % 2 != 0); // TODO
+  __goblint_check(b2 % 2 != 0);
   return 0;
 }
