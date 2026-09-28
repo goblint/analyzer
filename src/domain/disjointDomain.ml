@@ -117,9 +117,7 @@ struct
       add (f e) acc
     ) m (empty ()) (* no intermediate lists *)
 
-  let widen m1 m2 =
-    Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
-    M.widen m1 m2
+  let widen = M.widen
 
   let meet m1 m2 =
     M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
@@ -358,7 +356,6 @@ struct
     S.union s1' acc
 
   let widen s1 s2 =
-    Lattice.assert_valid_widen ~leq ~pretty_diff s1 s2;
     let f b2 (s1, acc) =
       let e2 = B.choose b2 in
       let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose e1) e2) s1 in
@@ -371,8 +368,7 @@ struct
       (s1_rest, S.add b' acc)
     in
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    assert (is_empty s1'); (* since [leq s1 s2], folding over s2 should remove all s1 *)
-    acc (* TODO: extra union s2 needed? *)
+    S.union s1' acc
 
   let meet s1 s2 =
     let f b2 (s1, acc) =
@@ -611,9 +607,7 @@ struct
         Some b'
     ) m1 m2
 
-  let widen m1 m2 =
-    Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
-    M.widen m1 m2
+  let widen = M.widen
 
   let meet m1 m2 =
     M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
@@ -841,7 +835,6 @@ struct
     S.union s1' acc
 
   let widen s1 s2 =
-    Lattice.assert_valid_widen ~leq ~pretty_diff s1 s2;
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
       let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (fst (B.choose e1)) e2) s1 in
@@ -854,8 +847,7 @@ struct
       (s1_rest, S.add b' acc)
     in
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    assert (is_empty s1'); (* since [leq s1 s2], folding over s2 should remove all s1 *)
-    acc (* TODO: extra union s2 needed? *)
+    S.union s1' acc
 
   let meet s1 s2 =
     let f b2 (s1, acc) =

@@ -385,7 +385,7 @@ module Base =
             if not wp then eqd
             else if term then
               match phase with
-              | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+              | Widen -> S.Dom.widen old eqd
               | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
               | Narrow ->
                 (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
@@ -481,7 +481,7 @@ module Base =
 
         let widen a b =
           if M.tracing then M.traceli "sol2" "side widen %a %a" S.Dom.pretty a S.Dom.pretty b;
-          let r = S.Dom.widen a (S.Dom.join a b) in
+          let r = S.Dom.widen a b in
           if M.tracing then M.traceu "sol2" "-> %a" S.Dom.pretty r;
           r
         in
@@ -503,7 +503,7 @@ module Base =
              if not (VS.mem x old_sides) then add_sides y x;
            | None -> ());
 
-          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
+          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen else S.Dom.join) old d); *)
           HM.replace rho y tmp;
           let destabilized_vs: bool option = if WPS.record_destabilized_vs then (
               destabilize y;

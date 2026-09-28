@@ -377,7 +377,7 @@ struct
     | false, false -> cop x y
 
   let meet x y   = merge join meet x y
-  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+  let narrow x y = merge widen narrow x y
 
   let meet x y =
     if M.tracing then M.traceli "ad" "meet %a %a" pretty x pretty y;

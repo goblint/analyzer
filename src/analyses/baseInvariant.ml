@@ -31,7 +31,12 @@ sig
   val map_oldval: VD.t -> typ -> VD.t
   val eval_rv_lval_refine: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> exp -> lval -> VD.t
 
+  (** [ID.meet] between [old] value of an expression and refinement [c] from the parent expression.
+      Unassume simply returns [c] to allow relaxation. *)
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
+
+  (** [FD.meet] between [old] value of an expression and refinement [c] from the parent expression.
+      Unassume simply returns [c] to allow relaxation. *)
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
 
   (** Handle contradiction.
@@ -340,14 +345,14 @@ struct
         (* C11 6.5.5 defines a % b == c through the core identity a/b * b + c == a.
          * Since division truncates towards zero, this implies sign(c) == sign(a).
          * We first refine based on the sign, and then apply the identity refinement. *)
-        let a, b =
+        let a', b' =
           try (* Any ArithmeticOnIntegerBot implies unreachability. *)
             (* We rely on sign(a) = sign(c) for nonzero c (and |c| <= |a|), so
              * for definitely positive c, refine a >= c;
              * for definitely negative c, refine a <= c. *)
             let a_sign = match ID.minimal c with
-              | Some cl when Z.gt cl Z.zero -> ID.meet a (ID.starting ikind cl)
-              | _ -> a
+              | Some cl when Z.gt cl Z.zero -> ID.starting ikind cl
+              | _ -> ID.top_of ikind
             in
             let a_sign = match ID.maximal c with
               | Some cu when Z.lt cu Z.zero -> ID.meet a_sign (ID.ending ikind cu)
@@ -370,33 +375,33 @@ struct
                 | Some m -> ID.meet a_congruence (ID.starting ikind (Z.add m (Z.erem (Z.sub cv m) bv)))
                 | None -> a_congruence
               in
-              meet_bin a_congruence b
+              a_congruence, b
             | _, _ ->
               (* The identity a/b * b + c == a solves to:
                *      a == (a / b) * b + c
                *      b == (a - c) / (a / b). *)
               let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a_sign b) b) c) in
               let b_identity = ID.div (ID.sub a_sign c) (ID.div a_sign b) in
-              meet_bin a_identity b_identity
+              a_identity, b_identity
           with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode
         in
         (* Special handling for case a % 2 != c *)
         let callerFundec = Node.find_fundec man.node in
-        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
+        let a'' = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
             let two = Z.of_int 2 in
             match ID.to_excl_list c with
             | Some ([v], _) when ID.equal_to two b = `Eq ->
               let k = if Z.equal (Z.abs (Z.rem v two)) Z.zero then Z.one else Z.zero in
-              ID.meet (ID.of_congruence ikind (k, two)) a
-            | _ -> a
-          else a
+              ID.meet a' (ID.of_congruence ikind (k, two))
+            | _ -> a'
+          else a'
         in
-        a, b
+        meet_bin a'' b'
       | Eq | Ne as op ->
         begin match op, ID.to_bool c with
           | Eq, Some true
           | Ne, Some false -> (* def. equal: if they compare equal, both values must be from the meet *)
-            (id_meet_down ~old:a ~c:b, id_meet_down ~old:b ~c:a)
+            meet_bin b a
           | Eq, Some false
           | Ne, Some true -> (* def. unequal *)
             (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
@@ -454,7 +459,7 @@ struct
         if PrecisionUtil.get_bitfield () then
           (* refinement based on the following idea: bit set to one in c and set to zero in b must be one in a and bit set to zero in c must be zero in a too (analogously for b) *)
           let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
-          ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
+          meet_bin (ID.of_bitfield ikind (az, ao)) (ID.of_bitfield ikind (bz, bo))
         else
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
            (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
@@ -473,8 +478,8 @@ struct
         let a =
           if ID.equal_to Z.one b = `Eq then (
             match ID.to_bool c with
-            | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
-            | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
+            | Some true -> id_meet_down ~old:a ~c:(ID.of_congruence ikind (Z.one, Z.of_int 2))
+            | Some false -> id_meet_down ~old:a ~c:(ID.of_congruence ikind (Z.zero, Z.of_int 2))
             | None -> a
           )
           else (
@@ -485,7 +490,7 @@ struct
         if PrecisionUtil.get_bitfield () then
           (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a and bit set to one in c must be one in a too (analogously for b) *)
           let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
-          ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
+          meet_bin (ID.of_bitfield ikind (az, ao)) (ID.of_bitfield ikind (bz, bo))
         else
           (a, b)
       | op ->

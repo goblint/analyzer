@@ -19,7 +19,7 @@ sig
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
-  val widen: t -> t -> t (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
+  val widen: t -> t -> t (** [widen x y] {e cannot} assume [leq x y]. *)
 
   val narrow: t -> t -> t
 
@@ -57,17 +57,6 @@ exception BotValue
 (** Exception raised by a bottomless lattice in place of a bottom value.
     Surrounding lattice functors may handle this on their own. *)
 
-exception Invalid_widen of Pretty.doc
-
-let () = Printexc.register_printer (function
-    | Invalid_widen doc ->
-      Some (GobPretty.sprintf "Lattice.Invalid_widen(%a)" Pretty.insert doc)
-    | _ -> None (* for other exceptions *)
-  )
-
-let assert_valid_widen ~leq ~pretty_diff x y =
-  if not (leq x y) then
-    raise (Invalid_widen (pretty_diff () (x, y)))
 
 module UnitConf (N: Printable.Name) =
 struct
@@ -289,7 +278,7 @@ struct
         try `Lifted (Base.widen x y)
         with TopValue | Uncomparable -> `Top
       end
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -367,7 +356,7 @@ struct
     match (x,y) with
     | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.widen x y)
     | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.widen x y)
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -381,10 +370,10 @@ end
 
 module Lift2 = Lift2Conf (Printable.DefaultConf)
 
-module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
+module ProdConf (Conf: Printable.ProdConf) (Base1: S) (Base2: S) =
 struct
   open struct (* open to avoid leaking P and causing conflicts *)
-    module P = Printable.ProdConf (C) (Base1) (Base2)
+    module P = Printable.ProdConf (Conf) (Base1) (Base2)
   end
   type t = Base1.t * Base2.t [@@deriving lattice]
   include (P: module type of P with type t := t)
@@ -396,11 +385,9 @@ struct
       Base1.pretty_diff () (x1,y1)
 end
 
+module Prod = ProdConf (Printable.DefaultConf)
 
-module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
-module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
-
-module Prod3 (Base1: S) (Base2: S) (Base3: S) =
+module Prod3Conf (Conf: Printable.Prod3Conf) (Base1: S) (Base2: S) (Base3: S) =
 struct
   open struct (* open to avoid leaking P and causing conflicts *)
     module P = Printable.Prod3 (Base1) (Base2) (Base3)
@@ -416,6 +403,8 @@ struct
     else
       Base3.pretty_diff () (x3,y3)
 end
+
+module Prod3 = Prod3Conf (Printable.DefaultConf)
 
 module LiftBot (Base : S) =
 struct
@@ -457,7 +446,7 @@ struct
   let widen x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with
@@ -509,7 +498,7 @@ struct
         try `Lifted (Base.widen x y)
         with TopValue -> `Top
       end
-    | _ -> y
+    | _ -> join x y
 
   let narrow x y =
     match (x,y) with

@@ -189,7 +189,8 @@ module GStoreWideningAnalysis: SimplifiedSpec = struct
       state
 
   (** TODO: 1) raise Analyses.Deadcode if we branch on a condition that is known-to-be false *)
-  (* Returns the state resulting when the expression `e` evaluates to `tv` *)
+  (* Returns the state resulting when the expression `e` evaluates to `tv`, i.e, if `tv` is true we are considering the then
+     branch, wheres if it is false, we are considering the else branch. *)
   let branch man state e tv =
     (* let e_evaluated_to_bool = I.to_bool (eval man state e) in *)
     state
@@ -269,7 +270,7 @@ module EffectivelyLocalAnalysis:SimplifiedSpec = struct
 
   let query man state (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.TutorialEffectivelyLocal v ->
+    | Queries.TutorialEffectivelyLocal v when not !AnalysisState.global_initialization ->
       (* TODO: 3) Get the current thread id, and check whether there is only one thread
          accessing this variable, and whether it is the current one *)
       Queries.Result.top q

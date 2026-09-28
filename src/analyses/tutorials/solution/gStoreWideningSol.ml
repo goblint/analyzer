@@ -140,7 +140,8 @@ module Analysis: SimplifiedSpec = struct
       state
 
   (** TODO: 1) raise Analyses.Deadcode if we branch on a condition that is known-to-be false *)
-  (* Returns the state resulting when the expression `e` evaluates to `tv` *)
+  (* Returns the state resulting when the expression `e` evaluates to `tv`, i.e, if `tv` is true we are considering the then
+     branch, wheres if it is false, we are considering the else branch. *)
   let branch man state e tv =
     let e_evaluated_to_bool = I.to_bool (eval man state e) in
     match e_evaluated_to_bool with

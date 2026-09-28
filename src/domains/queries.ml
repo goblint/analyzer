@@ -79,7 +79,11 @@ module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "T
 
 module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLockset)
 
-module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
+module LH =
+struct
+  include MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
+  let name () = "lock history"
+end
 
 
 (** GADT for queries with specific result type. *)
