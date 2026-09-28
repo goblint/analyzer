@@ -2079,6 +2079,65 @@ struct
     in
     List.fold_left init_var man.local f.slocals
 
+  (* Reports where storage that a standard stream's object may hold as its
+     buffer ends. [ending v] is [Some (cwe, what)] when [v]'s storage ends at
+     this node, [what] saying whose storage it is, and [None] otherwise; [ends]
+     says how it ends. Variables with the same [cwe] and [what] share one
+     warning. The stream may use the buffer later, at the latest in the flush
+     and close when the program exits, so this is a use of the storage after
+     its lifetime. The message does not say whether the object certainly holds
+     the storage: once a thread exists the object's value is the join of every
+     store to it, the initial null included, so the same program would read
+     differently with and without a thread. *)
+  let check_stream_buffers_end ~man (st: store) ?(ends="ends here") (ending: varinfo -> (int * string) option) =
+    List.iter (fun obj ->
+        match get_var ~man st obj with
+        | Address held ->
+          let stream = StandardStreams.name_of_object obj in
+          let groups = AD.fold (fun addr groups -> match addr with
+              | Addr (v, _) ->
+                begin match ending v with
+                  | Some key ->
+                    let names = Option.default [] (List.assoc_opt key groups) in
+                    if List.mem v.vname names then groups
+                    else (key, v.vname :: names) :: List.remove_assoc key groups
+                  | None -> groups
+                end
+              | _ -> groups) held []
+          in
+          List.iter (fun ((cwe, what), names) ->
+              M.warn ~category:(Behavior (Undefined UseAfterFree)) ~tags:[CWE cwe]
+                "%s, %s, %s while %s may hold it as its buffer: a later use of %s, or the flush and close when the program exits, can access it after its lifetime"
+                (String.concat " or " (List.rev names)) what ends stream stream
+            ) (List.rev groups)
+        | _ -> ()
+      ) (StandardStreams.objects_created ())
+
+  (* [None] for a global, static or thread-local variable [v], and
+     [Some (562, what)] for any other. For a local or formal of a function [f]
+     that {!Cilfacade.find_scope_fundec} finds, [what] is "a local of f" when
+     [on_stack f] is [None], meaning [f]'s frame certainly ends here, and
+     otherwise adds the text [on_stack f] gives, which says why it may; for a
+     local whose function is not found, [what] is "a local variable". *)
+  let stack_local ?(on_stack=fun _ -> None) v =
+    if v.vglob || hasAttribute "thread" v.vattr then None
+    else match Cilfacade.find_scope_fundec v with
+      | Some fd ->
+        Some (562, match on_stack fd with
+          | None -> Printf.sprintf "a local of %s" fd.svar.vname
+          | Some rel -> Printf.sprintf "a local of %s, %s" fd.svar.vname rel)
+      | None -> Some (562, "a local variable")
+
+  (* Whether [v] is a local or formal of a function in [mainfun] whose frames
+     are only on the main thread's stack
+     ({!StandardStreams.main_frame_only_on_main_thread}). *)
+  let main_local v =
+    not v.vglob && GobOption.exists StandardStreams.main_frame_only_on_main_thread (Cilfacade.find_scope_fundec v)
+
+  (* [Some (416, ...)] for thread-local storage [v]. *)
+  let thread_local ~what v =
+    if hasAttribute "thread" v.vattr then Some (416, what) else None
+
   let return man exp fundec: store =
     if Cil.hasAttribute "noreturn" fundec.svar.vattr then
       M.warn ~category:(Behavior (Undefined Other)) "Function declared 'noreturn' could return";
@@ -2092,6 +2151,25 @@ struct
       (* TODO: move into sync `Init *)
       Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st
     | _ ->
+      (* [fundec]'s frame ends on its CFG return edge, and on a call edge
+         within [fundec] where [LongjmpLifter] calls [return] because a
+         [longjmp] leaves [fundec] (at the [longjmp] itself, or at a call whose
+         callee jumps past [fundec]). *)
+      let frame_ends = match man.edge with
+        | MyCFG.Ret (_, returned) -> CilType.Fundec.equal returned fundec
+        | MyCFG.Proc _ -> CilType.Fundec.equal (Node.find_fundec man.node) fundec
+        | _ -> false
+      in
+      if frame_ends then begin
+        let frame = fundec.sformals @ fundec.slocals in
+        check_stream_buffers_end ~man st
+          (fun v -> if List.exists (CilType.Varinfo.equal v) frame then stack_local v else None);
+        begin match ThreadId.get_current ask with
+          | `Lifted tid when ThreadReturn.is_current ask && not (ThreadIdDomain.Thread.is_main tid) ->
+            check_stream_buffers_end ~man st (thread_local ~what:"thread-local storage of the thread that exits")
+          | _ -> ()
+        end
+      end;
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_partitioning (Queries.to_value_domain_ask ask) man.local locals in
       let nst: store = rem_many ask nst_part locals in
@@ -2449,6 +2527,23 @@ struct
       let addr = eval_lv ~man man.local lval in
       (addr, AD.type_of addr)
     in
+    (* The heap memory [ptr] points to ends here, as far as the standard
+       streams' buffers are concerned. Where [ptr] may be an unknown address,
+       any heap memory a standard stream holds may be what ends. *)
+    let check_freed_stream_buffers ptr =
+      let heap_memory v = if man.ask (Queries.IsHeapVar v) then Some (416, "heap memory") else None in
+      match eval_rv_address ~man man.local ptr with
+      | Address freed when not (AD.may_be_unknown freed) ->
+        let heap = AD.fold (fun addr acc -> match addr with
+            | Addr (v, _) when man.ask (Queries.IsHeapVar v) -> v :: acc
+            | _ -> acc) freed []
+        in
+        if heap <> [] then
+          check_stream_buffers_end ~man man.local (fun v -> if List.exists (CilType.Varinfo.equal v) heap then heap_memory v else None)
+      | Address _ | Top ->
+        check_stream_buffers_end ~man man.local ~ends:"may end here, freed through a pointer whose target is not known," heap_memory
+      | _ -> ()
+    in
     let forks = forkfun man lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a" f.vname (d_list "," CilType.Varinfo.pretty) (List.map BatTuple.Tuple4.second forks);
     List.iter (fun (lval, f, args, multiple) -> man.spawn ~multiple lval f args) forks;
@@ -2666,6 +2761,27 @@ struct
         ) st lv
     | Abort, _ -> raise Deadcode
     | ThreadExit { ret_val = exp }, _ ->
+      (* Every frame on the exiting thread's stack ends, whichever thread it
+         is: for the main thread the process continues and flushes the
+         streams when the last thread exits. The stack is not known, so every
+         local of every function is taken to end, and only the current
+         function's is certain to, except that a local of [main] is not where
+         the exiting thread is known not to be the main one and [main] has
+         frames only on the main thread's stack
+         ({!StandardStreams.main_frame_only_on_main_thread}). *)
+      let current = Node.find_fundec man.node in
+      let not_main_thread = match ThreadId.get_current (Analyses.ask_of_man man) with
+        | `Lifted tid -> not (ThreadIdDomain.Thread.is_main tid)
+        | _ -> false
+      in
+      check_stream_buffers_end ~man st (fun v ->
+          match thread_local ~what:"thread-local storage of the thread that exits" v with
+          | Some _ as tls -> tls
+          | None when not_main_thread && main_local v -> None
+          | None ->
+            stack_local v ~on_stack:(fun fd ->
+                if CilType.Fundec.equal fd current then None
+                else Some "a function that may have a frame on the stack of the thread that exits"));
       begin match ThreadId.get_current (Analyses.ask_of_man man) with
         | `Lifted tid ->
           (
@@ -2845,6 +2961,7 @@ struct
     | Realloc { ptr = p; size }, _ ->
       (* Realloc shouldn't be passed non-dynamically allocated memory *)
       check_invalid_mem_dealloc man f p;
+      check_freed_stream_buffers p;
       Option.map_default (fun lv ->
           let p_rv = eval_rv ~man st p in
           let p_addr =
@@ -2867,6 +2984,7 @@ struct
     | Free ptr, _ ->
       (* Free shouldn't be passed non-dynamically allocated memory *)
       check_invalid_mem_dealloc man f ptr;
+      check_freed_stream_buffers ptr;
       st
     | Assert { exp; refine; _ }, _ -> assert_fn man exp refine
     | Setjmp { env }, _ ->
@@ -2902,14 +3020,52 @@ struct
       let t = Cilfacade.typeOf value in
       set_var ~man ~t_override:t man.local !longjmp_return t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | SetStreamBuffer { stream; buffer }, _ ->
-      (* Every standard stream object [stream] may point to holds [buffer]
-         from now on, as well as whatever it held before. *)
+      (* One definite standard stream holds [buffer] from now on, and no
+         longer the buffer it held; every standard stream object [stream] may
+         point to otherwise holds [buffer] as well as what it held. *)
       let st = special_unknown_invalidate man f args in
       let buffer_value = eval_rv ~man man.local buffer in
-      (* A buffer whose storage can end before the program exits: a
-         non-static local, thread-local storage, [alloca] or heap memory, or an
-         unknown address. *)
-      let may_end = match buffer_value with
+      (* A buffer whose end the checks at [return], [longjmp], [free],
+         [realloc], [pthread_exit] and [pthread_cancel]
+         ({!check_stream_buffers_end}) may not see: an unknown
+         address; [alloca] memory; thread-local storage, whose thread may be
+         cancelled; a local that may be declared in a nested block, whose end
+         is not a return; a variable-length array, whose lifetime also ends
+         where a [goto] jumps back before its declaration (C11 6.2.4p7); any
+         local where the program may call [pthread_cancel], since the thread
+         may act on a request made before the buffer was attached, which the
+         check at [pthread_cancel] does not see
+         ({!StandardStreams.program_may_cancel}). *)
+      let end_unobserved = match buffer_value with
+        | Address buffers ->
+          AD.exists (function
+              | Addr (v, _) when hasAttribute "thread" v.vattr -> true
+              | Addr (v, _) when not v.vglob ->
+                hasAttribute "goblint_cil_nested" v.vattr || not (GobConfig.get_bool "cil.addNestedScopeAttr")
+                || Cilfacade.isVLAType v.vtype
+                || ResettableLazy.force StandardStreams.program_may_cancel
+              | Addr (v, _) -> man.ask (Queries.IsAllocVar v) && not (man.ask (Queries.IsHeapVar v))
+              | UnknownPtr -> true
+              | _ -> false
+            ) buffers
+        | Top -> true
+        | _ -> false
+      in
+      let stream_value = eval_rv_address ~man man.local stream in
+      (* The analysis tracks the buffer of a standard stream only, in its
+         object, so for any other stream, such as one [fopen] returned, no end
+         of the buffer's storage is checked, [free] included, and only a
+         static buffer needs no assumption. *)
+      let other_stream = match stream_value with
+        | Address streams ->
+          AD.exists (function
+              | Addr (v, _) -> not (StandardStreams.is_object v)
+              | UnknownPtr -> true
+              | _ -> false
+            ) streams
+        | _ -> true
+      in
+      let buffer_not_static = match buffer_value with
         | Address buffers ->
           AD.exists (function
               | Addr (v, _) -> not v.vglob || hasAttribute "thread" v.vattr || man.ask (Queries.IsAllocVar v)
@@ -2919,15 +3075,13 @@ struct
         | Top -> true
         | _ -> false
       in
-      if may_end then StandardStreams.buffer_may_end ();
-      let st = match eval_rv_address ~man man.local stream with
-        | Address streams when (match AD.elements streams, buffer_value with
-            | [Addr (v, `NoOffset)], Address b -> StandardStreams.is_object v && AD.is_null b
+      if end_unobserved || (other_stream && buffer_not_static) then StandardStreams.buffer_may_end ();
+      let st = match stream_value with
+        | Address streams when (match AD.elements streams with
+            | [Addr (v, `NoOffset)] -> StandardStreams.is_object v
             | _ -> false) ->
-          (* One definite standard stream given no buffer uses a buffer of the
-             library's own from now on and no longer the one it held. *)
           begin match AD.elements streams with
-            | [Addr (v, _)] -> set_var ~man st v v.vtype (Address AD.null_ptr)
+            | [Addr (v, _)] -> set_var ~man st v v.vtype buffer_value
             | _ -> st
           end
         | Address streams ->
@@ -2941,6 +3095,27 @@ struct
         | _ -> st
       in
       Option.map_default (fun lv -> invalidate_ret_lv st) st lv
+    | ThreadCancel { thread }, _ ->
+      (* The cancelled thread's frames end once it acts on the request, and
+         what is on its stack is not known, so every local of every function
+         is taken to end, and a local of a function with no frame on that
+         stack, such as the canceller's own, is a false alarm. The exception
+         is a local of [main] where [thread] is known not to be the main
+         thread and [main] has frames only on the main thread's stack
+         ({!StandardStreams.main_frame_only_on_main_thread}). A local attached
+         after the request, and thread-local storage, are covered by the
+         assumption [SetStreamBuffer] reports for them. *)
+      let not_main_thread = match eval_rv ~man st thread with
+        | Thread tids when not (ValueDomain.Threads.is_top tids) ->
+          List.for_all (fun tid -> not (ThreadIdDomain.Thread.is_main tid)) (ValueDomain.Threads.elements tids)
+        | _ -> false
+      in
+      check_stream_buffers_end ~man st
+        ~ends:"may end when the thread cancelled here acts on the cancellation"
+        (fun v ->
+           if not_main_thread && main_local v then None
+           else stack_local ~on_stack:(fun _ -> Some "a function that may have a frame on the stack of the cancelled thread") v);
+      invalidate_ret_lv (special_unknown_invalidate man f args)
     | Rand, _ ->
       Option.map_default (fun x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in

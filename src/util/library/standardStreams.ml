@@ -50,11 +50,34 @@
     unknown address and says so. Where it does not, a stream object reachable
     from its arguments comes to hold every object the function reaches.
 
-    {b The buffer's lifetime.} The C standard requires the buffer to outlive
-    its use by the stream. The analysis does not check this: at each call that
-    attaches a buffer that may be storage ending before the program exits -- a
-    local variable, thread-local storage, [alloca] or heap memory, or an
-    unknown address -- it reports the assumption {!buffer_lifetime}. *)
+    {b The buffer's lifetime.} A stream may use its buffer until it is closed,
+    at the latest in the flush and close when the program exits, so storage a
+    stream still holds as its buffer must not end first. Only a standard
+    stream's buffer is tracked, and for one [Base] reports a [UseAfterFree]
+    warning where it does: at the return of a function whose
+    local a stream holds (for [main], before [exit] flushes, C11 5.1.2.2.3), at
+    a [longjmp] that leaves such a function, at [free] or [realloc] of heap
+    memory a stream holds or of a pointer whose target is not known while a
+    stream holds heap memory, at [pthread_exit] in any thread, [main]'s included,
+    while a stream holds a local of any function or thread-local storage, at
+    [pthread_cancel] while a stream holds a local of any function, and where a
+    thread other than the main one returns while a stream holds thread-local
+    storage. [pthread_exit] and [pthread_cancel] warn for every local, since
+    the frames on the exiting or cancelled thread's stack are not known,
+    except a local of [main] where that thread is known not to be the main
+    one and [main] has frames only on the main thread's stack
+    ({!main_frame_only_on_main_thread}).
+    [fclose] detaches the buffer. Where the end of the
+    storage may not be one of those, [SetStreamBuffer] reports the assumption
+    {!buffer_lifetime} instead: for a stream that may be other than a standard
+    stream, such as one [fopen] returned, any buffer but static storage, heap
+    memory included; and for a standard stream an unknown address, [alloca] memory,
+    thread-local storage (whose thread may be cancelled), a local that may be
+    declared in a nested block (unless [cil.addNestedScopeAttr] shows it is
+    not), a variable-length array, whose lifetime also ends where a [goto]
+    jumps back before its declaration, any local where the program may call
+    [pthread_cancel] ({!program_may_cancel}), since the thread may act on a
+    request made before the buffer was attached. *)
 
 open GoblintCil
 
@@ -95,6 +118,13 @@ let object_var s =
 
 (** Whether [v] is the object of a standard stream. *)
 let is_object v = hasAttribute attribute v.vattr
+
+(** The objects of the standard streams created so far. *)
+let objects_created () = Hashtbl.fold (fun _ v acc -> v :: acc) objects []
+
+(** The name of the stream whose object is [v], as [stdout]. *)
+let name_of_object v =
+  Hashtbl.fold (fun s v' acc -> if CilType.Varinfo.equal v v' then name s else acc) objects v.vname
 
 (** The pointer-typed globals of the analyzed file named after a standard
     stream that the program may assign: it defines the variable, an
@@ -173,7 +203,9 @@ let locked_buffer = function
   | _ -> None
 
 (** Assumption reported at a [setvbuf] or [setbuf] whose buffer may be storage
-    that ends before the program exits, which the analysis does not check. *)
+    that ends before the program exits at a point the analysis does not check:
+    any storage but static storage for a stream other than a standard one, and
+    for a standard stream the kinds of storage listed above. *)
 let buffer_lifetime =
   "libc.stream-buffer-lifetime: a buffer attached to a stream with setvbuf or setbuf stays live until the stream is closed or the program exits"
 
@@ -181,6 +213,54 @@ let buffer_lifetime =
 let buffer_may_end () =
   Assumptions.add ~final:("Used assumption " ^ buffer_lifetime) "%s" buffer_lifetime
 
+(** Whether a function named in the option [mainfun] may be called other
+    than as the program's entry point: the program names it anywhere but in
+    its own declaration, as a call to it or its address does. Where it may
+    not, its frames exist only on the stack of the main thread, since every
+    other thread starts at a function whose address the program passes. *)
+let main_used_as_function: bool ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let mains = GobConfig.get_string_list "mainfun" in
+      let used = ref false in
+      let visitor = object
+        inherit nopCilVisitor
+        method! vvrbl v =
+          if isFunctionType v.vtype && List.mem v.vname mains then used := true;
+          SkipChildren
+      end
+      in
+      visitCilFileSameGlobals visitor !Cilfacade.current_file;
+      !used
+    )
+
+(** Whether the program names [pthread_cancel] anywhere: calls it or takes
+    its address, in a function or in a global's initializer. A thread acts on
+    a cancellation request after [pthread_cancel] returns (at a cancellation
+    point, or at any instruction under asynchronous cancellation), so a buffer
+    attached in between ends with the thread although no stream held it at
+    [pthread_cancel]. *)
+let program_may_cancel: bool ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
+      let used = ref false in
+      let visitor = object
+        inherit nopCilVisitor
+        method! vvrbl v =
+          if v.vname = "pthread_cancel" then used := true;
+          SkipChildren
+      end
+      in
+      visitCilFileSameGlobals visitor !Cilfacade.current_file;
+      !used
+    )
+
+(** Whether [fd] is a function named in the option [mainfun] whose frames can
+    be only on the stack of the main thread ({!main_used_as_function}). *)
+let main_frame_only_on_main_thread (fd: fundec) =
+  List.mem fd.svar.vname (GobConfig.get_string_list "mainfun")
+  && not (ResettableLazy.force main_used_as_function)
+
 let reset_lazy () =
+  ResettableLazy.reset program_may_cancel;
+  ResettableLazy.reset main_used_as_function;
   ResettableLazy.reset assigned_variables;
   ResettableLazy.reset declared_variables

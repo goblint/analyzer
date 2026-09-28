@@ -144,7 +144,7 @@ Assertions not proven.
     total memory locations: 1
 
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
-  [Info] vars = 45    evals = 53    narrow_reuses = 3
+  [Info] vars = 48    evals = 53    narrow_reuses = 3
 
 ## Unassume after lock
 
@@ -173,7 +173,7 @@ Assertions proven.
 Evals not less than from scratch.
 Fits old TODO from Simmo's PhD thesis: "No improvement in number of steps using W set. Without it the improvement was 44 → 26."
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
-  [Info] vars = 45    evals = 54    narrow_reuses = 3
+  [Info] vars = 48    evals = 54    narrow_reuses = 3
 
 ## Unassume after lock and before unlock
 
@@ -205,7 +205,7 @@ Assertions proven.
 
 Evals less than from scratch.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
-  [Info] vars = 45    evals = 41    narrow_reuses = 2
+  [Info] vars = 48    evals = 41    narrow_reuses = 2
 
 ## Unassume before unlock
 
@@ -236,4 +236,4 @@ Assertions proven.
 Evals less than from scratch.
 Evals same as unassume after lock and before unlock, matches Simmo's PhD thesis.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
-  [Info] vars = 45    evals = 41    narrow_reuses = 2
+  [Info] vars = 48    evals = 41    narrow_reuses = 2

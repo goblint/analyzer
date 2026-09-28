@@ -55,7 +55,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("memchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
-    ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
+    ("fclose", special [__ "stream" [r_deep; w_deep; f_deep]] @@ fun stream -> SetStreamBuffer { stream; buffer = Cil.mkCast ~kind:Explicit ~e:Cil.zero ~newt:Cil.voidPtrType }); (* a closed stream uses no buffer *)
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
     ("ferror", unknown [drop "stream" [r_deep; w_deep]]);
     ("fflush", unknown ~attrs:[AllStreamsIfNull] [drop "stream" [r_deep; w_deep]]);
@@ -560,7 +560,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_key_delete", unknown [drop "key" [f]]);
     ("pthread_barrier_init", special [__ "barrier" []; __ "attr" []; __ "count" []] @@ fun barrier attr count -> BarrierInit {barrier; attr; count});
     ("pthread_barrier_wait", special [__ "barrier" []] @@ fun barrier -> BarrierWait barrier);
-    ("pthread_cancel", unknown [drop "thread" []]);
+    ("pthread_cancel", special [__ "thread" []] @@ fun thread -> ThreadCancel { thread });
     ("pthread_testcancel", unknown []);
     ("pthread_setcancelstate", unknown [drop "state" []; drop "oldstate" [w]]);
     ("pthread_setcanceltype", unknown [drop "type" []; drop "oldtype" [w]]);

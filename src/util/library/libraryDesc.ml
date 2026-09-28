@@ -56,6 +56,7 @@ type special =
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; multiple: bool }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
+  | ThreadCancel of { thread: Cil.exp; } (** [pthread_cancel]: [thread]'s frames may end once it acts on the request. *)
   | ThreadSelf
   | Globalize of Cil.exp
   | Signal of Cil.exp
