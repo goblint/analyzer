@@ -4,18 +4,24 @@
     read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
     write with thread:[main], mhp:{created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40]}} (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   [Info][Race] Memory locations race summary:
-    safe: 2
+    safe: 3
     vulnerable: 0
     unsafe: 1
-    total memory locations: 3
+    total memory locations: 4
   [Success][Race] Memory location (struct S).field (safe):
     read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
+  [Success][Race] Memory location (void ) (safe):
+    write with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (93-distribute-fields-type-global.c:13:3-13:29)
+    read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (93-distribute-fields-type-global.c:13:3-13:29)
   [Success][Race] Memory location s (safe): (93-distribute-fields-type-global.c:8:10-8:11)
     write with thread:[main], mhp:{created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40]}} (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
+  [Info][Unsound] Unknown address in [stdout] has escaped. (93-distribute-fields-type-global.c:13:3-13:29)
+  [Info][Unsound] Unknown address in stdout has escaped. (93-distribute-fields-type-global.c:13:3-13:29)
+  [Info][Unsound] Unknown value in ? could be an escaped pointer address! (93-distribute-fields-type-global.c:13:3-13:29)
   [Info][Unsound] Write to unknown address: privatization is unsound. (93-distribute-fields-type-global.c:13:3-13:29)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (93-distribute-fields-type-global.c:13:3-13:29)
   [Info][Imprecise] Invalidating expressions: & s (93-distribute-fields-type-global.c:13:3-13:29)
@@ -36,7 +42,13 @@
   <   read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40] (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
   ---
   >   read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤], mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]} (conf. 100)  (exp: & tmp->field) (93-distribute-fields-type-global.c:13:3-13:29)
-  13c13
+  13,14c13,14
+  <   write with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (93-distribute-fields-type-global.c:13:3-13:29)
+  <   read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (93-distribute-fields-type-global.c:13:3-13:29)
+  ---
+  >   write with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤], lock:{[stdout]}, mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]} (conf. 100)  (exp: [stdout]) (93-distribute-fields-type-global.c:13:3-13:29)
+  >   read with thread:[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤], lock:{[stdout]}, mhp:{tid=[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]} (conf. 100)  (exp: [stdout]) (93-distribute-fields-type-global.c:13:3-13:29)
+  16c16
   <   write with thread:[main], mhp:{created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40]}} (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)
   ---
   >   write with thread:[main], mhp:{tid=[main]; created={[main, t_fun@93-distribute-fields-type-global.c:20:3-20:40#⊤]}} (conf. 110)  (exp: & s) (93-distribute-fields-type-global.c:22:3-22:9)

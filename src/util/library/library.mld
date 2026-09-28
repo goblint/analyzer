@@ -11,4 +11,5 @@ AccessKind
 LibraryDesc
 LibraryDsl
 LibraryFunctions
+StandardStreams
 }

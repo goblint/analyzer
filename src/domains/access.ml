@@ -103,6 +103,7 @@ let rec is_ignorable_typsig_offset (ts: typsig) (o: _ Offset.t): bool =
 
 let is_ignorable_mval = function
   | ({vaddrof = false; vattr; _}, _) when hasAttribute "thread" vattr -> true (* Thread-Local Storage *)
+  | (v, _) when StandardStreams.is_object v -> true (* only setvbuf and setbuf write a stream's object, under the lock on the stream *)
   | (v, o) -> is_ignorable_type_offset v.vtype o (* can't use Cilfacade.typeOffset because we want to check types at all intermediate offsets as well *)
 
 let is_ignorable_memo = function

@@ -71,3 +71,14 @@ _NB! This list is likely incomplete._
 
 
 [n1570]: https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf
+
+## Standard-stream buffer lifetime
+
+The model of the C library's standard streams (`src/util/library/standardStreams.ml`) names one assumption the same way:
+
+| Identifier | What is assumed |
+| --- | --- |
+| `libc.stream-buffer-lifetime` | A buffer attached to a stream with `setvbuf` or `setbuf` stays live until the stream is closed or the program exits. |
+
+It is reported at each `setvbuf`, `setbuf` or `setbuffer` whose buffer may be storage that ends before the program exits: a local variable, thread-local storage (which ends when its thread exits), `alloca` or heap memory, or an unknown address. A static buffer needs none. A local variable of `main` does not satisfy it for a stream that is still open when `main` returns: returning from `main` ends its local variables before `exit` flushes and closes the streams (C11 5.1.2.2.3 and 7.22.4.4), so the flush reads storage that has ended.
+

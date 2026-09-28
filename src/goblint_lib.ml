@@ -462,6 +462,7 @@ module AccessKind = AccessKind
 module LibraryDesc = LibraryDesc
 module LibraryDsl = LibraryDsl
 module LibraryFunctions = LibraryFunctions
+module StandardStreams = StandardStreams
 
 (** {2 Analysis-specific} *)
 

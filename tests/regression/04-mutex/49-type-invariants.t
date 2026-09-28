@@ -4,16 +4,23 @@
     write with thread:[main], mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
     read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
   [Info][Race] Memory locations race summary:
-    safe: 1
+    safe: 2
     vulnerable: 0
     unsafe: 1
-    total memory locations: 2
+    total memory locations: 3
   [Success][Race] Memory location (struct S).field (safe):
     write with thread:[main], mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  [Success][Race] Memory location (void ) (safe):
+    write with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+    read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
+  [Info][Unsound] Unknown address in [stdout] has escaped. (49-type-invariants.c:11:3-11:23)
+  [Info][Unsound] Unknown address in stdout has escaped. (49-type-invariants.c:11:3-11:23)
+  [Info][Unsound] Unknown value in ? could be an escaped pointer address! (49-type-invariants.c:11:3-11:23)
+  [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:11:3-11:23)
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: & s (49-type-invariants.c:21:3-21:21)
@@ -27,16 +34,23 @@
     write with thread:[main], mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
     read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40] (conf. 110)  (exp: & s.field) (49-type-invariants.c:11:3-11:23)
   [Info][Race] Memory locations race summary:
-    safe: 1
+    safe: 2
     vulnerable: 0
     unsafe: 1
-    total memory locations: 2
+    total memory locations: 3
   [Success][Race] Memory location (struct S).field (safe):
     write with thread:[main], mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  [Success][Race] Memory location (void ) (safe):
+    write with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+    read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
+  [Info][Unsound] Unknown address in [stdout] has escaped. (49-type-invariants.c:11:3-11:23)
+  [Info][Unsound] Unknown address in stdout has escaped. (49-type-invariants.c:11:3-11:23)
+  [Info][Unsound] Unknown value in ? could be an escaped pointer address! (49-type-invariants.c:11:3-11:23)
+  [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:11:3-11:23)
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: & s (49-type-invariants.c:21:3-21:21)
@@ -57,6 +71,12 @@
   <   write with thread:[main], mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   ---
   >   write with thread:[main], mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  13,14c13,14
+  <   write with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+  <   read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+  ---
+  >   write with thread:[main, t_fun@49-type-invariants.c:20:3-20:40#⊤], lock:{[stdout]}, mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+  >   read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40#⊤], lock:{[stdout]}, mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
   [1]
 
   $ goblint --enable warn.deterministic --disable ana.race.direct-arithmetic --enable allglobs --enable dbg.full-output 49-type-invariants.c > full-output-2.txt 2>&1
@@ -72,4 +92,10 @@
   <   write with thread:[main], mhp:{created={[main, t_fun@49-type-invariants.c:20:3-20:40]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
   ---
   >   write with thread:[main], mhp:{tid=[main]; created={[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]}} (conf. 100)  (exp: & tmp->field) (49-type-invariants.c:21:3-21:21)
+  13,14c13,14
+  <   write with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+  <   read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40], lock:{[stdout]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+  ---
+  >   write with thread:[main, t_fun@49-type-invariants.c:20:3-20:40#⊤], lock:{[stdout]}, mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
+  >   read with thread:[main, t_fun@49-type-invariants.c:20:3-20:40#⊤], lock:{[stdout]}, mhp:{tid=[main, t_fun@49-type-invariants.c:20:3-20:40#⊤]} (conf. 100)  (exp: [stdout]) (49-type-invariants.c:11:3-11:23)
   [1]

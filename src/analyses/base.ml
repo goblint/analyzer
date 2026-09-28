@@ -1286,8 +1286,11 @@ struct
         keep_local
     in
 
+    (* The standard streams' variables and objects are left out: an object's
+       value is the buffer the stream uses, not the contents of its [FILE]. *)
+    let is_standard_stream v = StandardStreams.is_object v || Option.is_some (StandardStreams.of_extern_variable v) in
     let var_invariant ?offset v =
-      if not (InvariantCil.var_is_heap v) then
+      if not (InvariantCil.var_is_heap v || is_standard_stream v) then
         I.key_invariant v ?offset (Arg.find v)
       else
         Invariant.none
@@ -1333,7 +1336,7 @@ struct
       Lval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var v, offset) when var_filter v && not (InvariantCil.var_is_heap v) ->
+            | (Var v, offset) when var_filter v && not (InvariantCil.var_is_heap v || is_standard_stream v) ->
               (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
@@ -2141,9 +2144,15 @@ struct
       List.fold_left mpt (AD.empty ()) exps
     )
 
-  let invalidate ~(must: bool) ?(deep=true) ~man (st:store) (exps: exp list): store =
+  (* Sets every address that [exps] point to, or with [deep] reach, to an
+     unknown value, except the variables [exp.exclude_from_invalidation]
+     names and, with [keep_streams], the objects of the standard streams: a
+     library function with a specification reads and writes the buffer a
+     stream object holds but does not change the object. Without [note], no
+     message lists [exps]. *)
+  let invalidate ~(must: bool) ?(deep=true) ?(keep_streams=false) ?(note=true) ~man (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
+    if note && exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_addr (a: Addr.t) =
@@ -2153,12 +2162,55 @@ struct
       (a, t, nv)
     in
     let invalids =
-      let args = collect_invalidate ~deep ~man ~warn:true st exps in
+      (* With [keep_streams], an expression that points to nothing but
+         standard stream objects and null is a stream a library function reads
+         or writes, which writes the bytes of the buffer the stream holds and
+         nothing the buffer's contents point to: it reaches the objects and
+         their buffers only, however deep the access. *)
+      let is_stream e =
+        keep_streams && deep &&
+        match eval_rv_address ~man st e with
+        | Address a ->
+          not (AD.is_top a) && AD.exists (function Addr (v, _) -> StandardStreams.is_object v | _ -> false) a &&
+          AD.for_all (function Addr (v, _) -> StandardStreams.is_object v | NullPtr -> true | _ -> false) a
+        | _ -> false
+      in
+      let stream_exps, exps' = List.partition is_stream exps in
+      let args = collect_invalidate ~deep ~man ~warn:true st exps' in
+      let args = AD.join args (collect_invalidate ~deep:false ~man st stream_exps) in
+      (* A stream object that [keep_streams] leaves unchanged still gives up
+         the buffer it holds, which the library reads and writes. *)
+      let args =
+        if keep_streams then
+          AD.fold (fun addr args ->
+              match addr with
+              | Addr (v, _) when StandardStreams.is_object v ->
+                AD.join args (reachable_from_value (Analyses.ask_of_man man) (get_var ~man st v) v.vtype v.vname)
+              | _ -> args
+            ) args args
+        else
+          args
+      in
+      (* A function that may change a stream object may attach to the stream
+         any object it reaches as a buffer, so a deep invalidation adds every
+         such object, whole, to what the stream object holds. *)
+      let reached = lazy (AD.fold (fun addr reached ->
+          match addr with
+          | Addr.Addr (v, _) when StandardStreams.is_object v || isFunctionType v.vtype -> reached
+          | Addr.Addr (v, _) -> AD.add (Addr.of_var v) reached
+          | UnknownPtr -> AD.add UnknownPtr reached
+          | _ -> reached
+        ) args (AD.empty ()))
+      in
       let args = AD.elements args in (* split all address sets up because each address of different type (and with different current value) should get a different invalidated value *)
-      List.map invalidate_addr args
+      List.map (function
+          | Addr.Addr (v, _) as a when deep && StandardStreams.is_object v ->
+            (a, v.vtype, VD.join (get_var ~man st v) (Address (Lazy.force reached)))
+          | a -> invalidate_addr a
+        ) args
     in
     let is_fav_addr x =
-      GobOption.exists BaseUtil.is_excluded_from_invalidation (Addr.to_var_may x)
+      GobOption.exists (fun v -> BaseUtil.is_excluded_from_invalidation v || (keep_streams && StandardStreams.is_object v)) (Addr.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
@@ -2281,6 +2333,16 @@ struct
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    (* [stream_addrs] are the standard streams that [f] uses without taking
+       them as arguments, as [printf] uses [stdout] and [fflush(NULL)] every
+       stream; the message does not list them. *)
+    let first_may_be_null () = match args with
+      | arg :: _ ->
+        let ad = man.ask (Queries.MayPointTo arg) in
+        Queries.AD.is_top ad || Queries.AD.exists (function NullPtr -> true | _ -> false) ad
+      | [] -> false
+    in
+    let stream_addrs = List.map StandardStreams.exp (LF.implicit_streams desc ~first_may_be_null) in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
@@ -2297,8 +2359,22 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~must:false ~deep:false ~man man.local shallow_addrs in
-    invalidate ~must:false ~deep:true ~man st' deep_addrs
+    let keep_streams = LF.is_specified f && not (List.mem LibraryDesc.InvalidateGlobals desc.attrs) in
+    let st' = invalidate ~must:false ~deep:false ~keep_streams ~man man.local shallow_addrs in
+    let st' = invalidate ~must:false ~deep:true ~keep_streams ~man st' deep_addrs in
+    let st' = invalidate ~must:false ~deep:true ~keep_streams ~note:false ~man st' stream_addrs in
+    (* A function that invalidates the globals may also assign the standard
+       streams' variables, which the file only declares, or hand a stream any
+       buffer: both become unknown. *)
+    if List.mem LibraryDesc.InvalidateGlobals desc.attrs && LF.standard_streams_used () then
+      let streams = List.concat_map (fun s ->
+          mkAddrOf (Cil.var (StandardStreams.object_var s))
+          :: (match StandardStreams.declared_variable s with Some v -> [mkAddrOf (Cil.var v)] | None -> [])
+        ) StandardStreams.all
+      in
+      invalidate ~must:false ~deep:false ~note:false ~man st' streams
+    else
+      st'
 
   let check_invalid_mem_dealloc man special_fn ptr =
     let has_non_heap_var = AD.exists (function
@@ -2825,6 +2901,46 @@ struct
       let rv = ensure_not_zero @@ eval_rv ~man man.local value in
       let t = Cilfacade.typeOf value in
       set_var ~man ~t_override:t man.local !longjmp_return t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+    | SetStreamBuffer { stream; buffer }, _ ->
+      (* Every standard stream object [stream] may point to holds [buffer]
+         from now on, as well as whatever it held before. *)
+      let st = special_unknown_invalidate man f args in
+      let buffer_value = eval_rv ~man man.local buffer in
+      (* A buffer whose storage can end before the program exits: a
+         non-static local, thread-local storage, [alloca] or heap memory, or an
+         unknown address. *)
+      let may_end = match buffer_value with
+        | Address buffers ->
+          AD.exists (function
+              | Addr (v, _) -> not v.vglob || hasAttribute "thread" v.vattr || man.ask (Queries.IsAllocVar v)
+              | UnknownPtr -> true
+              | _ -> false
+            ) buffers
+        | Top -> true
+        | _ -> false
+      in
+      if may_end then StandardStreams.buffer_may_end ();
+      let st = match eval_rv_address ~man man.local stream with
+        | Address streams when (match AD.elements streams, buffer_value with
+            | [Addr (v, `NoOffset)], Address b -> StandardStreams.is_object v && AD.is_null b
+            | _ -> false) ->
+          (* One definite standard stream given no buffer uses a buffer of the
+             library's own from now on and no longer the one it held. *)
+          begin match AD.elements streams with
+            | [Addr (v, _)] -> set_var ~man st v v.vtype (Address AD.null_ptr)
+            | _ -> st
+          end
+        | Address streams ->
+          AD.fold (fun addr st ->
+              match addr with
+              | Addr (v, _) when StandardStreams.is_object v ->
+                let old = get_var ~man st v in
+                set_var ~man st v v.vtype (VD.join old buffer_value)
+              | _ -> st
+            ) streams st
+        | _ -> st
+      in
+      Option.map_default (fun lv -> invalidate_ret_lv st) st lv
     | Rand, _ ->
       Option.map_default (fun x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in

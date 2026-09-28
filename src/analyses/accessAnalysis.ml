@@ -31,21 +31,71 @@ struct
     let activated = get_string_list "ana.activated" in
     emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated || List.mem (UseAfterFree.Spec.name ()) activated (* TODO: some of these don't have access as dependency *)
 
-  let do_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
-    if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;
+  let emit_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     let ad = man.ask reach_or_mpt in
     man.emit (Access {exp=e; ad; kind; reach})
+
+  (* Emits the access of [kind] through [e]. With [stream] a library call
+     makes it, and where [e] may point to the object of a standard stream the
+     call also reads or writes the bytes of the buffer the object holds
+     ({!StandardStreams}), and nothing the buffer's contents point to. That
+     access is emitted separately, with {!StandardStreams.buffer_exp} as its
+     expression: [`Locked], as for a stdio function that takes the lock on the
+     stream, makes {!MutexAnalysis} take it as made under that lock;
+     [`Unlocked], as for [putc_unlocked], does not. The access through [e]
+     itself is emitted without what is reachable from a stream object's
+     value, so it keeps the objects and whatever [e] reaches otherwise. *)
+  let do_access ?(stream: [`Locked | `Unlocked] option) (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
+    if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;
+    let objects = match stream with
+      | None -> []
+      | Some _ ->
+        let mpt = man.ask (MayPointTo e) in
+        Queries.AD.fold (fun addr objects ->
+            match addr with
+            | Queries.AD.Addr.Addr (v, _) when StandardStreams.is_object v && not (List.exists (CilType.Varinfo.equal v) objects) -> v :: objects
+            | _ -> objects
+          ) mpt []
+    in
+    match stream with
+    | Some locking when objects <> [] ->
+      let mpt = man.ask (MayPointTo e) in
+      let only_objects = Queries.AD.for_all (function
+          | Queries.AD.Addr.Addr (v, _) -> StandardStreams.is_object v
+          | NullPtr -> true
+          | _ -> false
+        ) mpt
+      in
+      if only_objects || not reach then
+        man.emit (Access {exp=e; ad=mpt; kind; reach=false})
+      else begin
+        let through_buffers = List.fold_left (fun through v ->
+            Queries.AD.join through (man.ask (ReachableFrom (Lval (Var v, NoOffset))))
+          ) (Queries.AD.empty ()) objects
+        in
+        let through_buffers = Queries.AD.remove UnknownPtr (Queries.AD.remove NullPtr through_buffers) in
+        let ad = Queries.AD.diff (man.ask (ReachableFrom e)) through_buffers in
+        man.emit (Access {exp=e; ad; kind; reach})
+      end;
+      List.iter (fun v ->
+          let buffer = StandardStreams.buffer_exp ~locked:(locking = `Locked) v in
+          let ad = man.ask (MayPointTo buffer) in
+          if not (Queries.AD.is_null ad || Queries.AD.is_empty ad) then
+            man.emit (Access {exp=buffer; ad; kind; reach=false})
+        ) objects
+    | _ ->
+      emit_access man kind reach e
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
-  let access_one_top ?(force=false) ?(deref=false) man (kind: AccessKind.t) reach exp =
+  let access_one_top ?(force=false) ?(deref=false) ?stream man (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) then (
       if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
-        do_access man kind reach exp;
+        do_access ?stream man kind reach exp;
       if M.tracing then M.tracei "access" "distribute_access_exp";
       Access.distribute_access_exp (do_access man Read false) exp;
       if M.tracing then M.traceu "access" "distribute_access_exp";
@@ -93,9 +143,31 @@ struct
     | Unlock _ ->
       man.local
     | _ ->
+      let stream = if List.mem LibraryDesc.StreamUnlocked desc.attrs then `Unlocked else `Locked in
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
-          access_one_top ~deref:true man kind reach exp (* access dereferenced using special accesses *)
+          access_one_top ~deref:true ~stream man kind reach exp (* access dereferenced using special accesses *)
         ) arglist;
+      (* A standard stream used without being an argument, as [printf] uses
+         [stdout] and [fflush(NULL)] every stream, is read and written deeply.
+         The variable [stdout] is read as an access of its own only where the
+         program may assign it. *)
+      let first_may_be_null () = match arglist with
+        | arg :: _ ->
+          let ad = man.ask (Queries.MayPointTo arg) in
+          Queries.AD.is_top ad || Queries.AD.exists (function NullPtr -> true | _ -> false) ad
+        | [] -> false
+      in
+      List.iter (fun s ->
+          let e = StandardStreams.exp s in
+          if StandardStreams.assigned s then (
+            access_one_top ~deref:true ~stream man Read true e;
+            access_one_top ~deref:true ~stream man Write true e
+          )
+          else if !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) then (
+            do_access ~stream man Read true e;
+            do_access ~stream man Write true e
+          )
+        ) (LF.implicit_streams desc ~first_may_be_null);
       Option.iter (fun x -> access_one_top ~deref:true man Write false (AddrOf x)) lv;
       List.iter (access_one_top man Read false) arglist; (* always read all argument expressions without dereferencing *)
       man.local

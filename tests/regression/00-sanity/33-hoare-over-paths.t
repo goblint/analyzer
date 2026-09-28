@@ -14,6 +14,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   ⊤
@@ -36,6 +39,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   (Not {0}([-31,31]))
@@ -58,6 +64,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   0
@@ -80,6 +89,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   0
@@ -102,6 +114,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   0
@@ -124,6 +139,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   0
@@ -145,6 +163,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Local {
                    r ->   0
@@ -167,6 +188,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                }, {}, {}, {}),
          threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
@@ -186,6 +210,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Temp {
                    RETURN ->   0
@@ -207,6 +234,9 @@
          base:({
                  Global {
                    m ->   mutex
+                   [stderr] ->   0
+                   [stdout] ->   0
+                   [stdin] ->   0
                  }
                  Temp {
                    RETURN ->   0

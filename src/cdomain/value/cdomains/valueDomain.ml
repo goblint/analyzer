@@ -1386,6 +1386,7 @@ struct
           let i_deref =
             (* Avoid dereferencing into functions, mutexes, ..., which are not added to the hash table *)
             match Cilfacade.typeOfLval (Var vi, offset) with
+            | _ when StandardStreams.is_object vi -> Invariant.none (* its value is the stream's buffer, not the contents of the FILE the program's pointer has as type *)
             | typ when not (Compound.is_immediate_type typ) ->
               (* Address set for a void* variable contains pointers to values of non-void type,
                   so insert pointer cast to make invariant expression valid (no field/index on void). *)
