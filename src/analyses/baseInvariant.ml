@@ -367,11 +367,11 @@ struct
               let a_congruence = ID.meet a_sign (ID.of_congruence ikind (cv, bv)) in
               (* For intervals, we move bounds towards the closest value congruent to c mod b.
                * BUT meet with half-planes to avoid bottomizing the congruences! *)
-              let a_congruence = match ID.maximal a_congruence with
+              let a_congruence = match ID.maximal a with
                 | Some m -> ID.meet a_congruence (ID.ending ikind (Z.sub m (Z.erem (Z.sub m cv) bv)))
                 | None -> a_congruence
               in
-              let a_congruence = match ID.minimal a_congruence with
+              let a_congruence = match ID.minimal a with
                 | Some m -> ID.meet a_congruence (ID.starting ikind (Z.add m (Z.erem (Z.sub cv m) bv)))
                 | None -> a_congruence
               in
@@ -380,8 +380,8 @@ struct
               (* The identity a/b * b + c == a solves to:
                *      a == (a / b) * b + c
                *      b == (a - c) / (a / b). *)
-              let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a_sign b) b) c) in
-              let b_identity = ID.div (ID.sub a_sign c) (ID.div a_sign b) in
+              let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a b) b) c) in
+              let b_identity = ID.div (ID.sub a c) (ID.div a b) in
               a_identity, b_identity
           with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode
         in
