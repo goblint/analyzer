@@ -2,6 +2,8 @@
   [Warning][Unknown] Tainted variable reaches sink! (/workspace_root/tests/regression/99-tutorials/04-taint_inter.c:52:5-52:20)
   [Warning][Unknown] Tainted variable reaches sink! (/workspace_root/tests/regression/99-tutorials/04-taint_inter.c:58:5-58:20)
   [Warning][Unknown] Tainted variable reaches sink! (/workspace_root/tests/regression/99-tutorials/04-taint_inter.c:38:5-38:20)
+  [Info][Unsound] Unknown address in [stdin] has escaped. (/workspace_root/tests/regression/99-tutorials/04-taint_inter.c:39:5-39:18)
+  [Info][Unsound] Unknown address in [stdin] has escaped. (/workspace_root/tests/regression/99-tutorials/04-taint_inter.c:40:5-40:18)
   [Warning][Unknown] Tainted variable reaches sink! (/workspace_root/tests/regression/99-tutorials/04-taint_inter.c:43:5-43:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 30

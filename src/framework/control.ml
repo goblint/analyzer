@@ -280,11 +280,33 @@ struct
           true
         | _ -> false
       in
+      (* Each standard stream's object holds null where the file uses the
+         standard streams, whether or not it declares them: the stream starts
+         with a buffer of the library's own, and [printf] reaches it even
+         without [<stdio.h>]. A declared stream variable points to its
+         object. *)
+      let init_objects st =
+        List.fold_left (fun st stream ->
+            let obj = StandardStreams.object_var stream in
+            Spec.assign {man with local = st} (var obj) (Cilfacade.mkCast ~kind:Explicit ~e:zero ~newt:voidPtrType)
+          ) st StandardStreams.all
+      in
+      let set_stream v stream st =
+        let obj = StandardStreams.object_var stream in
+        Spec.assign {man with local = st} (var v) (Cilfacade.mkCast ~kind:Explicit ~e:(AddrOf (var obj)) ~newt:v.vtype)
+      in
       let add_externs s = function
-        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) && not (get_bool "exp.hide-std-globals" && is_std v) -> set_bad v s
+        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) ->
+          begin match StandardStreams.of_extern_variable v with
+            | Some stream -> set_stream v stream s
+            | None when not (get_bool "exp.hide-std-globals" && is_std v) -> set_bad v s
+            | None -> s
+          end
         | _ -> s
       in
-      foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
+      let st = Spec.startstate MyCFG.dummy_func.svar in
+      let st = if LibraryFunctions.standard_streams_used () then init_objects st else st in
+      foldGlobals file add_externs st
     in
 
     (* Simulate globals before analysis. *)

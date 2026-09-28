@@ -284,8 +284,20 @@ struct
     let should_print ls = not (is_empty ls)
   end
 
+  (* An access whose expression is [StandardStreams.buffer_exp ~locked:true]
+     of a standard stream's object is the access a stdio function makes to the
+     buffer the stream holds ({!AccessAnalysis.do_access}), under the lock it
+     takes on the stream, which is the stream's object as [flockfile] takes
+     it. *)
   let access man (a: Queries.access) =
-    fst man.local
+    let locks = fst man.local in
+    match a with
+    | Memory {exp; _} when not (MustLocksetRW.is_all locks) ->
+      begin match StandardStreams.locked_buffer exp with
+        | Some v -> MustLocksetRW.add (LockDomain.MustLock.of_var v, true) locks
+        | None -> locks
+      end
+    | _ -> locks
 
   let event (man: (D.t, _, _, V.t) man) e (oman: (D.t, _, _, _) man) =
     match e with
