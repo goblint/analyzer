@@ -162,9 +162,6 @@ sig
   val of_excl_list: Cil.ikind -> int_t list -> t
   (** Creates an exclusion set from a given list of integers. *)
 
-  val is_excl_list: t -> bool
-  (** Checks if the element is an exclusion set. *)
-
   val to_incl_list: t -> int_t list option
   (** Gives a list representation of the included values if possible. *)
 

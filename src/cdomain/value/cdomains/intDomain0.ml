@@ -227,7 +227,6 @@ struct
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
   let to_excl_list x = I.to_excl_list x.v
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
-  let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
@@ -358,7 +357,6 @@ module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = 
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
   let of_excl_list ik x = top_of ik
-  let is_excl_list    x = false
   let to_incl_list    x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
@@ -677,7 +675,6 @@ struct
 
   let to_excl_list x = None
   let of_excl_list ik x = top_of ik
-  let is_excl_list x = false
   let to_incl_list x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik

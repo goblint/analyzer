@@ -121,6 +121,7 @@ module D = struct
   module T = struct
     include IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind)
     let of_excl_list xs = of_excl_list Cil.ILong xs
+    let is_excl_list x = to_excl_list x <> None
   end
 
   let tzero      = T.of_int zero
