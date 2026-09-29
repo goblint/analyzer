@@ -276,7 +276,7 @@ module IntDomTupleImpl = struct
       | Some None -> bot_of ik (* dom is activated but bot, refine everything to bot *)
       | None -> domtup (* dom is not activated *)
     in
-    [(fun (a, b, c, d, e, f) -> refine_with_excl_list ik (a, b, c, d, e,f) (to_excl_list (a, b, c, d, e,f)));
+    [(fun (a, b, c, d, e, f) -> maybe refine_with_excl_list ik (a, b, c, d, e,f) (to_excl_list (a, b, c, d, e,f)));
      (fun (a, b, c, d, e, f) -> maybe refine_with_incl_list ik (a, b, c, d, e,f) (to_incl_list (a, b, c, d, e,f)));
      (fun (a, b, c, d, e, f) -> maybe' refine_with_interval ik (a, b, c, d, e, f) b); (* TODO: get interval across all domains with minimal and maximal *)
      (fun (a, b, c, d, e, f) -> maybe' refine_with_congruence ik (a, b, c, d, e, f) d);

@@ -478,9 +478,9 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e -> Inc (BISet.filter (value_in_range b) e)
     | _ -> a
 
-  let refine_with_excl_list ik a b =
-    match a, b with
-    | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
+  let refine_with_excl_list ik a (ls, _) =
+    match a with
+    | Inc _ -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
   let refine_with_incl_list ik a ls =

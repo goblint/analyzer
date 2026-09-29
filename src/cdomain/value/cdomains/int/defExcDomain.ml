@@ -601,8 +601,8 @@ struct
 
   let refine_with_interval ik x i =
     meet ik x (of_interval ik i)
-  let refine_with_excl_list ik a b = match a, b with
-    | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
+  let refine_with_excl_list ik a (ls, _) = match a with
+    | `Excluded (s, r) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
   let refine_with_incl_list ik a b = a
 

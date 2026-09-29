@@ -654,7 +654,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let refine_with_bitfield ik x y = meet ik x y
 
-  let refine_with_excl_list ik t (excl : (int_t list * (int * int)) option) : t = norm ik t
+  let refine_with_excl_list ik t (excl : int_t list * (int * int)) : t = norm ik t
 
   let refine_with_incl_list ik t (ls : int_t list) : t =
     let joined =

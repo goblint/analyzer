@@ -474,10 +474,10 @@ struct
 
   let refine_with_interval ik a b = meet ik a (Some b)
 
-  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int * int)) option) : t =
-    match intv, excl with
-    | None, _ | _, None -> intv
-    | Some(l, u), Some(ls, (rl, rh)) ->
+  let refine_with_excl_list ik (intv : t) ((ls, (rl, rh)) : int_t list * (int * int)) : t =
+    match intv with
+    | None -> intv
+    | Some(l, u) ->
       let rec shrink op b =
         let new_b = (op b (Ints_t.of_int(Bool.to_int(BatList.mem_cmp Ints_t.compare b ls)))) in
         if not (Ints_t.equal b new_b) then shrink op new_b else new_b
