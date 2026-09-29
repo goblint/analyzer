@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/poll.h>
 #include <unistd.h>
 
 // DO NOT run this code!
@@ -124,6 +125,15 @@ void test_recv() {
   __goblint_check(n == 0); // UNKNOWN!
 }
 
+void test_poll() {
+  struct pollfd fds[1];
+  fds[0].fd = 0;
+  fds[0].events = POLLIN;
+  fds[0].revents = 0;
+  poll(fds, 1, 0);
+  __goblint_check(fds[0].revents == 0); // UNKNOWN! poll() writes the returned events into revents
+}
+
 void test_fwrite() {
   int n = 0;
   fwrite(&n, sizeof(int), 1, stdout);
@@ -207,6 +217,7 @@ int main () {
   test_memcpy();
   test_memcpy_two();
   test_memset();
+  test_poll();
   test_printf();
   test_read();
   test_recv();
