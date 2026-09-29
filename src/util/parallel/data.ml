@@ -81,8 +81,9 @@ module OwnConcurrentHashmap =
     type key = H.t
     type value = D.t Atomic.t
 
+    (* The number of buckets is always taken from the loaded [buckets] array itself:
+       a separately stored size could be read from a different generation during a resize. *)
     type t = {
-      nr_buckets: int Atomic.t;
       nr_elements: int Atomic.t;
       resize_generation: int Atomic.t;
       buckets: Bucket.t option Atomic.t array Atomic.t;
@@ -91,7 +92,6 @@ module OwnConcurrentHashmap =
     let create () = 
       let nr_buckets = 100 in
       {
-        nr_buckets = Atomic.make nr_buckets;
         nr_elements = Atomic.make 0;
         resize_generation = Atomic.make 0;
         buckets = Atomic.make @@ Array.init nr_buckets (fun _ -> Atomic.make None);
@@ -108,7 +108,8 @@ module OwnConcurrentHashmap =
 
     let find_option (hm : t) (key : key): value Option.t =
       let hash = abs @@ H.hash key in
-      let bucket = Array.get (Atomic.get hm.buckets) (hash mod (Atomic.get hm.nr_buckets)) in
+      let buckets = Atomic.get hm.buckets in
+      let bucket = Array.get buckets (hash mod Array.length buckets) in
       Option.bind (Atomic.get bucket) (fun bucket -> Bucket.find_option bucket key)
 
     let find hm key =
@@ -122,7 +123,7 @@ module OwnConcurrentHashmap =
 
     let rec find_create (hm : t) (key : H.t) =
       let rec find_create_inner hm key hash buckets =
-        let bucket = Array.get buckets (hash mod (Atomic.get hm.nr_buckets)) in
+        let bucket = Array.get buckets (hash mod Array.length buckets) in
         match Atomic.get bucket with
         | None ->
           let new_bucket = Bucket.create key in
@@ -138,7 +139,7 @@ module OwnConcurrentHashmap =
       let hash = abs @@ H.hash key in
       let value, was_created = find_create_inner hm key hash (Atomic.get hm.buckets) in
       if (current_generation mod 2 = 0) && (Atomic.get hm.resize_generation = current_generation || not was_created) then (
-        if (Atomic.get hm.nr_elements >= Atomic.get hm.nr_buckets * 2) then (
+        if (Atomic.get hm.nr_elements >= Array.length (Atomic.get hm.buckets) * 2) then (
           resize hm;
         );
         if was_created then Atomic.incr hm.nr_elements;
@@ -154,8 +155,8 @@ module OwnConcurrentHashmap =
       let current_generation = Atomic.get hm.resize_generation in
       if ((current_generation mod 2 = 0) && Atomic.compare_and_set hm.resize_generation current_generation (current_generation+1)) then (
 
-        let old_size = Atomic.get hm.nr_buckets in
-        let new_size = old_size * 2 in
+        let old_buckets = Atomic.get hm.buckets in
+        let new_size = Array.length old_buckets * 2 in
 
         (* Note that we need a new atomic for each element, so we need Array.init *)
         let new_buckets = Array.init new_size (fun _ -> Atomic.make None) in
@@ -175,10 +176,9 @@ module OwnConcurrentHashmap =
               rehash_bucket next
             end;
         in
-        Array.iter rehash_bucket (Atomic.get hm.buckets);
+        Array.iter rehash_bucket old_buckets;
 
         Atomic.set hm.buckets new_buckets;
-        Atomic.set hm.nr_buckets new_size;
         Atomic.incr hm.resize_generation;
       )
 
