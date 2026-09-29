@@ -11,8 +11,8 @@ module TopDown = TopDown
 module TopDown_term = TopDown_term
 module TopDown_space_cache_term = TopDown_space_cache_term
 module TopDown_deprecated = TopDown_deprecated
-module Td_parallel_base = Td_parallel_base
-module Td_parallel_dist_subscription = Td_parallel_dist_subscription
+module Td_parallel_immediate = Td_parallel_immediate
+module Td_parallel_independent = Td_parallel_independent
 
 (** {1 SLR}
 

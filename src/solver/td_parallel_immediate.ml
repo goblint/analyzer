@@ -1,4 +1,4 @@
-(** Terminating, parallelized top-down solver with side effects. ([td_parallel_base]). *)
+(** Terminating, parallelized top-down solver with side effects. ([td_parallel_immediate]). *)
 
 (** Top-down solver that is parallelised with fine-grain-locked shared data 
   * 
@@ -253,7 +253,7 @@ module Base : DemandEqSolver =
             @param y The variable to create a solver task for.
         *)
         let create x y = (* create called from x on y *)
-          if tracing then trace "create" "create from td_parallel_base was executed from %a on %a" S.Var.pretty_trace x S.Var.pretty_trace y;
+          if tracing then trace "create" "create from td_parallel_immediate was executed from %a on %a" S.Var.pretty_trace x S.Var.pretty_trace y;
           create_task prom y
         in
 
@@ -388,4 +388,4 @@ module Base : DemandEqSolver =
   end
 
 let () =
-  Selector.add_solver ("td_parallel_base", (module PostSolver.DemandEqIncrSolverFromDemandEqSolver (Base)))
+  Selector.add_solver ("td_parallel_immediate", (module PostSolver.DemandEqIncrSolverFromDemandEqSolver (Base)))

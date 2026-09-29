@@ -1,4 +1,4 @@
-(** Terminating, parallelized top-down solver with side effects. ([td_parallel_dist_sub]).*)
+(** Terminating, parallelized top-down solver with side effects. ([td_parallel_independent]).*)
 
 (** Top-down solver that is parallelised with as little shared data as possible 
   * 
@@ -312,7 +312,7 @@ module Base : DemandEqSolver =
           in
 
           let create x y = (* create called from x on y *)
-            if tracing then trace "create" "create from td_parallel_dist_sub is being executed from %a on %a" S.Var.pretty_trace x S.Var.pretty_trace y;
+            if tracing then trace "create" "create from td_parallel_independent is being executed from %a on %a" S.Var.pretty_trace x S.Var.pretty_trace y;
             GobMutex.lock prom_mutex;
             if HM.mem created_vars y then
               ()
@@ -545,4 +545,4 @@ module Base : DemandEqSolver =
   end
 
 let () =
-  Selector.add_solver ("td_parallel_dist_sub", (module PostSolver.DemandEqIncrSolverFromDemandEqSolver (Base)))
+  Selector.add_solver ("td_parallel_independent", (module PostSolver.DemandEqIncrSolverFromDemandEqSolver (Base)))
