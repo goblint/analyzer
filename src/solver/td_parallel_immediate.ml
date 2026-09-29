@@ -11,8 +11,7 @@
     has terminated, the task is restarted. *)
 (* Options:
  * - solvers.td_parallel.domains (default: -1 - value of jobs; 0 - automatic selection based on available cores): Maximal number of Domains that the solver can use in parallel.
- * The solvers.td3 options are not read: side-effects to globals are always widened (as TD3 with solvers.td3.side_widen = always).
-*)
+ * The solvers.td3 options are not read: side-effects to globals are always widened (as TD3 with solvers.td3.side_widen = always). *)
 
 open Batteries
 open Goblint_constraint.ConstrSys
