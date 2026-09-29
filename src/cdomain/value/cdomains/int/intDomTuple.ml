@@ -278,7 +278,7 @@ module IntDomTupleImpl = struct
     in
     [(fun (a, b, c, d, e, f) -> refine_with_excl_list ik (a, b, c, d, e,f) (to_excl_list (a, b, c, d, e,f)));
      (fun (a, b, c, d, e, f) -> refine_with_incl_list ik (a, b, c, d, e,f) (to_incl_list (a, b, c, d, e,f)));
-     (fun (a, b, c, d, e, f) -> maybe refine_with_interval ik (a, b, c, d, e, f) b); (* TODO: get interval across all domains with minimal and maximal *)
+     (fun (a, b, c, d, e, f) -> maybe' refine_with_interval ik (a, b, c, d, e, f) b); (* TODO: get interval across all domains with minimal and maximal *)
      (fun (a, b, c, d, e, f) -> maybe' refine_with_congruence ik (a, b, c, d, e, f) d);
      (fun (a, b, c, d, e, f) -> maybe refine_with_bitfield ik (a, b, c, d, e, f) f)]
 

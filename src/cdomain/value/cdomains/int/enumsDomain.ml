@@ -474,9 +474,8 @@ module Enums : S with type int_t = Z.t = struct
       x
 
   let refine_with_interval ik a b =
-    match a, b with
-    | Inc _, None -> bot_of ik
-    | Inc e, Some (l, u) -> Inc (BISet.filter (value_in_range (l,u)) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (value_in_range b) e)
     | _ -> a
 
   let refine_with_excl_list ik a b =

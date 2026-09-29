@@ -472,7 +472,7 @@ struct
     let interv = of_bitfield ik b in
     meet ik a interv
 
-  let refine_with_interval ik a b = meet ik a b
+  let refine_with_interval ik a b = meet ik a (Some b)
 
   let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int * int)) option) : t =
     match intv, excl with
@@ -498,7 +498,7 @@ struct
       let rec max m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
         | None -> max (Some x) xs | Some m -> if Ints_t.compare m x > 0 then max (Some m) xs else max (Some x) xs in
       match min None ls, max None ls with
-      | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
+      | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (m1, m2)
       | _, _-> intv
 
   let project ik p t = t

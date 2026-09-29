@@ -582,7 +582,7 @@ struct
     in
     List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
-  let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
+  let refine_with_interval ik xs itv = meet ik xs [itv]
 
   let refine_with_bitfield ik x y =
     let interv = of_bitfield ik y in
