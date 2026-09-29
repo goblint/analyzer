@@ -2707,6 +2707,13 @@
               "type": "integer",
               "minimum": -1,
               "default": -1
+            },
+            "hashmap": {
+              "title": "solvers.td_parallel.hashmap",
+              "description": "Concurrent hashmap the 'td_parallel_base' solver keeps unknown states in: 'own' - the hand-written one, 'saturn' - backed by Saturn.Htbl.",
+              "type": "string",
+              "enum": ["own", "saturn"],
+              "default": "own"
             }
           },
           "additionalProperties": false
