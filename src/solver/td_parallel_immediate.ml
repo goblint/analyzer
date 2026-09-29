@@ -1,15 +1,14 @@
-(** Terminating, parallelized top-down solver with side effects. ([td_parallel_immediate]). *)
+(** Terminating, parallelized top-down solver with side effects ([td_parallel_immediate]).
 
-(** Top-down solver that is parallelised with fine-grain-locked shared data 
-  * 
-  * The solver consists of multiple threads, that operate on the same data. 
-  * The solvers starts with a single thread, and starts a new one at every `create` call it encounters.
-  * Create nodes are created by the analysis. For the purposes of this solver, they can be placed anywhere,
-  * however the solver benefits from having those at points where the analysis branches into mostly 
-  * disjoint parts, such as thread creation in the analysed program.
-  * The starting points of the threads are memorized. If such a point is destabilized after thread 
-  * termination, the thread is restarted. 
-*)
+    The immediate approach of
+    {{:https://doi.org/10.1007/978-3-032-22749-2_9} Kocal et al., Same Engine, Multiple Gears: Parallelizing Fixpoint Iteration at Different Granularities (TACAS 2026)}:
+    all tasks operate on the same lock-free shared data.
+    The solver starts with a single task, and starts a new one at every [create] call it encounters.
+    Create calls are issued by the analysis. For the purposes of this solver, they can be placed anywhere,
+    however the solver benefits from having them at points where the analysis branches into mostly
+    disjoint parts, such as thread creation in the analysed program.
+    The starting points of the tasks are memorized. If such a point is destabilized after its task
+    has terminated, the task is restarted. *)
 (* Options:
  * - solvers.td_parallel.domains (default: -1 - value of jobs; 0 - automatic selection based on available cores): Maximal number of Domains that the solver can use in parallel.
  * The solvers.td3 options are not read: side-effects to globals are always widened (as TD3 with solvers.td3.side_widen = always).
@@ -24,7 +23,7 @@ open Messages
 module Htbl = Saturn.Htbl
 
 
-module Base : DemandEqSolver = 
+module Base : DemandEqSolver =
   functor (S: DemandEqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
@@ -37,14 +36,14 @@ module Base : DemandEqSolver =
     (* Same as [Atomic.compare_and_set] but raises an exception on failure. *)
     let cas r seen v =
       if (Atomic.compare_and_set r seen v) then (
-        cas_success_event (); 
+        cas_success_event ();
       ) else (
         cas_fail_event ();
         raise CasFailException
       )
 
     (** State for each unknown and a default factory. *)
-    module DefaultState = struct
+    module State = struct
       type t = {
         value: S.Dom.t;
         infl: (S.Var.t, unit) Htbl.t;  (** Unknowns influenced by this unknown *)
@@ -61,8 +60,8 @@ module Base : DemandEqSolver =
         wpoint = false;
         top_level = false;
       }
-      let show s = 
-        Printf.sprintf "{value: %s; infl: %d; wpoint: %b; stable: %b; called: %b; top_level: %b}" 
+      let show s =
+        Printf.sprintf "{value: %s; infl: %d; wpoint: %b; stable: %b; called: %b; top_level: %b}"
           (S.Dom.show s.value) (Htbl.length s.infl) s.wpoint s.stable s.called s.top_level
     end
 
@@ -74,21 +73,19 @@ module Base : DemandEqSolver =
       solver_start_event ();
       (* Concurrency safe hashmap for the state of the unknowns. *)
       let (module Impl) = Data.choose_impl (GobConfig.get_string "solvers.td_parallel.hashmap") in
-      let module CM = Impl (S.Var) (DefaultState) (HM) in
+      let module CM = Impl (S.Var) (State) (HM) in
       let nr_domains = match GobConfig.get_int "solvers.td_parallel.domains" with
         | -1 -> GobConfig.get_int "jobs"
         | n -> n
       in
       let nr_domains = if nr_domains <= 0 then Domain.recommended_domain_count () else nr_domains in
 
-      (* The argument of threadpool.create is the number of additional domains, hence -1 *)
-      (* This comes from domainslib *)
+      (* As in domainslib, the argument of Threadpool.create is the number of additional domains, hence -1 *)
       let pool = Threadpool.create (nr_domains-1) in
 
-      let data = CM.create ()
-      in
+      let data = CM.create () in
 
-      (** Initialize or get the state for an unknown. 
+      (** Initialize or get the state for an unknown.
           @param x The unknown to get the state for.
           @return The atomic state of [x].
       *)
@@ -108,14 +105,14 @@ module Base : DemandEqSolver =
         | Some f -> f get set create
       in
 
-      (** Check if the unknown is a global. 
+      (** Check if the unknown is a global.
           @param x The unknown to check.
           @return true if the unknown is a global, false otherwise.
       *)
       let is_global x = S.system x = None in
 
-      (** destabilizes vars from outer_w and their infl recursively. 
-          If a variable was the root of a solver thread, a new thread is started for the variable. 
+      (** destabilizes vars from outer_w and their infl recursively.
+          If a variable was the root of a solver thread, a new thread is started for the variable.
           @param prom The promises list to add new threads to.
           @param outer_w The set of variables to destabilize.
       *)
@@ -134,14 +131,14 @@ module Base : DemandEqSolver =
               let inner_w = y_state.infl in
               cas y_atom y_state {y_state with stable = false};
               if tracing then trace "destab" "stable remove %a (top_level:%b, called:%b)" S.Var.pretty_trace y y_state.top_level y_state.called;
-              if y_state.top_level then create_task prom y; 
+              if y_state.top_level then create_task prom y;
               destabilize prom inner_w
             )) with CasFailException -> destab_single y
         in
-        Htbl.remove_all outer_w |> Seq.map fst |> 
+        Htbl.remove_all outer_w |> Seq.map fst |>
         Seq.iter destab_single
 
-      (** Creates a task to solve for y 
+      (** Creates a task to solve for y
           @param outer_prom The promises list to add the new task to.
           @param y The variable to solve for.
       *)
@@ -174,16 +171,16 @@ module Base : DemandEqSolver =
           outer_prom := Threadpool.add_work pool work_fun :: (!outer_prom)
         )
 
-      (** Iterates to solve for x (invoked from query to orig if present) 
+      (** Iterates to solve for x (invoked from query to orig if present)
           @param orig The variable whose query led to the iteration of x.
           @param prom The promises list to add new tasks to.
           @param x The variable to solve for.
-          @param job_id The id of the thread that is solving for x.
+          @param job_id The id of the task that is solving for x.
           @param x_atom The atomic reference to the state of x, to prevent unnecessary lookups.
       *)
       and iterate orig prom x job_id x_atom = (* ~(inner) solve in td3*)
 
-        (** Get the value for y, triggering an iteration if necessary, and performing a lookup otherwise. 
+        (** Get the value for y, triggering an iteration if necessary, and performing a lookup otherwise.
             @param x The unknown whose query led to the query for y, so that the infl of y can be updated.
             @param y The unknown to get the value for.
             @return The value of y.
@@ -201,7 +198,7 @@ module Base : DemandEqSolver =
               if tracing then trace "infl" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
               cas y_atom y_state {y_state with wpoint=true};
               y_state.value
-            ) 
+            )
             else if y_state.stable then (
               (Atomic.get y_atom).value
             ) else (
@@ -228,21 +225,21 @@ module Base : DemandEqSolver =
           assert (is_global y);
           try (
             let y_atom = init y in
-            let s = Atomic.get y_atom in
+            let y_state = Atomic.get y_atom in
             if tracing then trace "side" "%d side to %a from %a" job_id S.Var.pretty_trace y S.Var.pretty_trace x;
-            if tracing then trace "side-v" "%d side to %a (wpx: %b) from %a ## value: %a" job_id S.Var.pretty_trace y s.wpoint S.Var.pretty_trace x S.Dom.pretty d;
-            let old = s.value in
+            if tracing then trace "side-v" "%d side to %a (wpx: %b) from %a ## value: %a" job_id S.Var.pretty_trace y y_state.wpoint S.Var.pretty_trace x S.Dom.pretty d;
+            let old = y_state.value in
             if S.Dom.leq d old then (
               ()
             ) else (
               let widen a b =
                 if tracing then trace "sidew" "%d side widen %a" job_id S.Var.pretty_trace y;
                 S.Dom.widen a (S.Dom.join a b)
-              in 
+              in
               if tracing then trace "update" "%d side update %a with \n\t%a" job_id S.Var.pretty_trace x S.Dom.pretty (widen old d);
-              let w = s.infl in
-              let new_s = {s with value = (widen old d); stable = true} in
-              cas y_atom s new_s;
+              let w = y_state.infl in
+              let y_state_new = {y_state with value = (widen old d); stable = true} in
+              cas y_atom y_state y_state_new;
               if tracing then trace "destab" "destabilize %a" S.Var.pretty_trace y;
               destabilize prom w
             )) with CasFailException -> side x y d
@@ -268,14 +265,14 @@ module Base : DemandEqSolver =
         let x_state = Atomic.get x_atom in
         let old_value = x_state.value in
         let new_value = (* value after box operator (if wp: widening) *)
-          if not x_is_widening_point then 
+          if not x_is_widening_point then
             value_from_rhs
           else (if tracing then trace "wpoint" "box widening %a" S.Var.pretty_trace x; box old_value value_from_rhs)
         in
 
         if S.Dom.equal new_value old_value then (
           if x_state.stable then (
-            (match orig with 
+            (match orig with
              | Some z -> ignore @@ Htbl.try_add x_state.infl z ()
              | None -> ());
             let x_state_new = {x_state with called = false; wpoint = false} in
@@ -314,7 +311,7 @@ module Base : DemandEqSolver =
                 let new_s = {x_state with stable = true} in
                 (* Here we cannot use the exception, because the handling would *)
                 (* break the tail-recursion in the call to iterate *)
-                let success = Atomic.compare_and_set x_atom x_state new_s in 
+                let success = Atomic.compare_and_set x_atom x_state new_s in
                 if success then (
                   if tracing then trace "iter" "iterate changed %a" S.Var.pretty_trace x;
                   (iterate[@tailcall]) orig prom x job_id x_atom
@@ -335,24 +332,24 @@ module Base : DemandEqSolver =
       List.iter set_start st;
 
       List.iter (fun x -> ignore @@ init x ) vs;
-      (* If we have multiple start variables vs, we might solve v1, then while solving v2 we 
-         side some global which v1 depends on with a new value. 
+      (* If we have multiple start variables vs, we might solve v1, then while solving v2 we
+         side some global which v1 depends on with a new value.
          Then v1 is no longer stable and we have to solve it again. *)
-      let i = ref 0 in
-      let rec solver () = 
-        incr i;
+      let phase = ref 0 in
+      let rec solver () =
+        incr phase;
         let unstable_vs = List.filter (fun v -> not (Atomic.get @@ CM.find data v).stable) vs in
         if unstable_vs <> [] then (
           if Logs.Level.should_log Debug then (
-            if !i = 1 then Logs.newline ();
-            Logs.debug "Unstable solver start vars in %d. phase:" !i;
+            if !phase = 1 then Logs.newline ();
+            Logs.debug "Unstable solver start vars in %d. phase:" !phase;
             List.iter (fun v -> Logs.debug "\t%a" S.Var.pretty_trace v) unstable_vs;
             Logs.newline ();
             flush_all ();
           );
-          List.iter (fun x -> 
+          List.iter (fun x ->
               if tracing then trace "multivar" "solving for %a" S.Var.pretty_trace x;
-              Threadpool.run pool (fun () -> 
+              Threadpool.run pool (fun () ->
                   let promises = ref [] in
                   create_task promises x;
                   Threadpool.await_all pool (!promises)
@@ -367,21 +364,20 @@ module Base : DemandEqSolver =
 
       (* After termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
-       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses). *)
+       * - affected by side-effects and have no constraints on their own (this should be the case for all of our analyses). *)
 
       let data_ht = CM.to_hashtbl data in
-      let wpoint = HM.map (fun _ (s: DefaultState.t) -> s.wpoint) data_ht in
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Logs.newline ();
         Logs.debug "Widening points:";
-        HM.iter (fun k wp -> if wp then Logs.debug "%a" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k (s: State.t) -> if s.wpoint then Logs.debug "%a" S.Var.pretty_trace k) data_ht;
         Logs.newline ();
       );
 
       print_stats ();
 
-      let solution = HM.map (fun _ (s: DefaultState.t) -> s.value) data_ht in
+      let solution = HM.map (fun _ (s: State.t) -> s.value) data_ht in
       if tracing then trace "sol_stats" "Solver finished with %d unknowns." (HM.length solution);
       if tracing then trace "sol_stats" "Number of jobs: %d" (Atomic.get job_id_counter);
       solution
