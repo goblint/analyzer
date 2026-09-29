@@ -349,7 +349,7 @@ module Enums : S with type int_t = Z.t = struct
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
     norm ik @@ Exc (exc, size ik)
-  let is_excl_list = BatOption.is_some % to_excl_list
+
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
   let to_bitfield ik x =
