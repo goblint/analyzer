@@ -588,9 +588,8 @@ struct
     let interv = of_bitfield ik y in
     norm_intvs ik (meet ik x interv) |> fst
 
-  let refine_with_incl_list ik intvs  = function
-    | None -> intvs
-    | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
+  let refine_with_incl_list ik intvs xs =
+    meet ik intvs (List.map (fun x -> (x,x)) xs)
 
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t =
     let intv1 = (min, excl -. Ints_t.one) in

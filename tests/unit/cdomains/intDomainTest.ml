@@ -871,7 +871,7 @@ struct
     let bf = I.top_of ik in
 
     let list = List.map of_int [-2;3;23; 26] in
-    let bf_refined = I.refine_with_incl_list ik bf (Some list) in
+    let bf_refined = I.refine_with_incl_list ik bf list in
 
     List.iter (fun i -> assert_bool (Z.to_string i) (I.equal_to i bf_refined = `Top)) list
 

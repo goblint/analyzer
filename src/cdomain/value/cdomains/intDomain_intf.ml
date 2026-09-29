@@ -241,7 +241,7 @@ sig
   val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_interval: Cil.ikind -> t -> int_t * int_t -> t
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int * int)) option -> t
-  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_incl_list: Cil.ikind -> t -> int_t list -> t
 
   val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary

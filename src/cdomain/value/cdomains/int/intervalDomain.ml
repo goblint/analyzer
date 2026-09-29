@@ -489,10 +489,10 @@ struct
       let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> fst in
       meet ik intv' range
 
-  let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
-    match intv, incl with
-    | None, _ | _, None -> intv
-    | Some(l, u), Some(ls) ->
+  let refine_with_incl_list ik (intv: t) (ls : int_t list) : t =
+    match intv with
+    | None -> intv
+    | Some(l, u) ->
       let rec min m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
         | None -> min (Some x) xs | Some m -> if Ints_t.compare m x < 0 then min (Some m) xs else min (Some x) xs in
       let rec max m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with

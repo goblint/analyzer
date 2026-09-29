@@ -656,11 +656,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let refine_with_excl_list ik t (excl : (int_t list * (int * int)) option) : t = norm ik t
 
-  let refine_with_incl_list ik t (incl : (int_t list) option) : t =
-    let joined =match incl with
-      | None -> top_of ik
-      | Some ls ->
-        List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
+  let refine_with_incl_list ik t (ls : int_t list) : t =
+    let joined =
+      List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
     in
     meet ik t joined
 

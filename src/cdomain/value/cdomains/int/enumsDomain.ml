@@ -483,9 +483,9 @@ module Enums : S with type int_t = Z.t = struct
     | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
-  let refine_with_incl_list ik a b =
-    match a, b with
-    | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
+  let refine_with_incl_list ik a ls =
+    match a with
+    | Inc x -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
 
   let project ik p t = t
