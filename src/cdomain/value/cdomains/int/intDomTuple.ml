@@ -123,7 +123,7 @@ module IntDomTupleImpl = struct
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_congruence ik }
   let of_bitfield ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_bitfield ik }
 
-  let refine_with_congruence ik ((a, b, c, d, e, f) : t) (cong : (int_t * int_t) option) : t=
+  let refine_with_congruence ik ((a, b, c, d, e, f) : t) (cong : int_t * int_t) : t=
     let opt f a =
       curry @@ function Some x, y -> Some (f a x y) | _ -> None
     in
@@ -270,10 +270,16 @@ module IntDomTupleImpl = struct
     let maybe reffun ik domtup dom =
       match dom with Some y -> reffun ik domtup y | _ -> domtup
     in
+    let maybe' reffun ik domtup dom =
+      match dom with
+      | Some (Some y) -> reffun ik domtup y (* dom is activated and not bot *)
+      | Some None -> bot_of ik (* dom is activated but bot, refine everything to bot *)
+      | None -> domtup (* dom is not activated *)
+    in
     [(fun (a, b, c, d, e, f) -> refine_with_excl_list ik (a, b, c, d, e,f) (to_excl_list (a, b, c, d, e,f)));
      (fun (a, b, c, d, e, f) -> refine_with_incl_list ik (a, b, c, d, e,f) (to_incl_list (a, b, c, d, e,f)));
      (fun (a, b, c, d, e, f) -> maybe refine_with_interval ik (a, b, c, d, e, f) b); (* TODO: get interval across all domains with minimal and maximal *)
-     (fun (a, b, c, d, e, f) -> maybe refine_with_congruence ik (a, b, c, d, e, f) d);
+     (fun (a, b, c, d, e, f) -> maybe' refine_with_congruence ik (a, b, c, d, e, f) d);
      (fun (a, b, c, d, e, f) -> maybe refine_with_bitfield ik (a, b, c, d, e, f) f)]
 
   let refine ik ((a, b, c, d, e, f) : t ) : t =

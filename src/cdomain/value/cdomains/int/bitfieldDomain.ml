@@ -646,10 +646,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Refinements *)
 
-  let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
-    match cong with
-    | Some (c, m) -> meet ik bf (of_congruence ik (c,m))
-    | _ -> norm ik bf
+  let refine_with_congruence ik bf (cong : int_t * int_t) : t =
+    meet ik bf (of_congruence ik cong)
 
   let refine_with_interval ik t itv =
     match itv with

@@ -444,9 +444,9 @@ struct
     if Ints_t.compare result Ints_t.zero >= 0 then result
     else Ints_t.add result  k
 
-  let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
-    match intv, cong with
-    | Some (x, y), Some (c, m) ->
+  let refine_with_congruence ik (intv : t) ((c, m) : int_t * int_t) : t =
+    match intv with
+    | Some (x, y) ->
       if Ints_t.equal m Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
       else if Ints_t.equal m Ints_t.zero then
         Some (c, c)
@@ -465,7 +465,7 @@ struct
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
-    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn;
+    (* if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn; *)
     refn
 
   let refine_with_bitfield ik a b =

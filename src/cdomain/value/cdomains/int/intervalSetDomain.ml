@@ -560,10 +560,10 @@ struct
     if result >=. Ints_t.zero then result
     else result +. k
 
-  let refine_with_congruence ik (intvs: t) (cong: (int_t * int_t ) option): t =
-    let refine_with_congruence_interval ik (cong : (int_t * int_t ) option) (intv : (int_t * int_t ) option): t =
-      match intv, cong with
-      | Some (x, y), Some (c, m) ->
+  let refine_with_congruence ik (intvs: t) (cong: int_t * int_t): t =
+    let refine_with_congruence_interval ik ((c, m) : int_t * int_t) (intv : (int_t * int_t ) option): t =
+      match intv with
+      | Some (x, y) ->
         if m =. Ints_t.zero && (c <. x || c >. y) then []
         else if m =. Ints_t.zero then
           [(c, c)]

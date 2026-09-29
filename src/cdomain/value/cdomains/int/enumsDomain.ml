@@ -460,11 +460,10 @@ module Enums : S with type int_t = Z.t = struct
   (* What is generally safe is shrinking an inclusion set as no new elements appear here. *)
   (* What is not safe is growing an exclusion set or switching from an exclusion set to an inclusion set *)
 
-  let refine_with_congruence ik a b =
+  let refine_with_congruence ik a (c, m) =
     let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
-    match a, b with
-    | Inc e, None -> bot_of ik
-    | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =

@@ -507,7 +507,7 @@ struct
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a" pretty cong pretty_intv intv pretty refn;
     refn
 
-  let refine_with_congruence ik a b = meet ik a b
+  let refine_with_congruence ik a b = meet ik a (Some b)
 
   let refine_with_bitfield ik a (z,o) =
     let a = normalize ik a in
