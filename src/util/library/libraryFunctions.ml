@@ -251,7 +251,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("putchar_unlocked", unknown ~attrs:[ThreadUnsafe] [drop "c" []]);
     ("putenv", unknown ~attrs:[ThreadUnsafe] [drop "string" [r; w]]);
     ("readdir", unknown ~attrs:[ThreadUnsafe] [drop "dirp" [r_deep]]);
-    ("setenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]; drop "name" [r]; drop "overwrite" []]);
+    ("setenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]; drop "value" [r]; drop "overwrite" []]);
     ("setgrent", unknown ~attrs:[ThreadUnsafe] []);
     ("setpwent", unknown ~attrs:[ThreadUnsafe] []);
     ("setutxent", unknown ~attrs:[ThreadUnsafe] []);
