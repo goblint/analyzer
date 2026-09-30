@@ -813,7 +813,7 @@ struct
 end
 
 (* This is the main array out of bounds check *)
-let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+let array_oob_check (x, l) (e, v) =
   if !AnalysisState.executing_speculative_computations then
     ()
   else if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
@@ -855,7 +855,7 @@ struct
   let domain_of_t _ = TrivialDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
@@ -899,7 +899,7 @@ struct
   let domain_of_t _ = PartitionedDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
@@ -953,7 +953,7 @@ struct
   let domain_of_t _ = UnrolledDomain
 
   let get ?(checkBounds=true) (ask : VDQ.t) (x, (l : idx)) (e, v) =
-    if checkBounds then (array_oob_check (module Idx) (x, l) (e, v));
+    if checkBounds then (array_oob_check (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: VDQ.t) (x,l) i v = Base.set ask x i v, l
   let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
@@ -1105,7 +1105,7 @@ struct
     in
 
     (* warn if index is (potentially) out of bounds *)
-    array_oob_check (module Idx) (Nulls.get_set Possibly, size) (e, i);
+    array_oob_check (Nulls.get_set Possibly, size) (e, i);
     let nulls = match max_i with
       (* if no maximum number in index interval *)
       | None ->
