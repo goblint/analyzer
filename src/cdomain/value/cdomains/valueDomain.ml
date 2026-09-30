@@ -11,7 +11,6 @@ module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
 module AD = VDQ.AD
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
-module ArrIdxDomain = IndexDomain
 
 module type S =
 sig
@@ -765,7 +764,7 @@ struct
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
-    let array_idx_top = (None, ArrIdxDomain.top ()) in
+    let array_idx_top = (None, IndexDomain.top ()) in
     match typ, state with
     |                 _ , Address n    -> Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
