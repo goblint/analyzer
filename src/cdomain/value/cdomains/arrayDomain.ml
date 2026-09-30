@@ -1331,16 +1331,16 @@ struct
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
     if Nulls.is_empty Definitely nulls then
       (warn_past_end "Array doesn't contain a null byte: buffer overflow";
-       SizeDomain.starting (BatOption.default Z.zero (SizeDomain.minimal size)) (* TODO: used !Cil.kindOfSizeOf *)
+       SizeDomain.starting (BatOption.default Z.zero (SizeDomain.minimal size))
       )
       (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
-       SizeDomain.starting (Nulls.min_elem Possibly nulls)) (* TODO: used !Cil.kindOfSizeOf *)
+       SizeDomain.starting (Nulls.min_elem Possibly nulls))
       (* else return interval [minimal may null, minimal must null] *)
     else (
       Checks.safe Checks.Category.InvalidMemoryAccess;
-      SizeDomain.of_interval (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)) (* TODO: used !Cil.kindOfSizeOf *)
+      SizeDomain.of_interval (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls))
 
   let string_copy (dstnulls, dstsize) ((srcnulls, srcsize) as src) n =
     let must_nulls_set1, may_nulls_set1 = dstnulls in
@@ -1458,7 +1458,7 @@ struct
     | Some n when n >= 0 ->
       sizes_warning (SizeDomain.of_int (Z.of_int n)); (* TODO: used ILong *)
       let truncated = to_n_string src n in
-      update_sets truncated (SizeDomain.of_int (Z.of_int n)) (* TODO: used !Cil.kindOfSizeOf *)
+      update_sets truncated (SizeDomain.of_int (Z.of_int n))
     | _ -> (Nulls.top (), dstsize)
 
   let string_concat (nulls1, size1) (nulls2, size2) n =
@@ -1905,7 +1905,7 @@ struct
     if get_bool "ana.base.arrays.nullbytes" then
       N.to_string_length t_n
     else
-      SizeDomain.top () (* TODO: used !Cil.kindOfSizeOf *)
+      SizeDomain.top ()
 
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
