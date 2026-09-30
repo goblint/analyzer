@@ -680,6 +680,12 @@ let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
 let getGlobalInits (file: file) : edges  =
   (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
   let inits = Hashtbl.create 13 in
+  (* The assignments in the order their globals are declared, newest first. *)
+  let ordered = ref [] in
+  let add_init assign =
+    Hashtbl.add inits assign ();
+    ordered := assign :: !ordered
+  in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
   let rec doInit lval loc init is_zero =
     let initoffs offs init typ lval =
@@ -698,9 +704,9 @@ let getGlobalInits (file: file) : edges  =
       (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
          Instead, we get one assign for each distinct value in the array *)
       if not fast_global_inits then
-        Hashtbl.add inits (assign lval) ()
+        add_init (assign lval)
       else if not (Hashtbl.mem inits (assign (any_index lval))) then
-        Hashtbl.add inits (assign (any_index lval)) ()
+        add_init (assign (any_index lval))
     | CompoundInit (typ, lst) ->
       let ntyp = match Cil.unrollType typ, lst with
         | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)
@@ -721,8 +727,11 @@ let getGlobalInits (file: file) : edges  =
   in
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
-  (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (Hashtbl.to_seq_keys inits |> List.of_seq)
+  (* The assignments run in declaration order: GCC and Clang accept an initializer
+     that reads a const-qualified global declared and initialized earlier, as in
+     [static const int k = 1; int x = k;], and reading [k] before its own
+     assignment finds no value for it. *)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: List.rev !ordered
 
 
 let numGlobals file =
