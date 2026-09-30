@@ -17,7 +17,7 @@ main() {
       d = d - e;
     }
     while (1) {
-      __goblint_assume(a * b);
+      __goblint_assume(a * b); // NOCRASH
       if (!(d < e))
         break;
       e = e - d;
