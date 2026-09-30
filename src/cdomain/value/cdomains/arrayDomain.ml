@@ -7,6 +7,7 @@ module M = Messages
 module A = Array
 module VDQ = ValueDomainQueries
 module ID = PreValueDomain.ID
+module Idx = PreValueDomain.IndexDomain
 
 type domain = TrivialDomain | PartitionedDomain | UnrolledDomain
 
@@ -42,7 +43,7 @@ let can_recover_from_top x = x <> TrivialDomain
 module type S0 =
 sig
   include Lattice.S
-  type idx
+  type idx = Idx.t
   type value
 
   val set: VDQ.t -> t -> Basetype.CilExp.t option * idx -> value -> t
@@ -127,7 +128,7 @@ sig
   include Null with type t := t
 end
 
-module Trivial (Val: LatticeWithInvalidate) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module Trivial (Val: LatticeWithInvalidate): S with type value = Val.t =
 struct
   include Val
   let name () = "trivial arrays"
@@ -183,7 +184,7 @@ let factor () =
   | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
   | x -> x
 
-module Unroll (Val: LatticeWithInvalidate) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module Unroll (Val: LatticeWithInvalidate): S with type value = Val.t =
 struct
   module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
   module Base = Lattice.ProdList (Val) (Factor)
@@ -309,7 +310,7 @@ sig
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> VDQ.t -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): SPartitioned with type value = Val.t and type idx = Idx.t =
+module Partitioned (Val: LatticeWithSmartOps): SPartitioned with type value = Val.t =
 struct
   include Printable.Std
 
@@ -844,9 +845,9 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
       Checks.warn Checks.Category.InvalidMemoryAccess "Invalid array access: May access out of bounds"
 
 
-module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module TrivialWithLength (Val: LatticeWithInvalidate): S with type value = Val.t =
 struct
-  module Base = Trivial (Val) (Idx)
+  module Base = Trivial (Val)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
@@ -888,9 +889,9 @@ struct
 end
 
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module PartitionedWithLength (Val: LatticeWithSmartOps): S with type value = Val.t =
 struct
-  module Base = Partitioned (Val) (Idx)
+  module Base = Partitioned (Val)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
@@ -942,9 +943,9 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module UnrollWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+module UnrollWithLength (Val: LatticeWithInvalidate): S with type value = Val.t =
 struct
-  module Base = Unroll (Val) (Idx)
+  module Base = Unroll (Val)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
@@ -986,7 +987,7 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module NullByte (Val: LatticeWithNull) (Idx: IntDomain.Z): Str with type value = Val.t and type idx = Idx.t =
+module NullByte (Val: LatticeWithNull): Str with type value = Val.t =
 struct
   module MustSet = NullByteSet.MustSet
   module MaySet = NullByteSet.MaySet
@@ -1688,11 +1689,11 @@ struct
   let update_length new_size (nulls, size) = (nulls, new_size)
 end
 
-module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
+module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps):S with type value = Val.t =
 struct
-  module P = PartitionedWithLength(Val)(Idx)
-  module T = TrivialWithLength(Val)(Idx)
-  module U = UnrollWithLength(Val)(Idx)
+  module P = PartitionedWithLength(Val)
+  module T = TrivialWithLength(Val)
+  module U = UnrollWithLength(Val)
 
   type idx = Idx.t
   type value = Val.t
@@ -1810,10 +1811,10 @@ struct
       (U.invariant ~value_invariant ~offset ~lval)
 end
 
-module AttributeConfiguredAndNullByteArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.Z): StrWithDomain with type value = Val.t and type idx = Idx.t =
+module AttributeConfiguredAndNullByteArrayDomain (Val: LatticeWithNull): StrWithDomain with type value = Val.t =
 struct
-  module A = AttributeConfiguredArrayDomain (Val) (Idx)
-  module N = NullByte (Val) (Idx)
+  module A = AttributeConfiguredArrayDomain (Val)
+  module N = NullByte (Val)
 
   include Lattice.Prod (A) (N)
 
