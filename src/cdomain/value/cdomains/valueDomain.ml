@@ -1137,7 +1137,7 @@ struct
                             Array(CArrays.make (IndexDomain.of_int (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
-                      | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int Z.zero) ->
+                      | `Index (idx, _) when IndexDomain.equal_to Z.zero idx = `Eq ->
                         (* Why does cil index unions? We'll just pick the first field. *)
                         top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                       | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
