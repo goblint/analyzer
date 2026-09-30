@@ -2524,6 +2524,14 @@ struct
         let var = AD.of_var (alloced_var loc man) in
         (Some var, if include_null then AD.join var AD.null_ptr else var)
     in
+    (* Assigns the value of [dest], evaluated in the state before the call, to [lv] in [st].
+       Used for functions whose C contract returns their destination argument, such as memcpy, memset, strcpy and strcat. *)
+    let assign_dest_to_ret_lv dest st =
+      Option.map_default (fun lv ->
+          let dest_v = eval_rv ~man man.local dest in
+          set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) dest_v
+        ) st lv
+    in
     (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
     List.iter (fun arg -> eval_rv ~man st arg |> ignore) args;
     let st = match desc.special args, f.vname with
@@ -2539,16 +2547,25 @@ struct
           VD.top_value dest_typ
       in
       set ~man st dest_a dest_typ value
+      |> assign_dest_to_ret_lv dest
     | Bzero { dest; count; }, _ ->
       (* TODO: share something with memset special case? *)
       (* TODO: check count *)
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
       set ~man st dest_a dest_typ value
-    | Memcpy { dest = dst; src; n; }, _ -> (* TODO: use n *)
-      memory_copying dst src (Some n)
-    | Strcpy { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_copy ar1 ar2 (eval_n n)))
-    | Strcat { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_concat ar1 ar2 (eval_n n)))
+    | Memcpy { dest = dst; src; n; returns_dest }, _ -> (* TODO: use n *)
+      let st = memory_copying dst src (Some n) in
+      if returns_dest then
+        assign_dest_to_ret_lv dst st
+      else
+        invalidate_ret_lv st
+    | Strcpy { dest = dst; src; n }, _ ->
+      string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_copy ar1 ar2 (eval_n n)))
+      |> assign_dest_to_ret_lv dst
+    | Strcat { dest = dst; src; n }, _ ->
+      string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_concat ar1 ar2 (eval_n n)))
+      |> assign_dest_to_ret_lv dst
     | Strlen s, _ ->
       Option.map_default (fun lv ->
           let dest_a = eval_lv ~man st lv in

@@ -314,7 +314,7 @@ struct
     (* Check calls to memset and memcpy for out-of-bounds-accesses *)
     match desc.special arglist with
     | Memset { dest; ch; count; } -> check_count man f.vname dest count;
-    | Memcpy { dest; src; n = count; } ->
+    | Memcpy { dest; src; n = count; _ } ->
       (check_count man f.vname src count;
        check_count man f.vname dest count;)
     | _ -> man.local
