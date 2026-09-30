@@ -26,6 +26,123 @@ let stripOuterBoolCast = function
 let on_stream (s: StandardStreams.t) (desc: LibraryDesc.t): LibraryDesc.t =
   { desc with attrs = UsesStream s :: desc.attrs }
 
+(** The element of [l] at [n], or [None] past its end. *)
+let rec nth_opt l n = match l, n with
+  | [], _ -> None
+  | x :: _, 0 -> Some x
+  | _ :: rest, n -> nth_opt rest (n - 1)
+
+(** Whether [s] holds a decimal digit at [i]. *)
+let is_digit s i = i < String.length s && (let c = s.[i] in c >= '0' && c <= '9')
+
+(** The index in [s] past the run of decimal digits starting at [i] ([i]
+    itself if there is none). *)
+let rec skip_digits s i = if is_digit s i then skip_digits s (i + 1) else i
+
+(** The index in [s] past an optional POSIX positional argument, ["N$"],
+    starting at [i] ([i] itself if [i] does not start one). *)
+let skip_positional s i =
+  let j = skip_digits s i in
+  if j > i && j < String.length s && s.[j] = '$' then j + 1 else i
+
+(** The index in [s] past a width or precision field starting at [i]:
+    either a run of digits, or ['*'] alone or followed by a positional
+    argument (["*N$"]). *)
+let skip_star_or_digits s i =
+  if i < String.length s && s.[i] = '*' then skip_positional s (i + 1)
+  else skip_digits s i
+
+(** The printf flag characters: ['-'], ['+'], [' '], ['#'], ['0'], and
+    glibc's ['\'']  (thousands grouping). *)
+let is_flag = function '-' | '+' | ' ' | '#' | '0' | '\'' -> true | _ -> false
+
+(** The index in [s] past the run of flag characters starting at [i]. *)
+let rec skip_flags s i = if i < String.length s && is_flag s.[i] then skip_flags s (i + 1) else i
+
+(** The printf length modifiers before a conversion character, longest
+    first so ["hh"] and ["ll"] are matched before ["h"] and ["l"]: [hh], [h],
+    [ll], [l], [q] (4.4BSD, a synonym for [ll]), [L], [j], [z], [Z] (an older
+    synonym for [z]), [t]. *)
+let length_modifiers = ["hh"; "h"; "ll"; "l"; "q"; "L"; "j"; "z"; "Z"; "t"]
+
+(** The index in [s] past a length modifier starting at [i] ([i] itself if
+    there is none): one of {!length_modifiers}, or C23's [wN] or [wfN], a
+    [w] and an optional [f] followed by digits. *)
+let skip_length s i =
+  let len = String.length s in
+  if i < len && s.[i] = 'w' then
+    let j = if i + 1 < len && s.[i + 1] = 'f' then i + 2 else i + 1 in
+    skip_digits s j
+  else
+    match List.find_opt (fun m -> i + String.length m <= len && String.sub s i (String.length m) = m) length_modifiers with
+    | Some m -> i + String.length m
+    | None -> i
+
+(** The printf conversion characters that only read their argument: C23's
+    [d i o u x X b B c s p a A e E f F g G], the XSI [C] and [S], and glibc's
+    [m], which takes no argument. [n] is not one of them. *)
+let is_reading_conversion = function
+  | 'd' | 'i' | 'o' | 'u' | 'x' | 'X' | 'b' | 'B' | 'c' | 's' | 'p'
+  | 'a' | 'A' | 'e' | 'E' | 'f' | 'F' | 'g' | 'G' | 'C' | 'S' | 'm' -> true
+  | _ -> false
+
+(** Whether [e], a printf-family call's format argument folded to a
+    constant, is a string literal none of whose conversions is [n] -- the
+    only printf conversion that writes through an argument rather than only
+    reading it. Parses each ['%'] directive per the POSIX fprintf grammar,
+    ["%[N$][flags][width][.precision][length]conversion"]: an optional
+    positional argument, flags, a width and a precision each written as
+    digits or [*]/[*N$], and a length modifier, before the conversion
+    character that decides the directive. ["%%"] is a literal percent, not a
+    directive. A directive is accepted only when it ends in one of
+    {!is_reading_conversion}. A non-literal format, or a directive this
+    cannot parse to such a character (the string ends first, or the
+    character is not one this knows, as with a length modifier from an
+    extension not listed in {!skip_length}), is not decided here: the caller
+    must still assume it may contain a [%n]. *)
+let format_excludes_percent_n (e: Cil.exp) : bool =
+  match Cil.constFold true (Cil.stripCasts e) with
+  | Const (CStr (s, _)) ->
+    let len = String.length s in
+    let rec scan i =
+      if i >= len then true
+      else if s.[i] <> '%' then scan (i + 1)
+      else if i + 1 >= len then false (* a trailing '%' is not a complete directive *)
+      else if s.[i + 1] = '%' then scan (i + 2)
+      else
+        let j = i + 1 in
+        let j = skip_positional s j in
+        let j = skip_flags s j in
+        let j = skip_star_or_digits s j in
+        let j = if j < len && s.[j] = '.' then skip_star_or_digits s (j + 1) else j in
+        let j = skip_length s j in
+        if j < len && is_reading_conversion s.[j] then scan (j + 1)
+        else false
+    in
+    scan 0
+  | _ -> false
+
+(** Wraps a printf-family [desc] (built with [drop "format" [r] :: VarArgs
+    (drop' [r])] at the point [format_index] names in the full argument
+    list) so its variadic arguments are also read as [w] -- accounting for
+    %n -- unless [format_excludes_percent_n] holds of the format argument.
+    Every affected call in this file is then either exact, when the format
+    is a literal, or conservative, when it is not and every variadic
+    argument is taken to need the write regardless of its own conversion. *)
+let printf_family ~format_index (desc: LibraryDesc.t) : LibraryDesc.t =
+  { desc with
+    accs = fun args ->
+      let base = desc.accs args in
+      match nth_opt args format_index with
+      | Some format when format_excludes_percent_n format -> base
+      | _ ->
+        let varargs = List.filteri (fun i _ -> i > format_index) args in
+        let write_key = LibraryDesc.Access.{ kind = AccessKind.Write; deep = false } in
+        match List.assoc_opt write_key base with
+        | Some existing -> (write_key, existing @ varargs) :: List.remove_assoc write_key base
+        | None -> (write_key, varargs) :: base
+  }
+
 (** C standard library functions.
     These are specified by the C standard. *)
 let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -64,10 +181,10 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fgets", unknown [drop "str" [w]; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("fopen", unknown [drop "pathname" [r]; drop "mode" [r]]);
     ("freopen", unknown [drop "pathname" [r]; drop "mode" [r]; drop "stream" [r_deep; w_deep]]);
-    ("printf", unknown (drop "format" [r] :: VarArgs (drop' [r])) |> on_stream Stdout);
-    ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' [r])));
-    ("sprintf", unknown (drop "buffer" [w] :: drop "format" [r] :: VarArgs (drop' [r])));
-    ("snprintf", unknown (drop "buffer" [w] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("printf", unknown (drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:0 |> on_stream Stdout);
+    ("fprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1);
+    ("sprintf", unknown (drop "buffer" [w] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1);
+    ("snprintf", unknown (drop "buffer" [w] :: drop "bufsz" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:2);
     ("fputc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("putc", unknown [drop "ch" []; drop "stream" [r_deep; w_deep]]);
     ("fputs", unknown [drop "str" [r]; drop "stream" [r_deep; w_deep]]);
@@ -148,9 +265,9 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ctime", unknown ~attrs:[ThreadUnsafe] [drop "rm" [r]]);
     ("clearerr", unknown [drop "stream" [w]]); (* TODO: why only w? *)
     ("setbuf", special [__ "stream" [r_deep; w_deep]; __ "buf" [r; w]] @@ fun stream buffer -> SetStreamBuffer { stream; buffer });
-    ("wprintf", unknown (drop "fmt" [r] :: VarArgs (drop' [r])) |> on_stream Stdout);
-    ("fwprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "fmt" [r] :: VarArgs (drop' [r])));
-    ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("wprintf", unknown (drop "fmt" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:0 |> on_stream Stdout);
+    ("fwprintf", unknown (drop "stream" [r_deep; w_deep] :: drop "fmt" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1);
+    ("swprintf", unknown (drop "wcs" [w] :: drop "maxlen" [] :: drop "fmt" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:2);
     ("assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if assert is used without include, e.g. in transformed files *)
     ("difftime", unknown [drop "time1" []; drop "time2" []]);
     ("system", unknown ~attrs:[ThreadUnsafe] [drop "command" [r]]);
@@ -347,7 +464,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__strndup", unknown [drop "s" [r]; drop "n" []]);
     ("syscall", unknown (drop "number" [] :: VarArgs (drop' [r; w])));
     ("sysconf", unknown [drop "name" []]);
-    ("syslog", unknown (drop "priority" [] :: drop "format" [r] :: VarArgs (drop' [r]))); (* TODO: is the VarArgs correct here? *)
+    ("syslog", unknown (drop "priority" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1); (* TODO: is the VarArgs correct here? *)
     ("vsyslog", unknown [drop "priority" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("freeaddrinfo", unknown [drop "res" [f_deep]]);
     ("getgid", unknown []);
@@ -383,7 +500,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getaddrinfo", unknown [drop "node" [r]; drop "service" [r]; drop "hints" [r_deep]; drop "res" [w]]); (* only write res non-deep because it doesn't write to existing fields of res *)
     ("fnmatch", unknown [drop "pattern" [r]; drop "string" [r]; drop "flags" []]);
     ("realpath", unknown [drop "path" [r]; drop "resolved_path" [w]]);
-    ("dprintf", unknown (drop "fd" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("dprintf", unknown (drop "fd" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1);
     ("vdprintf", unknown [drop "fd" []; drop "format" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("mkdtemp", unknown [drop "template" [r; w]]);
     ("mkstemp", unknown [drop "template" [r; w]]);
@@ -602,13 +719,13 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__assert_fail", special [drop "assertion" [r]; drop "file" [r]; drop "line" []; drop "function" [r]] @@ Abort); (* gcc's built-in assert *)
     ("__assert", special [drop "assertion" [r]; drop "file" [r]; drop "line" []] @@ Abort); (* header says: The following is not at all used here but needed for standard compliance. *)
     ("__builtin_return_address", unknown [drop "level" []]);
-    ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
-    ("__builtin___snprintf_chk", unknown (drop "s" [w] :: drop "maxlen" [] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])));
+    ("__builtin___sprintf_chk", unknown (drop "s" [w] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:3);
+    ("__builtin___snprintf_chk", unknown (drop "s" [w] :: drop "maxlen" [] :: drop "flag" [] :: drop "os" [] :: drop "fmt" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:4);
     ("__builtin___vsprintf_chk", unknown [drop "s" [w]; drop "flag" []; drop "os" []; drop "fmt" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
     ("__builtin___vsnprintf_chk", unknown [drop "s" [w]; drop "maxlen" []; drop "flag" []; drop "os" []; drop "fmt" [r]; drop "ap" [r_deep]]); (* TODO: what to do with a va_list type? is r_deep correct? *)
-    ("__builtin___printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> on_stream Stdout);
+    ("__builtin___printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1 |> on_stream Stdout);
     ("__builtin___vprintf_chk", unknown [drop "flag" []; drop "format" [r]; drop "ap" [r_deep]] |> on_stream Stdout); (* TODO: what to do with a va_list type? is r_deep correct? *)
-    ("__builtin___fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("__builtin___fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:2);
     ("__builtin___vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("__builtin_add_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
     ("__builtin_sadd_overflow", unknown [drop "a" []; drop "b" []; drop "c" [w]]);
@@ -681,13 +798,13 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("clearerr_unlocked", unknown ~attrs:[StreamUnlocked] [drop "stream" [w]]); (* TODO: why only w? *)
     ("__fpending", unknown [drop "stream" [r_deep]]);
     ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
-    ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))) |> on_stream Stdout |> on_stream Stderr);
-    ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])) |> on_stream Stderr);
-    ("warnx", unknown (drop "format" [r] :: VarArgs (drop' [r])) |> on_stream Stderr);
+    ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))) |> printf_family ~format_index:2 |> on_stream Stdout |> on_stream Stderr);
+    ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:0 |> on_stream Stderr);
+    ("warnx", unknown (drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:0 |> on_stream Stderr);
     ("vwarn", unknown [drop "format" [r]; drop "ap" [r_deep]] |> on_stream Stderr);
     ("vwarnx", unknown [drop "format" [r]; drop "ap" [r_deep]] |> on_stream Stderr);
-    ("err", special (drop "status" [] :: drop "format" [r] :: VarArgs (drop' [r])) Abort |> on_stream Stderr);
-    ("errx", special (drop "status" [] :: drop "format" [r] :: VarArgs (drop' [r])) Abort |> on_stream Stderr);
+    ("err", special (drop "status" [] :: drop "format" [r] :: VarArgs (drop' [r])) Abort |> printf_family ~format_index:1 |> on_stream Stderr);
+    ("errx", special (drop "status" [] :: drop "format" [r] :: VarArgs (drop' [r])) Abort |> printf_family ~format_index:1 |> on_stream Stderr);
     ("verr", special [drop "status" []; drop "format" [r]; drop "ap" [r_deep]] Abort |> on_stream Stderr);
     ("verrx", special [drop "status" []; drop "format" [r]; drop "ap" [r_deep]] Abort |> on_stream Stderr);
     ("setbuffer", special [__ "stream" [r_deep; w_deep]; __ "buf" [r; w]; drop "size" []] @@ fun stream buffer -> SetStreamBuffer { stream; buffer });
@@ -716,9 +833,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("fputc_unlocked", unknown ~attrs:[StreamUnlocked] [drop "c" []; drop "stream" [r_deep; w_deep]]);
     ("fflush_unlocked", unknown ~attrs:[StreamUnlocked; AllStreamsIfNull] [drop "stream" [r_deep; w_deep]]);
     ("__vprintf_chk", unknown [drop "flag" []; drop "format" [r]; drop "ap" [r_deep]] |> on_stream Stdout);
-    ("__wprintf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> on_stream Stdout);
+    ("__wprintf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1 |> on_stream Stdout);
     ("__vwprintf_chk", unknown [drop "flag" []; drop "format" [r]; drop "ap" [r_deep]] |> on_stream Stdout);
-    ("__fwprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("__fwprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:2);
     ("__vfwprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("__gets_chk", unknown [drop "buf" [w]; drop "size" []] |> on_stream Stdin);
     ("__fread_alias", unknown [drop "__ptr" [w]; drop "__size" []; drop "__n" []; drop "__stream" [r_deep; w_deep]]);
@@ -806,8 +923,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__errno", unknown []);
     ("__errno_location", unknown []);
     ("__h_errno_location", unknown []);
-    ("__printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> on_stream Stdout);
-    ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("__printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:1 |> on_stream Stdout);
+    ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])) |> printf_family ~format_index:2);
     ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);
     ("__xpg_basename", unknown [drop "path" [r]]);
