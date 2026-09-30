@@ -354,6 +354,10 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pclose", unknown [drop "stream" [w; f]]);
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    (* _FORTIFY_SOURCE rewrites a call to recv whose buffer size is known at
+       compile time into this, with an extra buflen argument checked against
+       len: same access pattern as recv itself, so the same spec suffices. *)
+    ("__recv_chk", unknown [drop "sockfd" []; drop "buf" [w]; drop "len" []; drop "buflen" []; drop "flags" []]);
     ("__inet_pton_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
     ("__inet_pton_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("__inet_pton_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
