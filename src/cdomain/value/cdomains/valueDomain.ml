@@ -11,7 +11,6 @@ module MutexAttr = MutexAttrDomain
 module VDQ = ValueDomainQueries
 module AD = VDQ.AD
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
-module ArrIdxDomain = IndexDomain
 
 module type S =
 sig
@@ -765,7 +764,7 @@ struct
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
-    let array_idx_top = (None, ArrIdxDomain.top ()) in
+    let array_idx_top = (None, IndexDomain.top ()) in
     match typ, state with
     |                 _ , Address n    -> Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , Struct n     -> Struct (invalid_struct ci n)
@@ -1336,7 +1335,7 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and type value = Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t and type idx = ArrIdxDomain.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)(ArrIdxDomain)
+and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound) (ID)
 
