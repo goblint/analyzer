@@ -465,7 +465,7 @@ struct
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
-    (* if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn; *)
+    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty (Some y) pretty refn;
     refn
 
   let refine_with_bitfield ik a b =

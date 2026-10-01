@@ -499,12 +499,11 @@ struct
     | _ -> None
 
   let refine_with_interval ik (cong : t) (intv : int_t * int_t) : t =
-    (* let pretty_intv _ i =
-      match i with
-      | Some (l, u) -> Pretty.dprintf "[%a,%a]" GobZ.pretty l GobZ.pretty u
-      | _ -> Pretty.text ("Display Error") in *)
+    let pretty_intv () (l, u) =
+      Pretty.dprintf "[%a,%a]" GobZ.pretty l GobZ.pretty u
+    in
     let refn = refine_with_interval ik cong intv in
-    (* if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a" pretty cong pretty_intv intv pretty refn; *)
+    if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a" pretty cong pretty_intv intv pretty refn;
     refn
 
   let refine_with_congruence ik a b = meet ik a (Some b)
