@@ -460,11 +460,10 @@ module Enums : S with type int_t = Z.t = struct
   (* What is generally safe is shrinking an inclusion set as no new elements appear here. *)
   (* What is not safe is growing an exclusion set or switching from an exclusion set to an inclusion set *)
 
-  let refine_with_congruence ik a b =
+  let refine_with_congruence ik a (c, m) =
     let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
-    match a, b with
-    | Inc e, None -> bot_of ik
-    | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =
@@ -475,19 +474,18 @@ module Enums : S with type int_t = Z.t = struct
       x
 
   let refine_with_interval ik a b =
-    match a, b with
-    | Inc _, None -> bot_of ik
-    | Inc e, Some (l, u) -> Inc (BISet.filter (value_in_range (l,u)) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (value_in_range b) e)
     | _ -> a
 
-  let refine_with_excl_list ik a b =
-    match a, b with
-    | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
+  let refine_with_excl_list ik a (ls, _) =
+    match a with
+    | Inc _ -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
-  let refine_with_incl_list ik a b =
-    match a, b with
-    | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
+  let refine_with_incl_list ik a ls =
+    match a with
+    | Inc x -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
 
   let project ik p t = t

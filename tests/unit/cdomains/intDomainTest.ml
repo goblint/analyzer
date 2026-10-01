@@ -862,16 +862,16 @@ struct
   let test_refine_with_congruence _ =
     let bf = I.top_of ik in
 
-    let bf_refined1= I.refine_with_congruence ik bf (Some (Z.of_int 3, Z.of_int 4)) in
+    let bf_refined1= I.refine_with_congruence ik bf (Z.of_int 3, Z.of_int 4) in
     assert_bool "3" (I.equal_to (of_int 3) bf_refined1 = `Top);
-    let bf_refined3= I.refine_with_congruence ik bf (Some (Z.of_int 5, Z.of_int 0)) in
+    let bf_refined3= I.refine_with_congruence ik bf (Z.of_int 5, Z.of_int 0) in
     assert_bool "5" (I.equal_to (of_int 5) bf_refined3 = `Eq)
 
   let test_refine_with_inclusion_list _ =
     let bf = I.top_of ik in
 
     let list = List.map of_int [-2;3;23; 26] in
-    let bf_refined = I.refine_with_incl_list ik bf (Some list) in
+    let bf_refined = I.refine_with_incl_list ik bf list in
 
     List.iter (fun i -> assert_bool (Z.to_string i) (I.equal_to i bf_refined = `Top)) list
 
