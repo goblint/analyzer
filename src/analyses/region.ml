@@ -14,7 +14,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module D = RegionDomain.RegionDom
+  module D = RegMap
   module G = RegPart
   include Analyses.ValueContexts(D)
 
@@ -24,23 +24,14 @@ struct
     include StdV
   end
 
-  let regions exp part st : Mval.Exp.t list =
-    match st with
-    | `Lifted reg ->
-      let ev = Reg.eval_exp exp in
-      Reg.related_globals ev (part,reg)
-    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
-    | `Bot -> []
+  let regions exp part reg : Mval.Exp.t list =
+    let ev = Reg.eval_exp exp in
+    Reg.related_globals ev (part,reg)
 
-  let is_bullet exp part st : bool =
-    match st with
-    | `Lifted reg ->
-      begin match Reg.eval_exp exp with
-        | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
-        | _ -> false
-      end
-    | `Top -> false
-    | `Bot -> true
+  let is_bullet exp part reg : bool =
+    match Reg.eval_exp exp with
+    | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
+    | _ -> false
 
   let get_region man e =
     let regpart = man.global () in
@@ -88,14 +79,11 @@ struct
 
   (* transfer functions *)
   let assign man (lval:lval) (rval:exp) : D.t =
-    match man.local with
-    | `Lifted reg ->
-      let old_regpart = man.global () in
-      let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        man.sideg () regpart;
-      `Lifted reg
-    | x -> x
+    let reg = man.local in
+    let old_regpart = man.global () in
+    let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
+    man.sideg () regpart;
+    reg
 
   let branch man (exp:exp) (tv:bool) : D.t =
     man.local
@@ -105,19 +93,16 @@ struct
 
   let return man (exp:exp option) (f:fundec) : D.t =
     let locals = f.sformals @ f.slocals in
-    match man.local with
-    | `Lifted reg ->
-      let old_regpart = man.global () in
-      let regpart, reg = match exp with
-        | Some exp ->
-          Reg.assign (ReturnUtil.return_lval ()) exp (old_regpart, reg)
-        | None -> (old_regpart, reg)
-      in
-      let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
-      if not (RegPart.leq regpart old_regpart) then
-        man.sideg () regpart;
-      `Lifted reg
-    | x -> x
+    let reg = man.local in
+    let old_regpart = man.global () in
+    let regpart, reg = match exp with
+      | Some exp ->
+        Reg.assign (ReturnUtil.return_lval ()) exp (old_regpart, reg)
+      | None -> (old_regpart, reg)
+    in
+    let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
+    man.sideg () regpart;
+    reg
 
 
   let enter man (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
@@ -126,67 +111,57 @@ struct
       | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
       | _ -> r
     in
-    match man.local with
-    | `Lifted reg ->
-      let f x r reg = Reg.assign (var x) r reg in
-      let old_regpart = man.global () in
-      let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        man.sideg () regpart;
-      [man.local, `Lifted reg]
-    | x -> [x,x]
+    let reg = man.local in
+    let f x r reg = Reg.assign (var x) r reg in
+    let old_regpart = man.global () in
+    let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
+    man.sideg () regpart;
+    [man.local, reg]
 
   let combine_env man lval fexp f args fc au f_ask =
     man.local
 
   let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    match au with
-    | `Lifted reg -> begin
-        let old_regpart = man.global () in
-        let regpart, reg = match lval with
-          | None -> (old_regpart, reg)
-          | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
-        in
-        let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
-        if not (RegPart.leq regpart old_regpart) then
-          man.sideg () regpart;
-        `Lifted reg
-      end
-    | _ -> au
+    let reg = au in
+    let old_regpart = man.global () in
+    let regpart, reg = match lval with
+      | None -> (old_regpart, reg)
+      | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
+    in
+    let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
+    man.sideg () regpart;
+    reg
 
   let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Malloc _ | Calloc _ | Realloc _ | Alloca _ -> begin
-        match man.local, lval with
-        | `Lifted reg, Some lv ->
+        match lval with
+        | Some lv ->
+          let reg = man.local in
           let old_regpart = man.global () in
           (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
-          if not (RegPart.leq regpart old_regpart) then
-            man.sideg () regpart;
-          `Lifted reg
+          man.sideg () regpart;
+          reg
         | _ -> man.local
       end
     | _ ->
       man.local
 
   let startstate v =
-    `Lifted (RegMap.bot ())
+    RegMap.bot ()
 
   let threadenter man ~multiple lval f args =
-    [`Lifted (RegMap.bot ())]
+    [RegMap.bot ()]
   let threadspawn man ~multiple lval f args fman =
-    match man.local with
-    | `Lifted reg ->
-      let old_regpart = man.global () in
-      let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        man.sideg () regpart;
-      `Lifted reg
-    | x -> x
+    let reg = man.local in
+    let old_regpart = man.global () in
+    let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
+    man.sideg () regpart;
+    reg
 
-  let exitstate v = `Lifted (RegMap.bot ())
+  let exitstate v = RegMap.bot ()
 
   let name () = "region"
 end

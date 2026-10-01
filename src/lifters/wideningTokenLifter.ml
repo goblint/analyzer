@@ -9,7 +9,11 @@
 module Token = WideningToken
 
 (** Widening token set. *)
-module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
+module TS =
+struct
+  include SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
+  let name () = "widen-tokens"
+end
 
 (** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
 let add_ref: (Token.t -> unit) Domain.DLS.key = Domain.DLS.new_key (fun () _ ->
@@ -58,7 +62,7 @@ open Analyses
     except widening tokens are used to delay widenings. *)
 module Dom (D: Lattice.S) =
 struct
-  include Lattice.Prod (D) (TS)
+  include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (D) (TS)
   let unlift (d, _) = d
   let lift d = (d, TS.bot ())
 
@@ -88,6 +92,9 @@ struct
         D.join d1 d2
     in
     (d', TS.join t1 t2)
+
+  let pretty_diff () ((d1, _), (d2, _)) =
+    D.pretty_diff () (d1, d2) (* Tokens cannot violate leq. *)
 end
 
 (** Lift {!S} to carry widening tokens with both local and global states. *)
@@ -180,6 +187,6 @@ struct
   let combine_assign man r fe f args fc es f_ask = lift_fun man lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 
   let threadenter man  ~multiple lval f args = lift_fun man (fun l ts -> List.map (Fun.flip lift' ts) l) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval )
-  let threadspawn man ~multiple lval f args fman = lift_fun man lift' (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
-  let event man e oman = lift_fun man lift' S.event ((|>) (conv oman) % (|>) e)
+  let threadspawn man ~multiple lval f args fman = lift_fun man lift' (S.threadspawn ~multiple) (fun p -> p lval f args (conv fman)) (* fun to delay (conv fman) until exception handler inside lift_fun *)
+  let event man e oman = lift_fun man lift' S.event (fun p -> p e (conv oman)) (* fun to delay (conv oman) until exception handler inside lift_fun *)
 end

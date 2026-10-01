@@ -1,6 +1,5 @@
 (** Abstract domains for C arrays. *)
 
-open IntOps
 open GoblintCil
 module VDQ = ValueDomainQueries
 
@@ -15,7 +14,7 @@ val can_recover_from_top: domain -> bool
 module type S0 =
 sig
   include Lattice.S
-  type idx
+  type idx = PreValueDomain.IndexDomain.t
   (** The abstract domain used to index on arrays. *)
 
   type value
@@ -143,16 +142,16 @@ sig
   include Null with type t := t
 end
 
-module Trivial (Val: LatticeWithInvalidate) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
+module Trivial (Val: LatticeWithInvalidate): S with type value = Val.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)
 
-module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t
+module TrivialWithLength (Val: LatticeWithInvalidate): S with type value = Val.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 
-module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t
+module Partitioned (Val: LatticeWithSmartOps): S with type value = Val.t
 (** This functor creates an array representation that allows for partitioned arrays
   * Such an array can be partitioned according to an expression in which case it
   * uses three values from Val to represent the elements of the array to the left,
@@ -160,10 +159,10 @@ module Partitioned (Val: LatticeWithSmartOps) (Idx: IntDomain.ZDefault): S with 
   * have a signature that allows for choosing an array representation at runtime.
 *)
 
-module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t
+module PartitionedWithLength (Val: LatticeWithSmartOps): S with type value = Val.t
 (** Like partitioned but additionally manages the length of the array. *)
 
-module NullByte (Val: LatticeWithNull) (Idx: IntDomain.ZDefault): Str with type value = Val.t and type idx = Idx.t
+module NullByte (Val: LatticeWithNull): Str with type value = Val.t
 (** This functor creates an array representation by the indexes of all null bytes
   * the array must and may contain. This is useful to analyze strings, i.e. null-
   * terminated char arrays, and particularly to determine if operations on strings
@@ -171,10 +170,10 @@ module NullByte (Val: LatticeWithNull) (Idx: IntDomain.ZDefault): Str with type 
   * for this domain. It additionally tracks the array size.
 *)
 
-module AttributeConfiguredArrayDomain (Val: LatticeWithSmartOps) (Idx: IntDomain.ZDefault): S with type value = Val.t and type idx = Idx.t
+module AttributeConfiguredArrayDomain (Val: LatticeWithSmartOps): S with type value = Val.t
 (** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on variable, type, and flag. *)
 
-module AttributeConfiguredAndNullByteArrayDomain (Val: LatticeWithNull) (Idx: IntDomain.ZDefault): StrWithDomain with type value = Val.t and type idx = Idx.t
+module AttributeConfiguredAndNullByteArrayDomain (Val: LatticeWithNull): StrWithDomain with type value = Val.t
 (** Like FlagHelperAttributeConfiguredArrayDomain but additionally runs NullByte
   * in parallel if flag "ana.base.arrays.nullbytes" is set.
 *)

@@ -156,9 +156,6 @@ sig
   val to_excl_list: t -> (int_t list * (int * int)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
-  val is_excl_list: t -> bool
-  (** Checks if the element is an exclusion set. *)
-
   val to_incl_list: t -> int_t list option
   (** Gives a list representation of the included values if possible. *)
 

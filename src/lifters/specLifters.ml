@@ -321,14 +321,20 @@ module OptEqual (S: Spec) = struct
   include (S : Spec with module D := D and module G := G and module C := C)
 end
 
+module LevelSliceDomain =
+struct
+  include Lattice.Reverse (IntDomain.Lifted)
+  let name () = "level"
+end
+
 (** If dbg.slice.on, stops entering functions after dbg.slice.n levels. *)
 module LevelSliceLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  : Spec with module D = Lattice.Prod (S.D) (LevelSliceDomain)
           and module G = S.G
           and module C = S.C
 =
 struct
-  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  module D = Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (S.D) (LevelSliceDomain)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -454,10 +460,14 @@ struct
     include S.D
     let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
-  module M = MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+  module M =
+  struct
+    include MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+    let name () = "widen-context"
+  end
 
   module D = struct
-    include Lattice.Prod (S.D) (M)
+    include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
@@ -601,9 +611,9 @@ struct
   let combine_assign man r fe f args fc es f_ask = lift_fun man D.lift S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) `Bot
 
   let threadenter man ~multiple lval f args = lift_fun man (List.map D.lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval) []
-  let threadspawn man ~multiple lval f args fman = lift_fun man D.lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval) `Bot
+  let threadspawn man ~multiple lval f args fman = lift_fun man D.lift (S.threadspawn ~multiple) (fun p -> p lval f args (conv fman)) `Bot (* fun to delay (conv fman) until exception handler inside lift_fun *)
 
-  let event (man:(D.t,G.t,C.t,V.t) man) (e:Events.t) (oman:(D.t,G.t,C.t,V.t) man):D.t = lift_fun man D.lift S.event ((|>) (conv oman) % (|>) e) `Bot
+  let event (man:(D.t,G.t,C.t,V.t) man) (e:Events.t) (oman:(D.t,G.t,C.t,V.t) man):D.t = lift_fun man D.lift S.event (fun p -> p e (conv oman)) `Bot (* fun to delay (conv oman) until exception handler inside lift_fun *)
 end
 
 
@@ -763,6 +773,11 @@ struct
 
   module V =
   struct
+    module Node =
+    struct
+      include Node
+      let name () = "deadbranch"
+    end
     include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (S.V) (Node)
     let name () = "DeadBranch"
     let s x = `Left x
@@ -780,7 +795,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (EM)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (S.G) (EM)
     let name () = "deadbranch"
 
     let s = function

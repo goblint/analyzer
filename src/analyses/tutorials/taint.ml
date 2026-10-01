@@ -58,8 +58,9 @@ struct
       (* TODO: Check whether variable v is tainted *)
       false
     | _ ->
-      (* We assume using a tainted offset does not taint the expression, and that our language has no pointers *)
-      false
+      Assumptions.add "Tainted offset does not taint the expression";
+      Assumptions.add "Language has no pointers";
+      false (* Nothing more needs to be done *)
 
   (* transfer functions *)
 

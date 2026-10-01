@@ -92,23 +92,26 @@ module Check = struct
     messages: string;
   } [@@deriving make, hash, eq]
 
+  let range_to_yojson (loc: CilType.Location.t) =
+    `Assoc [
+      ("start", `Assoc [
+          ("file", `String loc.file);
+          ("line", `Int loc.line);
+          ("column", `Int (loc.column - 1))
+        ]);
+      ("end", `Assoc [
+          ("file", `String loc.file);
+          ("line", `Int loc.endLine);
+          ("column", `Int (loc.endColumn - 1))
+        ])
+    ]
+
   let to_yojson check =
     `Assoc [
       ("kind", Kind.to_yojson check.kind);
       ("title", Category.to_yojson check.title);
       ("range", match check.range with
-        | Some loc -> `Assoc [
-            ("start", `Assoc [
-                ("file", `String loc.file);
-                ("line", `Int loc.line);
-                ("column", `Int (loc.column - 1))
-              ]);
-            ("end", `Assoc [
-                ("file", `String loc.file);
-                ("line", `Int loc.endLine);
-                ("column", `Int (loc.endColumn - 1))
-              ])
-          ]
+        | Some loc -> range_to_yojson loc
         | None -> `Null);
       ("messages", `String check.messages)
     ]
