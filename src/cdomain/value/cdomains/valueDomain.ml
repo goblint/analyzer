@@ -84,12 +84,12 @@ struct
   let calloc = `Lifted true
 end
 
-module Blob (Value: S) (Size: IntDomain.Z)=
+module Blob (Value: S) =
 struct
-  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include Size let name () = "size" end) (ZeroInit)
+  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include ID let name () = "size" end) (ZeroInit)
   let name () = "blob"
   type value = Value.t
-  type size = Size.t
+  type size = ID.t
   type zeroinit = ZeroInit.t
 
   let map f (v, s, o) = f v, s, o
@@ -1337,7 +1337,7 @@ and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and typ
 
 and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound) (ID)
+and Blobs: Blob with type size = ID.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound)
 
 
 module type InvariantArg =
