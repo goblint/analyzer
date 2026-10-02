@@ -5,6 +5,7 @@ open GoblintCil
 module VDQ = ValueDomainQueries
 
 module ID = VDQ.ID
+module SizeDomain = ValueDomain.SizeDomain
 
 module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
@@ -109,7 +110,7 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
-  | BlobSize: exp -> ID.t t (** Size of a dynamically allocated [`Blob] pointed to by [exp]. *)
+  | BlobSize: exp -> SizeDomain.t t (** Size of a dynamically allocated [`Blob] pointed to by [exp]. *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
@@ -194,7 +195,7 @@ struct
     | EvalLength _ -> (module ID)
     | EvalMutexAttr _ -> (module MutexAttrDomain)
     | EvalValue _ -> (module VD)
-    | BlobSize _ -> (module ID)
+    | BlobSize _ -> (module SizeDomain)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | AllocVar _ -> (module VI)
@@ -273,7 +274,7 @@ struct
     | EvalLength _ -> ID.top ()
     | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | EvalValue _ -> VD.top ()
-    | BlobSize _ -> ID.top ()
+    | BlobSize _ -> SizeDomain.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | AllocVar _ -> VI.top ()

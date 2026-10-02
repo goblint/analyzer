@@ -1565,10 +1565,10 @@ struct
              | Array a ->
                (* unroll into array for Calloc calls *)
                (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int Z.zero)) with
-                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift s)) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
+                | Blob (_,s,_) -> s
                 | _ -> Queries.Result.top q
                )
-             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift s)) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
+             | Blob (_,s,_) -> s
              | _ -> Queries.Result.top q)
           )
         | _ -> Queries.Result.top q
@@ -2333,11 +2333,8 @@ struct
       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
   let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
-    let intdom_of_int x =
-      ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
-    in
     let size_of_type_in_bytes typ =
-      intdom_of_int (Cilfacade.bytesSizeOf typ)
+      SizeDomain.of_int (Z.of_int (Cilfacade.bytesSizeOf typ))
     in
     match addr with
     | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
@@ -2349,25 +2346,25 @@ struct
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
             | `Lifted arr_len ->
-              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
+              let arr_len_casted = SizeDomain.lift arr_len in
               begin
-                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+                try SizeDomain.mul item_typ_size_in_bytes arr_len_casted
+                with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
               end
-            | `Bot -> `Bot
-            | `Top -> `Top
+            | `Bot -> SizeDomain.bot ()
+            | `Top -> SizeDomain.top ()
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-          `Lifted type_size_in_bytes
+          type_size_in_bytes
       end
-    | _ -> `Top
+    | _ -> SizeDomain.top ()
 
   let get_size_of_ptr_target man ptr =
     man.ask (Queries.MayPointTo ptr)
     |> Queries.AD.to_seq
     |> Seq.map (get_addr_size man)
-    |> Seq.fold_left ValueDomainQueries.ID.join `Bot
+    |> Seq.fold_left SizeDomain.join (SizeDomain.bot ())
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
@@ -2391,8 +2388,8 @@ struct
       let n_intdom = Option.map_default (fun exp -> man.ask (Queries.EvalInt exp)) `Bot n in
       let dest_size_equal_n =
         match dest_size, n_intdom with
-        | `Lifted ds, `Lifted n ->
-          let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ds in (* TODO: proper castkind *)
+        | ds, `Lifted n ->
+          let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ds) in (* TODO: proper castkind *) (* TODO: don't unlift *)
           let casted_n = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n in (* TODO: proper castkind *)
           let ds_eq_n =
             begin try ID.eq casted_ds casted_n
@@ -2484,18 +2481,12 @@ struct
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let size = man.ask (Q.BlobSize s1) in
-          let s_id =
-            try ValueDomainQueries.ID.unlift SizeDomain.lift size
-            with Failure _ -> SizeDomain.top () in
-          let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
+          let empty_array = CArrays.make size (Int (ID.top_of IChar)) in
           set ~man st lv_a lv_typ (op_array empty_array array_s2)
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let size = man.ask (Q.BlobSize s1) in
-          let s_id =
-            try ValueDomainQueries.ID.unlift SizeDomain.lift size
-            with Failure _ -> SizeDomain.top () in
-          let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
+          let empty_array = CArrays.make size (Int (ID.top_of IChar)) in
           let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
           let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
           set ~man st lv_a lv_typ (op_array empty_array array_s2)
