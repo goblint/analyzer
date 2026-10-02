@@ -14,6 +14,7 @@ module Q = Queries
 module ID = ValueDomain.ID
 module FD = ValueDomain.FD
 module IdxDom = ValueDomain.IndexDomain
+module SizeDomain = ValueDomain.SizeDomain
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
@@ -2482,20 +2483,18 @@ struct
           set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
-          let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
           let size = man.ask (Q.BlobSize s1) in
           let s_id =
-            try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
-            with Failure _ -> ID.top_of ptrdiff_ik in
+            try ValueDomainQueries.ID.unlift SizeDomain.lift size
+            with Failure _ -> SizeDomain.top () in
           let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
           set ~man st lv_a lv_typ (op_array empty_array array_s2)
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
-          let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
           let size = man.ask (Q.BlobSize s1) in
           let s_id =
-            try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
-            with Failure _ -> ID.top_of ptrdiff_ik in
+            try ValueDomainQueries.ID.unlift SizeDomain.lift size
+            with Failure _ -> SizeDomain.top () in
           let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
           let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
           let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
@@ -2579,7 +2578,7 @@ struct
               (* else compute strlen in array domain *)
             else
               match get ~man st a None with
-              | Array array_s -> Int (CArrays.to_string_length array_s)
+              | Array array_s -> Int (SizeDomain.unlift (CArrays.to_string_length array_s))
               | _ -> VD.top_value dest_typ
           in
           set ~man st dest_a dest_typ value
@@ -2779,7 +2778,7 @@ struct
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
             let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (IdxDom.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)
         | _ -> st
       end

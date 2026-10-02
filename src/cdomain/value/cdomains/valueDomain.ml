@@ -154,9 +154,9 @@ struct
     | TNamed ({tname = "jmp_buf"; _}, _) -> true
     | _ -> false
 
-  let array_length_idx default length =
+  let array_length_size default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
-    BatOption.map_default IndexDomain.of_int default l
+    BatOption.map_default SizeDomain.of_int default l
 
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
@@ -170,7 +170,7 @@ struct
     | TComp ({cstruct=false; _},_) -> Union (Unions.bot ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let len = array_length_idx (IndexDomain.bot ()) length in
+      let len = array_length_size (SizeDomain.bot ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
@@ -207,7 +207,7 @@ struct
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
-      let len = array_length_idx (IndexDomain.bot ()) length in
+      let len = array_length_size (SizeDomain.bot ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
@@ -226,7 +226,7 @@ struct
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let len = array_length_idx (IndexDomain.top ()) length in
+      let len = array_length_size (SizeDomain.top ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (top_value ai))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
     | _ -> Top
@@ -269,7 +269,7 @@ struct
       Union(v)
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let len = array_length_idx (IndexDomain.top ()) length in
+      let len = array_length_size (SizeDomain.top ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
     (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
@@ -1132,7 +1132,7 @@ struct
                           match Cil.unrollType fld.ftype with
                           | TArray(_, l, _) ->
                             let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
-                            Array(CArrays.make (IndexDomain.of_int (Z.of_int len)) Top), offs
+                            Array(CArrays.make (SizeDomain.of_int (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
                       | `Index (idx, _) when IndexDomain.equal_to Z.zero idx = `Eq ->
@@ -1164,8 +1164,8 @@ struct
                   let new_value_at_index = do_update_offset Bot offs l' o' in
                   let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
                   let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
-                  let len_id = BatOption.map IndexDomain.of_int len_ci in
-                  let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
+                  let len_id = BatOption.map SizeDomain.of_int len_ci in
+                  let newl = BatOption.default (SizeDomain.starting Z.zero) len_id in
                   let new_array_value = CArrays.update_length newl new_array_value in
                   Array new_array_value
                 | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
@@ -1224,14 +1224,14 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
+          | None -> SizeDomain.starting Z.zero
           | Some e ->
             begin
               match eval_exp e with
-              | Int x -> ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ())  x (* TODO: proper castkind *)
+              | Int x -> SizeDomain.lift x
               | _ ->
                 M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
-                ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
+                SizeDomain.starting Z.zero
             end
         in
         Array(CArrays.update_length newl n')
@@ -1310,7 +1310,7 @@ struct
     match CArrays.length n, p with
     | None, _
     | _, None -> n'
-    | Some l, Some p -> CArrays.update_length (ID.project p l) n'
+    | Some l, Some p -> CArrays.update_length (SizeDomain.project p l) n'
 
   let relift state =
     match state with
