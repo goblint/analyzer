@@ -1185,7 +1185,7 @@ struct
         Checks.safe Checks.Category.NegativeArraySize;
         Z.zero, None
     in
-    let size = BatOption.map_default (fun max -> SizeDomain.of_interval (min_i, max)) (SizeDomain.starting min_i) max_i in (* TODO: used ILong *)
+    let size = BatOption.map_default (fun max -> SizeDomain.of_interval (min_i, max)) (SizeDomain.starting min_i) max_i in
     match Val.is_null v with
     | Null -> (Nulls.make_all_must (), size)
     | NotNull -> (Nulls.empty (), size)
@@ -1213,7 +1213,7 @@ struct
         | Some i -> build_set (i + 1) (Nulls.Set.add (Z.of_int i) set)
         | None -> Nulls.Set.add last_null set in
     let set = build_set 0 (Nulls.Set.empty ()) in
-    (Nulls.precise_set set, SizeDomain.of_int (Z.succ last_null)) (* TODO: used ILong *)
+    (Nulls.precise_set set, SizeDomain.of_int (Z.succ last_null))
 
   (** Returns an abstract value with at most one null byte marking the end of the string *)
   let to_string ((nulls, size) as x:t):t =
@@ -1226,7 +1226,7 @@ struct
     else
       (Checks.safe Checks.Category.InvalidMemoryAccess;
       let min_must_null = Nulls.min_elem Definitely nulls in
-      let new_size = SizeDomain.of_int (Z.succ min_must_null) in (* TODO: used ILong *)
+      let new_size = SizeDomain.of_int (Z.succ min_must_null) in
       let min_may_null = Nulls.min_elem Possibly nulls in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
       let nulls =
@@ -1251,7 +1251,7 @@ struct
     * an n bytes string. *)
   let to_n_string (nulls, size) n:t =
     if n < 0 then
-      (Nulls.top (), SizeDomain.top ()) (* TODO: used ILong *)
+      (Nulls.top (), SizeDomain.top ())
     else
       let n = Z.of_int n in
       let warn_no_null min_must_null min_may_null =
@@ -1326,7 +1326,7 @@ struct
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls)
       in
-      (nulls,  SizeDomain.of_int n) (* TODO: used ILong *)
+      (nulls,  SizeDomain.of_int n)
 
   let to_string_length (nulls, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
@@ -1457,7 +1457,7 @@ struct
       update_sets truncated (to_string_length src)
     (* strncpy = exactly n bytes from src are copied to dest *)
     | Some n when n >= 0 ->
-      sizes_warning (SizeDomain.of_int (Z.of_int n)); (* TODO: used ILong *)
+      sizes_warning (SizeDomain.of_int (Z.of_int n));
       let truncated = to_n_string src n in
       update_sets truncated (SizeDomain.of_int (Z.of_int n))
     | _ -> (Nulls.top (), dstsize)
@@ -1899,7 +1899,7 @@ struct
 
   let to_null_byte_domain s =
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.make (SizeDomain.top ()) (* TODO: used ILong *) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
+      (A.make (SizeDomain.top ()) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
     else
       (A.top (), N.top ())
   let to_string_length (_, t_n) =
