@@ -8,6 +8,7 @@ open AnalysisStateUtil
 module AS = AnalysisState
 module VDQ = ValueDomainQueries
 module ID = IntDomain.IntDomTuple
+module SizeDomain = ValueDomain.SizeDomain
 
 (*
   Note:
@@ -34,7 +35,7 @@ struct
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
   let size_of_type_in_bytes typ =
-    intdom_of_int (Cilfacade.bytesSizeOf typ)
+    SizeDomain.of_int (Z.of_int (Cilfacade.bytesSizeOf typ))
 
   let offs_lt_zero offs =
     try ID.lt offs (intdom_of_int 0)
@@ -94,22 +95,17 @@ struct
       );
       begin match Cil.unrollType v.vtype with
         | TArray (item_typ, _, _) ->
-          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
-            | `Lifted arr_len ->
-              let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-              begin
-                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-              end
-            | `Bot -> `Bot
-            | `Top -> `Top
+          let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
+          let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+          begin
+            try SizeDomain.mul item_typ_size_in_bytes arr_len
+            with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-          `Lifted type_size_in_bytes
+          type_size_in_bytes
       end
-    | _ -> `Top
+    | _ -> SizeDomain.top ()
 
   let cil_offs_to_idx man typ offs =
     (* TODO: Some duplication with convert_offset in base.ml, unclear how to immediately get more reuse *)
@@ -155,16 +151,16 @@ struct
         let* addr = man.ask (Queries.MayPointTo e) in
         let e_size = get_addr_size man addr in
         begin match e_size with
-          | `Top ->
+          | e_size when SizeDomain.is_top e_size ->
             (set_mem_safety_flag InvalidDeref;
              M.warn "Size of lval dereference expression %a is top. Out-of-bounds memory access may occur" d_exp e);
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is top. Out-of-bounds memory access may occur" d_exp e
-          | `Bot ->
+          | e_size when SizeDomain.is_bot e_size ->
             (set_mem_safety_flag InvalidDeref;
              M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e);
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e
-          | `Lifted es ->
-            let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) es in (* TODO: proper castkind *)
+          | es ->
+            let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift es) in (* TODO: proper castkind *) (* TODO: don't unlift *)
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
             begin match check_offset_bounds casted_es casted_offs with
@@ -193,16 +189,16 @@ struct
     let ptr_size = get_addr_size man addr in
     let addr_offs = get_addr_offset ptr_type addr in
     match ptr_size, addr_offs with
-    | `Top, _ ->
+    | ptr_size, _ when SizeDomain.is_top ptr_size ->
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
       Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is top. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
-    | `Bot, _ ->
+    | ptr_size, _ when SizeDomain.is_bot ptr_size ->
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
       Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
-    | `Lifted ps, ao ->
-      let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
+    | ps, ao ->
+      let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ps) in (* TODO: proper castkind *) (* TODO: don't unlift *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
       match check_offset_bounds casted_ps casted_ao with
       | Some true, _
@@ -251,7 +247,7 @@ struct
     let ptr_size = get_addr_size man addr in
     let addr_offs = get_addr_offset ptr_type addr in
     match ptr_size, eval_n with
-    | `Top, _ ->
+    | ptr_size, _ when SizeDomain.is_top ptr_size ->
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp ptr fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Size of dest %a in function %s is unknown. Memory out-of-bounds access might occur" d_exp ptr fun_name
@@ -259,7 +255,7 @@ struct
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is unknown. Memory out-of-bounds access might occur" fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Count parameter, passed to function %s is unknown. Memory out-of-bounds access might occur" fun_name
-    | `Bot, _ ->
+    | ptr_size, _ when SizeDomain.is_bot ptr_size ->
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp ptr fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Size of dest %a in function %s is bottom. Memory out-of-bounds access might occur" d_exp ptr fun_name
@@ -267,8 +263,8 @@ struct
       set_mem_safety_flag InvalidDeref;
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Count parameter, passed to function %s is bottom" fun_name
-    | `Lifted ds, `Lifted en ->
-      let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ds in (* TODO: proper castkind *)
+    | ds, `Lifted en ->
+      let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ds) in (* TODO: proper castkind *) (* TODO: don't unlift *)
       let casted_en = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) en in (* TODO: proper castkind *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
       let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in

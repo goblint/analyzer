@@ -84,12 +84,12 @@ struct
   let calloc = `Lifted true
 end
 
-module Blob (Value: S) (Size: IntDomain.Z)=
+module Blob (Value: S) =
 struct
-  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include Size let name () = "size" end) (ZeroInit)
+  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include SizeDomain let name () = "size" end) (ZeroInit)
   let name () = "blob"
   type value = Value.t
-  type size = Size.t
+  type size = SizeDomain.t
   type zeroinit = ZeroInit.t
 
   let map f (v, s, o) = f v, s, o
@@ -999,7 +999,7 @@ struct
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset ?(bitfield:int option=None) (x:t) (offs:offs) (l:lval option) (o:offset option):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
-      let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
+      let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, SizeDomain.join s s', zeroinit) | x -> x in
       let r =
         match x, offs with
         | Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
@@ -1024,7 +1024,7 @@ struct
                 let toptype = fld.fcomp in
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
-                && ID.equal_to (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, []))) s = `Eq (* Size of blob is known *)
+                && SizeDomain.equal_to (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, []))) s = `Eq (* Size of blob is known *)
               | _ -> false
             in
             if do_strong_update then
@@ -1035,7 +1035,7 @@ struct
         | Blob (x,s,zeroinit), `NoOffset -> (* `NoOffset is only remaining possibility for Blob here *)
           begin
             match value with
-            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
+            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, SizeDomain.join s s2, zeroinit))
             | _ ->
               let l', o' = shift_one_over l o in
               let x = zero_init_calloced_memory zeroinit x t in
@@ -1043,7 +1043,7 @@ struct
               let do_strong_update =
                 begin match v with
                   | (Var var, _) ->
-                    let blob_size_opt = ID.to_int s in
+                    let blob_size_opt = SizeDomain.to_int s in
                     not @@ ask.is_multiple var
                     (* TODO: could use ID.equal_to, but only if blob_destructive doesn't actually need known (but ignored!) size *)
                     && GobOption.exists (fun blob_size -> (* Size of blob is known *)
@@ -1291,7 +1291,7 @@ struct
     | Struct n, _, _ -> Struct (Structs.map (fun (x: t) -> project ask p None x) n)
     | Union (f, v), _, _ -> Union (f, project ask p None v)
     | Array n , _, _ -> Array (project_arr ask p array_attr n)
-    | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, ID.project p' s, z)
+    | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, SizeDomain.project p' s, z)
     | Thread n, _, _ -> Thread n
     | Bot, _, _ -> Bot
     | Top, _, _ -> Top
@@ -1337,7 +1337,7 @@ and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and typ
 
 and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound) (ID)
+and Blobs: Blob with type size = SizeDomain.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound)
 
 
 module type InvariantArg =
