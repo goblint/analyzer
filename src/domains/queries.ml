@@ -108,7 +108,7 @@ type _ t =
   | EvalFunvar: exp -> AD.t t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
-  | EvalLength: exp -> ID.t t (* length of an array or string *)
+  | EvalLength: exp -> SizeDomain.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
   | BlobSize: exp -> SizeDomain.t t (** Size of a dynamically allocated [`Blob] pointed to by [exp]. *)
   | CondVars: exp -> ES.t t
@@ -192,7 +192,7 @@ struct
     | MustBeSingleThreaded _ -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
-    | EvalLength _ -> (module ID)
+    | EvalLength _ -> (module SizeDomain)
     | EvalMutexAttr _ -> (module MutexAttrDomain)
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module SizeDomain)
@@ -271,7 +271,7 @@ struct
     | MustBeSingleThreaded _ -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
-    | EvalLength _ -> ID.top ()
+    | EvalLength _ -> SizeDomain.top ()
     | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> SizeDomain.top ()

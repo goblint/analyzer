@@ -1540,9 +1540,9 @@ struct
             | _ -> None
           in
           let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in (* TODO: shouldn't addr offset matter? *)
-          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Z.of_int) (Seq.append slen alen)) in
+          let d = Seq.fold_left SizeDomain.join (SizeDomain.bot ()) (Seq.map (SizeDomain.of_int % Z.of_int) (Seq.append slen alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          `Lifted d
+          d
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -2344,15 +2344,10 @@ struct
       begin match Cil.unrollType v.vtype with
         | TArray (item_typ, _, _) ->
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
-            | `Lifted arr_len ->
-              let arr_len_casted = SizeDomain.lift arr_len in
-              begin
-                try SizeDomain.mul item_typ_size_in_bytes arr_len_casted
-                with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
-              end
-            | `Bot -> SizeDomain.bot ()
-            | `Top -> SizeDomain.top ()
+          let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
+          begin
+            try SizeDomain.mul item_typ_size_in_bytes arr_len
+            with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in

@@ -95,16 +95,11 @@ struct
       );
       begin match Cil.unrollType v.vtype with
         | TArray (item_typ, _, _) ->
-          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
-            | `Lifted arr_len ->
-              let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-              let arr_len_casted = SizeDomain.lift arr_len in
-              begin
-                try SizeDomain.mul item_typ_size_in_bytes arr_len_casted
-                with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
-              end
-            | `Bot -> SizeDomain.bot ()
-            | `Top -> SizeDomain.top ()
+          let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
+          let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+          begin
+            try SizeDomain.mul item_typ_size_in_bytes arr_len
+            with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
