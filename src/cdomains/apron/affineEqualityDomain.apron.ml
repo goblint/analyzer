@@ -125,19 +125,22 @@ struct
   include VarManagement (Vc) (Mx)
 
   let bound_texpr t texpr =
-    let texpr = Texpr1.to_expr texpr in
-    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = Z.one ->
-      let int_val = Mpqf.get_num c in
-      Some int_val, Some int_val
-    | _ -> None, None
+    if t.d = None then None
+    else
+      let texpr = Texpr1.to_expr texpr in
+      match Option.bind (get_coeff_vec t texpr) to_constant_opt with
+      | Some c when Mpqf.get_den c = Z.one ->
+        let int_val = Mpqf.get_num c in
+        Some (Some int_val, Some int_val)
+      | Some _ -> None
+      | None -> Some (None, None)
 
 
   let bound_texpr d texpr1 =
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
+       | Some (Some min, Some max) -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res
