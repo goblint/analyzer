@@ -354,13 +354,16 @@ struct
   include VarManagement
 
   let bound_texpr t texpr =
-    if t.d = None then None, None
+    if t.d = None then None
     else
       match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
-      | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
-         Some res, Some res)
-      | _ -> None, None
+      | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero ->
+        let res = Z.div offset divisor in (
+          if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
+          Some (Some res, Some res)
+        )
+      | Some _ -> None
+      | None -> Some (None, None)
 
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
