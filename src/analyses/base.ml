@@ -625,7 +625,7 @@ struct
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.ArrIdxDomain.top ())) t description
+    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.IndexDomain.top ())) t description
     | Blob (e,_,_) -> reachable_from_value ask e t description
     | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask v t description) acc) s empty
     | Int _ -> empty
@@ -749,7 +749,7 @@ struct
         | Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | Address adrs -> (adrs,TS.bot (), AD.may_be_unknown adrs)
         | Union (t,e) -> with_field (reachable_from_value e) t
-        | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, ValueDomain.ArrIdxDomain.top ()))
+        | Array a -> reachable_from_value (ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, ValueDomain.IndexDomain.top ()))
         | Blob (e,_,_) -> reachable_from_value e
         | Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -1032,8 +1032,7 @@ struct
               | exception (SizeOfError _) ->
                 if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
-                    (* TODO: Is this ok? *)
-                    M.info ~category:Unsound "Casting involving a VLA is assumed to work";
+                    Assumptions.add "Casting involving a VLA is assumed to work";
                     true
                   end
                 else
@@ -1394,7 +1393,7 @@ struct
           | `Bot, _ -> false
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
-            ( let divisor_contains_zero = (ID.is_bot @@ ID.meet i2 (ID.of_int ik Z.zero))  in
+            ( let divisor_contains_zero = ID.equal_to Z.zero i2 <> `Neq in
               if divisor_contains_zero then true else
                 ( let (min_ik, max_ik) = IntDomain.Size.range ik in
                   let (min_i1, max_i1) = (IntDomain.IntDomTuple.minimal i1, IntDomain.IntDomTuple.maximal i1) in
@@ -1521,7 +1520,8 @@ struct
     | Q.EvalMutexAttr e -> begin
         match eval_rv_address ~man man.local e with
         | Address a ->
-          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in (* Goblint assumption *)
+          let default = `Lifted MutexAttrDomain.MutexKind.NonRec in
+          Assumptions.add "Mutexes are non-recursive by default";
           begin match get ~man ~top:(MutexAttr default) man.local a None with (* ~top corresponds to default NULL with assume_top *)
             | MutexAttr a -> a
             | Bot -> default (* corresponds to default NULL with assume_none *)
@@ -1861,7 +1861,8 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "set" "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
+      Assumptions.add "Assignment to unknown address, assuming no write happened.";
+      st
 
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)

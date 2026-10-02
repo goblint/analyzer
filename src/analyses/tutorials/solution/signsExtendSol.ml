@@ -3,7 +3,6 @@
     @see <https://goblint.readthedocs.io/en/latest/developer-guide/firstanalysis/> *)
 
 open GoblintCil
-open Analyses
 open SimplifiedAnalysis
 
 module Signs =

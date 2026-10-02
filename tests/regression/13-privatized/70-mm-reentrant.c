@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.base.privatization mutex-meet --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
+// PARAM:  --enable ana.sv-comp.functions --enable ana.int.interval --set ana.base.privatization mutex-meet --disable sem.unknown_function.invalidate.globals --disable sem.unknown_function.spawn
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -6,12 +6,14 @@
 #include <signal.h>
 #include <goblint.h>
 
+extern int __VERIFIER_nondet_int();
+
 pthread_mutex_t mt;
 int i = 0;
 
 void* fn1(void* agr)
 {
-  int top = rand();
+  int top = __VERIFIER_nondet_int();
 
   pthread_mutex_lock(&mt);
   if(top) {
@@ -26,7 +28,7 @@ void* fn1(void* agr)
 
 void* fn2(void* agr)
 {
-  int top = rand();
+  int top = __VERIFIER_nondet_int();
 
   pthread_mutex_lock(&mt);
   if(top) {

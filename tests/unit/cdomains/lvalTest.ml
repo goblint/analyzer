@@ -2,13 +2,11 @@ open Goblint_lib
 open OUnit2
 open GoblintCil
 
+let () = Cilfacade.init () (* ensure ptrdiff ikind is available *)
+
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomainProperties.MakeS2 (IntDomain.DefExc))) (IntDomain.PtrDiffIkind)
 module Offs = Offset.MakeLattice (ID)
 module LV = AddressDomain.AddressLattice (Mval.MakeLattice (Offs))
-
-let () = Cilfacade.init () (* ensure ptrdiff ikind is available *)
-
-let ikind = IntDomain.PtrDiffIkind.ikind ()
 
 let a_var = Cil.makeGlobalVar "a" Cil.intPtrType
 let a_lv = LV.of_var a_var

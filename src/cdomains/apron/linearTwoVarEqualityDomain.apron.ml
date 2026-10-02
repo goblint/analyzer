@@ -382,8 +382,6 @@ struct
 
   let name () = "lin2vareq"
 
-  let to_yojson _ = failwith "ToDo Implement in future"
-
   (** t.d is some empty array and env is empty *)
   let is_bot t = equal t (bot ())
 

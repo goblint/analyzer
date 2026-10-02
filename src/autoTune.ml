@@ -215,7 +215,7 @@ let enableAnalyses reason description analyses =
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
-let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
+let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"; "threadDescendants"; "mustlockHistory"; "descendantLockset"; "creationLockset"]
 let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"; "mutexGhosts"]
 
 let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
@@ -493,6 +493,26 @@ let activateTmpSpecialAnalysis () =
     set_bool "ana.float.interval" true;
   )
 
+let activatePthreadBarriers () =
+  let isBarrierInit (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.BarrierInit _ -> true
+    | _ -> false 
+  in
+  let hasBarrierInit = hasFunction isBarrierInit in
+  if hasBarrierInit then
+    enableAnalyses "Barrier initialization" "pthread barrier analysis" ["pthreadBarriers"]
+
+let activatePthreadOnce () =
+  let isOnce (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.Once _ -> true
+    | _ -> false 
+  in
+  let hasOnce = hasFunction isOnce in
+  if hasOnce then
+    enableAnalyses "Once usage" "pthread once analysis" ["pthreadOnce"]
+
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
   let operationEstimate = factors.instructions + (factors.expressions / 60) in
@@ -559,6 +579,12 @@ let chooseConfig file =
 
   if isActivated "tmpSpecialAnalysis" then
     activateTmpSpecialAnalysis ();
+
+  if isActivated "pthreadBarriers" then
+    activatePthreadBarriers ();
+
+  if isActivated "pthreadOnce" then
+    activatePthreadOnce ();
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
