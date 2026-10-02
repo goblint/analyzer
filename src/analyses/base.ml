@@ -1565,10 +1565,10 @@ struct
              | Array a ->
                (* unroll into array for Calloc calls *)
                (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int Z.zero)) with
-                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
+                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift s)) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
                 | _ -> Queries.Result.top q
                )
-             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
+             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift s)) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
              | _ -> Queries.Result.top q)
           )
         | _ -> Queries.Result.top q
@@ -2754,7 +2754,7 @@ struct
           let loc = match op with | Alloca _ -> Stack | Malloc _ -> Heap | _ -> assert false in
           let (heap_var, addr) = alloc loc size in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
-          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc))]) [] heap_var in
+          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift (eval_int ~man st size), ZeroInit.malloc))]) [] heap_var in
           set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), VD.Address addr) :: blob_set)
         | _ -> st
       end
@@ -2766,7 +2766,7 @@ struct
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
           if ID.equal_to Z.one countval = `Eq then
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift sizeval, ZeroInit.calloc)]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
             let blobsize = (* only speculative during ID.mul *)
@@ -2778,7 +2778,7 @@ struct
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
             let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), SizeDomain.lift blobsize, ZeroInit.calloc)))]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)
         | _ -> st
       end
@@ -2796,7 +2796,7 @@ struct
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ~man st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~man st size in
-          let heap_val:value = Blob (p_addr_get, size_int, ZeroInit.malloc) in (* copy old contents with new size *)
+          let heap_val:value = Blob (p_addr_get, SizeDomain.lift size_int, ZeroInit.malloc) in (* copy old contents with new size *)
           let (heap_var,addr) = alloc Queries.AllocationLocation.Heap size in
           let lv_addr = eval_lv ~man st lv in
           let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
