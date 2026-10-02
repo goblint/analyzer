@@ -362,8 +362,8 @@ struct
           if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
           Some (Some res, Some res)
         )
-      | Some _ -> None
-      | None -> Some (None, None)
+      | Some (None, _, _) -> None
+      | _ -> Some (None, None)
 
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
