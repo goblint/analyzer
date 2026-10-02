@@ -2384,10 +2384,9 @@ struct
       let dest_size_equal_n =
         match dest_size, n_intdom with
         | ds, `Lifted n ->
-          let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ds) in (* TODO: proper castkind *) (* TODO: don't unlift *)
-          let casted_n = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n in (* TODO: proper castkind *)
+          let casted_n = SizeDomain.lift n in
           let ds_eq_n =
-            begin try ID.eq casted_ds casted_n
+            begin try SizeDomain.eq ds casted_n
               with IntDomain.ArithmeticOnIntegerBot _ -> None
             end
           in
