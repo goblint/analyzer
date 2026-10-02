@@ -303,15 +303,8 @@ struct
           x
       in
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
-      let meet_com oi = (* commutative *)
-        try
-          meet_bin (oi c b) (oi c a)
-        with
-          IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode in
-      let meet_non oi oo = (* non-commutative *)
-        try
-          meet_bin (oi c b) (oo a c)
-        with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode in
+      let meet_com oi = meet_bin (oi c b) (oi c a) in (* commutative *)
+      let meet_non oi oo =  meet_bin (oi c b) (oo a c) in (* non-commutative *)
       match op with
       | PlusA  -> meet_com ID.sub
       | Mult   ->
@@ -743,11 +736,21 @@ struct
              | Int a, Int b ->
                let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
                let ikres = Cilfacade.get_ikind_exp e in (* might be different from argument types, e.g. for LT, GT, EQ, ... *)
-               let a', b' = inv_bin_int (a, b) ikind (c_int ikres) op in
-               if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a" d_exp e ID.pretty (c_int ikind) ID.pretty a' ID.pretty b';
-               let st' = inv_exp (Int a') e1 st in
-               let st'' = inv_exp (Int b') e2 st' in
-               st''
+               let c = c_int ikres in
+               if ID.is_bot a || ID.is_bot b || ID.is_bot c then
+                 contra st
+               else
+                 begin match inv_bin_int (a, b) ikind c op with
+                   | exception IntDomain.ArithmeticOnIntegerBot _ ->
+                     contra st
+                   | a', b' when ID.is_bot a' || ID.is_bot b' ->
+                     contra st
+                   | a', b' ->
+                     if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a" d_exp e ID.pretty c ID.pretty a' ID.pretty b';
+                     let st' = inv_exp (Int a') e1 st in
+                     let st'' = inv_exp (Int b') e2 st' in
+                     st''
+                 end
              | Float a, Float b ->
                let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
                let a', b' = inv_bin_float (a, b) (c_float fkind) op in
