@@ -13,6 +13,7 @@ sig
   module D: Lattice.S
   module G: Lattice.S
   module V: Printable.S
+  module AuxiliaryPhaseInfo: Lattice.S
 
   val startstate: unit -> D.t
 
@@ -22,12 +23,13 @@ sig
   val lock: Queries.ask -> (V.t -> G.t) -> BaseDomain.BaseComponents (D).t -> LockDomain.MustLock.t -> BaseDomain.BaseComponents (D).t
   val unlock: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> LockDomain.MustLock.t -> BaseDomain.BaseComponents (D).t
 
-  val sync: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> BaseDomain.BaseComponents (D).t
+  val sync: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> [`Normal | `NormalInCallTF | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> BaseDomain.BaseComponents (D).t
 
   val escape: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseDomain.BaseComponents (D).t
   val enter_multithreaded: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val threadspawn: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+  val phase_change: Queries.ask -> Queries.PhaseDigest.t -> Queries.PhaseDigest.t -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for base. *)
 
   val thread_join: ?force:bool -> Queries.ask -> (V.t -> G.t) -> Cil.exp -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
@@ -40,6 +42,10 @@ sig
 
   val invariant_vars: Queries.ask -> (V.t -> G.t) -> BaseDomain.BaseComponents (D).t -> varinfo list
   (** Returns global variables which are privatized. *)
+
+  val aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t
+  val consume_aux_phase_info: BaseDomain.BaseComponents (D).t -> AuxiliaryPhaseInfo.t -> BaseDomain.BaseComponents (D).t
+
 
   val init: unit -> unit
   val finalize: unit -> unit
