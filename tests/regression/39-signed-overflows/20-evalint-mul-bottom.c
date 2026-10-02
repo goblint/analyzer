@@ -7,8 +7,8 @@ main() {
   long a, b;
   while (1) {
     if (!b)
-      __goblint_assert(a == c);
-    __goblint_assert(b * d); // NOCRASH
+      __goblint_assert(a == c); // UNKNOWN
+    __goblint_assert(b * d); // UNKNOWN NOCRASH
     b = a;
     c = 1;
   }
