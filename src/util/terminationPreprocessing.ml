@@ -18,6 +18,24 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
   (* Counter of variables inserted for termination *)
   val mutable vcounter = ref 0
 
+  (** Statements of the function body in textual (pre-)order, computed on first use. *)
+  val stmts_in_order = lazy (
+    let stmts = ref [] in
+    let collector = object
+      inherit nopCilVisitor
+      method! vstmt s =
+        stmts := s :: !stmts;
+        DoChildren
+    end
+    in
+    ignore (visitCilBlock collector fd.sbody);
+    List.rev !stmts
+  )
+
+  (** Position of [stmt] in the textual order of the function body, if it occurs there. *)
+  method private position (stmt: stmt): int option =
+    BatList.index_ofq stmt (Lazy.force stmts_in_order)
+
   method! vfunc _ =
     vcounter := 0;
     DoChildren
@@ -44,16 +62,26 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
       let one = Const (CInt (Cilint.one_cilint, counter_ikind, None)) in
       constFold false (BinOp(bop, e, one, et)) in
 
-    let action_goto l sref =
-      let goto_jmp_stmt = sref.contents in
-      let loc_stmt = Cilfacade.get_stmtLoc goto_jmp_stmt in
-      if CilType.Location.compare l loc_stmt >= 0 then (
-        (* is pos if first loc is greater -> below the second loc *)
+    (** Whether the jump from [jump_stmt] at [jump_loc] to [target_stmt] goes backwards.
+        Jumps synthesized by CIL (e.g., for [&&] outside of conditions) may have the same location as their target;
+        then, the textual order of the statements decides. A jump to itself goes backwards. *)
+    let jumps_backwards jump_stmt jump_loc target_stmt =
+      let target_precedes_jump () =
+        match self#position target_stmt, self#position jump_stmt with
+        | Some i_target, Some i_jump -> i_target <= i_jump
+        | _ -> true (* conservatively *)
+      in
+      let c = CilType.Location.compare jump_loc (Cilfacade.get_stmtLoc target_stmt) in
+      c > 0 || (c = 0 && target_precedes_jump ())
+    in
+
+    let action_goto jump_stmt jump_loc target_ref =
+      if jumps_backwards jump_stmt jump_loc target_ref.contents then (
         (* problem: the program might not terminate! *)
         let open Cilfacade in
         let current = FunLocH.find_opt funs_with_upjumping_gotos fd in
         let current = BatOption.default (LocSet.create 13) current in
-        LocSet.replace current l ();
+        LocSet.replace current jump_loc ();
         FunLocH.replace funs_with_upjumping_gotos fd current;
       )
     in
@@ -73,10 +101,10 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         s.skind <- Block nb;
         s
       | Goto (sref, l) ->
-        action_goto l sref;
+        action_goto s l sref;
         s
       | Asm {gotos; loc; _} ->
-        List.iter (action_goto loc) gotos;
+        List.iter (action_goto s loc) gotos;
         s
       | _ -> s
     in ChangeDoChildrenPost (s, action);
