@@ -299,7 +299,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   open Cil
   let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
-  let min_for x = intKindForValue x (sign x = `Unsigned)
+  let min_for ~ik x = Option.value ~default:ik (intKindForValue x (sign x = `Unsigned))
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -339,15 +339,15 @@ module Size = struct (* size in bits as int, range as int64 *)
       y
 
   (** @return Bit range always includes 0. *)
-  let min_range_sign_agnostic x =
+  let min_range_sign_agnostic ik x =
     let size ik =
       let a,b = bits ik in
       -a,b
     in
     if sign x = `Signed then
-      size (min_for x)
+      size (min_for ~ik x)
     else
-      let a, b = size (min_for x) in
+      let a, b = size (min_for ~ik x) in
       if b <= 64 then
         let upper_bound_less = b - 1 in
         let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
