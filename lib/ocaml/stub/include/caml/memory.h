@@ -388,11 +388,11 @@ struct caml__roots_block {
 
 
 /* convenience macro */
-#define Store_field(block, offset, val) do{ \
+// TODO: This was wrapped in a do-while(0). When does its removal for the analysis cause a semantic change?
+#define Store_field(block, offset, val) \
   mlsize_t caml__temp_offset = (offset); \
   value caml__temp_val = (val); \
   caml_modify (&Field ((block), caml__temp_offset), caml__temp_val); \
-}while(0)
 
 /*
    NOTE: [Begin_roots] and [End_roots] are superseded by [CAMLparam]*,

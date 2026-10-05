@@ -269,7 +269,7 @@ struct
     let caller_state = man.local in
     List.iter (fun e -> ignore (exp_accounted_for caller_state e)) args;
     (* Entering a function doesn't change the caller state *)
-    let callee_state = List.fold_left2 (fun st v rval ->
+    let state = List.fold_left2 (fun st v rval ->
         (* At the start, arguments are accounted for and not registered. The first_function flag is set.*)
         if rval == MyCFG.unknown_exp then
           if is_value_type v.vtype then D.set_first_function (D.add_a v st)
@@ -285,6 +285,10 @@ struct
           else (M.info "Entering function with possibly deleted argument"; D.remove_a v st)
         else D.add_a v (D.add_r_v v "" st))
         caller_state f.sformals args in
+    (* All locals are accounted for at their declaration. Untracked locals are also counted as registered. *)
+    let callee_state = List.fold_left (fun st v ->
+        D.add_a v (if Cil.isPointerType v.vtype || is_value_type v.vtype then st else D.add_r_v v "" st))
+        state f.slocals in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
 
@@ -317,7 +321,6 @@ struct
       computes the caller state after the function call. *)
   let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let caller_state = man.local in
-    (* To warn about a potential issue in the code, use M.warn. *)
     let desc = LibraryFunctions.find f in
     List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to special functions *)
     match desc.special arglist with
@@ -360,7 +363,13 @@ struct
     | Memcpy a -> (match lval with
         | Some (Var v, _) -> assignment v a.dest (Cil.typeOf a.dest) caller_state "The above is being memcpied"
         | _ -> caller_state)
-    | _ -> caller_state
+    | _ -> match lval with
+      (* Other special functions should act like regular assignments. *)
+      | Some (Var v, _) -> (match f.vtype with
+          | TFun (t, _, _, _) ->
+            assignment v (Cil.Lval (Cil.var (return_varinfo ()))) t caller_state "The above is being combined"
+          | _ -> caller_state)
+      | _ -> caller_state
 
   (* You may leave these alone *)
   let startstate v = D.empty ()
