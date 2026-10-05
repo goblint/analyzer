@@ -1,4 +1,4 @@
-// SKIP TODO TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -8,7 +8,7 @@ int main()
   // Loop with complex conditions
   for (i = 1; i <= 10; i++)
   {
-    if (i > 5 && i % 2 == 0) // CIL defines new jump labels to default location (-1)
+    if (i > 5 && i % 2 == 0) // CIL lowers && with a forward goto to a label at the same location
     {
       printf("%d ", i);
     }
@@ -19,7 +19,7 @@ int main()
   i = 1;
   while (i <= 10)
   {
-    if (i > 5 && i % 2 == 0) // CIL defines new jump labels to default location (-1)
+    if (i > 5 && i % 2 == 0) // CIL lowers && with a forward goto to a label at the same location
     {
       printf("%d ", i);
     }
@@ -29,7 +29,7 @@ int main()
 
   // Loop with multiple conditions
   unsigned int s = 1;
-  while (s <= 10 && s % 2 == 0) // CIL defines new jump labels to default location (-1)
+  while (s <= 10 && s % 2 == 0) // CIL lowers && with a forward goto to a label at the same location
   {
     printf("Loop with Multiple Conditions: %d\n", s);
     s++;
@@ -37,7 +37,7 @@ int main()
 
   // Loop with multiple variables
   unsigned int t, u;
-  for (t = 1, u = 10; t <= 5 && u >= 5; t++, u--) // CIL defines new jump labels to default location (-1)
+  for (t = 1, u = 10; t <= 5 && u >= 5; t++, u--) // CIL lowers && with a forward goto to a label at the same location
   {
     printf("Loop with Multiple Variables: %d %d\n", t, u);
   }
