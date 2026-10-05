@@ -161,8 +161,8 @@ sig
   include SOverflow
 
   (* necessary for baseInvariant *)
-  val refine_bor : t -> t -> t -> t * t
-  val refine_band : t -> t -> t -> t * t
+  val refine_bor : Cil.ikind -> t -> t -> t -> t * t
+  val refine_band : Cil.ikind -> t -> t -> t -> t * t
 
 end
 

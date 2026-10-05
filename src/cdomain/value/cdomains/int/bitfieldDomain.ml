@@ -663,7 +663,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     meet ik t joined
 
 
-  let refine_bor (az, ao) (bz, bo) (cz, co) =
+  let refine_bor ik (az, ao) (bz, bo) (cz, co) =
     let cDef0 = cz &: (!: co) in
     let cDef1 = co &: (!: cz) in
     let aDef0 = az &: (!: ao) in
@@ -678,9 +678,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* we can refine (ttt1) to (t0t1) because the second bit of a cannot be a 1 *)
     let ao = !: cDef0 in
     let bo = !: cDef0 in
-    ((az, ao), (bz, bo))
+    (norm ik (az, ao), norm ik (bz, bo))
 
-  let refine_band (az, ao) (bz, bo) (cz, co) =
+  let refine_band ik (az, ao) (bz, bo) (cz, co) =
     let cDef0 = cz &: (!: co) in
     let cDef1 = co &: (!: cz) in
     let aDef1 = ao &: (!: az) in
@@ -695,7 +695,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* we can refine (tttt) to (t0tt) *)
     let ao = !: (bDef1 &: cDef0) in
     let bo = !: (aDef1 &: cDef0) in
-    ((az, ao), (bz, bo))
+    (norm ik (az, ao), norm ik (bz, bo))
 
   let arbitrary ik =
     let open QCheck.Iter in
