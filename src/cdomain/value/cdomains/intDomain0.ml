@@ -161,8 +161,8 @@ sig
   include SOverflow
 
   (* necessary for baseInvariant *)
-  val refine_bor : t -> t -> t -> t * t
-  val refine_band : t -> t -> t -> t * t
+  val refine_bor : Cil.ikind -> t -> t -> t -> t * t
+  val refine_band : Cil.ikind -> t -> t -> t -> t * t
 
 end
 
@@ -197,21 +197,27 @@ struct
   let narrow = lift2 I.narrow
 
   let show x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      Printf.sprintf "%s (%s)" (I.show x.v) (CilType.Ikind.show x.ikind)
+    else if I.is_top_of x.ikind x.v then
       "⊤"
     else
-      I.show x.v  (* TODO add ikind to output *)
+      I.show x.v
   let pretty () x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      Pretty.dprintf "%a (%a)" I.pretty x.v CilType.Ikind.pretty x.ikind
+    else if I.is_top_of x.ikind x.v then
       Pretty.text "⊤"
     else
-      I.pretty () x.v (* TODO add ikind to output *)
+      I.pretty () x.v
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      BatPrintf.fprintf o "<value>\n<map>\n<key>\nvalue\n</key>\n%a<key>\nikind\n</key>\n%a</map>\n</value>\n" I.printXml x.v CilType.Ikind.printXml x.ikind
+    else if I.is_top_of x.ikind x.v then
       BatPrintf.fprintf o "<value>\n<data>\n⊤\n</data>\n</value>\n"
     else
-      I.printXml o x.v (* TODO add ikind to output *)
+      I.printXml o x.v
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
