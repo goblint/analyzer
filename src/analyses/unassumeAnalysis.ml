@@ -164,21 +164,63 @@ struct
         | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
-  let emit_unassume man =
+  (** Precheck leaf expressions of the invariant expression.
+      Parts which contradict the current state are dropped to avoid unassuming something unrelated/unintended.
+      In particular, this is useful for disjunctive invariants over loop unrollings to only unassume the parts possibly related to the current unrolling. *)
+  let rec precheck ask = function
+    | Cil.BinOp (LAnd, a, b, _) ->
+      begin match precheck ask a, precheck ask b with
+        | Some a', Some b' -> Some (Cil.(BinOp (LAnd, a', b', intType)))
+        | Some _, None
+        | None, Some _
+        | None, None -> None
+      end
+    | Cil.BinOp (LOr, a, b, _) ->
+      begin match precheck ask a, precheck ask b with
+        | Some a', Some b' -> Some (Cil.(BinOp (LOr, a', b', intType)))
+        | Some e, None
+        | None, Some e -> Some e
+        | None, None -> None
+      end
+    | e ->
+      let r = Queries.eval_bool ask e in
+      M.debug ~category:Witness "unassume precheck leaf: %a -> %a" CilType.Exp.pretty e BoolDomain.FlatBool.pretty r;
+      begin match r with
+        | `Top | `Lifted true -> Some e
+        | `Bot | `Lifted false -> None
+      end
+
+  let emit_unassume' man =
     let es = NH.find_all invs man.node in
+    let es =
+      if GobConfig.get_bool "ana.unassume.precheck" then (
+        (* TODO: This is inconsistent with actual LAnd-s in precheck: this just drops the None-s, precheck would drop everything if one is None. *)
+        List.filter_map (fun {exp; token} ->
+            M.debug ~category:Witness "unassume precheck invariant: %a" CilType.Exp.pretty exp;
+            precheck (Analyses.ask_of_man man) exp
+            |> Option.map (fun e -> {exp = e; token})
+          ) es
+      )
+      else
+        es
+    in
     match es with
     | x :: xs ->
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
       M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
       if not !AnalysisState.postsolving then (
-        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.eval_bool (Analyses.ask_of_man man) e = `Lifted false) then (
-          let tokens = x.token :: List.map (fun {token; _} -> token) xs in
-          man.emit (Unassume {exp = e; tokens});
-          List.iter WideningTokenLifter.add tokens
-        )
+        let tokens = x.token :: List.map (fun {token; _} -> token) xs in
+        man.emit (Unassume {exp = e; tokens});
+        List.iter WideningTokenLifter.add tokens
       )
     | [] ->
       ()
+
+  let emit_unassume man =
+    if GobConfig.get_bool "ana.unassume.precheck" && NH.mem invs man.node then (* only emit UnassumePrecheck if there are invariants to check at all *)
+      man.emit UnassumePrecheck (* Must delay prechecking to happen on the post-state of other analyses via UnassumePrecheck event. *)
+    else
+      emit_unassume' man
 
   let assign man lv e =
     emit_unassume man
@@ -206,6 +248,11 @@ struct
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)
   (* not in vdecl, return, threadspawn because unnecessary targets for invariants? *)
+
+  let event man (event: Events.t) oman =
+    match event with
+    | UnassumePrecheck -> emit_unassume' man
+    | _ -> man.local
 end
 
 let _ =
