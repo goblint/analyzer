@@ -15,8 +15,8 @@ int main() {
   *q = 42; // WARN (may deref NULL)
 
   q = &p->bar; // TODO NOWARN
-  __goblint_check(q != NULL); // TODO
-  *q = 42; // TODO NOWARN
+  __goblint_check(q != NULL);
+  *q = 42; // NOWARN
 
   return 0;
 }

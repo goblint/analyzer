@@ -507,7 +507,9 @@ struct
   let add_offset_varinfo (o: Offs.t) (x: Addr.t): AD.t =
     match x with
     | Addr m -> AD.of_mval (Addr.Mval.add_offset m o)
-    | x -> AD.singleton x
+    | NullPtr -> AD.of_int (Offs.to_index o)
+    | UnknownPtr
+    | StrPtr _ -> AD.singleton x (* TODO: what is right for StrPtr? *)
 
 
   (**************************************************************************
