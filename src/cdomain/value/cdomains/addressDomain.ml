@@ -83,11 +83,6 @@ struct
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
 
-  let add_offset x o = match x with
-    | Addr m -> Addr (Mval.add_offset m o)
-    | x -> x
-
-
   let is_definite = function
     | NullPtr -> true
     | Addr m -> Mval.is_definite m

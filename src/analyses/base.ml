@@ -503,7 +503,10 @@ struct
   (* TODO: Use AddressDomain for queries *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
-  let add_offset_varinfo add ad = Addr.add_offset ad add
+  let add_offset_varinfo (o: Offs.t) (x: Addr.t): Addr.t =
+    match x with
+    | Addr m -> Addr (Addr.Mval.add_offset m o)
+    | x -> x
 
 
   (**************************************************************************
@@ -2774,7 +2777,7 @@ struct
             in
             let offset = `Index (IdxDom.of_int Z.zero, `NoOffset) in
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
-            let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
+            let addr_offset = AD.map (add_offset_varinfo offset) addr in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (IdxDom.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)
