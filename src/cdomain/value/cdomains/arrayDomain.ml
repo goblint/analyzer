@@ -818,7 +818,7 @@ let array_oob_check (x, l) (e, v) =
     ()
   else if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.lt v l in (* check whether index is before the end of the array *)
-    let idx_after_start = Idx.ge v (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) in (* check whether the index is non-negative *)
+    let idx_after_start = Idx.ge v (Idx.of_int Z.zero) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)
     match idx_after_start, idx_before_end with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
@@ -1183,7 +1183,7 @@ struct
         Checks.safe Checks.Category.NegativeArraySize;
         Z.zero, None
     in
-    let size = BatOption.map_default (fun max -> Idx.of_interval ILong (min_i, max)) (Idx.starting ILong min_i) max_i in
+    let size = BatOption.map_default (fun max -> Idx.of_interval (min_i, max)) (Idx.starting min_i) max_i in (* TODO: used ILong *)
     match Val.is_null v with
     | Null -> (Nulls.make_all_must (), size)
     | NotNull -> (Nulls.empty (), size)
@@ -1211,7 +1211,7 @@ struct
         | Some i -> build_set (i + 1) (Nulls.Set.add (Z.of_int i) set)
         | None -> Nulls.Set.add last_null set in
     let set = build_set 0 (Nulls.Set.empty ()) in
-    (Nulls.precise_set set, Idx.of_int ILong (Z.succ last_null))
+    (Nulls.precise_set set, Idx.of_int (Z.succ last_null)) (* TODO: used ILong *)
 
   (** Returns an abstract value with at most one null byte marking the end of the string *)
   let to_string ((nulls, size) as x:t):t =
@@ -1224,7 +1224,7 @@ struct
     else
       (Checks.safe Checks.Category.InvalidMemoryAccess;
       let min_must_null = Nulls.min_elem Definitely nulls in
-      let new_size = Idx.of_int ILong (Z.succ min_must_null) in
+      let new_size = Idx.of_int (Z.succ min_must_null) in (* TODO: used ILong *)
       let min_may_null = Nulls.min_elem Possibly nulls in
       (* if smallest index in sets coincides, only this null byte is kept in both sets *)
       let nulls =
@@ -1249,7 +1249,7 @@ struct
     * an n bytes string. *)
   let to_n_string (nulls, size) n:t =
     if n < 0 then
-      (Nulls.top (), Idx.top_of ILong)
+      (Nulls.top (), Idx.top ()) (* TODO: used ILong *)
     else
       let n = Z.of_int n in
       let warn_no_null min_must_null min_may_null =
@@ -1324,22 +1324,22 @@ struct
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
             Nulls.filter (fun x -> x <. n) nulls)
       in
-      (nulls,  Idx.of_int ILong n)
+      (nulls,  Idx.of_int n) (* TODO: used ILong *)
 
   let to_string_length (nulls, size) =
     (* if must_nulls_set and min_nulls_set empty, definitely no null byte in array => return interval [size, inf) and warn *)
     if Nulls.is_empty Definitely nulls then
       (warn_past_end "Array doesn't contain a null byte: buffer overflow";
-       Idx.starting !Cil.kindOfSizeOf (BatOption.default Z.zero (Idx.minimal size))
+       Idx.starting (BatOption.default Z.zero (Idx.minimal size)) (* TODO: used !Cil.kindOfSizeOf *)
       )
       (* if only must_nulls_set empty, no guarantee that null ever encountered in array => return interval [minimal may null, inf) and *)
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
-       Idx.starting !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls))
+       Idx.starting (Nulls.min_elem Possibly nulls)) (* TODO: used !Cil.kindOfSizeOf *)
       (* else return interval [minimal may null, minimal must null] *)
     else (
       Checks.safe Checks.Category.InvalidMemoryAccess;
-      Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls))
+      Idx.of_interval (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)) (* TODO: used !Cil.kindOfSizeOf *)
 
   let string_copy (dstnulls, dstsize) ((srcnulls, srcsize) as src) n =
     let must_nulls_set1, may_nulls_set1 = dstnulls in
@@ -1455,9 +1455,9 @@ struct
       update_sets truncated (to_string_length src)
     (* strncpy = exactly n bytes from src are copied to dest *)
     | Some n when n >= 0 ->
-      sizes_warning (Idx.of_int ILong (Z.of_int n));
+      sizes_warning (Idx.of_int (Z.of_int n)); (* TODO: used ILong *)
       let truncated = to_n_string src n in
-      update_sets truncated (Idx.of_int !Cil.kindOfSizeOf (Z.of_int n))
+      update_sets truncated (Idx.of_int (Z.of_int n)) (* TODO: used !Cil.kindOfSizeOf *)
     | _ -> (Nulls.top (), dstsize)
 
   let string_concat (nulls1, size1) (nulls2, size2) n =
@@ -1760,7 +1760,7 @@ struct
     | UnrolledDomain -> (None, None, Some (U.make i v))
 
   (* convert to another domain *)
-  let index_as_expression i = (Some (Cil.integer i), Idx.of_int IInt (Z.of_int i))
+  let index_as_expression i = (Some (Cil.integer i), Idx.of_int (Z.of_int i)) (* TODO: used IInt *)
 
   let partitioned_of_trivial ask t = P.make (Option.value (T.length t) ~default:(Idx.top ())) (T.get ~checkBounds:false ask t (index_as_expression 0))
 
@@ -1897,14 +1897,14 @@ struct
 
   let to_null_byte_domain s =
     if get_bool "ana.base.arrays.nullbytes" then
-      (A.make (Idx.top_of ILong) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
+      (A.make (Idx.top ()) (* TODO: used ILong *) (Val.meet (Val.not_zero_of_ikind IChar) (Val.zero_of_ikind IChar)), N.to_null_byte_domain s)
     else
       (A.top (), N.top ())
   let to_string_length (_, t_n) =
     if get_bool "ana.base.arrays.nullbytes" then
       N.to_string_length t_n
     else
-      Idx.top_of !Cil.kindOfSizeOf
+      Idx.top () (* TODO: used !Cil.kindOfSizeOf *)
 
   let project ?(varAttr=[]) ?(typAttr=[]) ask (t_f, t_n) = (A.project ~varAttr ~typAttr ask t_f, t_n)
   let invariant ~value_invariant ~offset ~lval (t_f, _) = A.invariant ~value_invariant ~offset ~lval t_f
