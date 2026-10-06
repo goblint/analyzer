@@ -322,15 +322,16 @@ end
 module Symbolic =
 struct
   (* TODO: use SetDomain.Reverse *)
-  module S = SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All mutexes" end)
+  module S = SetDomain.ToppedSet (CilType.Lval) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 
+  module ES = Queries.ES
+
   let rec eq_set (ask: Queries.ask) e =
-    S.union
+    ES.union
       (match ask.f (Queries.EqualSet e) with
-       | es when not (Queries.ES.is_bot es) ->
-         Queries.ES.fold S.add es (S.empty ())
-       | _ -> S.empty ())
+       | es when not (Queries.ES.is_bot es) -> es
+       | _ -> ES.empty ()) (* TODO: just keep top? *)
       (match e with
        | SizeOf _
        | SizeOfE _
@@ -343,26 +344,34 @@ struct
        | Question _
        | Real _
        | Imag _
-       | AddrOfLabel _ -> S.empty ()
+       | AddrOfLabel _ -> ES.empty ()
        | AddrOf  (Var _,_)
        | StartOf (Var _,_)
-       | Lval    (Var _,_) -> S.singleton e
-       | AddrOf  (Mem e,ofs) -> S.map (fun e -> AddrOf  (Mem e,ofs)) (eq_set ask e)
-       | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
-       | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
+       | Lval    (Var _,_) -> ES.singleton e
+       | AddrOf  (Mem e,ofs) -> ES.map (fun e -> AddrOf  (Mem e,ofs)) (eq_set ask e)
+       | StartOf (Mem e,ofs) -> ES.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
+       | Lval    (Mem e,ofs) -> ES.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
        | CastE (_,_,e)           -> eq_set ask e
       )
 
   let add (ask: Queries.ask) e st =
-    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
-    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    let no_casts = ES.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs =
+      ES.elements no_casts
+      |> List.filter_map (function AddrOf lv -> Some lv | _ -> None)
+      |> S.of_list
+    in
     S.union addrs st
   let remove ask e st =
     (* TODO: Removing based on must-equality sets is not sound! *)
-    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
-    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    let no_casts = ES.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs =
+      ES.elements no_casts
+      |> List.filter_map (function AddrOf lv -> Some lv | _ -> None)
+      |> S.of_list
+    in
     S.diff st addrs
-  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
+  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v (AddrOf x))) st
 
   let filter = S.filter
   let fold = S.fold

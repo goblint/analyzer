@@ -34,7 +34,7 @@ struct
   let body   man f = man.local
 
   let invalidate_exp ask exp st =
-    D.filter (fun e -> not (VarEq.may_change ask exp e)) st
+    D.filter (fun e -> not (VarEq.may_change ask exp (AddrOf e))) st
 
   let invalidate_lval ask lv st =
     invalidate_exp ask (mkAddrOf lv) st
@@ -51,7 +51,7 @@ struct
 
   let get_locks e st =
     let add_perel x xs =
-      match LP.from_exps e x with
+      match LP.from_exps e (AddrOf x) with
       | Some x -> PS.add x xs
       | None -> xs
     in
@@ -73,7 +73,7 @@ struct
   let same_unknown_index (ask: Queries.ask) exp slocks =
     let uk_index_equal = Queries.must_be_equal ask in
     let lock_index ei ee x xs =
-      match Exp.one_unknown_array_index x with
+      match Exp.one_unknown_array_index (AddrOf x) with
       | Some (true, i, e) when uk_index_equal ei i ->
         PS.add (zero, ee, e) xs
       | _ -> xs
