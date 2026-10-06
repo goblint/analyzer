@@ -503,10 +503,7 @@ struct
   (* TODO: Use AddressDomain for queries *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
-  let add_offset_varinfo add ad =
-    match Addr.to_mval ad with
-    | Some (x,ofs) -> Addr.of_mval (x, Addr.Offs.add_offset ofs add)
-    | None -> ad
+  let add_offset_varinfo add ad = Addr.add_offset ad add
 
 
   (**************************************************************************
