@@ -18,24 +18,6 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
   (* Counter of variables inserted for termination *)
   val mutable vcounter = ref 0
 
-  (** Statements of the function body in textual (pre-)order, computed on first use. *)
-  val stmts_in_order = lazy (
-    let stmts = ref [] in
-    let collector = object
-      inherit nopCilVisitor
-      method! vstmt s =
-        stmts := s :: !stmts;
-        DoChildren
-    end
-    in
-    ignore (visitCilBlock collector fd.sbody);
-    List.rev !stmts
-  )
-
-  (** Position of [stmt] in the textual order of the function body, if it occurs there. *)
-  method private position (stmt: stmt): int option =
-    BatList.index_ofq stmt (Lazy.force stmts_in_order)
-
   method! vfunc _ =
     vcounter := 0;
     DoChildren
@@ -62,30 +44,6 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
       let one = Const (CInt (Cilint.one_cilint, counter_ikind, None)) in
       constFold false (BinOp(bop, e, one, et)) in
 
-    (** Whether the jump from [jump_stmt] at [jump_loc] to [target_stmt] goes backwards.
-        Jumps synthesized by CIL (e.g., for [&&] outside of conditions) may have the same location as their target;
-        then, the textual order of the statements decides. A jump to itself goes backwards. *)
-    let jumps_backwards jump_stmt jump_loc target_stmt =
-      let target_precedes_jump () =
-        match self#position target_stmt, self#position jump_stmt with
-        | Some i_target, Some i_jump -> i_target <= i_jump
-        | _ -> true (* conservatively *)
-      in
-      let c = CilType.Location.compare jump_loc (Cilfacade.get_stmtLoc target_stmt) in
-      c > 0 || (c = 0 && target_precedes_jump ())
-    in
-
-    let action_goto jump_stmt jump_loc target_ref =
-      if jumps_backwards jump_stmt jump_loc target_ref.contents then (
-        (* problem: the program might not terminate! *)
-        let open Cilfacade in
-        let current = FunLocH.find_opt funs_with_upjumping_gotos fd in
-        let current = BatOption.default (LocSet.create 13) current in
-        LocSet.replace current jump_loc ();
-        FunLocH.replace funs_with_upjumping_gotos fd current;
-      )
-    in
-
     let action s = match s.skind with
       | Loop (b, loc, eloc, _, _) ->
         let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "_id" ^ (string_of_int !vcounter) in
@@ -100,12 +58,48 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         let nb = mkBlock [init_stmt; mkStmt s.skind] in
         s.skind <- Block nb;
         s
-      | Goto (sref, l) ->
-        action_goto s l sref;
-        s
-      | Asm {gotos; loc; _} ->
-        List.iter (action_goto s loc) gotos;
-        s
       | _ -> s
     in ChangeDoChildrenPost (s, action);
 end
+
+(** A jump of a goto (or asm goto) statement [jump_stmt] at [jump_loc] to [target_stmt]. *)
+type jump = {
+  jump_stmt: stmt;
+  jump_loc: location;
+  target_stmt: stmt;
+}
+
+(** Collects the jumps of gotos into [jumps] and the continue statements of loops into [continue_stmts]. *)
+class jumpCollector (jumps: jump list ref) (continue_stmts: stmt list ref) = object
+  inherit nopCilVisitor
+
+  method! vstmt s =
+    let add_jump jump_loc target_ref =
+      jumps := { jump_stmt = s; jump_loc; target_stmt = target_ref.contents } :: !jumps
+    in
+    begin match s.skind with
+      | Loop (_, _, _, Some continue_stmt, _) -> continue_stmts := continue_stmt :: !continue_stmts
+      | Goto (target_ref, loc) -> add_jump loc target_ref
+      | Asm {gotos; loc; _} -> List.iter (add_jump loc) gotos
+      | _ -> ()
+    end;
+    DoChildren
+end
+
+(** Whether [jump] goes backwards, i.e., to a statement with a smaller or equal [sid]. *)
+let jumps_backwards (jump: jump): bool =
+  jump.target_stmt.sid <= jump.jump_stmt.sid
+
+(** Locations of the gotos in [fd] that jump backwards.
+    Jumps to the continue statement of a loop are not included, since the loop counter bounds them.
+    The CFG of [fd] must already be computed, as this relies on [sid]s and on the continue statements of loops introduced by [prepareCFG]. *)
+let upjumping_gotos (fd: fundec): location list =
+  let jumps = ref [] in
+  let continue_stmts = ref [] in
+  ignore (visitCilBlock (new jumpCollector jumps continue_stmts) fd.sbody);
+  let continues_loop jump = List.memq jump.target_stmt !continue_stmts in
+  let is_upjumping jump = jumps_backwards jump && not (continues_loop jump) in
+  let location jump = jump.jump_loc in
+  List.rev !jumps
+  |> List.filter is_upjumping
+  |> List.map location
