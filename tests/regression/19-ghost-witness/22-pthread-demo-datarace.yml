@@ -1,0 +1,48 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000221
+    creation_time: 2026-07-02T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 22-pthread-demo-datarace.c
+      input_file_hashes:
+        22-pthread-demo-datarace.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_worker_increments
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_main_increments
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 22-pthread-demo-datarace.c
+        line: 46
+        column: 9
+        function: thread_function_mutex
+      updates:
+      - variable: ghost_worker_increments
+        value: "ghost_worker_increments + 1"
+        format: c_expression
+    - location:
+        file_name: 22-pthread-demo-datarace.c
+        line: 71
+        column: 9
+        function: main
+      updates:
+      - variable: ghost_main_increments
+        value: "ghost_main_increments + 1"
+        format: c_expression

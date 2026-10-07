@@ -1,0 +1,48 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000004
+    creation_time: 2026-07-29T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 04-ghost-split.c
+      input_file_hashes:
+        04-ghost-split.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_a
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_b
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 04-ghost-split.c
+        line: 8
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_a
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 04-ghost-split.c
+        line: 23
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_b
+        value: "1"
+        format: c_expression
