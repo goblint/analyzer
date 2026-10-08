@@ -771,10 +771,10 @@ struct
     |                 _ , Struct n     -> Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
     | TComp (ci,_)  , Union (`Lifted fd,n) -> Union (`Lifted fd, invalidate_value ask fd.ftype n)
     | TArray (t,_,_), Array n      ->
-      let v = invalidate_value ask t (CArrays.get ask n array_idx_top) in
+      let v = invalidate_value ask t (CArrays.get ~checkBounds:false ask n array_idx_top) in
       Array (CArrays.set ask n (array_idx_top) v)
     |                 _ , Array n      ->
-      let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
+      let v = invalidate_value ask voidType (CArrays.get ~checkBounds:false ask n array_idx_top) in
       Array (CArrays.set ask n (array_idx_top) v)
     |                 t , Blob n       -> Blob (Blobs.invalidate_value ask t n)
     |                 _ , Thread tid   -> Thread (Threads.join (Threads.top ()) tid)
