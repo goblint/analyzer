@@ -50,7 +50,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_memcmp", unknown [drop "s1" [r]; drop "s2" [r]; drop "n" []]);
     ("memchr", unknown [drop "s" [r]; drop "c" []; drop "n" []]);
     ("asctime", unknown ~attrs:[ThreadUnsafe] [drop "time_ptr" [r_deep]]);
-    ("fclose", unknown [drop "stream" [r_deep; w_deep; f_deep]]);
+    ("fclose", special [__ "stream" [r_deep; w_deep; f_deep]] @@ fun stream -> Fclose stream);
     ("feof", unknown [drop "stream" [r_deep; w_deep]]);
     ("ferror", unknown [drop "stream" [r_deep; w_deep]]);
     ("fflush", unknown [drop "stream" [r_deep; w_deep]]);

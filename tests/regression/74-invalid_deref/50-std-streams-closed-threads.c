@@ -1,12 +1,10 @@
 // PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] closedStdStreams --enable ana.int.interval --disable warn.info --disable warn.race
-// A standard stream modified by another thread is checked like any other pointer.
+// A standard stream closed by another thread must not be used.
 #include <stdio.h>
 #include <pthread.h>
 
-char small[2];
-
 void *t(void *arg) {
-  stdout = (FILE *)(small + 5);
+  fclose(stdout);
   return NULL;
 }
 

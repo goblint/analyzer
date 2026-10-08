@@ -273,6 +273,7 @@ struct
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
         | {vname = ("tzname" | "daylight" | "timezone"); _} (* unix time.h *)
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
+        | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
         | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
         | {vname = ("__environ"); _} (* Linux Standard Base Core Specification *)
         | {vname = ("__mb_cur_max"); _} -> (* MacOS stdlib.h *)
@@ -286,7 +287,7 @@ struct
         Spec.assign {man with local = set_bad initial_file st} (var stream) (mkAddrOf (var initial_file))
       in
       let init_extern v st =
-        if StdStreams.is_std_stream v then
+        if StdStreams.is_tracked_std_stream v then
           init_std_stream v st
         else if is_hidden v then
           st

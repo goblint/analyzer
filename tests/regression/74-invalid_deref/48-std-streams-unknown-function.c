@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info --disable warn.imprecise --disable warn.unsound
+// PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] closedStdStreams --enable ana.int.interval --disable warn.info --disable warn.imprecise --disable warn.unsound
 // A standard stream may be modified by an unknown function.
 #include <stdio.h>
 

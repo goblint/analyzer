@@ -2288,7 +2288,7 @@ struct
             match global with
             | GVar (vi, _, _) when not (is_static vi) ->
               mkAddrOf (Cil.var vi) :: acc
-            | GVarDecl (vi, _) when StdStreams.is_std_stream vi ->
+            | GVarDecl (vi, _) when StdStreams.is_tracked_std_stream vi ->
               mkAddrOf (Cil.var vi) :: acc
             (* TODO: what about other GVarDecl? *)
             | _ -> acc

@@ -14,16 +14,9 @@
     live: 7
     dead: 0
     total lines: 7
-  [Info][Unsound] Unknown address in __goblint_initial_stderr has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in __goblint_initial_stdin has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in __goblint_initial_stdout has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in stderr has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in stdin has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in stdout has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown value in ? could be an escaped pointer address! (49-type-invariants.c:21:3-21:21)
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
-  [Info][Imprecise] Invalidating expressions: & s, & stderr, & stdout, & stdin (49-type-invariants.c:21:3-21:21)
+  [Info][Imprecise] Invalidating expressions: & s (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: & tmp (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing
@@ -44,16 +37,9 @@
     live: 7
     dead: 0
     total lines: 7
-  [Info][Unsound] Unknown address in __goblint_initial_stderr has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in __goblint_initial_stdin has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in __goblint_initial_stdout has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in stderr has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in stdin has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown address in stdout has escaped. (49-type-invariants.c:21:3-21:21)
-  [Info][Unsound] Unknown value in ? could be an escaped pointer address! (49-type-invariants.c:21:3-21:21)
   [Info][Unsound] Write to unknown address: privatization is unsound. (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] INVALIDATING ALL GLOBALS! (49-type-invariants.c:21:3-21:21)
-  [Info][Imprecise] Invalidating expressions: & s, & stderr, & stdout, & stdin (49-type-invariants.c:21:3-21:21)
+  [Info][Imprecise] Invalidating expressions: & s (49-type-invariants.c:21:3-21:21)
   [Info][Imprecise] Invalidating expressions: & tmp (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing for getS (49-type-invariants.c:21:3-21:21)
   [Error][Imprecise][Unsound] Function definition missing

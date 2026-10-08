@@ -27,7 +27,7 @@ let enableAnalysesForMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidFree -> enableSpecAnalyses spec ["base"; "useAfterFree"];
   | ValidDeref ->
-    enableSpecAnalyses spec ["base"; "memOutOfBounds"];
+    enableSpecAnalyses spec ["base"; "memOutOfBounds"; "closedStdStreams"];
     enableOptions ["ana.arrayoob"; "cil.addNestedScopeAttr"]
   | ValidMemtrack
   | ValidMemcleanup -> enableSpecAnalyses spec ["memLeak"];

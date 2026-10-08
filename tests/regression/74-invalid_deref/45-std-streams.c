@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info
+// PARAM: --set ana.activated[+] memOutOfBounds --set ana.activated[+] closedStdStreams --enable ana.int.interval --disable warn.info
 // Simplified from sv-benchmarks/c/Juliet_Test/CWE121_Stack_Based_Buffer_Overflow---s01---CWE121_Stack_Based_Buffer_Overflow__CWE129_fgets_01_good.
 #include <stdio.h>
 #include <stdlib.h>
