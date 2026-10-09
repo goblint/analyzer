@@ -24,11 +24,11 @@ sig
 
   val startstate: unit -> D.t
 
-  val read_global: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo -> VD.t
+  val read_global: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> Var.t -> VD.t
 
   (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
    * the state when following conditional guards. *)
-  val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> varinfo -> VD.t -> BaseComponents (D).t
+  val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> Var.t -> VD.t -> BaseComponents (D).t
 
   val lock: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
   val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
@@ -45,7 +45,7 @@ sig
   val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseComponents (D).t -> BaseComponents (D).t
 
   val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
-  val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
+  val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> Var.t list
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -109,7 +109,7 @@ struct
   include NoFinalize
 
   module G = VD
-  module V = VarinfoV
+  module V = VarV
   module D = Lattice.Unit
 
   let init () = ()
@@ -159,8 +159,8 @@ struct
       st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
+    let cpa' = CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped then (
           sideg x v;
           CPA.remove x acc
         )
@@ -189,7 +189,7 @@ struct
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g ->
-      vf g;
+      vf (Var.Cil g);
     | _ -> ()
 
   let invariant_global ask getg g =
@@ -235,12 +235,12 @@ struct
     get_mutex_global_x |? VD.bot ()
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    let escaped_cpa = CPA.filter (fun (Var.Cil x) _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     sideg V.mutex_inits escaped_cpa;
 
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+    let cpa' = CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" Var.pretty x VD.pretty v;
           sideg (V.global x) (CPA.singleton x v);
           CPA.remove x acc
         )
@@ -256,8 +256,8 @@ struct
 
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a" CilType.Varinfo.pretty x;
-          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+          if M.tracing then M.tracel "priv" "enter_multithreaded remove %a" Var.pretty x;
+          if M.tracing then M.tracel "priv" "ENTER MULTITHREADED SIDE %a = %a" Var.pretty x VD.pretty v;
           sideg (V.global x) (CPA.singleton x v);
           CPA.remove x acc
         )
@@ -369,8 +369,8 @@ struct
       let atomic = LockDomain.MustLock.equal m' (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         let cpa = get_m_with_mutex_inits ask getg m' in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
-        let inv = CPA.fold (fun v _ acc ->
-            if ask.f (MustBeProtectedBy {mutex = m'; global = v; kind = Write; protection = Strong}) then
+        let inv = CPA.fold (fun (Cil vi as v) _ acc ->
+            if ask.f (MustBeProtectedBy {mutex = m'; global = vi; kind = Write; protection = Strong}) then
               let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
               Invariant.(acc && inv)
             else
@@ -413,7 +413,7 @@ struct
       CPA.find x st.cpa
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a" CilType.Varinfo.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a" Var.pretty x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
     v
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let cpa' =
@@ -423,7 +423,7 @@ struct
         CPA.add x v st.cpa
     in
     if not invariant then (
-      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+      if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" Var.pretty x VD.pretty v;
       let side_cpa = CPA.singleton x v in
       sideg (V.global x) side_cpa;
       if !earlyglobs && not (ThreadFlag.is_currently_multi ask) then
@@ -471,12 +471,12 @@ struct
 
       let cpa' = CPA.fold (fun x v cpa ->
           if is_global ask x && is_unprotected ask x (* && not (VD.is_top v) *) then (
-            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+            if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a" Var.pretty x VD.pretty v;
             sideg (V.global x) (CPA.singleton x v);
             CPA.remove x cpa
           )
           else (
-            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+            if M.tracing then M.tracel "priv" "SYNC NOSIDE %a = %a" Var.pretty x VD.pretty v;
             cpa
           )
         ) st.cpa st.cpa
@@ -505,7 +505,7 @@ struct
 
   let iter_sys_vars getg vq vf =
     match vq with
-    | VarQuery.Global g -> vf (V.global g)
+    | VarQuery.Global g -> vf (V.global (Cil g))
     | _ -> ()
 
   let long_meet m1 m2 = CPA.nonidempotent_union VD.meet m1 m2 (* TODO: idempotent_union if not using int domain refinement *)
@@ -563,7 +563,7 @@ struct
 
   let read_global ask getg st x =
     let v = read_global ask getg st x in
-    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a" CilType.Varinfo.pretty x (is_unprotected ~protection:Weak ask x) CPA.pretty st.cpa VD.pretty v;
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a" Var.pretty x (is_unprotected ~protection:Weak ask x) CPA.pretty st.cpa VD.pretty v;
     v
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -575,7 +575,7 @@ struct
       else
         CPA.add x v st.cpa
     in
-    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a" Var.pretty x VD.pretty v;
     let digest = Digest.current ask in
     let sidev = GMutex.singleton digest (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
@@ -669,13 +669,13 @@ struct
     st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    let escaped_cpa = CPA.filter (fun (Cil x) _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
     let digest = Digest.current ask in
     let sidev = GMutex.singleton digest escaped_cpa in
     sideg V.mutex_inits (G.create_mutex sidev);
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
-          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" CilType.Varinfo.pretty x VD.pretty v;
+    let cpa' = CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a" Var.pretty x VD.pretty v;
           let sidev = GMutex.singleton digest (CPA.singleton x v) in
           sideg (V.global x) (G.create_global sidev);
           CPA.remove x acc
@@ -706,7 +706,7 @@ struct
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
-    let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
+    let unprotected_after (Var.Cil x) = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
       let cpa' = CPA.fold (fun x v cpa ->
@@ -745,7 +745,7 @@ struct
 
   module D = Lattice.Unit
   module G = VD
-  module V = VarinfoV
+  module V = VarV
 
   let startstate () = ()
 
@@ -806,8 +806,8 @@ struct
       st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    CPA.iter (fun x v ->
-        if EscapeDomain.EscapedVars.mem x escaped then
+    CPA.iter (fun (Var.Cil vi as x) v ->
+        if EscapeDomain.EscapedVars.mem vi escaped then
           sideg x v
       ) st.cpa;
     st
@@ -828,17 +828,17 @@ struct
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g ->
-      vf g;
+      vf (Var.Cil g);
     | _ -> ()
 
-  let invariant_global (ask: Q.ask) getg g =
-    let locks = ask.f (Q.MustProtectingLocks {global = g; kind = ReadWrite}) in
+  let invariant_global (ask: Q.ask) getg (Var.Cil vi as g) =
+    let locks = ask.f (Q.MustProtectingLocks {global = vi; kind = ReadWrite}) in
     if LockDomain.MustLockset.is_all locks then
       Invariant.none
     else (
       (* Only read g as protected, everything else (e.g. pointed to variables) may be unprotected.
          See 56-witness/69-ghost-ptr-protection and https://github.com/goblint/analyzer/pull/1394#discussion_r1698136411. *)
-      let read_global g' = if CilType.Varinfo.equal g' g then getg g' else VD.top () in (* TODO: Could be more precise for at least those which might not have all same protecting locks? *)
+      let read_global g' = if Var.equal g' g then getg g' else VD.top () in (* TODO: Could be more precise for at least those which might not have all same protecting locks? *)
       let inv = ValueDomain.invariant_global read_global g in
       (* Very conservative about multiple protecting mutexes: invariant is not claimed when any of them is held.
          It should be possible to be more precise because writes only happen with all of them held,
@@ -883,9 +883,9 @@ end
 module type ProtectionDom =
 sig
   include Lattice.S
-  val add: bool -> varinfo -> VD.t -> t -> t
-  val remove: varinfo -> t -> t
-  val precise_side: varinfo -> VD.t -> t -> VD.t option
+  val add: bool -> Var.t -> VD.t -> t -> t
+  val remove: Var.t -> t -> t
+  val precise_side: Var.t -> VD.t -> t -> VD.t option
   val empty: unit -> t
   val getP: t -> P.t
 end
@@ -913,12 +913,12 @@ end
 module ProtectionBasedV = struct
   module VUnprot =
   struct
-    include VarinfoV (* [g]' *)
+    include VarV (* [g]' *)
     let name () = "unprotected"
   end
   module VProt =
   struct
-    include VarinfoV (* [g] *)
+    include VarV (* [g] *)
     let name () = "protected"
   end
   module V =
@@ -980,7 +980,7 @@ struct
     let atomic = Param.handle_atomic && LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if (atomic && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
+        if (atomic && is_global ask x && not (VD.is_immediate_type (Var.typ x))) || is_protected_by ask m x then ( (* is_in_Gm *)
           (* Only apply sides for values that were actually written to globals!
              This excludes invariants inferred through guards. *)
           begin match D.precise_side x v st.priv with
@@ -1033,8 +1033,8 @@ struct
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let sideg = Wrapper.sideg ask sideg in
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
+    let cpa' = CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped then (
           sideg (V.unprotected x) v;
           sideg (V.protected x) v;
           CPA.remove x acc
@@ -1066,8 +1066,8 @@ struct
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g ->
-      vf (V.unprotected g);
-      vf (V.protected g);
+      vf (V.unprotected (Var.Cil g));
+      vf (V.protected (Var.Cil g));
     | _ -> ()
 
   let invariant_global (ask: Q.ask) getg g =
@@ -1075,8 +1075,8 @@ struct
     match g with
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
-    | `Right g' -> (* protected *)
-      let locks = ask.f (Q.MustProtectingLocks {global = g'; kind = Write}) in
+    | `Right (Var.Cil vi as g') -> (* protected *)
+      let locks = ask.f (Q.MustProtectingLocks {global = vi; kind = Write}) in
       if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then
         Invariant.none
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
@@ -1084,7 +1084,7 @@ struct
       else (
         (* Only read g' as protected, everything else (e.g. pointed to variables) may be unprotected.
            See 56-witness/69-ghost-ptr-protection and https://github.com/goblint/analyzer/pull/1394#discussion_r1698136411. *)
-        let read_global g = getg (if CilType.Varinfo.equal g g' then V.protected g else V.unprotected g) in
+        let read_global g = getg (if Var.equal g g' then V.protected g else V.unprotected g) in
         let inv = ValueDomain.invariant_global read_global g' in
         (* Very conservative about multiple (write-)protecting mutexes: invariant is not claimed when any of them is held.
            It should be possible to be more precise because writes only happen with all of them held,
@@ -1148,7 +1148,7 @@ end
 module type SyncRangeS =
 sig
   include Lattice.S
-  val fold_sync_vars: (varinfo -> 'a -> 'a) -> t -> 'a -> 'a
+  val fold_sync_vars: (Var.t -> 'a -> 'a) -> t -> 'a -> 'a
   (** Fold over all variables represented by sync range. *)
 end
 
@@ -1170,7 +1170,7 @@ struct
       Invariant.none
 
   let invariant_vars ask getg st =
-    let module VS = Set.Make (CilType.Varinfo) in
+    let module VS = Set.Make (Var) in
     let s = current_lockset ask in
     MustLockset.fold (fun m acc ->
         GSync.fold (fun s' cpa' acc ->
@@ -1375,7 +1375,7 @@ struct
 
   module W =
   struct
-    include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
+    include SetDomain.ToppedSet (Var) (struct let topname = "All variables" end)
     let name () = "W"
   end
   module D = W
@@ -1592,8 +1592,8 @@ struct
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let sideg = Wrapper.sideg ask sideg in
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
+    let cpa' = CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped then (
           sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton lockset_init v));
           CPA.remove x acc
         )
@@ -1746,7 +1746,7 @@ struct
     let side_gsyncw = CPA.fold (fun x v acc ->
         if is_global ask x then (
           let w_x = W.find x w in
-          if M.tracing then M.trace "priv" "gsyncw %a %a %a" CilType.Varinfo.pretty x VD.pretty v MinLocksets.pretty w_x;
+          if M.tracing then M.trace "priv" "gsyncw %a %a %a" Var.pretty x VD.pretty v MinLocksets.pretty w_x;
           MinLocksets.fold (fun w acc ->
               let v = distr_init getg x v in
               GSyncW.add w (CPA.add x v (GSyncW.find w acc)) acc
@@ -1772,8 +1772,8 @@ struct
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let sideg = Wrapper.sideg ask sideg in
     let s = current_lockset ask in
-    CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
+    CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped then (
           let (w, p) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
           sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (MustLockset.empty ()) (GWeakW.singleton lockset_init v)));
@@ -1955,8 +1955,8 @@ struct
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let sideg = Wrapper.sideg ask sideg in
     let s = current_lockset ask in
-    CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
+    CPA.fold (fun (Cil vi as x) v acc ->
+        if EscapeDomain.EscapedVars.mem vi escaped then (
           let ((w, p), (vv, l)) = st.priv in
           let p' = P.add x (MinLocksets.singleton s) p in
           sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton (MustLockset.empty ()) (GWeakW.singleton lockset_init v)));
@@ -2050,7 +2050,7 @@ struct
   module BaseComponents = BaseComponents (D)
 
   let read_global ask getg st x =
-    if M.tracing then M.traceli "priv" "read_global %a" CilType.Varinfo.pretty x;
+    if M.tracing then M.traceli "priv" "read_global %a" Var.pretty x;
     if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -2062,7 +2062,7 @@ struct
     v
 
   let write_global ?invariant ask getg sideg st x v =
-    if M.tracing then M.traceli "priv" "write_global %a %a" CilType.Varinfo.pretty x VD.pretty v;
+    if M.tracing then M.traceli "priv" "write_global %a %a" Var.pretty x VD.pretty v;
     if M.tracing then M.trace "priv" "st: %a" BaseComponents.pretty st;
     let getg x =
       let r = getg x in

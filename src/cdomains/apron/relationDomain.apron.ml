@@ -2,6 +2,8 @@
 
     See {!ApronDomain} and {!AffineEqualityDomain}. *)
 
+module GVar = Var (** Goblint {!Var}, not {!Apron.Var}. *)
+
 open GobApron
 open Batteries
 open GoblintCil
@@ -53,10 +55,10 @@ sig
   val vh: vartable
   val make_var: ?name:string -> VM.t -> t
   val find_metadata: t -> VM.t Option.t
-  val local: varinfo -> t
-  val arg: varinfo -> t
+  val local: GVar.t -> t
+  val arg: GVar.t -> t
   val return: t
-  val global: varinfo -> t
+  val global: GVar.t -> t
   val to_cil_varinfo: t -> varinfo Option.t
 end
 
@@ -70,10 +72,10 @@ struct
 
   type vartable = VM.t VMT.VH.t
 
-  let local x = make_var (Local x)
-  let arg x = make_var (Arg x)
+  let local (GVar.Cil x) = make_var (Local x)
+  let arg (GVar.Cil x) = make_var (Arg x)
   let return = make_var Return
-  let global g = make_var (Global g)
+  let global (GVar.Cil g) = make_var (Global g)
 
   let to_cil_varinfo v =
     match find_metadata v with
