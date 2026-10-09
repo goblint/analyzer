@@ -348,13 +348,10 @@ module Size = struct (* size in bits as int, range as int64 *)
       size (min_for x)
     else
       let a, b = size (min_for x) in
-      if b <= 64 then
-        let upper_bound_less = b - 1 in
-        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
-        if x <= max_one_less then
-          a, upper_bound_less
-        else
-          a,b
+      let upper_bound_less = b - 1 in
+      let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
+      if x <= max_one_less then
+        a, upper_bound_less
       else
         a, b
 
