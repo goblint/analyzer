@@ -2,7 +2,7 @@
   "ana": {
     "activated": [
       "expRelation", "base", "threadid", "threadflag", "threadreturn",
-      "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "mhp", "assert",
+      "escape", "mutexEvents", "mutex", "access", "race", "mallocWrapper", "weakUpdates", "mhp", "assert",
       "symb_locks", "var_eq", "mallocFresh"
     ],
     "ctx_insens": [

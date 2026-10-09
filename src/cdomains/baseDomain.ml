@@ -24,19 +24,10 @@ struct
   let name () = "array partitioning deps"
 end
 
-(** Maintains a set of local variables that need to be weakly updated, because multiple reachable copies of them may *)
-(* exist on the call stack *)
-module WeakUpdates =
-struct
-  include SetDomain.ToppedSet(Basetype.Variables) (struct let topname = "All variables weak" end)
-  let name () = "Vars with Weak Update"
-end
-
 
 type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
-  weak: WeakUpdates.t;
   priv: 'a;
 } [@@deriving eq, ord, hash, relift, lattice]
 
@@ -44,7 +35,7 @@ type 'a basecomponents_t = {
 module BaseComponents (PrivD: Lattice.S):
 sig
   include Lattice.S with type t = PrivD.t basecomponents_t
-  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
   type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash, relift, lattice]
@@ -55,9 +46,8 @@ struct
   let show r =
     let first  = CPA.show r.cpa in
     let second  = PartDeps.show r.deps in
-    let third  = WeakUpdates.show r.weak in
-    let fourth =  PrivD.show r.priv in
-    "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ", " ^ fourth  ^ ")"
+    let third =  PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ second ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
@@ -65,43 +55,38 @@ struct
     ++ text ", " ++
     PartDeps.pretty () r.deps
     ++ text ", " ++
-    WeakUpdates.pretty () r.weak
-    ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
     let e = XmlUtil.escape in
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a\n<key>\n%s\n</key>\n%a</map>\n</value>\n"
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n"
       (e @@ CPA.name ()) CPA.printXml r.cpa
       (e @@ PartDeps.name ()) PartDeps.printXml r.deps
-      (e @@ WeakUpdates.name ()) WeakUpdates.printXml r.weak
       (e @@ PrivD.name ()) PrivD.printXml r.priv
 
   let to_yojson r =
-    `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (WeakUpdates.name (), WeakUpdates.to_yojson r.weak); (PrivD.name (), PrivD.to_yojson r.priv) ]
+    `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (PrivD.name (), PrivD.to_yojson r.priv) ]
 
-  let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ WeakUpdates.name ()  ^ " * " ^ PrivD.name ()
+  let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ PrivD.name ()
 
-  let of_tuple(cpa, deps, weak, priv):t = {cpa; deps; weak; priv}
-  let to_tuple r = (r.cpa, r.deps, r.weak, r.priv)
+  let of_tuple(cpa, deps, priv):t = {cpa; deps; priv}
+  let to_tuple r = (r.cpa, r.deps, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.quad (CPA.arbitrary ()) (PartDeps.arbitrary ()) (WeakUpdates.arbitrary ()) (PrivD.arbitrary ()) in
+    let tr = QCheck.triple (CPA.arbitrary ()) (PartDeps.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let pretty_diff () (({cpa=x1; deps=x2; weak=x3; priv=x4}:t),({cpa=y1; deps=y2; weak=y3; priv=y4}:t)): Pretty.doc =
+  let pretty_diff () (({cpa=x1; deps=x2; priv=x3}:t),({cpa=y1; deps=y2; priv=y3}:t)): Pretty.doc =
     if not (CPA.leq x1 y1) then
       CPA.pretty_diff () (x1,y1)
     else if not (PartDeps.leq x2 y2) then
       PartDeps.pretty_diff () (x2,y2)
-    else if not (WeakUpdates.leq x3 y3) then
-      WeakUpdates.pretty_diff () (x3,y3)
     else
-      PrivD.pretty_diff () (x4,y4)
+      PrivD.pretty_diff () (x3,y3)
 
-  let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
-    {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }
+  let op_scheme op1 op2 op3 {cpa=x1; deps=x2; priv=x3} {cpa=y1; deps=y2; priv=y3}: t =
+    {cpa = op1 x1 y1; deps = op2 x2 y2; priv = op3 x3 y3 }
 end
 
 module type ExpEvaluator =
@@ -117,13 +102,13 @@ struct
 
   let join (one:t) (two:t): t =
     let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.to_value_domain_ask one) (ExpEval.to_value_domain_ask two)) in
-    op_scheme cpa_join PartDeps.join WeakUpdates.join PrivD.join one two
+    op_scheme cpa_join PartDeps.join PrivD.join one two
 
   let leq one two =
     let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.to_value_domain_ask one) (ExpEval.to_value_domain_ask two)) in
-    cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && WeakUpdates.leq one.weak two.weak && PrivD.leq one.priv two.priv
+    cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && PrivD.leq one.priv two.priv
 
   let widen one two: t =
     let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.to_value_domain_ask one) (ExpEval.to_value_domain_ask two)) in
-    op_scheme cpa_widen PartDeps.widen WeakUpdates.widen PrivD.widen one two
+    op_scheme cpa_widen PartDeps.widen PrivD.widen one two
 end

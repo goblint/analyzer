@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated '["base", "mallocWrapper", "assert"]'  --set ana.base.privatization none
+//PARAM: --set ana.activated '["base", "mallocWrapper", "assert", "weakUpdates"]'  --set ana.base.privatization none
 // intentional explicit ana.activated to have non-dead bot local state
 // Copied & modified from 33/04.
 #include <goblint.h>
