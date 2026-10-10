@@ -290,7 +290,13 @@ struct
             (* meet results so that precision from all analyses is combined *)
             let res = S.query man' q in
             if M.tracing then M.trace "queryanswers" "analysis %s query %a -> answer %a" (S.name ()) Queries.Any.pretty anyq Result.pretty res;
-            Result.meet a @@ res
+            let meet = Result.meet a res in
+            begin match q with
+              | Queries.EvalInt _ when Queries.ID.is_bot_ikind meet ->
+                if M.tracing then M.trace "queryanswers" "combined query %a answers %a and %a -> dead code" Queries.Any.pretty anyq Result.pretty a Result.pretty res;
+                raise Deadcode
+              | _ -> meet
+            end
           in
           match q with
           | Queries.WarnGlobal g ->
