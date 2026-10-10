@@ -170,6 +170,8 @@ struct
 
   let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
 
+  let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ())
+
   let id_binary_pred result_ik f x y =
     match f x y with
     | Some b -> ID.of_bool result_ik b
@@ -370,7 +372,6 @@ struct
           | `Top -> AD.top_ptr
         end
     in
-    let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
     let addToAddrOp p (n:ID.t):value =
       match op with
       (* For array indexing e[i] and pointer addition e + i we have: *)
@@ -504,10 +505,12 @@ struct
   (* TODO: Use AddressDomain for queries *)
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
-  let add_offset_varinfo add ad =
-    match Addr.to_mval ad with
-    | Some (x,ofs) -> Addr.of_mval (x, Addr.Offs.add_offset ofs add)
-    | None -> ad
+  let add_offset_varinfo (o: Offs.t) (x: Addr.t): AD.t =
+    match x with
+    | Addr m -> AD.of_mval (Addr.Mval.add_offset m o)
+    | NullPtr -> AD.of_int (Offs.to_index o)
+    | UnknownPtr
+    | StrPtr _ -> AD.singleton x (* TODO: what is right for StrPtr? *)
 
 
   (**************************************************************************
@@ -982,7 +985,7 @@ struct
       | StartOf lval ->
         let array_ofs = `Index (IdxDom.of_int Z.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
-        Address (AD.map array_start (eval_lv ~man st lval))
+        Address (ad_concat_map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE (kind, t, exp) ->
         let v = eval_rv ~man st exp in
@@ -1169,7 +1172,7 @@ struct
               Checks.warn Checks.Category.InvalidMemoryAccess "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
             )
           );
-          AD.map (add_offset_varinfo (convert_offset ~man st ofs)) adr
+          ad_concat_map (add_offset_varinfo (convert_offset ~man st ofs)) adr
         | _ ->
           M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval;
           AD.unknown_ptr
@@ -2760,7 +2763,7 @@ struct
             in
             let offset = `Index (IdxDom.of_int Z.zero, `NoOffset) in
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
-            let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
+            let addr_offset = ad_concat_map (add_offset_varinfo offset) addr in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)

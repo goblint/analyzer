@@ -5,7 +5,6 @@ Now has NULL dereference warning there still.
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:34:346-34:384)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:36:9-36:33)
   [Info][Unsound] Unknown address given as function argument (12-loop-no-overflows.c:36:9-36:33)
-  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:22:5-22:45)
   [Warning][Imprecise][Program] Trying to read an index, but was not given an array ({
                                                          next -> {&ldv_global_msg_list}
                                                          prev -> {&ldv_global_msg_list}
