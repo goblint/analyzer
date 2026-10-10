@@ -14,6 +14,7 @@ module Q = Queries
 module ID = ValueDomain.ID
 module FD = ValueDomain.FD
 module IdxDom = ValueDomain.IndexDomain
+module SizeDomain = ValueDomain.SizeDomain
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
@@ -979,7 +980,7 @@ struct
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
         * to its first element [&a[0]]. *)
       | StartOf lval ->
-        let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
+        let array_ofs = `Index (IdxDom.of_int Z.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
         Address (AD.map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
@@ -1539,9 +1540,9 @@ struct
             | _ -> None
           in
           let alen = Seq.filter_map (fun v -> lenOf v.vtype) (List.to_seq (AD.to_var_may a)) in (* TODO: shouldn't addr offset matter? *)
-          let d = Seq.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (Seq.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %Z.of_int) (Seq.append slen alen)) in
+          let d = Seq.fold_left SizeDomain.join (SizeDomain.bot ()) (Seq.map (SizeDomain.of_int % Z.of_int) (Seq.append slen alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          `Lifted d
+          d
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -1563,11 +1564,11 @@ struct
             (match r with
              | Array a ->
                (* unroll into array for Calloc calls *)
-               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) with
-                | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
+               (match ValueDomain.CArrays.get (Queries.to_value_domain_ask (Analyses.ask_of_man man)) a (None, (IdxDom.of_int Z.zero)) with
+                | Blob (_,s,_) -> s
                 | _ -> Queries.Result.top q
                )
-             | Blob (_,s,_) -> `Lifted (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) s) (* TODO: should be size_t *) (* TODO: should really be casted on creation *)
+             | Blob (_,s,_) -> s
              | _ -> Queries.Result.top q)
           )
         | _ -> Queries.Result.top q
@@ -2332,11 +2333,8 @@ struct
       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
   let get_addr_size man (addr: Queries.AD.elt) = (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
-    let intdom_of_int x =
-      ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
-    in
     let size_of_type_in_bytes typ =
-      intdom_of_int (Cilfacade.bytesSizeOf typ)
+      SizeDomain.of_int (Z.of_int (Cilfacade.bytesSizeOf typ))
     in
     match addr with
     | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
@@ -2346,27 +2344,22 @@ struct
       begin match Cil.unrollType v.vtype with
         | TArray (item_typ, _, _) ->
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-          begin match man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) with (* TODO: shouldn't addr offset matter? *)
-            | `Lifted arr_len ->
-              let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-              begin
-                try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-              end
-            | `Bot -> `Bot
-            | `Top -> `Top
+          let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
+          begin
+            try SizeDomain.mul item_typ_size_in_bytes arr_len
+            with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-          `Lifted type_size_in_bytes
+          type_size_in_bytes
       end
-    | _ -> `Top
+    | _ -> SizeDomain.top ()
 
   let get_size_of_ptr_target man ptr =
     man.ask (Queries.MayPointTo ptr)
     |> Queries.AD.to_seq
     |> Seq.map (get_addr_size man)
-    |> Seq.fold_left ValueDomainQueries.ID.join `Bot
+    |> Seq.fold_left SizeDomain.join (SizeDomain.bot ())
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
@@ -2390,11 +2383,10 @@ struct
       let n_intdom = Option.map_default (fun exp -> man.ask (Queries.EvalInt exp)) `Bot n in
       let dest_size_equal_n =
         match dest_size, n_intdom with
-        | `Lifted ds, `Lifted n ->
-          let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ds in (* TODO: proper castkind *)
-          let casted_n = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n in (* TODO: proper castkind *)
+        | ds, `Lifted n ->
+          let casted_n = SizeDomain.lift n in
           let ds_eq_n =
-            begin try ID.eq casted_ds casted_n
+            begin try SizeDomain.eq ds casted_n
               with IntDomain.ArithmeticOnIntegerBot _ -> None
             end
           in
@@ -2482,21 +2474,13 @@ struct
           set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
-          let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
           let size = man.ask (Q.BlobSize s1) in
-          let s_id =
-            try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
-            with Failure _ -> ID.top_of ptrdiff_ik in
-          let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
+          let empty_array = CArrays.make size (Int (ID.top_of IChar)) in
           set ~man st lv_a lv_typ (op_array empty_array array_s2)
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
-          let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
           let size = man.ask (Q.BlobSize s1) in
-          let s_id =
-            try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
-            with Failure _ -> ID.top_of ptrdiff_ik in
-          let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
+          let empty_array = CArrays.make size (Int (ID.top_of IChar)) in
           let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
           let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
           set ~man st lv_a lv_typ (op_array empty_array array_s2)
@@ -2579,7 +2563,7 @@ struct
               (* else compute strlen in array domain *)
             else
               match get ~man st a None with
-              | Array array_s -> Int (CArrays.to_string_length array_s)
+              | Array array_s -> Int (SizeDomain.unlift (CArrays.to_string_length array_s))
               | _ -> VD.top_value dest_typ
           in
           set ~man st dest_a dest_typ value
@@ -2755,7 +2739,7 @@ struct
           let loc = match op with | Alloca _ -> Stack | Malloc _ -> Heap | _ -> assert false in
           let (heap_var, addr) = alloc loc size in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
-          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc))]) [] heap_var in
+          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift (eval_int ~man st size), ZeroInit.malloc))]) [] heap_var in
           set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), VD.Address addr) :: blob_set)
         | _ -> st
       end
@@ -2763,23 +2747,22 @@ struct
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
-          let ik = Cilfacade.ptrdiff_ikind () in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
           if ID.equal_to Z.one countval = `Eq then
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift sizeval, ZeroInit.calloc)]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
             let blobsize = (* only speculative during ID.mul *)
               (* TODO: Since C23, calloc returns NULL when this multiplication would overflow, but int domains don't return overflow information here currently; needs refactor to not produce overflow warnings inside domains *)
               let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-              ID.mul (ID.cast_to ~kind:Internal ik @@ sizeval) (ID.cast_to ~kind:Internal ik @@ countval) (* TODO: proper castkind *)
+              SizeDomain.mul (SizeDomain.lift sizeval) (SizeDomain.lift countval)
             in
-            let offset = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
+            let offset = `Index (IdxDom.of_int Z.zero, `NoOffset) in
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
             let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)
         | _ -> st
       end
@@ -2797,7 +2780,7 @@ struct
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ~man st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~man st size in
-          let heap_val:value = Blob (p_addr_get, size_int, ZeroInit.malloc) in (* copy old contents with new size *)
+          let heap_val:value = Blob (p_addr_get, SizeDomain.lift size_int, ZeroInit.malloc) in (* copy old contents with new size *)
           let (heap_var,addr) = alloc Queries.AllocationLocation.Heap size in
           let lv_addr = eval_lv ~man st lv in
           let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
