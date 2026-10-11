@@ -121,12 +121,12 @@ module Enums : S with type int_t = Z.t = struct
     if Z.compare x y = 0 then
       of_int ik x
     else
-      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let a, b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
       let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
-  let join _ x y =
+  let join ik x y =
     match x, y with
     | Inc x, Inc y -> Inc (BISet.union x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (BISet.inter x y, R.join r1 r2)
@@ -135,7 +135,7 @@ module Enums : S with type int_t = Z.t = struct
       let r = if BISet.is_empty y
         then r
         else
-          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn Size.min_range_sign_agnostic (BISet.min_elt y, BISet.max_elt y) in
+          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn (Size.min_range_sign_agnostic ik) (BISet.min_elt y, BISet.max_elt y) in
           let range = R.join min_el_range max_el_range in
           R.join r range
       in
@@ -228,8 +228,8 @@ module Enums : S with type int_t = Z.t = struct
   let rem = lift2 Z.rem
 
   (* TODO: should be used by lognot? *)
-  let[@warning "-unused-value-declaration"] apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = (size % Size.min_for % f) (m r) in
+  let[@warning "-unused-value-declaration"] apply_range ik f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = (size % Size.min_for ~ik % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
 
