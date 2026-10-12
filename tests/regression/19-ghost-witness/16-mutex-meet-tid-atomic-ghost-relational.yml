@@ -1,0 +1,100 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000161
+    creation_time: 2026-06-03T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 16-mutex-meet-tid-atomic-ghost-relational.c
+      input_file_hashes:
+        16-mutex-meet-tid-atomic-ghost-relational.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_a
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_b
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 16-mutex-meet-tid-atomic-ghost-relational.c
+        line: 15
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_a
+        value: "ghost_a + 1"
+        format: c_expression
+    - location:
+        file_name: 16-mutex-meet-tid-atomic-ghost-relational.c
+        line: 20
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_a
+        value: "ghost_a + 1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000162
+    creation_time: 2026-06-03T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 16-mutex-meet-tid-atomic-ghost-relational.c
+      input_file_hashes:
+        16-mutex-meet-tid-atomic-ghost-relational.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-mutex-meet-tid-atomic-ghost-relational.c
+        line: 29
+        column: 5
+        function: main
+      value: ghost_a >= 0 && ghost_a <= 2
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-mutex-meet-tid-atomic-ghost-relational.c
+        line: 29
+        column: 5
+        function: main
+      value: x == ghost_a
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-mutex-meet-tid-atomic-ghost-relational.c
+        line: 29
+        column: 5
+        function: main
+      value: y == 3 * x
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-mutex-meet-tid-atomic-ghost-relational.c
+        line: 29
+        column: 5
+        function: main
+      value: y == 3 * ghost_a
+      format: c_expression

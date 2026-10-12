@@ -1,0 +1,47 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009046
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [46-mixed-range-table.c]
+      input_file_hashes:
+        46-mixed-range-table.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_owner_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_thief_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_rebalance_thread_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 46-mixed-range-table.c, line: 16, column: 3, function: owner_thread}
+      updates:
+      - variable: ghost_owner_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 46-mixed-range-table.c, line: 26, column: 3, function: thief_thread}
+      updates:
+      - variable: ghost_thief_thread_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 46-mixed-range-table.c, line: 29, column: 3, function: thief_thread}
+      updates:
+      - variable: ghost_thief_thread_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 46-mixed-range-table.c, line: 36, column: 3, function: rebalance_thread}
+      updates:
+      - variable: ghost_rebalance_thread_phase
+        value: "1"
+        format: c_expression

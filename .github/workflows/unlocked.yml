@@ -238,6 +238,10 @@ jobs:
         # if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
+      - name: Test concurency witnessesses # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        # if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group ghost-witnesses -s
+
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m -s
 

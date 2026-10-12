@@ -1,0 +1,163 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000003
+    creation_time: 2026-07-29T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 03-phase-ghost-matrix.c
+      input_file_hashes:
+        03-phase-ghost-matrix.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_a
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_b
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_c
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_d
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_e
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_f
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_g
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_h
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_i
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_j
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_k
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_l
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_m
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_n
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_o
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_p
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_q
+      scope: global
+      type: int
+      initial: {value: "4", format: c_expression}
+    - name: ghost_r
+      scope: global
+      type: int
+      initial: {value: "4", format: c_expression}
+    - name: ghost_s
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_t
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_u
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_v
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_w
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_x
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_y
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location:
+        file_name: 03-phase-ghost-matrix.c
+        line: 8
+        column: 3
+        function: worker_unique
+      updates:
+      - {variable: ghost_g, value: "ghost_g + 1", format: c_expression}
+      - {variable: ghost_i, value: "ghost_i + 1", format: c_expression}
+      - {variable: ghost_j, value: "7", format: c_expression}
+      - {variable: ghost_k, value: "ghost_k + 1", format: c_expression}
+      - {variable: ghost_k, value: "ghost_k + 1", format: c_expression}
+      - {variable: ghost_l, value: "ghost_l - 1", format: c_expression}
+      - {variable: ghost_m, value: "ghost_m + 1", format: c_expression}
+      - {variable: ghost_w, value: "1", format: c_expression}
+    - location:
+        file_name: 03-phase-ghost-matrix.c
+        line: 14
+        column: 3
+        function: worker_nonunique
+      updates:
+      - {variable: ghost_h, value: "ghost_h + 1", format: c_expression}
+      - {variable: ghost_p, value: "3", format: c_expression}
+      - {variable: ghost_x, value: "ghost_x + 1", format: c_expression}
+    - location:
+        file_name: 03-phase-ghost-matrix.c
+        line: 24
+        column: 3
+        function: main
+      updates:
+      - {variable: ghost_a, value: "ghost_a + 1", format: c_expression}
+      - {variable: ghost_b, value: "5", format: c_expression}
+      - {variable: ghost_c, value: "1 + ghost_c", format: c_expression}
+      - {variable: ghost_d, value: "ghost_d + 2", format: c_expression}
+      - {variable: ghost_e, value: "ghost_e + unknown", format: c_expression}
+      - {variable: ghost_g, value: "ghost_g + 1", format: c_expression}
+      - {variable: ghost_m, value: "ghost_m + 1", format: c_expression}
+      - {variable: ghost_n, value: "ghost_n + 0", format: c_expression}
+      - {variable: ghost_o, value: "ghost_o + (1 - 1)", format: c_expression}
+      - {variable: ghost_q, value: "5", format: c_expression}
+      - {variable: ghost_r, value: "6", format: c_expression}
+      - {variable: ghost_u, value: "1", format: c_expression}
+      - {variable: ghost_u, value: "ghost_u + 1", format: c_expression}
+      - {variable: ghost_v, value: "2", format: c_expression}
+      - {variable: ghost_y, value: "ghost_y + 1", format: c_expression}
+      - {variable: ghost_y, value: "ghost_y + 1", format: c_expression}

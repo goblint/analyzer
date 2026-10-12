@@ -1,0 +1,71 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1"
+    uuid: 00000000-0000-0000-0000-000000009004
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [04-cache-statistics.c]
+      input_file_hashes:
+        04-cache-statistics.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_reader_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    - name: ghost_evictor_phase
+      scope: global
+      type: int
+      initial: {value: "0", format: c_expression}
+    ghost_updates:
+    - location: {file_name: 04-cache-statistics.c, line: 16, column: 3, function: reader}
+      updates:
+      - variable: ghost_reader_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 04-cache-statistics.c, line: 19, column: 3, function: reader}
+      updates:
+      - variable: ghost_reader_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 04-cache-statistics.c, line: 30, column: 3, function: evictor}
+      updates:
+      - variable: ghost_evictor_phase
+        value: "1"
+        format: c_expression
+    - location: {file_name: 04-cache-statistics.c, line: 33, column: 3, function: evictor}
+      updates:
+      - variable: ghost_evictor_phase
+        value: "2"
+        format: c_expression
+    - location: {file_name: 04-cache-statistics.c, line: 36, column: 3, function: evictor}
+      updates:
+      - variable: ghost_evictor_phase
+        value: "3"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000019004
+    creation_time: 2026-07-02T00:00:00Z
+    producer: {name: Test, version: "0.0"}
+    task:
+      input_files: [04-cache-statistics.c]
+      input_file_hashes:
+        04-cache-statistics.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: 04-cache-statistics.c, line: 51, column: 3, function: main}
+      value: ghost_reader_phase >= 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location: {file_name: 04-cache-statistics.c, line: 51, column: 3, function: main}
+      value: ghost_evictor_phase >= 0
+      format: c_expression

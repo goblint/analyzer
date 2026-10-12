@@ -53,3 +53,5 @@ __VERIFIER_nondet2(void*, pointer)
 // atomics are now special in Goblint
 // void __VERIFIER_atomic_begin() { }
 // void __VERIFIER_atomic_end() { }
+// void __VERIFIER_atomic_instrument_begin() { }
+// void __VERIFIER_atomic_instrument_end() { }

@@ -1,0 +1,136 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000033
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 54-mutex-ghost-valid-ptr.c
+      input_file_hashes:
+        54-mutex-ghost-valid-ptr.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_1
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_2
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 12
+        column: 3
+        function: t_fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 14
+        column: 3
+        function: t_fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 15
+        column: 3
+        function: t_fun
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 17
+        column: 3
+        function: t_fun
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 25
+        column: 3
+        function: main
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 27
+        column: 3
+        function: main
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 31
+        column: 3
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 33
+        column: 3
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000034
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 54-mutex-ghost-valid-ptr.c
+      input_file_hashes:
+        54-mutex-ghost-valid-ptr.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 35
+        column: 3
+        function: main
+      value: "ghost_1 == 1 || g1 == 37"
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 54-mutex-ghost-valid-ptr.c
+        line: 35
+        column: 3
+        function: main
+      value: "ghost_2 == 1 || g2 == 42"
+      format: c_expression

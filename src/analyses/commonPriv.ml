@@ -186,10 +186,13 @@ struct
   end
 end
 
+type 'a phaseChange = { of_phase: Q.ask -> Queries.PhaseDigest.t -> 'a; to_phase: 'a -> Queries.PhaseDigest.t; patch_phase: 'a -> Queries.PhaseDigest.t -> 'a }
+
 module type Digest =
 sig
   include Printable.S
 
+  val actionOnPhaseChange: (t phaseChange) option
   val current: Q.ask -> t
   val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
@@ -202,6 +205,8 @@ struct
   include ThreadIdDomain.ThreadLifted
 
   module TID = ThreadIdDomain.Thread
+
+  let actionOnPhaseChange = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -220,14 +225,25 @@ struct
     | _ -> false
 end
 
+module UnitDigest:Digest = struct
+  include Printable.Unit
+
+  let actionOnPhaseChange = None
+
+  let current (ask:Q.ask) = ()
+  let accounted_for (ask:Q.ask) ~current ~other = false
+end
+
 (** Ego-Lane Derived digest based on whether given threads have been started yet, can be used to refine any analysis
-    @see PhD thesis of M. Schwarz once it is published ;)
+    @see M. Schwarz "Thread-Modular Abstract Interpretation: The Local Perspective", https://d-nb.info/137113345X/34
 *)
 module ThreadNotStartedDigest:Digest =
 struct
   include ThreadIdDomain.ThreadLifted
 
   module TID = ThreadIdDomain.Thread
+
+  let actionOnPhaseChange = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -238,6 +254,51 @@ struct
       MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other
     | _ -> false
 end
+
+module GhostPhase:Digest =
+struct
+  include Q.PhaseDigest
+
+  let actionOnPhaseChange =
+    let of_phase (ask:Q.ask) d = d in
+    let patch_phase _ d = d in
+    Some { of_phase; to_phase = Fun.id; patch_phase }
+
+
+  let current (ask: Q.ask) = ask.f Q.PhaseDigest
+  let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) =
+    (* If the phase digest is different from the one being consulted, this cannot be the right one,
+       and it thus accounted for *)
+    (* TODO: Local writes should also be considered accounted for through some additional mechanism *)
+    not (equal current other)
+end
+
+module GhostPhaseLifter(Inner:Digest):Digest =
+struct
+  include Printable.Prod (Q.PhaseDigest) (Inner)
+
+  let actionOnPhaseChange =
+    let of_phase ask p =
+      (*
+
+      TODO: Is this correct here? Always take current digest of inner?
+        - Do I need this at all or can I just publish my local view?
+        - What about threads that are not unique?
+
+      *)
+      let inner = Inner.current ask in
+      (p, inner)
+    in
+    let patch_phase (phase, inner) phase' = (phase', inner) in
+    Some { of_phase; to_phase = fst; patch_phase }
+
+  let current (ask:Q.ask) = (ask.f Q.PhaseDigest, Inner.current ask)
+
+  let accounted_for (ask:Q.ask)  ~current:((currentPhase, currentinner): t) ~other:((otherPhase, otherinner): t) =
+    not (Q.PhaseDigest.equal currentPhase otherPhase) || Inner.accounted_for ask ~current:currentinner ~other:otherinner
+end
+
+
 
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
 struct
@@ -295,6 +356,7 @@ struct
       | `Bot -> GThread.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "PerMutexMeetPrivTID.thread"
+
     let create_mutex mutex = `Lifted1 mutex
     let create_global global = `Lifted1 global
     let create_thread thread = `Lifted2 thread

@@ -11,6 +11,9 @@ let name_varinfo = function
       if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_var then
         invalid_arg "__VERIFIER_atomic"
       else
+      if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_instrument_var then
+        invalid_arg "__VERIFIER_atomic_instrument"
+      else
       if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo v then
         Printf.sprintf "alloc_%s%d" (if v.vid < 0 then "m" else "") (abs v.vid) (* turn minus into valid C name *)
       else
