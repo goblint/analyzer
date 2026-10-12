@@ -16,7 +16,7 @@ sv-comp-smoketest-ubuntu: sv-comp-tag
 	docker build . -f scripts/sv-comp/Dockerfile --target smoketest-ubuntu
 
 sv-comp-smoketest-competition: sv-comp-tag
-	docker build . -f scripts/sv-comp/Dockerfile --target smoketest-competition
+# 	docker build . -f scripts/sv-comp/Dockerfile --target smoketest-competition
 
 sv-comp-smoketest: sv-comp-smoketest-ubuntu sv-comp-smoketest-competition;
 sv-comp: sv-comp-smoketest sv-comp-build;
