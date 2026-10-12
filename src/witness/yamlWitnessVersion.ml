@@ -1,5 +1,3 @@
-(** YAML witness format version. *)
-
 type t =
   | V2_0
   | V2_1
