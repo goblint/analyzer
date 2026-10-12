@@ -166,8 +166,8 @@ struct
     let invariant_type = "loop_invariant"
 
     let min_version = function
-      | {labels = Some _; _} -> YamlWitnessVersion.V2_1
-      | _ -> YamlWitnessVersion.V2_0
+      | {labels = Some _; _} -> YamlWitnessVersion.v2_1
+      | _ -> YamlWitnessVersion.v2_0
 
     let to_yaml' {location; value; format; labels} =
       [
@@ -201,7 +201,7 @@ struct
     include LoopInvariant
 
     let invariant_type = "loop_transition_invariant"
-    let min_version _ = YamlWitnessVersion.V2_1
+    let min_version _ = YamlWitnessVersion.v2_1
   end
 
   module LocationTransitionInvariant =
@@ -209,7 +209,7 @@ struct
     include LoopTransitionInvariant
 
     let invariant_type = "location_transition_invariant"
-    let min_version _ = YamlWitnessVersion.V2_1
+    let min_version _ = YamlWitnessVersion.v2_1
   end
 
   module FlowInsensitiveInvariant =
@@ -221,7 +221,7 @@ struct
     [@@deriving eq, ord, hash]
 
     let invariant_type = "flow_insensitive_invariant"
-    let min_version _ = YamlWitnessVersion.V2_1_Goblint
+    let min_version _ = YamlWitnessVersion.v2_1_goblint
 
     let to_yaml' {value; format} =
       [
@@ -327,7 +327,7 @@ struct
     [@@deriving eq, ord, hash]
 
     let contract_type = "function_contract"
-    let min_version _ = YamlWitnessVersion.V2_1
+    let min_version _ = YamlWitnessVersion.v2_1
 
     let to_yaml' {location; requires; ensures; format; labels} =
       [
@@ -457,7 +457,7 @@ struct
   let min_version {content} =
     List.to_seq content
     |> Seq.map InvariantKind.min_version
-    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
+    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.v2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map InvariantKind.to_yaml content))]
@@ -529,8 +529,8 @@ struct
     let waypoint_type = "assumption"
 
     let min_version = function
-      | {thread_id = Some _; _} -> YamlWitnessVersion.V2_2
-      | _ -> YamlWitnessVersion.V2_0
+      | {thread_id = Some _; _} -> YamlWitnessVersion.v2_2
+      | _ -> YamlWitnessVersion.v2_0
 
     let to_yaml' {location; action; constraint_; thread_id} =
       [
@@ -564,8 +564,8 @@ struct
     let waypoint_type = "target"
 
     let min_version = function
-      | {thread_id = Some _; _} -> YamlWitnessVersion.V2_2
-      | _ -> YamlWitnessVersion.V2_0
+      | {thread_id = Some _; _} -> YamlWitnessVersion.v2_2
+      | _ -> YamlWitnessVersion.v2_0
 
     let to_yaml' {location; action; thread_id} =
       [
@@ -693,7 +693,7 @@ struct
     let min_version {segment} =
       List.to_seq segment
       |> Seq.map Waypoint.min_version
-      |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
+      |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.v2_0
 
     let to_yaml {segment} =
       `O [("segment", `A (List.map Waypoint.to_yaml segment))]
@@ -714,7 +714,7 @@ struct
   let min_version {content} =
     List.to_seq content
     |> Seq.map Segment.min_version
-    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
+    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.v2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map Segment.to_yaml content))]
@@ -828,7 +828,7 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "ghost_instrumentation"
-  let min_version _ = YamlWitnessVersion.V2_1
+  let min_version _ = YamlWitnessVersion.v2_1
 
   let to_yaml' {ghost_variables; ghost_updates} =
     [("content",

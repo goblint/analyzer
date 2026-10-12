@@ -8,6 +8,14 @@ type t =
   | V2_3_Goblint
 [@@deriving ord, enum]
 
+let v2_0 = V2_0
+let v2_1 = V2_1
+let v2_1_goblint = V2_1_Goblint
+let v2_2 = V2_2
+let v2_2_goblint = V2_2_Goblint
+let v2_3 = V2_3
+let v2_3_goblint = V2_3_Goblint
+
 let show = function
   | V2_0 -> "2.0"
   | V2_1 -> "2.1"

@@ -1,14 +1,14 @@
 (** YAML witness format version. *)
 
-type t =
-  | V2_0
-  | V2_1
-  | V2_1_Goblint
-  | V2_2
-  | V2_2_Goblint
-  | V2_3
-  | V2_3_Goblint
-[@@deriving ord]
+type t [@@deriving ord]
+
+val v2_0: t
+val v2_1: t
+val v2_1_goblint: t
+val v2_2: t
+val v2_2_goblint: t
+val v2_3: t
+val v2_3_goblint: t
 
 val show : t -> string
 val pretty : unit -> t -> GoblintCil.Pretty.doc
