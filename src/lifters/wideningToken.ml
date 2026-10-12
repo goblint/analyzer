@@ -14,3 +14,5 @@ end
 
 (* Change to variant type if need other tokens than witness UUIDs. *)
 include Printable.Prod (Uuid) (Index)
+
+let name () = "widen-token"

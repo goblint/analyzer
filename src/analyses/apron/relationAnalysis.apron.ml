@@ -134,7 +134,9 @@ struct
       Priv.write_global ask getg sideg st g x
     else (
       let rel = st.rel in
-      let g_var = RV.global g in
+      (* Escaped locals remain represented by their local variable until the
+         program becomes multithreaded, just like in [read_global]. *)
+      let g_var = if g.vglob then RV.global g else RV.local g in
       let x_var = RV.local x in
       let rel' = RD.add_vars rel [g_var] in
       let rel' = RD.assign_var rel' g_var x_var in
@@ -327,7 +329,7 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Local v) when not (belongs_to_fundec fundec var || any_local_reachable || ThreadEscape.has_escaped (Analyses.ask_of_man man) v) -> true (* remove caller locals provided they are unreachable *)
         | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
@@ -422,7 +424,7 @@ struct
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Local v) when not (belongs_to_fundec fundec var || any_local_reachable || ThreadEscape.has_escaped ask v) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)

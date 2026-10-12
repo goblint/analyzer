@@ -560,10 +560,10 @@ struct
     if result >=. Ints_t.zero then result
     else result +. k
 
-  let refine_with_congruence ik (intvs: t) (cong: (int_t * int_t ) option): t =
-    let refine_with_congruence_interval ik (cong : (int_t * int_t ) option) (intv : (int_t * int_t ) option): t =
-      match intv, cong with
-      | Some (x, y), Some (c, m) ->
+  let refine_with_congruence ik (intvs: t) (cong: int_t * int_t): t =
+    let refine_with_congruence_interval ik ((c, m) : int_t * int_t) (intv : (int_t * int_t ) option): t =
+      match intv with
+      | Some (x, y) ->
         if m =. Ints_t.zero && (c <. x || c >. y) then []
         else if m =. Ints_t.zero then
           [(c, c)]
@@ -582,15 +582,14 @@ struct
     in
     List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
-  let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
+  let refine_with_interval ik xs itv = meet ik xs [itv]
 
   let refine_with_bitfield ik x y =
     let interv = of_bitfield ik y in
     norm_intvs ik (meet ik x interv) |> fst
 
-  let refine_with_incl_list ik intvs  = function
-    | None -> intvs
-    | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
+  let refine_with_incl_list ik intvs xs =
+    meet ik intvs (List.map (fun x -> (x,x)) xs)
 
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t =
     let intv1 = (min, excl -. Ints_t.one) in
@@ -602,14 +601,12 @@ struct
     let res = List.fold_left (meet ik) (top_of ik) excl_list in
     res
 
-  let refine_with_excl_list ik (intv : t) = function
-    | None -> intv
-    | Some (xs, range) ->
-      let excl_to_intervalset (ik: ikind) ((rl, rh): (int * int)) (excl: int_t): t =
-        excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
-      in
-      let excl_list = List.map (excl_to_intervalset ik range) xs in
-      List.fold_left (meet ik) intv excl_list
+  let refine_with_excl_list ik (intv : t) (xs, range) =
+    let excl_to_intervalset (ik: ikind) ((rl, rh): (int * int)) (excl: int_t): t =
+      excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
+    in
+    let excl_list = List.map (excl_to_intervalset ik range) xs in
+    List.fold_left (meet ik) intv excl_list
 
   let project ik p t = t
 
