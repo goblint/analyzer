@@ -528,6 +528,10 @@ struct
 
     let waypoint_type = "assumption"
 
+    let min_version = function
+      | {thread_id = Some _; _} -> YamlWitnessVersion.V2_2
+      | _ -> YamlWitnessVersion.V2_0
+
     let to_yaml' {location; action; constraint_; thread_id} =
       [
         ("location", Location.to_yaml location);
@@ -558,6 +562,10 @@ struct
     [@@deriving eq, ord, hash]
 
     let waypoint_type = "target"
+
+    let min_version = function
+      | {thread_id = Some _; _} -> YamlWitnessVersion.V2_2
+      | _ -> YamlWitnessVersion.V2_0
 
     let to_yaml' {location; action; thread_id} =
       [
@@ -616,6 +624,13 @@ struct
       | FunctionReturn _ -> FunctionReturn.waypoint_type
       | Branching _ -> Branching.waypoint_type
 
+    let min_version = function
+      | Assumption x -> Assumption.min_version x
+      | Target x -> Target.min_version x
+      | FunctionEnter x -> FunctionEnter.min_version x
+      | FunctionReturn x -> FunctionReturn.min_version x
+      | Branching x -> Branching.min_version x
+
     let to_yaml' = function
       | Assumption x -> Assumption.to_yaml' x
       | Target x -> Target.to_yaml' x
@@ -652,6 +667,8 @@ struct
     }
     [@@deriving eq, ord, hash]
 
+    let min_version {waypoint_type} = WaypointType.min_version waypoint_type
+
     let to_yaml {waypoint_type} =
       `O [
         ("waypoint", `O ([
@@ -673,6 +690,11 @@ struct
     }
     [@@deriving eq, ord, hash]
 
+    let min_version {segment} =
+      List.to_seq segment
+      |> Seq.map Waypoint.min_version
+      |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
+
     let to_yaml {segment} =
       `O [("segment", `A (List.map Waypoint.to_yaml segment))]
 
@@ -688,7 +710,11 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "violation_sequence"
-  let min_version _ = YamlWitnessVersion.V2_0
+
+  let min_version {content} =
+    List.to_seq content
+    |> Seq.map Segment.min_version
+    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map Segment.to_yaml content))]
