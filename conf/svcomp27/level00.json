@@ -56,7 +56,9 @@
         "memsafetySpecification",
         "noOverflows",
         "termination",
-        "tmpSpecialAnalysis"
+        "tmpSpecialAnalysis",
+        "pthreadBarriers",
+        "pthreadOnce"
       ]
     }
   }
