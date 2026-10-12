@@ -199,8 +199,14 @@ struct
     | Calloc _
     | Realloc _ ->
       man.sideg () true;
-      begin match man.ask (Queries.AllocVar Heap) with
-        | `Lifted var ->
+      begin match man.ask (Queries.AllocVar Heap), lval with
+        | `Lifted var, Some lval ->
+          man.split (ToppedVarInfoSet.add var state) [SplitBranch (Lval lval, true)];
+          if GobConfig.get_bool "sem.malloc.fail" then
+            man.split state [SplitBranch (Lval lval, false)];
+          raise Analyses.Deadcode
+        | `Lifted var, None ->
+          (* No reason to split without lval: the untracked memory cannot be freed anyway. *)
           ToppedVarInfoSet.add var state
         | _ -> state
       end

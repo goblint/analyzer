@@ -7,7 +7,7 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  module Branch = Printable.ProdSimple(BoolDomain.Bool)(Node)
+  module Branch = Printable.Prod(BoolDomain.Bool)(Node)
   module BranchSet = SetDomain.Make(Branch)
 
   module D = BranchSet

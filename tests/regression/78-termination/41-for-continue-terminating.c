@@ -1,4 +1,4 @@
-// SKIP TODO TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
@@ -8,7 +8,7 @@ int main()
   {
     if (i % 2 == 0)
     {
-      continue; // Converted to an goto to "for" in line 7
+      continue; // Forward goto to the increment. Not considered an upjumping goto: its label has the location of "for" in line 7, but its sid is larger.
     }
     printf("%d ", i);
   }
@@ -20,7 +20,7 @@ int main()
   {
     if (r % 3 == 0)
     {
-      continue; // Converted to an goto to "for" in line 19
+      continue; // Forward goto to the increment. Not considered an upjumping goto: its label has the location of "for" in line 19, but its sid is larger.
     }
     printf("Loop with Continue: %d\n", r);
   }

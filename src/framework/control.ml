@@ -151,18 +151,18 @@ struct
     in
     if List.mem "termination" @@ get_string_list "ana.activated" then (
       (* check if we have upjumping gotos *)
-      let open Cilfacade in
-      let warn_for_upjumps fundec gotos =
-        if FunSet.mem live_funs fundec then (
+      let warn_for_upjump loc =
+        M.warn ~loc:(M.Location.CilLocation loc) ~category:Termination "The program might not terminate! (Upjumping Goto)"
+      in
+      let warn_for_upjumps fundec () =
+        let upjumping_gotos = TerminationPreprocessing.upjumping_gotos fundec in
+        if upjumping_gotos <> [] then (
           (* set nontermination flag *)
           AnalysisState.svcomp_may_not_terminate := true;
-          (* iterate through locations to produce warnings *)
-          LocSet.iter (fun l _ ->
-              M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)"
-            ) gotos
+          List.iter warn_for_upjump upjumping_gotos
         )
       in
-      FunLocH.iter warn_for_upjumps funs_with_upjumping_gotos
+      FunSet.iter warn_for_upjumps live_funs
     );
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
