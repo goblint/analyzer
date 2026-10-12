@@ -319,8 +319,8 @@ struct
   struct
     type t = {
       location: Location.t;
-      requires: string;
-      ensures: string;
+      requires: string option;
+      ensures: string option;
       format: string;
       labels: string list option;
     }
@@ -332,8 +332,17 @@ struct
     let to_yaml' {location; requires; ensures; format; labels} =
       [
         ("location", Location.to_yaml location);
-        ("requires", `String requires);
-        ("ensures", `String ensures);
+      ] @ (match requires with
+          | Some requires -> [
+              ("requires", `String requires);
+            ]
+          | None -> []
+        ) @ (match ensures with
+          | Some ensures -> [
+              ("ensures", `String ensures);
+            ]
+          | None -> []
+        ) @ [
         ("format", `String format);
       ] @ match labels with
       | Some labels -> [
@@ -344,8 +353,8 @@ struct
     let of_yaml y =
       let open GobYaml in
       let+ location = y |> find "location" >>= Location.of_yaml
-      and+ requires = y |> find "requires" >>= to_string
-      and+ ensures = y |> find "ensures" >>= to_string
+      and+ requires = y |> Yaml.Util.find "requires" >>= option_map to_string
+      and+ ensures = y |> Yaml.Util.find "ensures" >>= option_map to_string
       and+ format = y |> find "format" >>= to_string
       and+ labels = y |> Yaml.Util.find "labels" >>= option_map (fun y -> y |> list >>= list_map to_string) in
       {location; requires; ensures; format; labels}
