@@ -522,24 +522,30 @@ struct
       location: Location.t;
       action: string;
       constraint_: Constraint.t;
+      thread_id: int option;
     }
     [@@deriving eq, ord, hash]
 
     let waypoint_type = "assumption"
 
-    let to_yaml' {location; action; constraint_} =
+    let to_yaml' {location; action; constraint_; thread_id} =
       [
         ("location", Location.to_yaml location);
         ("action", `String action);
         ("constraint", Constraint.to_yaml constraint_);
-      ]
+      ] @ match thread_id with
+      | Some thread_id -> [
+          ("thread_id", `Float (float_of_int thread_id));
+        ]
+      | None -> []
 
     let of_yaml y =
       let open GobYaml in
       let+ location = y |> find "location" >>= Location.of_yaml
       and+ action = y |> find "action" >>= to_string
-      and+ constraint_ = y |> find "constraint" >>= Constraint.of_yaml in
-      {location; action; constraint_}
+      and+ constraint_ = y |> find "constraint" >>= Constraint.of_yaml
+      and+ thread_id = y |> Yaml.Util.find "thread_id" >>= option_map to_int in
+      {location; action; constraint_; thread_id}
   end
 
   module Target =
@@ -547,22 +553,28 @@ struct
     type t = {
       location: Location.t;
       action: string;
+      thread_id: int option;
     }
     [@@deriving eq, ord, hash]
 
     let waypoint_type = "target"
 
-    let to_yaml' {location; action} =
+    let to_yaml' {location; action; thread_id} =
       [
         ("location", Location.to_yaml location);
         ("action", `String action);
-      ]
+      ] @ match thread_id with
+      | Some thread_id -> [
+          ("thread_id", `Float (float_of_int thread_id));
+        ]
+      | None -> []
 
     let of_yaml y =
       let open GobYaml in
       let+ location = y |> find "location" >>= Location.of_yaml
-      and+ action = y |> find "action" >>= to_string in
-      {location; action}
+      and+ action = y |> find "action" >>= to_string
+      and+ thread_id = y |> Yaml.Util.find "thread_id" >>= option_map to_int in
+      {location; action; thread_id}
   end
 
   module FunctionEnter =
