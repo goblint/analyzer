@@ -84,12 +84,12 @@ struct
   let calloc = `Lifted true
 end
 
-module Blob (Value: S) (Size: IntDomain.Z)=
+module Blob (Value: S) =
 struct
-  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include Size let name () = "size" end) (ZeroInit)
+  include Lattice.Prod3 (struct include Value let name () = "value" end) (struct include SizeDomain let name () = "size" end) (ZeroInit)
   let name () = "blob"
   type value = Value.t
-  type size = Size.t
+  type size = SizeDomain.t
   type zeroinit = ZeroInit.t
 
   let map f (v, s, o) = f v, s, o
@@ -154,9 +154,9 @@ struct
     | TNamed ({tname = "jmp_buf"; _}, _) -> true
     | _ -> false
 
-  let array_length_idx default length =
+  let array_length_size default length =
     let l = BatOption.bind length (fun e -> Cil.getInteger (Cil.constFold true e)) in
-    BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) default l
+    BatOption.map_default SizeDomain.of_int default l
 
   let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
@@ -170,7 +170,7 @@ struct
     | TComp ({cstruct=false; _},_) -> Union (Unions.bot ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let len = array_length_idx (IndexDomain.bot ()) length in
+      let len = array_length_size (SizeDomain.bot ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
@@ -207,7 +207,7 @@ struct
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
       let can_recover_from_top = ArrayDomain.can_recover_from_top (ArrayDomain.get_domain ~varAttr ~typAttr) in
-      let len = array_length_idx (IndexDomain.bot ()) length in
+      let len = array_length_size (SizeDomain.bot ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
@@ -226,7 +226,7 @@ struct
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let len = array_length_idx (IndexDomain.top ()) length in
+      let len = array_length_size (SizeDomain.top ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (top_value ai))
     | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
     | _ -> Top
@@ -269,7 +269,7 @@ struct
       Union(v)
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
-      let len = array_length_idx (IndexDomain.top ()) length in
+      let len = array_length_size (SizeDomain.top ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
     (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
@@ -446,7 +446,7 @@ struct
             (* array to its first element *)
             | TArray _, _ ->
               if M.tracing then M.tracel "casta" "cast array to its first element";
-              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int Z.zero, `NoOffset))) (Some false)
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
@@ -999,7 +999,7 @@ struct
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset ?(bitfield:int option=None) (x:t) (offs:offs) (l:lval option) (o:offset option):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
-      let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
+      let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, SizeDomain.join s s', zeroinit) | x -> x in
       let r =
         match x, offs with
         | Mutex, _ -> (* hide mutex structure contents, not updated anyway *)
@@ -1024,7 +1024,7 @@ struct
                 let toptype = fld.fcomp in
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
-                && ID.equal_to (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, []))) s = `Eq (* Size of blob is known *)
+                && SizeDomain.equal_to (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, []))) s = `Eq (* Size of blob is known *)
               | _ -> false
             in
             if do_strong_update then
@@ -1035,7 +1035,7 @@ struct
         | Blob (x,s,zeroinit), `NoOffset -> (* `NoOffset is only remaining possibility for Blob here *)
           begin
             match value with
-            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
+            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, SizeDomain.join s s2, zeroinit))
             | _ ->
               let l', o' = shift_one_over l o in
               let x = zero_init_calloced_memory zeroinit x t in
@@ -1043,7 +1043,7 @@ struct
               let do_strong_update =
                 begin match v with
                   | (Var var, _) ->
-                    let blob_size_opt = ID.to_int s in
+                    let blob_size_opt = SizeDomain.to_int s in
                     not @@ ask.is_multiple var
                     (* TODO: could use ID.equal_to, but only if blob_destructive doesn't actually need known (but ignored!) size *)
                     && GobOption.exists (fun blob_size -> (* Size of blob is known *)
@@ -1132,10 +1132,10 @@ struct
                           match Cil.unrollType fld.ftype with
                           | TArray(_, l, _) ->
                             let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
-                            Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
+                            Array(CArrays.make (SizeDomain.of_int (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
-                      | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) ->
+                      | `Index (idx, _) when IndexDomain.equal_to Z.zero idx = `Eq ->
                         (* Why does cil index unions? We'll just pick the first field. *)
                         top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
                       | _ -> M.warn ~category:Analyzer ~tags:[Category Unsound] "Indexing on a union is unusual, and unsupported by the analyzer";
@@ -1164,8 +1164,8 @@ struct
                   let new_value_at_index = do_update_offset Bot offs l' o' in
                   let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
                   let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
-                  let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
-                  let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
+                  let len_id = BatOption.map SizeDomain.of_int len_ci in
+                  let newl = BatOption.default (SizeDomain.starting Z.zero) len_id in
                   let new_array_value = CArrays.update_length newl new_array_value in
                   Array new_array_value
                 | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
@@ -1224,14 +1224,14 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
+          | None -> SizeDomain.starting Z.zero
           | Some e ->
             begin
               match eval_exp e with
-              | Int x -> ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ())  x (* TODO: proper castkind *)
+              | Int x -> SizeDomain.lift x
               | _ ->
                 M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
-                ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
+                SizeDomain.starting Z.zero
             end
         in
         Array(CArrays.update_length newl n')
@@ -1291,7 +1291,7 @@ struct
     | Struct n, _, _ -> Struct (Structs.map (fun (x: t) -> project ask p None x) n)
     | Union (f, v), _, _ -> Union (f, project ask p None v)
     | Array n , _, _ -> Array (project_arr ask p array_attr n)
-    | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, ID.project p' s, z)
+    | Blob (v, s, z), Some p', _ -> Blob (project ask p None v, SizeDomain.project p' s, z)
     | Thread n, _, _ -> Thread n
     | Bot, _, _ -> Bot
     | Top, _, _ -> Top
@@ -1310,7 +1310,7 @@ struct
     match CArrays.length n, p with
     | None, _
     | _, None -> n'
-    | Some l, Some p -> CArrays.update_length (ID.project p l) n'
+    | Some l, Some p -> CArrays.update_length (SizeDomain.project p l) n'
 
   let relift state =
     match state with
@@ -1337,7 +1337,7 @@ and Unions: UnionDomain.S with type t = UnionDomain.Field.t * Compound.t and typ
 
 and CArrays: ArrayDomain.StrWithDomain with type value = Compound.t = ArrayDomain.AttributeConfiguredAndNullByteArrayDomain(Compound)
 
-and Blobs: Blob with type size = ID.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound) (ID)
+and Blobs: Blob with type size = SizeDomain.t and type value = Compound.t and type zeroinit = ZeroInit.t = Blob (Compound)
 
 
 module type InvariantArg =
