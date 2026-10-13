@@ -1276,7 +1276,7 @@
           "properties": {
             "precheck": {
               "title": "ana.unassume.precheck",
-              "description": "Check if invariant contradicts reached state before unassuming.",
+              "description": "Exclude invariant disjuncts (recursively) which contradict reached state before unassuming. This is useful for invariants from unrolled loops, but violates specification S6 from Simmo Saan's PhD thesis.",
               "type": "boolean",
               "default": false
             }
