@@ -34,7 +34,7 @@
       "pthreadMutexType",
       "affeq",
       "apron",
-      "branchSet"
+      "branchSetFull"
     ],
     "apron": {
       "domain": "octagon"
@@ -47,7 +47,7 @@
       "activeSetjmp",
       "memLeak",
       "threadflag",
-      "branchSet"
+      "branchSetFull"
     ],
     "base": {
       "arrays": {
