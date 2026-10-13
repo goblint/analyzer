@@ -18,7 +18,9 @@ Easiest to run again to get evals.
 
   $ goblint --set ana.activated[+] var_eq --disable ana.int.def_exc --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 74-var_eq-unassume-interval.yml 74-var_eq-unassume-interval.c
   [Info][Witness] unassume invariant: (long long )i >= 0LL && 100LL - (long long )i >= 0LL (74-var_eq-unassume-interval.c:5:7-5:12)
+  [Info][Witness] base unassumed invariant: (long long )i >= 0LL && 100LL - (long long )i >= 0LL (74-var_eq-unassume-interval.c:5:7-5:12)
   [Info][Witness] unassume invariant: (long long )i >= 0LL && 100LL - (long long )i >= 0LL (74-var_eq-unassume-interval.c:7:5-7:8)
+  [Info][Witness] base unassumed invariant: (long long )i >= 0LL && 100LL - (long long )i >= 0LL (74-var_eq-unassume-interval.c:7:5-7:8)
   [Success][Assert] Assertion "i == 100" will succeed (74-var_eq-unassume-interval.c:9:3-9:29)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
