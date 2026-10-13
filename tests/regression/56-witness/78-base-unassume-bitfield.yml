@@ -1,0 +1,34 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: e133b5aa-f357-4efe-ad05-edb361758d67
+    creation_time: 2026-09-25T09:40:02Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 78-base-unassume-bitfield.c
+      input_file_hashes:
+        78-base-unassume-bitfield.c: deec2ae3e3a9d7993c0882ff34167a26436e18e76f2de7758b26298fb73559f6
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 78-base-unassume-bitfield.c
+        line: 6
+        column: 3
+        function: main
+      value: (a | 4) == 4
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 78-base-unassume-bitfield.c
+        line: 10
+        column: 3
+        function: main
+      value: (b & 4) == 0
+      format: c_expression

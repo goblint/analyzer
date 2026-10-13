@@ -346,6 +346,7 @@ module CilMaps = CilMaps
 module Messages = Messages
 module Logs = Logs
 module Checks = Checks
+module Assumptions = Assumptions
 
 (** {2 Front-end}
 

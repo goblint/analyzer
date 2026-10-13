@@ -121,12 +121,12 @@ module Enums : S with type int_t = Z.t = struct
     if Z.compare x y = 0 then
       of_int ik x
     else
-      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let a, b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
       let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
-  let join _ x y =
+  let join ik x y =
     match x, y with
     | Inc x, Inc y -> Inc (BISet.union x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (BISet.inter x y, R.join r1 r2)
@@ -135,7 +135,7 @@ module Enums : S with type int_t = Z.t = struct
       let r = if BISet.is_empty y
         then r
         else
-          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn Size.min_range_sign_agnostic (BISet.min_elt y, BISet.max_elt y) in
+          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn (Size.min_range_sign_agnostic ik) (BISet.min_elt y, BISet.max_elt y) in
           let range = R.join min_el_range max_el_range in
           R.join r range
       in
@@ -228,8 +228,8 @@ module Enums : S with type int_t = Z.t = struct
   let rem = lift2 Z.rem
 
   (* TODO: should be used by lognot? *)
-  let[@warning "-unused-value-declaration"] apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = (size % Size.min_for % f) (m r) in
+  let[@warning "-unused-value-declaration"] apply_range ik f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = (size % Size.min_for ~ik % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
 
@@ -349,7 +349,7 @@ module Enums : S with type int_t = Z.t = struct
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
     norm ik @@ Exc (exc, size ik)
-  let is_excl_list = BatOption.is_some % to_excl_list
+
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
   let to_bitfield ik x =
@@ -460,11 +460,10 @@ module Enums : S with type int_t = Z.t = struct
   (* What is generally safe is shrinking an inclusion set as no new elements appear here. *)
   (* What is not safe is growing an exclusion set or switching from an exclusion set to an inclusion set *)
 
-  let refine_with_congruence ik a b =
+  let refine_with_congruence ik a (c, m) =
     let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
-    match a, b with
-    | Inc e, None -> bot_of ik
-    | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =
@@ -475,19 +474,18 @@ module Enums : S with type int_t = Z.t = struct
       x
 
   let refine_with_interval ik a b =
-    match a, b with
-    | Inc _, None -> bot_of ik
-    | Inc e, Some (l, u) -> Inc (BISet.filter (value_in_range (l,u)) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (value_in_range b) e)
     | _ -> a
 
-  let refine_with_excl_list ik a b =
-    match a, b with
-    | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
+  let refine_with_excl_list ik a (ls, _) =
+    match a with
+    | Inc _ -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
-  let refine_with_incl_list ik a b =
-    match a, b with
-    | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
+  let refine_with_incl_list ik a ls =
+    match a with
+    | Inc x -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
 
   let project ik p t = t

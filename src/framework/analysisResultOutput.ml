@@ -98,6 +98,7 @@ struct
           ("files", Preprocessor.dependencies_to_yojson ());
           ("time", `Float (if get_bool "dbg.timing.enabled" then timings.cputime else -1.));
           ("checks", Checks.export ());
+          ("assumptions", Assumptions.to_dashboard_yojson ());
         ] in
       Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()

@@ -14,6 +14,6 @@
   < [Error][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of pointer is 5 (in bytes). It is offset by 10 (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur (01-oob-heap-simple.c:10:5-10:22)
   < [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of pointer (5) (in bytes) with offset by (⊤) (in bytes). Memory out-of-bounds access might occur (01-oob-heap-simple.c:11:5-11:21)
   ---
-  > [Error][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of pointer is (5,[5,5]) (in bytes). It is offset by (10,[10,10]) (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur (01-oob-heap-simple.c:10:5-10:22)
-  > [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of pointer ((5,[5,5])) (in bytes) with offset by ((Unknown int([-63,63]),[-9223372036854775808,9223372036854775807])) (in bytes). Memory out-of-bounds access might occur (01-oob-heap-simple.c:11:5-11:21)
+  > [Error][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of pointer is (5,[5,5]) (long) (in bytes). It is offset by (10,[10,10]) (long) (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur (01-oob-heap-simple.c:10:5-10:22)
+  > [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of pointer ((5,[5,5]) (long)) (in bytes) with offset by ((Unknown int([-63,63]),[-9223372036854775808,9223372036854775807]) (long)) (in bytes). Memory out-of-bounds access might occur (01-oob-heap-simple.c:11:5-11:21)
   [1]

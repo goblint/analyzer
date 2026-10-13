@@ -33,9 +33,6 @@ sig
     val is_definite: t -> bool
     (** Whether address is a [NULL] pointer or an mvalue that has only definite integer indexing (and fields). *)
 
-    val add_offset: t -> Mval.idx Offset.t -> t
-    (** [add_offset a o] appends [o] to an mvalue address [a]. *)
-
     val of_var: GoblintCil.varinfo -> t
     (** Convert from variable (without offset). *)
 
