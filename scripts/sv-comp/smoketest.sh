@@ -13,7 +13,7 @@ set -o pipefail # Make pipes fail if any command in pipe fails.
 
 # Run smoke tests in subdirectory for convenience.
 cd smoketests/
-GOBLINT="../goblint_runner.py --portfolio-conf conf/svcomp26/seq.txt"
+GOBLINT="../goblint_runner.py --portfolio-conf conf/svcomp27/seq.txt"
 # This will also check if Goblint works when executed from different directory (finds Apron libs, conf, lib stubs), crashes otherwise.
 
 
@@ -32,7 +32,7 @@ $GOBLINT --set ana.specification no-data-race.prp --set exp.architecture 32bit 0
 
 
 # Check if witness validation returns correct results.
-GOBLINT_VALIDATOR="../goblint_runner.py --portfolio-conf conf/svcomp26/seq-validate.txt"
+GOBLINT_VALIDATOR="../goblint_runner.py --portfolio-conf conf/svcomp27/seq-validate.txt"
 
 # From scratch verification actually succeeds for a variety of reasons (abortUnless analysis, wideningThresholds autotuner):
 # This is not intentional.
