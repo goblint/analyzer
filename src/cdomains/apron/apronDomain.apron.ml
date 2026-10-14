@@ -537,6 +537,10 @@ struct
           if M.tracing then M.trace "apron" "assert_constraint st: %a" D.pretty d;
           if M.tracing then M.trace "apron" "assert_constraint tcons1: %a" Tcons1.pretty tcons1;
           let r = meet_tcons ask d tcons1 e in
+          (* sv-benchmarks termination-restricted-15/IntPath needs stronger normalization for integers *)
+          (* let r = meet_tcons ask r tcons1 e in *) (* meeting twice works (polyhedra and octagon) *)
+          (* A.canonicalize Man.mgr r; *) (* this doesn't help *)
+          A.approximate Man.mgr r (-1); (* this also works, but does it approximate something away? (polyhedra only, octagon crashes) *)
           if M.tracing then M.trace "apron" "assert_constraint r: %a" D.pretty r;
           r
         | exception Convert.Unsupported_CilExp reason ->
