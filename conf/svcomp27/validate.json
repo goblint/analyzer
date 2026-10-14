@@ -1,5 +1,8 @@
 {
   "ana": {
+    "unassume": {
+      "precheck": true
+    },
     "widen": {
       "tokens": true
     }
