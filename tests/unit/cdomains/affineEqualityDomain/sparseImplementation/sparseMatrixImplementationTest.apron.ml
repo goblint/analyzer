@@ -392,6 +392,11 @@ let test () =
     "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
     "zero vector is covered by m2" >:: is_zero_vec_covered;
     "m1 is not covered by m2" >:: is_not_covered;
+    "[1;0;0] not covered by [0;1;0]" >:: is_covered_by_disjoint_simple;
+    "[0;1;0] not covered by [1;0;0]" >:: is_covered_by_disjoint_reversed;
+    "[1;0;0] covered by [1;0;0]" >:: is_covered_by_equal;
+    "[1;1;0] covered by [1;0;0],[0;1;0]" >:: is_covered_by_sum_of_rows;
+    "[1;1;0;0] not covered by [1;0;0;0],[0;0;1;0]" >:: is_covered_by_missing_component;
     "m1 is covered by m2 with big matrix" >:: is_covered_big;
     "does not change an empty matrix" >:: normalize_empty;
     "can correctly normalize a two column matrix" >:: normalize_two_columns;
