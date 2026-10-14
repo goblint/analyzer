@@ -45,8 +45,10 @@ int main () {
   pthread_t t1;
   struct s *p;
 
-  slot[j] = new(1);
-  list_add(new(2), slot[j]);
+  for (int k = 0; k < 10; k++) {
+    slot[k] = new(1);
+    list_add(new(2), slot[k]);
+  }
 
   pthread_create(&t1, NULL, t_fun, NULL);
 

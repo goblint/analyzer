@@ -93,6 +93,7 @@ depends: [
   "ocamlc-loc" {= "3.21.1" & with-dev-setup}
   "ocamlfind" {= "1.9.8"}
   "ocamlformat-rpc-lib" {= "0.29.0" & with-dev-setup}
+  "ocamlgraph" {= "2.2.0"}
   "ocp-indent" {= "1.8.1" & with-dev-setup}
   "odoc" {= "3.0.0" & with-doc}
   "odoc-parser" {= "3.0.0" & with-doc}
@@ -164,7 +165,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.1.0"
-    "git+https://github.com/goblint/cil.git#d97418f2e8d2aa88a36c22397c38ccf4d3ffbcde"
+    "git+https://github.com/goblint/cil.git#aaf3d3555b76b0b7ea68011034176f46d58a2a15"
   ]
   [
     "batteries.3.11.0"

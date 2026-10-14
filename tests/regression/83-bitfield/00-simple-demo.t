@@ -5,7 +5,7 @@
     dead: 0
     total lines: 13
   [Info][Witness] witness generation summary:
-    location invariants: 24
+    location invariants: 22
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -19,15 +19,6 @@
           file_name: 00-simple-demo.c
           line: 13
           column: 3
-          function: main
-        value: testvar == 235
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 00-simple-demo.c
-          line: 15
-          column: 5
           function: main
         value: testvar == 235
         format: c_expression
@@ -73,15 +64,6 @@
           file_name: 00-simple-demo.c
           line: 17
           column: 7
-          function: main
-        value: testvar == 235
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 00-simple-demo.c
-          line: 19
-          column: 5
           function: main
         value: testvar == 235
         format: c_expression
