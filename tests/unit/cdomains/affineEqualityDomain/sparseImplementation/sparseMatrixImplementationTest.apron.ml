@@ -226,6 +226,40 @@ let is_not_covered _ =
   let result = Matrix.is_covered_by m2 m1 in
   assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
 
+let is_covered_by_disjoint_simple _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
+let is_covered_by_disjoint_reversed _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
+let is_covered_by_equal _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_covered_by_sum_of_rows _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 0]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0];
+     [int 0; int 1; int 0]] in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_covered_by_missing_component _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 0; int 0]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0];
+     [int 0; int 0; int 1; int 0]] in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
 let is_covered_big _ =
   let m1 = make_matrix_of_2d_list @@
     [[int 1; int 0; int 0; int 0; int 0; int (-1); int 0];
