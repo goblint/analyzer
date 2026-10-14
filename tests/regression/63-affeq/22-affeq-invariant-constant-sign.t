@@ -21,5 +21,5 @@ The correct invariant is `x = z + 1`, not `x + 1 = z`:
           line: 7
           column: 3
           function: main
-        value: (long long )x + 1LL == (long long )z
+        value: (long long )x == (long long )z + 1LL
         format: c_expression
