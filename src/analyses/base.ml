@@ -317,7 +317,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop_base ~man (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base ~man (op: binop) (a1:value) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -888,14 +888,14 @@ struct
         let a1 = eval_rv ~man st e1 in
         let a2 = eval_rv ~man st e2 in
         let extra_is_safe =
-          match evalbinop_base ~man op t1 a1 t2 a2 typ with
+          match evalbinop_base ~man op a1 a2 typ with
           | Int i -> ID.to_bool i = Some true
           | _
           | exception IntDomain.IncompatibleIKinds _ -> false
         in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
-        evalbinop ~man st op ~e1 ~t1 ~e2 ~t2 typ
+        evalbinop ~man st op ~e1 ~e2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
         let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
@@ -1060,17 +1060,15 @@ struct
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
 
-  and evalbinop ~man (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
-    evalbinop_mustbeequal ~man st op ~e1 ?t1 ~e2 ?t2 t
+  and evalbinop ~man (st: store) (op: binop) ~(e1:exp) ~(e2:exp) (t:typ): value =
+    evalbinop_mustbeequal ~man st op ~e1 ~e2 t
 
   (** Evaluate BinOp using MustBeEqual query as fallback. *)
-  and evalbinop_mustbeequal ~man (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+  and evalbinop_mustbeequal ~man (st: store) (op: binop) ~(e1:exp) ~(e2:exp) (t:typ): value =
     (* Evaluate structurally using base at first. *)
     let a1 = eval_rv ~man st e1 in
     let a2 = eval_rv ~man st e2 in
-    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
-    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
-    let r = evalbinop_base ~man op t1 a1 t2 a2 t in
+    let r = evalbinop_base ~man op a1 a2 t in
     if Cil.isIntegralType t then (
       match r with
       | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
