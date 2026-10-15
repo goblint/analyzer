@@ -84,28 +84,29 @@ struct
   open Q.Protection
   open Q.ProtectionKind
 
-  let is_unprotected ask ?(kind=Write) ?(protection=Strong) x: bool =
+  let is_unprotected ask ?(kind=Write) ?(protection=Strong) (Var.Cil vi as x): bool =
     let multi = if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask in
     (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
-      ask.f (Q.MayBePublic {global=x; kind; protection})
+      ask.f (Q.MayBePublic {global=vi; kind; protection})
     )
 
-  let is_unprotected_without ask ?(kind=Write) ?(protection=Strong) x m: bool =
+  let is_unprotected_without ask ?(kind=Write) ?(protection=Strong) (Var.Cil x) m: bool =
     (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
     ask.f (Q.MayBePublicWithout {global=x; kind; without_mutex=m; protection})
 
-  let is_protected_by ask ?(kind=Write) ?(protection=Strong) m x: bool =
+  let is_protected_by ask ?(kind=Write) ?(protection=Strong) m (Var.Cil vi as x): bool =
     is_global ask x &&
-    not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; kind; protection})
+    not (VD.is_immediate_type (Var.typ x)) &&
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=vi; kind; protection})
 
-  let protected_vars (ask: Q.ask) ~(kind): varinfo list =
+  let protected_vars (ask: Q.ask) ~(kind): Var.t list =
     LockDomain.MustLockset.fold (fun ml acc ->
         Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; kind})) acc
       ) (ask.f Q.MustLockset) (Q.VS.empty ())
     |> Q.VS.elements
+    |> List.map (fun x -> Var.Cil x)
 end
 
 module MutexGlobals =
@@ -118,7 +119,7 @@ struct
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
   module VGlobal =
   struct
-    include VarinfoV
+    include VarV
     let name () = "global"
   end
   module V =
@@ -132,13 +133,13 @@ struct
 
   let iter_sys_vars getg vq vf =
     match vq with
-    | Goblint_constraint.VarQuery.Global g -> vf (V.global g)
+    | Goblint_constraint.VarQuery.Global g -> vf (V.global (Cil g))
     | _ -> ()
 end
 
 module MayVars =
 struct
-  include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  include SetDomain.ToppedSet (Var) (struct let topname = "All Variables" end)
   let name () = "may variables"
 end
 
@@ -169,7 +170,7 @@ struct
 
   module W =
   struct
-    include MapDomain.PatriciaMapBot_LiftTop (Basetype.Variables) (MinLocksets)
+    include MapDomain.PatriciaMapBot_LiftTop (Var) (MinLocksets)
     let name () = "W"
   end
 
@@ -178,7 +179,7 @@ struct
     (* Note different Map order! *)
     (* MapTop because default value in P must be top of MinLocksets,
        as opposed to bottom in W. *)
-    include MapDomain.PatriciaMapTop_LiftBot (Basetype.Variables) (MinLocksets)
+    include MapDomain.PatriciaMapTop_LiftBot (Var) (MinLocksets)
     let name () = "P"
 
     (* TODO: change MinLocksets.exists/top instead? *)
@@ -263,7 +264,7 @@ struct
 
   module LLock =
   struct
-    include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
+    include Printable.Either (LockDomain.MustLock) (struct include Var let name () = "global" end)
     let mutex m = `Left m
     let global x = `Right x
   end

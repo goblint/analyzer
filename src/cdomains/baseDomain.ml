@@ -5,11 +5,11 @@ module VD = ValueDomain.Compound
 
 module CPA =
 struct
-  module M0 = MapDomain.PatriciaMapBot (Basetype.Variables) (VD)
+  module M0 = MapDomain.PatriciaMapBot (Var) (VD)
   module M =
   struct
     include M0
-    include MapDomain.PrintGroupable (Basetype.Variables) (VD) (M0)
+    include MapDomain.PrintGroupable (Var) (VD) (M0)
   end
   include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
   let name () = "value domain"
