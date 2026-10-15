@@ -21,7 +21,7 @@ sig
 
   val to_list : t -> (key * value) list
   val to_seq : t -> (key * value) Seq.t
-  val to_seq_values : t -> value Seq.t
+  (* val to_seq_values : t -> value Seq.t *)
   val to_hashtbl : t -> D.t HM.t
 
   val find_option : t -> key -> value option
