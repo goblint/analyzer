@@ -56,7 +56,7 @@ module TD3 =
           let tmp = S.Dom.join tmp (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
-          let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else if wpx then box old tmp else tmp in
+          let tmp = if is_side x then S.Dom.widen old tmp else if wpx then box old tmp else tmp in
           HM.remove called x;
           if not (S.Dom.equal old tmp) then begin
             update_var_event x old tmp;
@@ -73,11 +73,11 @@ module TD3 =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
-          let effects = ref Set.empty in
+          let effects = ref VS.empty in
           let sidef y d =
-            if not (Set.mem y !effects) then (
+            if not (VS.mem y !effects) then (
               HPM.replace rho' (x,y) (S.Dom.bot ());
-              effects := Set.add y !effects
+              effects := VS.add y !effects
             );
             set y d
           in

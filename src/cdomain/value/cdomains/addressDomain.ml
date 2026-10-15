@@ -82,11 +82,6 @@ struct
     | StrPtr s -> SD.to_exp s
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
-  (* TODO: unused *)
-  let add_offset x o = match x with
-    | Addr m -> Addr (Mval.add_offset m o)
-    | x -> x
-
 
   let is_definite = function
     | NullPtr -> true
@@ -377,7 +372,7 @@ struct
     | false, false -> cop x y
 
   let meet x y   = merge join meet x y
-  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+  let narrow x y = merge widen narrow x y
 
   let meet x y =
     if M.tracing then M.traceli "ad" "meet %a %a" pretty x pretty y;

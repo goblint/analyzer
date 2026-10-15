@@ -64,6 +64,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let nabla x y= if x =: (x |: y) then x else one_mask
 
   let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)
+  let widen x y = widen x (join x y) (* TODO: inline? *)
 
   let lognot (z,o) = (o,z)
 
@@ -645,30 +646,24 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Refinements *)
 
-  let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
-    match cong with
-    | Some (c, m) -> meet ik bf (of_congruence ik (c,m))
-    | _ -> norm ik bf
+  let refine_with_congruence ik bf (cong : int_t * int_t) : t =
+    meet ik bf (of_congruence ik cong)
 
   let refine_with_interval ik t itv =
-    match itv with
-    | None -> norm ik t
-    | Some (l, u) -> meet ik t (of_interval ik (l, u) |> fst)
+    meet ik t (of_interval ik itv |> fst)
 
   let refine_with_bitfield ik x y = meet ik x y
 
-  let refine_with_excl_list ik t (excl : (int_t list * (int * int)) option) : t = norm ik t
+  let refine_with_excl_list ik t (excl : int_t list * (int * int)) : t = norm ik t
 
-  let refine_with_incl_list ik t (incl : (int_t list) option) : t =
-    let joined =match incl with
-      | None -> top_of ik
-      | Some ls ->
-        List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
+  let refine_with_incl_list ik t (ls : int_t list) : t =
+    let joined =
+      List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
     in
     meet ik t joined
 
 
-  let refine_bor (az, ao) (bz, bo) (cz, co) =
+  let refine_bor ik (az, ao) (bz, bo) (cz, co) =
     let cDef0 = cz &: (!: co) in
     let cDef1 = co &: (!: cz) in
     let aDef0 = az &: (!: ao) in
@@ -676,16 +671,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* if a bit is definitely 0 in b and definitely 1 in c, the same bit must be definitely 1 in a *)
     (* example (with t for top): (tttt) | (t010) = (1011) *)
     (* we can refine (tttt) to (ttt1) because the lowest 1 of c must come from a *)
-    let az = az &: (!: (bDef0 &: cDef1)) in
-    let bz = bz &: (!: (aDef0 &: cDef1)) in
+    let az = !: (bDef0 &: cDef1) in
+    let bz = !: (aDef0 &: cDef1) in
     (* if a bit is definitely 0 in c, the same bit must be definitely 0 in a too *)
     (* example (with t for top): (ttt1) | (t010) = (1011) *)
     (* we can refine (ttt1) to (t0t1) because the second bit of a cannot be a 1 *)
-    let ao = ao &: (!: cDef0) in
-    let bo = bo &: (!: cDef0) in
-    ((az, ao), (bz, bo))
+    let ao = !: cDef0 in
+    let bo = !: cDef0 in
+    (norm ik (az, ao), norm ik (bz, bo))
 
-  let refine_band (az, ao) (bz, bo) (cz, co) =
+  let refine_band ik (az, ao) (bz, bo) (cz, co) =
     let cDef0 = cz &: (!: co) in
     let cDef1 = co &: (!: cz) in
     let aDef1 = ao &: (!: az) in
@@ -693,14 +688,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* if a bit is definitely 1 in c, the same bit must be definitely 1 in a too *)
     (* example (with t for top): (tttt) & (t010) = (1011) *)
     (* we can refine (tttt) to (1t11) *)
-    let az = az &: (!: cDef1) in
-    let bz = bz &: (!: cDef1) in
+    let az = !: cDef1 in
+    let bz = !: cDef1 in
     (* if a bit is definitely 1 in b and definitely 0 in c, the same bit must be definitely 0 in a *)
     (* example (with t for top): (tttt) & (t110) = (1011) *)
     (* we can refine (tttt) to (t0tt) *)
-    let ao = ao &: (!: (bDef1 &: cDef0)) in
-    let bo = bo &: (!: (aDef1 &: cDef0)) in
-    ((az, ao), (bz, bo))
+    let ao = !: (bDef1 &: cDef0) in
+    let bo = !: (aDef1 &: cDef0) in
+    (norm ik (az, ao), norm ik (bz, bo))
 
   let arbitrary ik =
     let open QCheck.Iter in
