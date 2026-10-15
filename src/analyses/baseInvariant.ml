@@ -633,21 +633,24 @@ struct
       | TFloat (fk, _) -> fk
       | _ -> failwith "value which was expected to be a float is of different type?!"
     in
-    (* Integers of kind ik whose conversion to floating-point may lie within c, or None if there are none.
-       An integer that cannot be represented exactly is converted to the nearest higher or nearest lower representable value (C99/C11 6.3.1.4p2),
+    (* Integers of kind ik whose conversion to floating-point may lie within the abstract float value c, or None if there are none.
+
+       In C, an integer that cannot be represented exactly is converted to the nearest higher or nearest lower representable value (C99/C11 6.3.1.4p2),
        so a converted value of at least c_min implies an integer greater than pred c_min, independently of the rounding mode (and analogously for c_max).
        Using double-precision pred/succ is only sound if the floating-point type is at least as precise as double. *)
     let inv_int_to_float_cast ik c =
       let (ik_min, ik_max) = IntDomain.Size.range ik in
-      let least_int_above x = Z.succ (Z.of_float (Float.floor x)) in
-      let greatest_int_below x = Z.pred (Z.of_float (Float.ceil x)) in
-      let int_bound float_bound step_outward to_int default =
+      let least_int_above (x: float) = Z.succ (Z.of_float (Float.floor x)) in
+      let greatest_int_below (x: float) = Z.pred (Z.of_float (Float.ceil x)) in
+      let int_bound float_bound step_outward to_int ~default =
         match float_bound c with
         | Some bound when Float.is_finite (step_outward bound) -> to_int (step_outward bound)
         | _ -> default
       in
-      let lower = Z.max ik_min (int_bound FD.minimal Float.pred least_int_above ik_min) in
-      let upper = Z.min ik_max (int_bound FD.maximal Float.succ greatest_int_below ik_max) in
+      let lower_from_float = int_bound FD.minimal Float.pred least_int_above ~default:ik_min in
+      let upper_from_float = int_bound FD.maximal Float.succ greatest_int_below ~default:ik_max in
+      let lower = Z.max ik_min lower_from_float in
+      let upper = Z.min ik_max upper_from_float in
       if Z.gt lower upper then None else Some (ID.of_interval ik (lower, upper))
     in
     let rec inv_exp c_typed exp (st:D.t): D.t =
