@@ -47,6 +47,14 @@
       (apron -> linearTwoVarEqualityDomain.apron.ml)
       (-> linearTwoVarEqualityDomain.no-apron.ml)
     )
+    (select sparseOctagonAnalysis.ml from
+      (apron -> sparseOctagonAnalysis.apron.ml)
+      (-> sparseOctagonAnalysis.no-apron.ml)
+    )
+    (select sparseOctagonDomain.ml from
+      (apron -> sparseOctagonDomain.apron.ml)
+      (-> sparseOctagonDomain.no-apron.ml)
+    )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
       (-> relationAnalysis.no-apron.ml)
