@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated '["gStoreWidening","effectivelyLocal","assert","base","mallocWrapper","thread","threadid","escape"]' --set ana.base.privatization none --enable exp.globs_are_top
+// SKIP PARAM: --set ana.activated '["gStoreWidening","effectivelyLocal","assert","base","mallocWrapper","weakUpdates","thread","threadid","escape"]' --set ana.base.privatization none --enable exp.globs_are_top
 // Additional analyses are activated so framework can handle thread creation
 #include <goblint.h>
 #include <pthread.h>
