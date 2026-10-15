@@ -45,6 +45,8 @@ let of_string = function
 let of_option () =
   of_string (GobConfig.get_string "witness.yaml.format-version")
 
+let leq x y = compare x y <= 0
+
 let min x y =
   Option.get (of_enum (Int.min (to_enum x) (to_enum y)))
 

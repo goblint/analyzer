@@ -1,6 +1,6 @@
 (** YAML witness format version. *)
 
-type t [@@deriving ord]
+type t
 
 val v2_0: t
 val v2_1: t
@@ -16,5 +16,6 @@ val pretty : unit -> t -> GoblintCil.Pretty.doc
 val of_string : string -> t
 val of_option : unit -> t
 
+val leq : t -> t -> bool
 val min : t -> t -> t (* TODO: unused *)
 val max : t -> t -> t
