@@ -180,7 +180,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("remove", unknown [drop "pathname" [r]]);
     ("raise", unknown [drop "sig" []]); (* safe-ish, we don't handle signal handlers for now *)
     ("timespec_get", unknown [drop "ts" [w]; drop "base" []]);
-    ("signal", unknown [drop "signum" []; drop "handler" [s]]);
+    ("signal", special [__ "signum" []; __ "handler" [s]] @@ fun signal handler -> SignalHandler {signal; handler});
     ("va_arg", unknown [drop "ap" [r]; drop "T" []]);
     ("va_start", unknown [drop "ap" [r_deep]; drop "parmN" []]);
     ("va_end", unknown [drop "ap" [r_deep]]);
@@ -301,7 +301,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gethostname", unknown [drop "name" [w]; drop "len" []]);
     ("getpeername", unknown [drop "sockfd" []; drop "addr" [w_deep]; drop "addrlen" [r; w]]);
     ("socket", unknown [drop "domain" []; drop "type" []; drop "protocol" []]);
-    ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]);
+    ("sigaction", unknown [drop "signum" []; drop "act" [r_deep; s_deep]; drop "oldact" [w_deep]]); (* TODO: SignalHandler special *)
     ("tcgetattr", unknown [drop "fd" []; drop "termios_p" [w_deep]]);
     ("tcsetattr", unknown [drop "fd" []; drop "optional_actions" []; drop "termios_p" [r_deep]]);
     ("access", unknown [drop "pathname" [r]; drop "mode" []]);
