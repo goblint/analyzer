@@ -3096,7 +3096,7 @@ struct
       if M.tracing then M.traceu "unassume" "base unassumed";
       r
     in
-    M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
+    M.debug ~category:Witness "base unassumed invariant: %a" d_exp e;
     M.debug ~category:Witness "base unassumed state: %a" D.pretty e_d;
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
