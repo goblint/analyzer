@@ -457,7 +457,7 @@ struct
   let min_version {content} =
     List.to_seq content
     |> Seq.map InvariantKind.min_version
-    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.v2_0
+    |> Seq.fold_left YamlWitnessVersion.join YamlWitnessVersion.v2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map InvariantKind.to_yaml content))]
@@ -693,7 +693,7 @@ struct
     let min_version {segment} =
       List.to_seq segment
       |> Seq.map Waypoint.min_version
-      |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.v2_0
+      |> Seq.fold_left YamlWitnessVersion.join YamlWitnessVersion.v2_0
 
     let to_yaml {segment} =
       `O [("segment", `A (List.map Waypoint.to_yaml segment))]
@@ -714,7 +714,7 @@ struct
   let min_version {content} =
     List.to_seq content
     |> Seq.map Segment.min_version
-    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.v2_0
+    |> Seq.fold_left YamlWitnessVersion.join YamlWitnessVersion.v2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map Segment.to_yaml content))]

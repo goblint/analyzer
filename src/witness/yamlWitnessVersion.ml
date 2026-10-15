@@ -47,8 +47,8 @@ let of_option () =
 
 let leq x y = compare x y <= 0
 
-let min x y =
+let meet x y =
   Option.get (of_enum (Int.min (to_enum x) (to_enum y)))
 
-let max x y =
+let join x y =
   Option.get (of_enum (Int.max (to_enum x) (to_enum y)))

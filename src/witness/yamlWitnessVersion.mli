@@ -17,5 +17,5 @@ val of_string : string -> t
 val of_option : unit -> t
 
 val leq : t -> t -> bool
-val min : t -> t -> t (* TODO: unused *)
-val max : t -> t -> t
+val meet : t -> t -> t (* TODO: unused *)
+val join : t -> t -> t
