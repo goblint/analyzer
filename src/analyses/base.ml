@@ -629,7 +629,7 @@ struct
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
      * join all its values. *)
-    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get (Queries.to_value_domain_ask ask) a (None, ValueDomain.IndexDomain.top ())) t description
+    | Array a -> reachable_from_value ask (ValueDomain.CArrays.get  (Queries.to_value_domain_ask ask) a (None, ValueDomain.IndexDomain.top ())) t description
     | Blob (e,_,_) -> reachable_from_value ask e t description
     | Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask v t description) acc) s empty
     | Int _ -> empty
