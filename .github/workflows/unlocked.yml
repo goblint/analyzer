@@ -51,6 +51,10 @@ jobs:
             z3: false
 
           # OS-s
+          - os: ubuntu-26.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
           - os: ubuntu-22.04
             ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
             apron: true
