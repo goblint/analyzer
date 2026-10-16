@@ -98,6 +98,7 @@ struct
           let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           begin
+            let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
             try SizeDomain.mul item_typ_size_in_bytes arr_len
             with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
@@ -267,7 +268,10 @@ struct
       let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ds) in (* TODO: proper castkind *) (* TODO: don't unlift *)
       let casted_en = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) en in (* TODO: proper castkind *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
-      let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
+      let dest_size_lt_count =
+        let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+        ID.lt casted_ds (ID.add casted_en casted_ao)
+      in
       match dest_size_lt_count with
       | Some true ->
         set_mem_safety_flag InvalidDeref;
