@@ -21,7 +21,7 @@
   [Info][Assumption] Mutexes are non-recursive by default
 
   $ grep format_version witness.yml
-      format_version: "2.1"
+      format_version: 2.1-goblint
       format_version: 2.1-goblint
 
   $ yamlWitnessStrip < witness.yml | tee witness.flow_insensitive.yml
@@ -121,10 +121,10 @@ Flow-insensitive invariants as location invariants.
     total memory locations: 1
   [Info][Assumption] Mutexes are non-recursive by default
 
-TODO: should invariant_set-s which use ghosts also be 2.1?
+invariant_set-s which use ghosts also be 2.1 (issue #1902).
   $ grep format_version witness.yml
       format_version: "2.1"
-      format_version: "2.0"
+      format_version: "2.1"
 
   $ yamlWitnessStrip < witness.yml > witness.location.yml
 
