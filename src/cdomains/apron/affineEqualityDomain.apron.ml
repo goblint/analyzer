@@ -236,7 +236,7 @@ struct
     let sup_env = Environment.lce t1.env t2.env in
 
     let t1, t2 = dimchange2_add t1 sup_env, dimchange2_add t2 sup_env in
-    if is_bot t1 || is_bot_env t1 || is_bot t2 || is_bot_env t2 then
+    if is_bot t1 || is_bot t2 then
       bot ()
     else
       (* Option.get, because is_bot checks if t1.d is None and we checked is_bot before. *)
@@ -266,9 +266,9 @@ struct
       (*  0:  if equality,  (OK) *)
       (* +1: if env1 is a superset of env2, and +2 otherwise (the lce exists and is a strict superset of both) *)
       false
-    else if is_bot t1 || is_bot_env t1 || is_top_env t2 then
+    else if is_bot t1 || is_top_env t2 then
       true
-    else if is_bot t2 || is_bot_env t2 || is_top_env t1 then
+    else if is_bot t2 || is_top_env t1 then
       false
     else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
@@ -283,9 +283,9 @@ struct
     res
 
   let join a b =
-    if is_bot a || is_bot_env a then
+    if is_bot a then
       b
-    else if is_bot b || is_bot_env b then
+    else if is_bot b then
       a
     else
       match Option.get a.d, Option.get b.d with
@@ -322,7 +322,7 @@ struct
   let remove_rels_with_var x var env = timing_wrap "remove_rels_with_var" remove_rels_with_var x var env
 
   let forget_vars t vars =
-    if is_bot t || is_bot_env t || is_top_env t || vars = [] then
+    if is_bot t || is_top_env t || vars = [] then
       t
     else
       let m = Option.get t.d in
@@ -364,7 +364,7 @@ struct
     (* let assign_uninvertible_rel x var b env = timing_wrap "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <>: Mpqf.zero
     in let affineEq_vec = get_coeff_vec t texp in
-    if is_bot t || is_bot_env t then t else let m = Option.get t.d in
+    if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
       | Some v when is_top_env t ->
         if is_invertible v then t else assign_uninvertible_rel m var v t.env
@@ -377,13 +377,12 @@ struct
   let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
 
   let assign_exp ask (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
-    if is_bot_env t then t else
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     (* TODO: Do we need to do a constant folding here? It happens for texpr1_of_cil_exp *)
     match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp _ ->
-      forget_vars t [var]
+      if is_bot t then t else forget_vars t [var]
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
@@ -392,7 +391,6 @@ struct
     res
 
   let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
-    if is_bot_env t then t else
     let t = add_vars t [v; v'] in
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
     assign_texpr t v (Apron.Texpr1.to_expr texpr1)
@@ -403,7 +401,6 @@ struct
     res
 
   let assign_var_parallel t vv's =                                (* vv's is a list of pairs of lhs-variables and their rhs-values *)
-    if is_bot_env t then t else
     let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in                           (* introduce all lhs-variables to the relation data structure *)
     let primed_vars = List.init                                   (* create a list with primed variables "i'" for each lhs-variable *)
@@ -486,7 +483,7 @@ struct
       (* Flip the sign of the const. val in coeff vec *)
       let coeff = Vector.nth e (Vector.length e - 1) in
       let e = Vector.set_nth e (Vector.length e - 1) (Mpqf.neg coeff) in
-      if is_bot t || is_bot_env t then
+      if is_bot t then
         bot ()
       else
         match Matrix.rref_vec (Option.get t.d) e with
