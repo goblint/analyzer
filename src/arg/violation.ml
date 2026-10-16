@@ -404,12 +404,25 @@ struct
     (* TODO: "witness generation summary" message *)
     YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 
+  let remove_invalid_segments seg_nrs (segToPathMap, segments) =
+    (* Witch numbers the filtered witness consecutively. Keep each retained
+       segment's original raw-path suffix, including the empty target suffix. *)
+    let _, segToPathMap, rev_segments =
+      BatList.fold_lefti (fun ((new_i, map, rev_segments) as acc) old_i segment ->
+          if List.mem old_i seg_nrs then acc
+          else
+            let suffix = SegNrToPathMap.find old_i segToPathMap in
+            new_i + 1, SegNrToPathMap.add new_i suffix map, segment :: rev_segments
+        ) (0, SegNrToPathMap.empty, []) segments
+    in
+    segToPathMap, List.rev rev_segments
+
   let check_and_remove_invalid_locs lines (segToPathMap, segments) =
     match extract_invalid_locations lines with
     | Some seg_nrs ->
-      let segments' = List.filteri (fun i _ -> not @@ List.mem i seg_nrs) segments in
+      let segToPathMap', segments' = remove_invalid_segments seg_nrs (segToPathMap, segments) in
       write_segments segments';
-      (segToPathMap, segments', true)
+      (segToPathMap', segments', true)
     | _ -> (segToPathMap, segments, false)
 
   let check_path path =
