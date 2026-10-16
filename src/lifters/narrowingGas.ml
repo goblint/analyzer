@@ -9,13 +9,13 @@ open Analyses
 
 module LocalChainParams: Printable.ChainParams =
 struct
-  let n () = GobConfig.get_int "ana.narrowing.gas"
+  let n () = GobConfig.get_int "ana.apron.narrowing_gas"
   let names = string_of_int
 end
 
 module GlobalChainParams: Printable.ChainParams =
 struct
-  let n () = GobConfig.get_int "ana.narrowing.gas"
+  let n () = GobConfig.get_int "ana.apron.narrowing_gas"
   let names = string_of_int
 end
 
