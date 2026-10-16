@@ -41,7 +41,7 @@ struct
   let narrow (b1, i1) (b2, i2) = 
     let i' = max i1 i2 in
     if i' < ChainParams.n () then
-      (Base.meet b1 b2, i' + 1)  (* Stop narrowing when counter exceeds limit. *)
+      (Base.meet b1 b2, i' + 1)  (* Use meet to delay narrowing until counter reaches limit. *)
     else
       (Base.narrow b1 b2, i')
 
@@ -50,7 +50,8 @@ struct
 end
 
 
-(** Lift {!S} to use widening delay for local states.
+
+(** Lift {!S} to use narrowing gas for local states.
 
     All transfer functions reset the counter to 0, so counting only happens between old and new values at a local unknown. *)
 module DLifter (S: Spec) (C: Printable.ChainParams): Spec =
@@ -77,7 +78,7 @@ struct
     List.map (fun x -> (x, snd man.local)) @@ S.paths_as_set (conv man)
 end
 
-(** Lift {!S} to use widening delay for global unknowns. *)
+(** Lift {!S} to use narrowing gas for global unknowns. *)
 module GLifter (S: Spec): Spec =
 struct
   module GG (G: Lattice.S) =
