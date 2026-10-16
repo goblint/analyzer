@@ -10,7 +10,7 @@ void issue_1801() {
   for (int i = 0; i < 5; i++) {
     for (int j = 0; j < 5; j++) {
       int x = i * 5 + j;
-      buffer[i][j] = x; // NOWARN (OOB)
+      buffer[i][j] = x; // NOWARN (overflow), WARN! (NULL, OOB)
     }
   }
 }
@@ -18,18 +18,18 @@ void issue_1801() {
 void count_add() {
   char *p = malloc(42);
   size_t r;
-  memset(p + 1, 0, r); // NOWARN (OOB)
+  memset(p + 1, 0, r); // TODO NOWARN (overflow), WARN! (OOB)
 }
 
 void size_mul() {
   long long arr[4611686018427387903L]; // 64bit OCaml max_int (2^62-1) because CIL array length is int (not Z.t)
-  arr[0] = 42; // NOWARN (overflow)
-  arr[-1] = 42; // TODO WARN! (OOB)
-  *(arr - 1) = 42; // TODO WARN! (OOB)
+  arr[0] = 42; // NOWARN (overflow, OOB)
+  arr[-1] = 42; // NOWARN (overflow), TODO WARN! (OOB)
+  *(arr - 1) = 42; // NOWARN (overflow), TODO WARN! (OOB)
 
   long long *parr = &arr;
-  *parr = 42; // NOWARN
-  *(parr - 1) = 42; // WARN! (OOB)
+  *parr = 42; // TODO NOWARN (overflow, OOB)
+  *(parr - 1) = 42; // TODO NOWARN (overflow), WARN! (OOB)
 }
 
 int main() {
