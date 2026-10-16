@@ -636,7 +636,7 @@ struct
     (* Integers of kind ik whose conversion to floating-point may lie within the abstract float value c, or None if there are none.
 
        In C, an integer that cannot be represented exactly is converted to the nearest higher or nearest lower representable value (C99/C11 6.3.1.4p2),
-       so a converted value of at least c_min implies an integer greater than pred c_min, independently of the rounding mode (and analogously for c_max).
+       so a converted value of at least c_min implies an integer greater than pred c_min (the highest double smaller than c_min), independently of the rounding mode (and analogously for c_max).
        Using double-precision pred/succ is only sound if the floating-point type is at least as precise as double. *)
     let inv_int_to_float_cast ik c =
       let (ik_min, ik_max) = IntDomain.Size.range ik in
