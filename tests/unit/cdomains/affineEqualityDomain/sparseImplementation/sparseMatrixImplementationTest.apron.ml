@@ -371,12 +371,17 @@ let get_col_upper_triangular _ =
     [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
      [int 0; int 1; int 0; int 0; int 0; int 0; int 0];
      [int 0; int 0; int 1; frac (-1) 3; int 0; frac 1 3; int 1]] in
-
   let result = Matrix.get_col_upper_triangular m 5 in
-
   let expected = Vector.of_list [int 0; int 0; frac 1 3] in
-
   assert_equal expected result
+
+let linear_disjunct_redundant _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int (-1); int (-5)];
+     [int 0; int 1; int 0; int (-4)]] in
+  let expected = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
+  normalize_and_assert (Matrix.linear_disjunct m1 m2) expected
 
 let test () =
   "SparseMatrixImplementationTest-Apron"
@@ -407,4 +412,5 @@ let test () =
     "map2i one zero vector" >:: vectorMap2i_one_zero;
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
     "get column when matrix in rref" >:: get_col_upper_triangular;
+    "linear_disjunct of [y=-4] and [x-z=-5;y=-4] is [y=-4]" >:: linear_disjunct_redundant;
   ]
