@@ -39,10 +39,12 @@ struct
     try ID.lt offs (IndexDomain.of_int Z.zero)
     with IntDomain.ArithmeticOnIntegerBot _ -> None
 
-  let check_offset_bounds ptr_size offs =
+  let check_offset_bounds (ptr_size: SizeDomain.t) (offs: IndexDomain.t) =
     let ptr_size_le_offs =
-      try ID.le ptr_size offs
-      with IntDomain.ArithmeticOnIntegerBot _ -> None
+      try
+        SizeDomain.le ptr_size (SizeDomain.of_index offs)
+      with IntDomain.ArithmeticOnIntegerBot _ -> (* happens if offs is definitely negative *)
+        Some false (* then definitely before the end *)
     in
     offs_lt_zero offs, ptr_size_le_offs
 
@@ -158,21 +160,20 @@ struct
              M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e);
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e
           | es ->
-            let casted_es = IndexDomain.lift (SizeDomain.unlift es) in (* TODO: don't unlift *)
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
-            begin match check_offset_bounds casted_es casted_offs with
+            begin match check_offset_bounds es casted_offs with
               | Some true, _
               | _, Some true ->
                 (set_mem_safety_flag InvalidDeref;
-                 M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs);
-                Checks.error Checks.Category.InvalidMemoryAccess "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs
+                 M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" SizeDomain.pretty es ID.pretty casted_offs);
+                Checks.error Checks.Category.InvalidMemoryAccess "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" SizeDomain.pretty es ID.pretty casted_offs
               | Some false, Some false ->
                 Checks.safe Checks.Category.InvalidMemoryAccess
               | _ ->
                 (set_mem_safety_flag InvalidDeref;
-                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs);
-                Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs
+                 M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" SizeDomain.pretty es ID.pretty casted_offs);
+                Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" SizeDomain.pretty es ID.pretty casted_offs
             end
         end;
         check_no_binop_deref man e; (* TODO: the above check and the one in check_no_binop_deref should probably be combined into one *)
@@ -196,20 +197,19 @@ struct
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
       Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
     | ps, ao ->
-      let casted_ps = IndexDomain.lift (SizeDomain.unlift ps) in (* TODO: don't unlift *)
       let casted_ao = IndexDomain.lift ao in
-      match check_offset_bounds casted_ps casted_ao with
+      match check_offset_bounds ps casted_ao with
       | Some true, _
       | _, Some true ->
         set_mem_safety_flag InvalidDeref;
-        M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" ID.pretty casted_ps ID.pretty casted_ao;
-        Checks.error Checks.Category.InvalidMemoryAccess "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" ID.pretty casted_ps ID.pretty casted_ao
+        M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" SizeDomain.pretty ps ID.pretty casted_ao;
+        Checks.error Checks.Category.InvalidMemoryAccess "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" SizeDomain.pretty ps ID.pretty casted_ao
       | Some false, Some false ->
         Checks.safe Checks.Category.InvalidMemoryAccess
       | _ ->
         set_mem_safety_flag InvalidDeref;
-        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_ps ID.pretty casted_ao
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" SizeDomain.pretty ps ID.pretty casted_ao;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of pointer (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" SizeDomain.pretty ps ID.pretty casted_ao
 
   and check_exp_for_oob_access man ?(is_implicitly_derefed = false) exp =
     match exp with
