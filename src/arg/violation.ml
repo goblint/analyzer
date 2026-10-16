@@ -426,11 +426,13 @@ struct
     | _ -> (segToPathMap, segments, false)
 
   let check_path path =
-    let seg, has_branching = write path in
-    let witch = GobConfig.get_string "exp.witch" in
-    match witch with
-    | "" -> Unknown
+    match GobConfig.get_string "exp.witch" with
+    | "" ->
+      if GobConfig.get_bool "witness.yaml.enabled" then
+        ignore (write path);
+      Unknown
     | _ ->
+      let seg, has_branching = write path in
       match cache_lookup seg with
       | Some lines -> check_feasability_with_witch lines path seg
       | None ->
