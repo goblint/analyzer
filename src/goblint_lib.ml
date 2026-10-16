@@ -154,6 +154,7 @@ module Constants = Constants
 module Signs = Signs
 module Taint = Taint
 module UnitAnalysis = UnitAnalysis
+module SimplifiedUnitAnalysis = SimplifiedUnitAnalysis
 
 module GStoreWidening = GStoreWidening
 module GStoreWideningHelper = GStoreWideningHelper
@@ -179,7 +180,6 @@ module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module BranchSet = BranchSet
-module StackTrace = StackTrace
 
 (** {2 Helper}
 
@@ -316,7 +316,6 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module StackDomain = StackDomain
 
 (** {2 Testing}
 
@@ -347,6 +346,7 @@ module CilMaps = CilMaps
 module Messages = Messages
 module Logs = Logs
 module Checks = Checks
+module Assumptions = Assumptions
 
 (** {2 Front-end}
 

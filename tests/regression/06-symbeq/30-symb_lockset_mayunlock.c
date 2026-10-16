@@ -13,7 +13,7 @@ void *foo(void *arg) {
   pthread_mutex_lock(&p1->mymutex);
   if (__VERIFIER_nondet_int()) p2 = NULL;
   pthread_mutex_unlock(&p2->mymutex);
-  p1->myint++; // TODO RACE
+  p1->myint++; // RACE
 
   return NULL;
 }

@@ -19,7 +19,7 @@ int main(void) {
   if (i) m = &mutex2;
   create_threads(t);
   pthread_mutex_lock(m);
-  assert_racefree(global); // UNKNOWN
+  assert_racefree(global); // UNKNOWN!
   pthread_mutex_unlock(m);
   join_threads(t);
   return 0;

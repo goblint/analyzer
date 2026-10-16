@@ -353,14 +353,14 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet", "branchSetLocal", "branchSetFull"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses. This setting is ignored if `ana.ctx_sens` contains elements.",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "stack_loc", "stack_trace_set" ]
+          "default": []
         },
         "ctx_sens": {
           "title": "ana.ctx_sens",
@@ -562,7 +562,9 @@
                   "concurrencySafetySpecification",
                   "noOverflows",
                   "termination",
-                  "tmpSpecialAnalysis"
+                  "tmpSpecialAnalysis",
+                  "pthreadBarriers",
+                  "pthreadOnce"
                 ]
               },
               "default": [
@@ -579,7 +581,9 @@
                 "concurrencySafetySpecification",
                 "noOverflows",
                 "termination",
-                "tmpSpecialAnalysis"
+                "tmpSpecialAnalysis",
+                "pthreadBarriers",
+                "pthreadOnce"
               ]
             }
           },
@@ -1153,6 +1157,13 @@
               "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
+            },
+            "graph-coloring": {
+              "title": "ana.race.graph-coloring",
+              "description": "Group accesses in race warnings into safe subgroups by coloring the race interference graph with the chosen algorithm (none, greedy, dsatur, rlf, optimal).",
+              "type": "string",
+              "enum": ["none", "greedy", "dsatur", "rlf", "optimal"],
+              "default": "none"
             }
           },
           "additionalProperties": false
@@ -1272,7 +1283,7 @@
           "properties": {
             "precheck": {
               "title": "ana.unassume.precheck",
-              "description": "Check if invariant contradicts reached state before unassuming.",
+              "description": "Exclude invariant disjuncts (recursively) which contradict reached state before unassuming. This is useful for invariants from unrolled loops, but violates specification S6 from Simmo Saan's PhD thesis.",
               "type": "boolean",
               "default": false
             }
@@ -1664,6 +1675,27 @@
             },
             "zero": {
               "title": "sem.malloc.zero",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
+              "type": "string",
+              "enum": ["null", "pointer","either"],
+              "default": "either"
+            }
+          },
+          "additionalProperties": false
+        },
+        "alloca": {
+          "title": "sem.alloca",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.alloca.fail",
+              "description":
+                "Consider the case where alloca fails when called with an argument other than zero. For the case of zero, see `sem.alloca.zero`.",
+              "type": "boolean",
+              "default": false
+            },
+            "zero": {
+              "title": "sem.alloca.zero",
               "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
               "type": "string",
               "enum": ["null", "pointer","either"],
@@ -2388,6 +2420,12 @@
         "unsound": {
           "title": "warn.unsound",
           "description": "Unsoundness messages",
+          "type": "boolean",
+          "default": true
+        },
+        "assumption": {
+          "title": "warn.assumption",
+          "description": "Assumption messages",
           "type": "boolean",
           "default": true
         },

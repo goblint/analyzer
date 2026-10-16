@@ -769,7 +769,7 @@ module Codegen = struct
       in
       let init =
         let run_threads =
-          (* NOTE: assumes no args are passed to the thread func *)
+          Assumptions.add "No arguments are passed to the thread function";
           List.map
             (fun t ->
                let tid = Action.(t.tid) in

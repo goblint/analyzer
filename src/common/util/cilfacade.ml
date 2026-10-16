@@ -58,6 +58,12 @@ let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
 
+let findAttribute name attrs =
+  List.find_map (function
+      | Attr (name', params) when name' = name -> Some params
+      | _ -> None
+    ) attrs
+
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := (
@@ -600,6 +606,7 @@ class countFnVisitor = object
     | If (_,_,_,loc,_)
     | Switch (_,_,_,loc,_)
     | Loop (_,loc,_,_,_)
+    | Asm {loc; _}
       -> Hashtbl.replace locs loc.line (); DoChildren
     | _ ->
       DoChildren
@@ -607,7 +614,6 @@ class countFnVisitor = object
   method! vinst = function
     | Set (_,_,loc,_)
     | Call (_,_,_,loc,_)
-    | Asm (_,_,_,_,_,loc)
       -> Hashtbl.replace locs loc.line (); SkipChildren
     | _ -> SkipChildren
 
@@ -789,17 +795,9 @@ let find_stmt_sid sid =
   try IntH.find pseudo_return_stmt_sids sid
   with Not_found -> IntH.find (ResettableLazy.force stmt_sids) sid
 
-module FunLocH = Hashtbl.Make(CilType.Fundec)
-module LocSet = Hashtbl.Make(CilType.Location)
-
-(** Contains the locations of the upjumping gotos and the respective functions
- * they are being called in. *)
-let funs_with_upjumping_gotos: unit LocSet.t FunLocH.t = FunLocH.create 13
-
-let reset_lazy ?(keepupjumpinggotos=false) () =
+let reset_lazy () =
   StmtH.clear pseudo_return_to_fun;
   FieldinfoH.clear fieldBitsOffsetOnly_memo;
-  if not keepupjumpinggotos then FunLocH.clear funs_with_upjumping_gotos;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;

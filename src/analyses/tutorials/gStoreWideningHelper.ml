@@ -2,7 +2,7 @@
 open GoblintCil
 
 (* Complicated definition for technical reasons relating to different int types *)
-module Intervals = IntDomain.IntDomWithDefaultIkind(IntDomain.IntDomLifter (IntDomain.SOverflowUnlifter (IntDomain.Interval))) (IntDomain.PtrDiffIkind)
+module Intervals = IntDomain.IntDomLifter (IntDomain.SOverflowUnlifter (IntDomain.Interval))
 
 let is_tracked_var v =
   Cil.isIntegralType v.vtype && not v.vaddrof

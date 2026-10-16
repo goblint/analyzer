@@ -235,7 +235,7 @@ struct
       if x = y then `Definite x
       (* Unless one of them is zero, we can exclude it: *)
       else
-        let a,b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+        let a,b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
         let r = R.join a b in
         `Excluded ((if Z.equal x Z.zero || Z.equal y Z.zero then S.empty () else S.singleton Z.zero), r)
     (* A known value and an exclusion set... the definite value should no
@@ -243,7 +243,7 @@ struct
     | `Excluded (s,r), `Definite x
     | `Definite x, `Excluded (s,r) ->
       if not (in_range r x) then
-        let a = Size.min_range_sign_agnostic x in
+        let a = Size.min_range_sign_agnostic ik x in
         `Excluded (S.remove x s, R.join a r)
       else
         `Excluded (S.remove x s, r)
@@ -260,6 +260,8 @@ struct
       x
     else
       join' ~range:(size ik) ik x y
+
+  let widen ik x y = widen ik x (join ik x y) (* TODO: inline? *)
 
 
   let meet ik x y =
@@ -303,7 +305,7 @@ struct
     if Z.compare x y = 0 then
       of_int ik x
     else
-      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let a, b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
       let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
@@ -331,7 +333,6 @@ struct
     let r = size t in (* elements in l are excluded from the full range of t! *)
     `Excluded (S.of_list l, r)
 
-  let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list (x:t) = match x with
     | `Definite _ -> None
     | `Excluded (s,r) -> Some (S.elements s, r)
@@ -342,8 +343,8 @@ struct
     | `Excluded _ -> None
     | `Bot -> None
 
-  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = (size % Size.min_for % f) (m r) in
+  let apply_range ik f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = (size % Size.min_for ~ik % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
 
@@ -352,7 +353,7 @@ struct
   let lift1 f ik x = norm ik @@ match x with
     | `Excluded (s,r) ->
       let s' = S.map f s in
-      `Excluded (s', apply_range f r)
+      `Excluded (s', apply_range ik f r)
     | `Definite x -> `Definite (f x)
     | `Bot -> `Bot
 
@@ -372,7 +373,7 @@ struct
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
   let lift2_inj f ik x y =
-    let def_exc f x s r = `Excluded (S.map (f x) s, apply_range (f x) r) in
+    let def_exc f x s r = `Excluded (S.map (f x) s, apply_range ik (f x) r) in
     norm ik @@
     match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
@@ -428,7 +429,7 @@ struct
     | `Definite a, `Excluded (s,r)
     (* Integer multiplication with even numbers is not injective. *)
     (* Thus we cannot exclude the values to which the exclusion set would be mapped to. *)
-    | `Excluded (s,r),`Definite a when Z.equal (Z.rem a (Z.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range (Z.mul a) r)
+    | `Excluded (s,r),`Definite a when Z.equal (Z.rem a (Z.of_int 2)) Z.zero -> `Excluded (S.empty (), apply_range ik (Z.mul a) r)
     | _ -> lift2_inj Z.mul ik x y
   let div ?no_ov ik x y = lift2 Z.div ik x y
   let rem ik x y = lift2 Z.rem ik x y
@@ -465,7 +466,7 @@ struct
         if -max <= 0 && -min > 0 then
           (-max, -min)
         else
-          apply_range Z.lognot r
+          apply_range ik Z.lognot r
       in
       `Excluded (s', r')
     | `Definite x -> `Definite (Z.lognot x)
@@ -598,11 +599,10 @@ struct
     | _ ->
       x
 
-  let refine_with_interval ik a b = match a, b with
-    | x, Some(i) -> meet ik x (of_interval ik i)
-    | _ -> a
-  let refine_with_excl_list ik a b = match a, b with
-    | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
+  let refine_with_interval ik x i =
+    meet ik x (of_interval ik i)
+  let refine_with_excl_list ik a (ls, _) = match a with
+    | `Excluded (s, r) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
   let refine_with_incl_list ik a b = a
 

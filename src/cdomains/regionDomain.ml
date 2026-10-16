@@ -235,6 +235,3 @@ struct
       if is_global vfd then [vfd] else []
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
-
-(* TODO: remove Lift *)
-module RegionDom = Lattice.LiftConf (struct include Printable.DefaultConf let top_name = "Unknown" let bot_name = "Error" end) (RegMap)

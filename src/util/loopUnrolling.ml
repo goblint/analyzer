@@ -380,11 +380,25 @@ class patchLabelsGotosVisitor(newtarget) = object
   inherit nopCilVisitor
 
   method! vstmt s =
+    (* TODO: why sometimes SkipChildren? *)
     match s.skind with
     | Goto (target,loc) ->
       (match newtarget !target with
-       | None -> SkipChildren
+       | None -> SkipChildren (* Could copy target ref as well to unshare, but that shouldn't be necessary nor make a difference: the refs are just modified initially in Cabs2cil and not later, so (un)sharing is irrelevant. *)
        | Some nt -> s.skind <- Goto (ref nt, loc); DoChildren)
+    | Asm a ->
+      let (changed, gotos') = List.fold_left_map (fun acc target ->
+          match newtarget !target with
+          | None -> (acc, target) (* Could copy target ref as well to unshare, but that shouldn't be necessary nor make a difference: the refs are just modified initially in Cabs2cil and not later, so (un)sharing is irrelevant. *)
+          | Some nt -> (true, ref nt)
+        ) false a.gotos
+      in
+      if changed then (
+        s.skind <- Asm {a with gotos = gotos'};
+        DoChildren
+      )
+      else
+        SkipChildren
     | _ -> DoChildren
 end
 

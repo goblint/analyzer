@@ -1,0 +1,39 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: d0fecb3e-5dcf-46c7-aa4a-34902ca259cf
+    creation_time: 2026-09-24T12:42:42Z
+    producer:
+      name: Goblint
+      version: heads/unassume-precheck-disj-0-g7552b11cf
+      command_line: '''../../../goblint'' ''--conf'' ''conf/svcomp26/common.json''
+        ''--conf'' ''conf/svcomp26/verify.json'' ''--conf'' ''conf/svcomp26/level00.json''
+        ''--set'' ''ana.specification'' ''CHECK( init(main()), LTL(G ! overflow) )''
+        ''55-array-lopstr16-break-1.c'' ''--set'' ''witness.yaml.path'' ''55-array-lopstr16-break-1.yml'''
+    task:
+      input_files:
+      - 55-array-lopstr16-break-1.c
+      input_file_hashes:
+        55-array-lopstr16-break-1.c: 93d615ec9eac55be52cde2fc87f2099ea012cce5093b0fa5a5819e2cf597b5da
+      data_model: LP64
+      language: C
+      specification: CHECK( init(main()), LTL(G ! overflow) )
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 55-array-lopstr16-break-1.c
+        line: 27
+        column: 2
+        function: main
+      value: (c <= 5 && ((2 <= i && i <= 1000000) || i == 1)) || i == 0
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 55-array-lopstr16-break-1.c
+        line: 35
+        column: 2
+        function: main
+      value: ((2 <= i && i <= 1000000) || i == 1) || i == 0
+      format: c_expression

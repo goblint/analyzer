@@ -31,7 +31,7 @@ void *t_fun(void *arg) {
   pthread_mutex_unlock(&A_mutex);
 
   pthread_mutex_lock(&B_mutex);
-  access_or_assert_racefree(p->datum); // UNKNOWN
+  access_or_assert_racefree(p->datum); // UNKNOWN!
   pthread_mutex_unlock(&B_mutex);
   return NULL;
 }
@@ -53,7 +53,7 @@ int main () {
   pthread_mutex_lock(&A_mutex);
   p = A;
   while (p->next) {
-    access_or_assert_racefree(p->datum); // UNKNOWN
+    access_or_assert_racefree(p->datum); // UNKNOWN!
     p = p->next;
   }
   pthread_mutex_unlock(&A_mutex);
