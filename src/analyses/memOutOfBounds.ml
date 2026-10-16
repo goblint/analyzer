@@ -8,6 +8,7 @@ open AnalysisStateUtil
 module AS = AnalysisState
 module VDQ = ValueDomainQueries
 module ID = IntDomain.IntDomTuple
+module IndexDomain = ValueDomain.IndexDomain
 module SizeDomain = ValueDomain.SizeDomain
 
 (*
@@ -31,14 +32,11 @@ struct
 
   let (let*) ad f = ValueDomain.AD.iter f ad
 
-  let intdom_of_int x =
-    ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
-
   let size_of_type_in_bytes typ =
     SizeDomain.of_int (Z.of_int (Cilfacade.bytesSizeOf typ))
 
   let offs_lt_zero offs =
-    try ID.lt offs (intdom_of_int 0)
+    try ID.lt offs (IndexDomain.of_int Z.zero)
     with IntDomain.ArithmeticOnIntegerBot _ -> None
 
   let check_offset_bounds ptr_size offs =
@@ -117,8 +115,8 @@ struct
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match man.ask (Queries.EvalInt exp) with
-          | `Lifted x -> ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
-          | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+          | `Lifted x -> IndexDomain.lift x
+          | _ -> IndexDomain.top ()
         in
         `Index (i, convert_offset ofs)
     in
@@ -131,9 +129,9 @@ struct
   let get_addr_offset typ (addr: ValueDomain.Addr.t) =
     match addr with
     | Addr (_, offs) -> PreValueDomain.Offs.to_index ~typ offs
-    | UnknownPtr -> ID.top_of @@ Cilfacade.ptrdiff_ikind () (* TODO: does this make sense? *)
+    | UnknownPtr -> IndexDomain.top () (* TODO: does this make sense? *)
     | NullPtr
-    | StrPtr _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind () (* TODO: do these make sense? *)
+    | StrPtr _ -> IndexDomain.bot () (* TODO: do these make sense? *)
 
   let rec check_lval_for_oob_access man ?(is_implicitly_derefed = false) lval =
     (* If the lval does not contain a pointer or if it does contain a pointer, but only points to string addresses, then no need to WARN *)
@@ -147,7 +145,7 @@ struct
       | (Mem e, o), _ ->
         let ptr_type = typeOf e in
         let offs_intdom = cil_offs_to_idx man ptr_type o in
-        let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
+        let casted_offs = IndexDomain.lift offs_intdom in
         let* addr = man.ask (Queries.MayPointTo e) in
         let e_size = get_addr_size man addr in
         begin match e_size with
@@ -160,7 +158,7 @@ struct
              M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e);
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e
           | es ->
-            let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift es) in (* TODO: proper castkind *) (* TODO: don't unlift *)
+            let casted_es = IndexDomain.lift (SizeDomain.unlift es) in (* TODO: don't unlift *)
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
             begin match check_offset_bounds casted_es casted_offs with
@@ -198,8 +196,8 @@ struct
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
       Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
     | ps, ao ->
-      let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ps) in (* TODO: proper castkind *) (* TODO: don't unlift *)
-      let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
+      let casted_ps = IndexDomain.lift (SizeDomain.unlift ps) in (* TODO: don't unlift *)
+      let casted_ao = IndexDomain.lift ao in
       match check_offset_bounds casted_ps casted_ao with
       | Some true, _
       | _, Some true ->
@@ -264,9 +262,9 @@ struct
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Count parameter, passed to function %s is bottom" fun_name
     | ds, `Lifted en ->
-      let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift ds) in (* TODO: proper castkind *) (* TODO: don't unlift *)
-      let casted_en = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) en in (* TODO: proper castkind *)
-      let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
+      let casted_ds = IndexDomain.lift (SizeDomain.unlift ds) in (* TODO: don't unlift *)
+      let casted_en = IndexDomain.lift en in
+      let casted_ao = IndexDomain.lift addr_offs in
       let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
       match dest_size_lt_count with
       | Some true ->

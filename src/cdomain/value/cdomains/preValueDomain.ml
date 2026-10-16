@@ -1,6 +1,12 @@
 module ID = IntDomain.IntDomTuple
 module FD = FloatDomain.FloatDomTupleImpl
-module IndexDomain = IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIkind) (* TODO: add ptrdiff cast into to_int? *)
+
+module IndexDomain = (* TODO: hide type t = ID.t, require explicit (un)lift *)
+struct
+  include IntDomain.IntDomWithDefaultIkind (ID) (IntDomain.PtrDiffIkind) (* TODO: add ptrdiff cast into to_int? *)
+  let lift x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
+  let unlift x = x
+end
 
 module SizeDomain:
 sig
