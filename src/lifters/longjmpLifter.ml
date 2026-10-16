@@ -11,7 +11,17 @@ struct
 
   module V =
   struct
-    include Printable.Either3Conf (struct let expand1 = false let expand2 = true let expand3 = true end) (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
+    module Longjmpto =
+    struct
+      include Printable.Prod (Node) (C)
+      let name () = "longjmpto"
+    end
+    module Longjmpret =
+    struct
+      include Printable.Prod (CilType.Fundec) (C)
+      let name () = "longjmpret"
+    end
+    include Printable.Either3Conf (struct let expand1 = false let expand2 = true let expand3 = true end) (S.V) (Longjmpto) (Longjmpret)
     let name () = "longjmp"
     let s x = `Left x
     let longjmpto x = `Middle x
@@ -23,7 +33,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (S.G) (S.D)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (S.G) (S.D)
 
     let s = function
       | `Bot -> S.G.bot ()

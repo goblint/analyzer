@@ -8,7 +8,12 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked
+  # This is what we used to do and what we'd like to do:
+  # opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked
+  # But this fails on opam < 2.2 due to a bug (https://github.com/ocaml/opam/issues/6946).
+  # So this is the workaround from @kit-ty-kate (while we still want to support opam < 2.2):
+  opam switch -y create . --no-install --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda
+  opam install -y ./*.opam.locked --deps-only
 }
 
 rule() {
@@ -74,18 +79,15 @@ rule() {
         opam upgrade -y $(opam list --pinned -s)
       }
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
+      echo "Make sure you have the following installed: opam >= 2.2.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
       echo "For the --html output you also need: graphviz and python3-pygments (optional)"
       echo "For running the regression tests you also need: ruby, gem, curl, and the os gem"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
       eval $(opam env)
-      echo "Installing opam packages for test and doc..."
-      opam install -y . --deps-only --locked --with-test --with-doc
-      echo "Installing opam packages for development..."
-      opam install -y ocaml-lsp-server ocp-indent
-      # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
+      echo "Installing opam packages for test, doc and dev-setup..."
+      opam install -y . --deps-only --locked --with-test --with-doc --with-dev-setup
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -sf ../../scripts/hooks/pre-commit; cd -
       # Use `git commit -n` to temporarily bypass the hook if necessary.

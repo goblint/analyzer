@@ -121,12 +121,12 @@ module Enums : S with type int_t = Z.t = struct
     if Z.compare x y = 0 then
       of_int ik x
     else
-      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
+      let a, b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
       let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
-  let join _ x y =
+  let join ik x y =
     match x, y with
     | Inc x, Inc y -> Inc (BISet.union x y)
     | Exc (x,r1), Exc (y,r2) -> Exc (BISet.inter x y, R.join r1 r2)
@@ -135,7 +135,7 @@ module Enums : S with type int_t = Z.t = struct
       let r = if BISet.is_empty y
         then r
         else
-          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn Size.min_range_sign_agnostic (BISet.min_elt y, BISet.max_elt y) in
+          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn (Size.min_range_sign_agnostic ik) (BISet.min_elt y, BISet.max_elt y) in
           let range = R.join min_el_range max_el_range in
           R.join r range
       in
@@ -170,7 +170,7 @@ module Enums : S with type int_t = Z.t = struct
         (* Check that the xs fit into the range r  *)
         Z.compare min_b min_a <= 0 && Z.compare max_a max_b <= 0 &&
         (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
-        BISet.for_all (fun x -> not (BISet.mem x ys)) xs
+        BISet.disjoint xs ys
     | Inc xs, Inc ys ->
       BISet.subset xs ys
     | Exc (xs, r), Exc (ys, s) ->
@@ -183,6 +183,12 @@ module Enums : S with type int_t = Z.t = struct
     | true, false
     | false, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | true, true -> Inc (BISet.empty ())
+
+  let handle_bot_bool x y f = match is_bot x, is_bot y with
+    | false, false -> f ()
+    | true, false
+    | false, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | true, true -> None
 
   let lift1 f ikind v = norm ikind @@ match v with
     | Inc x when BISet.is_empty x -> v (* Return bottom when value is bottom *)
@@ -222,8 +228,8 @@ module Enums : S with type int_t = Z.t = struct
   let rem = lift2 Z.rem
 
   (* TODO: should be used by lognot? *)
-  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = (size % Size.min_for % f) (m r) in
+  let[@warning "-unused-value-declaration"] apply_range ik f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = (size % Size.min_for ~ik % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
 
@@ -333,8 +339,8 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e when BISet.is_empty e -> None
     | Exc (e,_) when BISet.is_empty e -> None
     | Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> Some false
-    | Inc xs when BISet.for_all ((<>) Z.zero) xs -> Some true
-    | Exc (xs,_) when BISet.exists ((=) Z.zero) xs -> Some true
+    | Inc xs when not (BISet.mem Z.zero xs) -> Some true
+    | Exc (xs,_) when BISet.mem Z.zero xs -> Some true
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 
@@ -343,7 +349,7 @@ module Enums : S with type int_t = Z.t = struct
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
     norm ik @@ Exc (exc, size ik)
-  let is_excl_list = BatOption.is_some % to_excl_list
+
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
   let to_bitfield ik x =
@@ -367,16 +373,6 @@ module Enums : S with type int_t = Z.t = struct
     let l_ik,_ = Size.range ikind in
     of_interval ikind (l_ik, x)
 
-  let c_lognot ik x =
-    if is_bot x
-    then x
-    else
-      match to_bool x with
-      | Some b -> of_bool ik (not b)
-      | None -> top_bool
-
-  let c_logand = lift2 IntOps.BigIntOps.c_logand
-  let c_logor  = lift2 IntOps.BigIntOps.c_logor
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
@@ -402,35 +398,35 @@ module Enums : S with type int_t = Z.t = struct
     | _ (* bottom case *) -> None
 
   let lt ik x y =
-    handle_bot x y (fun () ->
+    handle_bot_bool x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> of_bool ik false
-        | _, _, _, _ -> top_bool)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> Some true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> Some false
+        | _, _, _, _ -> None)
 
   let gt ik x y = lt ik y x
 
   let le ik x y =
-    handle_bot x y (fun () ->
+    handle_bot_bool x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> of_bool ik false
-        | _, _, _, _ -> top_bool)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> Some true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> Some false
+        | _, _, _, _ -> None)
 
   let ge ik x y = le ik y x
 
   let eq ik x y =
-    handle_bot x y (fun () ->
+    handle_bot_bool x y (fun () ->
         match x, y with
-        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> of_bool ik (Z.equal (BISet.choose xs) (BISet.choose ys))
+        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> Some (Z.equal (BISet.choose xs) (BISet.choose ys))
         | _, _ ->
           if is_bot (meet ik x y) then
             (* If the meet is empty, there is no chance that concrete values are equal *)
-            of_bool ik false
+            Some false
           else
-            top_bool)
+            None)
 
-  let ne ik x y = c_lognot ik (eq ik x y)
+  let ne ik x y = Option.map not (eq ik x y)
 
   let invariant_ikind e ik x =
     match x with
@@ -453,7 +449,7 @@ module Enums : S with type int_t = Z.t = struct
       | Exc (s, _) -> GobQCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> GobQCheck.shrink (BISet.arbitrary ()) s >|= pos
     in
-    QCheck.frequency ~shrink ~print:show [
+    QCheck.oneof_weighted ~shrink ~print:show [
       20, QCheck.map neg (BISet.arbitrary ());
       10, QCheck.map pos (BISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
@@ -464,11 +460,10 @@ module Enums : S with type int_t = Z.t = struct
   (* What is generally safe is shrinking an inclusion set as no new elements appear here. *)
   (* What is not safe is growing an exclusion set or switching from an exclusion set to an inclusion set *)
 
-  let refine_with_congruence ik a b =
+  let refine_with_congruence ik a (c, m) =
     let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
-    match a, b with
-    | Inc e, None -> bot_of ik
-    | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =
@@ -479,19 +474,18 @@ module Enums : S with type int_t = Z.t = struct
       x
 
   let refine_with_interval ik a b =
-    match a, b with
-    | Inc _, None -> bot_of ik
-    | Inc e, Some (l, u) -> Inc (BISet.filter (value_in_range (l,u)) e)
+    match a with
+    | Inc e -> Inc (BISet.filter (value_in_range b) e)
     | _ -> a
 
-  let refine_with_excl_list ik a b =
-    match a, b with
-    | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
+  let refine_with_excl_list ik a (ls, _) =
+    match a with
+    | Inc _ -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
-  let refine_with_incl_list ik a b =
-    match a, b with
-    | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
+  let refine_with_incl_list ik a ls =
+    match a with
+    | Inc x -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
 
   let project ik p t = t

@@ -49,9 +49,20 @@ let isStructOrUnionType t =
   | TComp _ -> true
   | _ -> false
 
+let isStructType t =
+  match Cil.unrollType t with
+  | TComp (ci, _) -> ci.cstruct
+  | _ -> false
+
 let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
+
+let findAttribute name attrs =
+  List.find_map (function
+      | Attr (name', params) when name' = name -> Some params
+      | _ -> None
+    ) attrs
 
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
@@ -405,13 +416,30 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+(** @raise SizeOfError *)
 let bytesSizeOf t =
   let bits = bitsSizeOf t in
   assert (bits mod 8 = 0);
   bits / 8
 
+(** @raise SizeOfError *)
 let bytesOffsetOnly t o =
   let bits_offset, _ = bitsOffset t o in
+  assert (bits_offset mod 8 = 0);
+  bits_offset / 8
+
+let fieldBitsOffsetOnly fi = (* uncached *)
+  let bits_offset, _ = bitsOffset (TComp (fi.fcomp, [])) (Field (fi, NoOffset)) in
+  bits_offset
+
+module FieldinfoH = GobHashtbl.Make (CilType.Fieldinfo)
+let fieldBitsOffsetOnly_memo = FieldinfoH.create 13
+
+let fieldBitsOffsetOnly = (* cached *)
+  FieldinfoH.find_or_add_default_delayed ~default:fieldBitsOffsetOnly fieldBitsOffsetOnly_memo
+
+let fieldBytesOffsetOnly fi =
+  let bits_offset = fieldBitsOffsetOnly fi in
   assert (bits_offset mod 8 = 0);
   bits_offset / 8
 
@@ -578,6 +606,7 @@ class countFnVisitor = object
     | If (_,_,_,loc,_)
     | Switch (_,_,_,loc,_)
     | Loop (_,loc,_,_,_)
+    | Asm {loc; _}
       -> Hashtbl.replace locs loc.line (); DoChildren
     | _ ->
       DoChildren
@@ -585,7 +614,6 @@ class countFnVisitor = object
   method! vinst = function
     | Set (_,_,loc,_)
     | Call (_,_,_,loc,_)
-    | Asm (_,_,_,_,_,loc)
       -> Hashtbl.replace locs loc.line (); SkipChildren
     | _ -> SkipChildren
 
@@ -767,16 +795,9 @@ let find_stmt_sid sid =
   try IntH.find pseudo_return_stmt_sids sid
   with Not_found -> IntH.find (ResettableLazy.force stmt_sids) sid
 
-module FunLocH = Hashtbl.Make(CilType.Fundec)
-module LocSet = Hashtbl.Make(CilType.Location)
-
-(** Contains the locations of the upjumping gotos and the respective functions
- * they are being called in. *)
-let funs_with_upjumping_gotos: unit LocSet.t FunLocH.t = FunLocH.create 13
-
-let reset_lazy ?(keepupjumpinggotos=false) () =
+let reset_lazy () =
   StmtH.clear pseudo_return_to_fun;
-  if not keepupjumpinggotos then FunLocH.clear funs_with_upjumping_gotos;
+  FieldinfoH.clear fieldBitsOffsetOnly_memo;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;
@@ -808,6 +829,13 @@ let add_function_declarations (file: Cil.file): unit =
   let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
+
+(** Sync formal parameter attributes back to function types for correct CIL printing *)
+let sync_formals file =
+  iterGlobals file (function
+      | GFun (fd, _) -> setFormals fd fd.sformals
+      | _ -> ()
+    )
 
 
 (** Special index expression for some unknown index.

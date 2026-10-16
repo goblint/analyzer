@@ -41,10 +41,10 @@
     1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     2. Extract distribution archive.
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
-    4. Update opam-repository from git: `opam-2.1 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.1 update`.
+    4. Update opam-repository from git: `opam-2.2 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.2 update`.
     5. Navigate to distribution archive inside Docker container: `cd /goblint`.
-    6. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
-    7. Activate opam environment: `eval $(opam env)`.
+    6. Install and test package from distribution archive: `opam-2.2 install --with-test .`.
+    7. Activate opam environment: `eval $(opam-2.2 env)`.
     8. Check version: `goblint --version`.
     9. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
     10. Exit Docker container.
@@ -77,8 +77,6 @@
 
     This includes: git tag name, git tag message, zipped conf file and [SV-COMP container image tag](https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image).
 
-4. Open MR with conf file name to the [bench-defs](https://gitlab.com/sosy-lab/sv-comp/bench-defs) repository.
-
 ### For each prerun
 
 1. Make sure you have a clean git repository.
@@ -90,7 +88,7 @@
     The resulting archive is `scripts/sv-comp/goblint.zip`.
 
 4. Create (or add new version) Zenodo artifact and upload the archive.
-5. Open MR with Zenodo version DOI to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
+5. Open MR with Zenodo version DOI and updated conf file name to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
 
 ### After all preruns
 

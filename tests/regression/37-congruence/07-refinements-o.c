@@ -24,7 +24,7 @@ void unsignedCase() {
 
     if(top % 3 == 17) {
         // This is unreachable in the concrete!
-        __goblint_check(top%17 == 3); //UNKNOWN!
+        __goblint_check(top%17 == 3); // NOWARN (unreachable)
     }
 }
 
@@ -52,7 +52,7 @@ int main() {
 
     if(top % 3 == 17) {
         // This is unreachable in the concrete!
-        __goblint_check(top%17 == 3); //UNKNOWN!
+        __goblint_check(top%17 == 3); // NOWARN (unreachable)
     }
 
     unsignedCase();

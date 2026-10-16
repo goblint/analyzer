@@ -53,9 +53,9 @@ module WP =
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           HM.remove called x;
-          let tmp = if wpx then match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp else tmp in
+          let tmp = if wpx then match phase with Widen -> S.Dom.widen old tmp | Narrow -> S.Dom.narrow old tmp else tmp in
           if not (S.Dom.equal old tmp) then (
-            (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
+            (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old tmp); *)
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) is %a. Old value was %a" S.Var.pretty_trace x (HM.mem rho x) (is_side x) S.Dom.pretty tmp S.Dom.pretty old; *)
@@ -85,7 +85,7 @@ module WP =
       and side y d =
         let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
         if not (S.Dom.leq d old) then (
-          HM.replace rho' y (S.Dom.widen old (S.Dom.join old d));
+          HM.replace rho' y (S.Dom.widen old d);
           HM.remove stable y;
           init y;
           solve y Widen;

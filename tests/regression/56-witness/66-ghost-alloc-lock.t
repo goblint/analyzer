@@ -1,4 +1,6 @@
   $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts  --set ana.malloc.unique_address_count 1 --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 66-ghost-alloc-lock.c
+  [Info][Assumption] Mutexes are non-recursive by default (66-ghost-alloc-lock.c:23:3-23:30)
+  [Info][Assumption] Mutexes are non-recursive by default (66-ghost-alloc-lock.c:25:3-25:30)
   [Success][Assert] Assertion "g1 == 0" will succeed (66-ghost-alloc-lock.c:31:3-31:27)
   [Success][Assert] Assertion "g2 == 0" will succeed (66-ghost-alloc-lock.c:34:3-34:27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -15,9 +17,10 @@
     vulnerable: 0
     unsafe: 0
     total memory locations: 4
+  [Info][Assumption] Mutexes are non-recursive by default
 
-  $ (yamlWitnessStrip < witness.yml) > new-stripped.yml
-  $ ./strip-ghost-alloc.sh new-stripped.yml
+  $ ./66-ghost-alloc-lock-strip.sh witness.yml > stripped.yml
+  $ yamlWitnessStrip < stripped.yml
   - entry_type: ghost_instrumentation
     content:
       ghost_variables:

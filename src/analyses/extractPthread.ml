@@ -168,7 +168,7 @@ module Tbls = struct
     let get_fun_for_tid v =
       table
       |> Hashtbl.to_seq
-      |> Seq.find_map (fun (k,v') -> if Set.exists (( = ) v) v' then Some k else None)
+      |> Seq.find_map (fun (k,v') -> if Set.mem v v' then Some k else None)
   end
 
   module MutexMidTbl = SymTbl (struct
@@ -769,7 +769,7 @@ module Codegen = struct
       in
       let init =
         let run_threads =
-          (* NOTE: assumes no args are passed to the thread func *)
+          Assumptions.add "No arguments are passed to the thread function";
           List.map
             (fun t ->
                let tid = Action.(t.tid) in

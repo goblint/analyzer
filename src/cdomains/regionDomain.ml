@@ -36,7 +36,6 @@ struct
   let kill x (y:t): t = lift (VF.kill x) y
   let replace x exp y = lift (VF.replace x exp) y
 
-  let is_bullet x = x = `Right ()
   let bullet = `Right ()
   let of_vf vf = `Left vf
   let real_region (x:t): bool = match x with
@@ -50,7 +49,7 @@ module RS = struct
   let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
-  let has_bullet x = exists VFB.is_bullet x
+  let has_bullet x = mem VFB.bullet x
   let is_single_bullet rs =
     not (is_top rs) &&
     cardinal rs = 1 &&
@@ -236,6 +235,3 @@ struct
       if is_global vfd then [vfd] else []
     | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
-
-(* TODO: remove Lift *)
-module RegionDom = Lattice.LiftConf (struct include Printable.DefaultConf let top_name = "Unknown" let bot_name = "Error" end) (RegMap)

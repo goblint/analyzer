@@ -1,5 +1,6 @@
 // PARAM: --set ana.activated[+] pthreadOnce --set ana.activated[+] threadJoins --set ana.path_sens[+] threadflag --set ana.base.privatization mutex-meet-tid
 // pthread_once object is passed as a pointer (and it may change)
+#include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
 

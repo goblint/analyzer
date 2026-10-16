@@ -8,7 +8,8 @@
         "context": ".."
     },
     "remoteUser": "opam",
-    "postCreateCommand": "make setup; make dev",
+
+    "postCreateCommand": "if [ -e _opam ] && [ ! -L _opam ]; then echo 'ERROR: _opam already exists and is not a symlink. Delete it manually on the host and rebuild the container.' >&2; exit 1; elif [ ! -e _opam ]; then ln -s /home/opam/docker/analyzer/_opam .; fi",
 
     "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
 

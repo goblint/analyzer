@@ -1,9 +1,7 @@
 (** Analysis of [assert] results ([assert]). *)
 
-open Batteries
 open GoblintCil
 open Analyses
-open GobConfig
 
 module Spec : Analyses.MCPSpec =
 struct

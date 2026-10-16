@@ -161,8 +161,8 @@ sig
   include SOverflow
 
   (* necessary for baseInvariant *)
-  val refine_bor : t -> t -> t -> t * t
-  val refine_band : t -> t -> t -> t * t
+  val refine_bor : Cil.ikind -> t -> t -> t -> t * t
+  val refine_band : Cil.ikind -> t -> t -> t -> t * t
 
 end
 
@@ -178,10 +178,8 @@ struct
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds (GobPretty.sprintf "ikinds %a and %a are incompatible. Values: %a and %a" CilType.Ikind.pretty x.ikind CilType.Ikind.pretty y.ikind I.pretty x.v I.pretty y.v))
   let lift op x = {x with v = op x.ikind x.v }
-  (* For logical operations the result is of type int *)
-  let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
-  let lift2_cmp op x y = check_ikinds x y; {v = op x.ikind x.v y.v; ikind = Cil.IInt}
+  let lift2_cmp op x y = check_ikinds x y; op x.ikind x.v y.v
 
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
@@ -199,21 +197,27 @@ struct
   let narrow = lift2 I.narrow
 
   let show x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      Printf.sprintf "%s (%s)" (I.show x.v) (CilType.Ikind.show x.ikind)
+    else if I.is_top_of x.ikind x.v then
       "⊤"
     else
-      I.show x.v  (* TODO add ikind to output *)
+      I.show x.v
   let pretty () x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      Pretty.dprintf "%a (%a)" I.pretty x.v CilType.Ikind.pretty x.ikind
+    else if I.is_top_of x.ikind x.v then
       Pretty.text "⊤"
     else
-      I.pretty () x.v (* TODO add ikind to output *)
+      I.pretty () x.v
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      BatPrintf.fprintf o "<value>\n<map>\n<key>\nvalue\n</key>\n%a<key>\nikind\n</key>\n%a</map>\n</value>\n" I.printXml x.v CilType.Ikind.printXml x.ikind
+    else if I.is_top_of x.ikind x.v then
       BatPrintf.fprintf o "<value>\n<data>\n⊤\n</data>\n</value>\n"
     else
-      I.printXml o x.v (* TODO add ikind to output *)
+      I.printXml o x.v
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
@@ -229,7 +233,6 @@ struct
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
   let to_excl_list x = I.to_excl_list x.v
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
-  let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
@@ -259,9 +262,6 @@ struct
   let logxor = lift2 I.logxor
   let shift_left x y = {x with v = I.shift_left x.ikind x.v y.v } (* TODO check ikinds*)
   let shift_right x y = {x with v = I.shift_right x.ikind x.v y.v } (* TODO check ikinds*)
-  let c_lognot = lift_logical I.c_lognot
-  let c_logand = lift2 I.c_logand
-  let c_logor = lift2 I.c_logor
 
   let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~from_ik:x.ikind ikind x.v; ikind}
 
@@ -278,19 +278,28 @@ struct
   let ikind = Cilfacade.ptrdiff_ikind
 end
 
-module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t =
+module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : YDefault with type t = I.t and type int_t = I.int_t =
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
   let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
+  (* let is_bot x = I.is_bot_of (Ik.ikind ()) x *) (* TODO: add this? *)
+  let of_int ?suppress_ovwarn x = I.of_int ?suppress_ovwarn (Ik.ikind ()) x
+  let of_bool x = I.of_bool (Ik.ikind ()) x
+  let of_interval ?suppress_ovwarn x = I.of_interval ?suppress_ovwarn (Ik.ikind ()) x
+  let of_congruence x = I.of_congruence (Ik.ikind ()) x
+  let of_bitfield x = I.of_bitfield (Ik.ikind ()) x
+  let starting ?suppress_ovwarn x = I.starting ?suppress_ovwarn (Ik.ikind ()) x
+  let ending ?suppress_ovwarn x = I.ending ?suppress_ovwarn (Ik.ikind ()) x
+  let of_excl_list x = I.of_excl_list (Ik.ikind ()) x
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
   open Cil
   let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
-  let min_for x = intKindForValue x (sign x = `Unsigned)
+  let min_for ~ik x = Option.value ~default:ik (intKindForValue x (sign x = `Unsigned))
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -330,22 +339,19 @@ module Size = struct (* size in bits as int, range as int64 *)
       y
 
   (** @return Bit range always includes 0. *)
-  let min_range_sign_agnostic x =
+  let min_range_sign_agnostic ik x =
     let size ik =
       let a,b = bits ik in
       -a,b
     in
     if sign x = `Signed then
-      size (min_for x)
+      size (min_for ~ik x)
     else
-      let a, b = size (min_for x) in
-      if b <= 64 then
-        let upper_bound_less = b - 1 in
-        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
-        if x <= max_one_less then
-          a, upper_bound_less
-        else
-          a,b
+      let a, b = size (min_for ~ik x) in
+      let upper_bound_less = b - 1 in
+      let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
+      if x <= max_one_less then
+        a, upper_bound_less
       else
         a, b
 
@@ -363,7 +369,6 @@ module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = 
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
   let of_excl_list ik x = top_of ik
-  let is_excl_list    x = false
   let to_incl_list    x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
@@ -619,21 +624,18 @@ struct
   let mul  = Ints_t.mul
   let div  = Ints_t.div
   let rem  = Ints_t.rem
-  let lt n1 n2 = of_bool (n1 <  n2)
-  let gt n1 n2 = of_bool (n1 >  n2)
-  let le n1 n2 = of_bool (n1 <= n2)
-  let ge n1 n2 = of_bool (n1 >= n2)
-  let eq n1 n2 = of_bool (n1 =  n2)
-  let ne n1 n2 = of_bool (n1 <> n2)
+  let lt n1 n2 = Some (n1 <  n2)
+  let gt n1 n2 = Some (n1 >  n2)
+  let le n1 n2 = Some (n1 <= n2)
+  let ge n1 n2 = Some (n1 >= n2)
+  let eq n1 n2 = Some (n1 =  n2)
+  let ne n1 n2 = Some (n1 <> n2)
   let lognot = Ints_t.lognot
   let logand = Ints_t.logand
   let logor  = Ints_t.logor
   let logxor = Ints_t.logxor
   let shift_left  n1 n2 = Ints_t.shift_left n1 (Ints_t.to_int n2)
   let shift_right n1 n2 = Ints_t.shift_right n1 (Ints_t.to_int n2)
-  let c_lognot n1    = of_bool (not (to_bool' n1))
-  let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
-  let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?(suppress_ovwarn=false) ~kind t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
@@ -685,7 +687,6 @@ struct
 
   let to_excl_list x = None
   let of_excl_list ik x = top_of ik
-  let is_excl_list x = false
   let to_incl_list x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
@@ -704,6 +705,11 @@ struct
       (try `Lifted (f x y) with Unknown -> `Top | Error -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y ->
+      (try f x y with Unknown -> None | Error -> None)
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -711,21 +717,18 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x
@@ -771,6 +774,10 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (f x y)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y -> f x y
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -778,21 +785,18 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x

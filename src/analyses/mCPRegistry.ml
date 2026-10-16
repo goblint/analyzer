@@ -49,6 +49,15 @@ let register_analysis =
     Hashtbl.replace registered_name n !count;
     incr count
 
+let registered_simplified_analysis (module S:SimplifiedAnalysis.SimplifiedSpec) =
+  let module S':MCPSpec = struct
+    include SimplifiedLifter.FromSimplifiedSpec(S)
+    module A = UnitA
+    let access _ _ = ()
+  end
+  in
+  register_analysis (module S')
+
 let find_spec = Hashtbl.find registered
 let find_spec_name n = (find_spec n).name
 let find_id = Hashtbl.find registered_name
@@ -173,7 +182,7 @@ struct
     let f a n (module S : Printable.S) x =
       let name = find_spec_name n in
       (name, S.to_yojson (Obj.obj x)) :: a
-    in `Assoc (unop_fold f [] xs)
+    in `Assoc (rev (unop_fold f [] xs)) (* must reverse result, not [xs] because [unop_fold] requires original domain order *)
 
   let binop_for_all f (x:t) (y:t) =
     GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())

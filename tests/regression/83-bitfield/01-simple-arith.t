@@ -1,9 +1,9 @@
   $ goblint --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant"]' --disable ana.int.interval --disable ana.int.def_exc --enable ana.int.bitfield 01-simple-arith.c
-  [Success][Assert] Assertion "a + b == 42" will succeed (01-simple-arith.c:8:3-8:31)
-  [Success][Assert] Assertion "a - b == -4" will succeed (01-simple-arith.c:9:3-9:31)
-  [Success][Assert] Assertion "a * b == 437" will succeed (01-simple-arith.c:10:3-10:32)
-  [Success][Assert] Assertion "a / b == 0" will succeed (01-simple-arith.c:11:3-11:30)
-  [Success][Assert] Assertion "a % b == 19" will succeed (01-simple-arith.c:12:3-12:31)
+  [Success][Assert] Assertion "a + b == 42" will succeed (01-simple-arith.c:9:3-9:31)
+  [Success][Assert] Assertion "a - b == -4" will succeed (01-simple-arith.c:10:3-10:31)
+  [Success][Assert] Assertion "a * b == 437" will succeed (01-simple-arith.c:11:3-11:32)
+  [Success][Assert] Assertion "a / b == 0" will succeed (01-simple-arith.c:12:3-12:30)
+  [Success][Assert] Assertion "a % b == 19" will succeed (01-simple-arith.c:13:3-13:31)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 9
     dead: 0
@@ -21,28 +21,10 @@
         type: location_invariant
         location:
           file_name: 01-simple-arith.c
-          line: 6
+          line: 7
           column: 3
           function: main
         value: a == 19
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 01-simple-arith.c
-          line: 8
-          column: 3
-          function: main
-        value: a == 19
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 01-simple-arith.c
-          line: 8
-          column: 3
-          function: main
-        value: b == 23
         format: c_expression
     - invariant:
         type: location_invariant
@@ -121,6 +103,24 @@
         location:
           file_name: 01-simple-arith.c
           line: 13
+          column: 3
+          function: main
+        value: a == 19
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 01-simple-arith.c
+          line: 13
+          column: 3
+          function: main
+        value: b == 23
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 01-simple-arith.c
+          line: 14
           column: 1
           function: main
         value: a == 19
@@ -129,7 +129,7 @@
         type: location_invariant
         location:
           file_name: 01-simple-arith.c
-          line: 13
+          line: 14
           column: 1
           function: main
         value: b == 23

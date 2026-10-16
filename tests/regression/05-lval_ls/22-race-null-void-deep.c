@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <stdio.h>
+#include <goblint.h>
 
 pthread_key_t key;
 

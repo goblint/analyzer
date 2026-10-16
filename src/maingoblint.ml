@@ -7,22 +7,27 @@ open GoblintCil
 
 let writeconffile = ref None
 
-(** Print version and bail. *)
-let print_version ch =
-  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
-  Logs.result "Goblint version: %s" Goblint_build_info.version;
-  Logs.result "Cil version:     %s" Cil.cilVersion;
-  Logs.result "Dune profile:    %s" Goblint_build_info.dune_profile;
-  Logs.result "OCaml version:   %s" Sys.ocaml_version;
-  Logs.result "OCaml flambda:   %s" Goblint_build_info.ocaml_flambda;
-  if Logs.Level.should_log Debug then (
-    Logs.result "Library versions:";
+(* Need second-order polymorphism to pass either Logs.result or Logs.debug to print_version. *)
+type logger = { f: 'a. ('a, unit, Pretty.doc, unit) format4 -> 'a } [@@unboxed]
+
+let print_version ~libraries (logger: logger): unit =
+  logger.f "Goblint version: %s" Goblint_build_info.version;
+  logger.f "Cil version:     %s" Cil.cilVersion;
+  logger.f "Dune profile:    %s" Goblint_build_info.dune_profile;
+  logger.f "OCaml version:   %s" Sys.ocaml_version;
+  logger.f "OCaml flambda:   %s" Goblint_build_info.ocaml_flambda;
+  if libraries then (
+    logger.f "Library versions:";
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
-        Logs.result "  %s: %s" name version
+        logger.f "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
-  Logs.result "Build time:      %s" Goblint_build_info.datetime;
+  logger.f "Build time:      %s" Goblint_build_info.datetime
+
+let print_version_and_exit () =
+  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
+  print_version ~libraries:(Logs.Level.should_log Debug) { f = Logs.result };
   exit 0
 
 (** Print helpful messages. *)
@@ -98,7 +103,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_bool_option), ""
   ; "--conf"               , Arg_complete.String ((fun fn -> merge_file (Fpath.v fn)), Arg_complete.empty), ""
   ; "--writeconf"          , Arg_complete.String ((fun fn -> writeconffile := Some (Fpath.v fn)), Arg_complete.empty), ""
-  ; "--version"            , Arg_complete.Unit print_version, ""
+  ; "--version"            , Arg_complete.Unit print_version_and_exit, ""
   ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
@@ -123,7 +128,7 @@ let check_arguments () =
   in
   let warn m = Logs.warn "%s" m in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.");
-  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if not (get_bool "exp.single-threaded") && not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global! (Except when exp.single-threaded is enabled.)";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
   if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
@@ -187,13 +192,7 @@ let handle_flags () =
     set_auto "lib.activated[+]" "sv-comp";
 
   if get_bool "kernel" then
-    set_auto "lib.activated[+]" "linux-kernel";
-
-  match get_string "dbg.dump" with
-  | "" -> ()
-  | path ->
-    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
-    set_string "outfile" ""
+    set_auto "lib.activated[+]" "linux-kernel"
 
 let handle_options () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
@@ -485,7 +484,7 @@ let merge_parsed parsed =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  Errormsg.logChannel := Messages.get_out "cil" cilout;
+  Errormsg.logChannel := cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
@@ -504,7 +503,7 @@ let merge_parsed parsed =
 
   Cilfacade.current_file := merged_AST; (* Set before createCFG, so Cilfacade maps can be computed for loop unrolling. *)
   CilCfg.createCFG merged_AST; (* Create CIL CFG from CIL AST. *)
-  Cilfacade.reset_lazy ~keepupjumpinggotos:true (); (* Reset Cilfacade maps, which need to be recomputer after loop unrolling but keep gotos. *)
+  Cilfacade.reset_lazy (); (* Reset Cilfacade maps, which need to be recomputed after loop unrolling. *)
   merged_AST
 
 let preprocess_parse_merge () =
@@ -518,7 +517,7 @@ let do_stats () =
     Goblint_solver.SolverStats.print ();
     Logs.newline ();
     Logs.info "Timings:";
-    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel Legacy.stderr);
     flush_all ()
   )
 

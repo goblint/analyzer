@@ -121,7 +121,7 @@ struct
             ConcDomain.ThreadSet.is_empty created
           else if man.ask Queries.ThreadsJoinedCleanly then
             let joined = man.ask Queries.MustJoinedThreads in
-            ConcDomain.ThreadSet.is_empty (ConcDomain.ThreadSet.diff created joined)
+            ConcDomain.ThreadSet.is_empty (ConcDomain.ThreadSet.diff_mustset created joined)
           else
             false
         | _ -> false

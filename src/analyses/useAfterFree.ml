@@ -11,7 +11,7 @@ module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All
 (* Heap vars created by alloca() and deallocated at function exit * Heap vars deallocated by free() *)
 module StackAndHeapVars = Lattice.Prod(AllocaVars)(HeapVars)
 
-module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.MustThreadSet)
+module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.FiniteMustThreadSet)
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -34,7 +34,7 @@ struct
   let warn_for_multi_threaded_access man ?(is_free = false) (heap_var:varinfo) behavior cwe_number =
     let freeing_threads = man.global heap_var in
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
-    if man.ask (Queries.MustBeSingleThreaded { since_start = true }) || G.is_empty freeing_threads then ()
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) || G.is_empty freeing_threads then ()
     else begin
       let other_possibly_started current tid joined_threads =
         match tid with
@@ -46,8 +46,7 @@ struct
           let not_started = MHP.definitely_not_started (current, created_threads) tid in
           let possibly_started = not not_started in
           (* If [current] is possibly running together with [tid], but is also joined before the free() in [tid], then no need to WARN *)
-          let current_joined_before_free = ConcDomain.MustThreadSet.mem current joined_threads in
-          possibly_started && not current_joined_before_free
+          possibly_started && not (ConcDomain.FiniteMustThreadSet.mem_lifted current joined_threads)
         | `Top -> true
         | `Bot -> false
       in

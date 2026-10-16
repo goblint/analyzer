@@ -205,7 +205,7 @@ struct
      element) answers with any_index_exp on all non-concrete cases. *)
   let rec of_exp: exp offs -> t = function (* TODO: Poly.map_indices *)
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ik,s)),o) -> `Index (Idx.of_int ik i, of_exp o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (Idx.of_int i, of_exp o)
     | `Index (_,o) -> `Index (Idx.top (), of_exp o)
     | `Field (f,o) -> `Field (f, of_exp o)
 
@@ -213,22 +213,22 @@ struct
 
   let to_index ?typ (offs: t): Idx.t =
     let idx_of_int x =
-      Idx.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
+      Idx.of_int (Z.of_int x)
     in
     let rec offset_to_index_offset ?typ offs = match offs with
       | `NoOffset -> idx_of_int 0
       | `Field (field, o) ->
-        let field_as_offset = Field (field, NoOffset) in
-        let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
+        let bits_offset = Cilfacade.fieldBitsOffsetOnly field in
         let bits_offset = Z.of_int bits_offset in
         (* Interval of floor and ceil division in case bitfield offset. *)
-        let bytes_offset = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) Z.(fdiv bits_offset eight, cdiv bits_offset eight) in
+        let bytes_offset = Idx.of_interval Z.(fdiv bits_offset eight, cdiv bits_offset eight) in
         let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
         let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
         Idx.add bytes_offset remaining_offset
       | `Index (x, o) ->
         let (item_typ, item_size_in_bytes) =
           match Option.map unrollType typ with
+          | Some TPtr(item_typ, _) (* for memOutOfBounds *)
           | Some TArray(item_typ, _, _) ->
             let item_size_in_bytes = Cilfacade.bytesSizeOf item_typ in
             (Some item_typ, idx_of_int item_size_in_bytes)
@@ -250,7 +250,7 @@ struct
     let x_index = to_index ~typ:typ1 xoffs in
     let y_index = to_index ~typ:typ2 yoffs in
     if M.tracing then M.tracel "addr" "xoffs=%a typ1=%a xindex=%a yoffs=%a typ2=%a yindex=%a" pretty xoffs d_plaintype typ1 Idx.pretty x_index pretty yoffs d_plaintype typ2 Idx.pretty y_index;
-    Idx.to_bool (Idx.eq x_index y_index)
+    Idx.eq x_index y_index
 
   include Lattice.NoBotTop
 

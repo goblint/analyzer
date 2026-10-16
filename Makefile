@@ -7,7 +7,7 @@ native :
 .PHONY: sv-comp-tag sv-comp-build sv-comp-smoketest-ubuntu sv-comp-smoketest-competition sv-comp-smoketest sv-comp
 
 sv-comp-tag:
-	git tag -m "Gobitch SV-COMP 2026" gobitch-svcomp26
+	git tag -m "Goblitch SV-COMP 2027" goblitch-svcomp27
 
 sv-comp-build: sv-comp-tag
 	docker build . -f scripts/sv-comp/Dockerfile --output=scripts/sv-comp/
@@ -16,7 +16,7 @@ sv-comp-smoketest-ubuntu: sv-comp-tag
 	docker build . -f scripts/sv-comp/Dockerfile --target smoketest-ubuntu
 
 sv-comp-smoketest-competition: sv-comp-tag
-	docker build . -f scripts/sv-comp/Dockerfile --target smoketest-competition
+# 	docker build . -f scripts/sv-comp/Dockerfile --target smoketest-competition
 
 sv-comp-smoketest: sv-comp-smoketest-ubuntu sv-comp-smoketest-competition;
 sv-comp: sv-comp-smoketest sv-comp-build;

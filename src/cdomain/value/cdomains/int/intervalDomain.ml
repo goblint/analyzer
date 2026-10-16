@@ -114,7 +114,6 @@ struct
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
   let one  = Some IArith.one
-  let top_bool = Some IArith.top_bool
 
   let to_bitfield ik z =
     match z with
@@ -147,12 +146,12 @@ struct
       let (min_ik, max_ik) = range ik in
       let threshold = get_interval_threshold_widening () in
       let l2 =
-        if Ints_t.compare l0 l1 = 0 then l0
+        if Ints_t.compare l0 l1 <= 0 then l0
         else if threshold then IArith.lower_threshold l1 min_ik
         else min_ik
       in
       let u2 =
-        if Ints_t.compare u0 u1 = 0 then u0
+        if Ints_t.compare u0 u1 >= 0 then u0
         else if threshold then IArith.upper_threshold u1 max_ik
         else max_ik
       in
@@ -160,7 +159,6 @@ struct
   let widen ik x y =
     let r = widen ik x y in
     if M.tracing && not (equal x y) then M.tracel "int" "interval widen %a %a -> %a" pretty x pretty y pretty r;
-    assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
   let narrow ik x y =
@@ -179,31 +177,6 @@ struct
       meet ik x y
     else
       narrow ik x y
-
-  let log f ~annihilator ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_bool i1, to_bool i2 with
-      | Some x, _ when x = annihilator -> of_bool ik annihilator
-      | _, Some y when y = annihilator -> of_bool ik annihilator
-      | Some x, Some y -> of_bool ik (f x y)
-      | _              -> top_of ik
-
-  let c_logor = log (||) ~annihilator:true
-  let c_logand = log (&&) ~annihilator:false
-
-  let log1 f ik i1 =
-    if is_bot i1 then
-      bot_of ik
-    else
-      match to_bool i1 with
-      | Some x -> of_bool ik (f ik x)
-      | _      -> top_of ik
-
-  let c_lognot = log1 (fun _ik -> not)
 
   let bit f ik i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -392,61 +365,61 @@ struct
 
   let ne ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        of_bool ik true
+        Some true
       else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
-        of_bool ik false
-      else top_bool
+        Some false
+      else None
 
   let eq ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
-        of_bool ik true
+        Some true
       else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        of_bool ik false
-      else top_bool
+        Some false
+      else None
 
   let ge ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 <= 0 then of_bool ik true
-      else if Ints_t.compare x2 y1 < 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare y2 x1 <= 0 then Some true
+      else if Ints_t.compare x2 y1 < 0 then Some false
+      else None
 
   let le ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 <= 0 then of_bool ik true
-      else if Ints_t.compare  y2 x1 < 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare x2 y1 <= 0 then Some true
+      else if Ints_t.compare y2 x1 < 0 then Some false
+      else None
 
   let gt ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 < 0 then of_bool ik true
-      else if Ints_t.compare x2 y1 <= 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare y2 x1 < 0 then Some true
+      else if Ints_t.compare x2 y1 <= 0 then Some false
+      else None
 
   let lt ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 < 0 then of_bool ik true
-      else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare x2 y1 < 0 then Some true
+      else if Ints_t.compare y2 x1 <= 0 then Some false
+      else None
 
   let invariant_ikind e ik = function
     | Some (x1, x2) ->
@@ -471,9 +444,9 @@ struct
     if Ints_t.compare result Ints_t.zero >= 0 then result
     else Ints_t.add result  k
 
-  let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
-    match intv, cong with
-    | Some (x, y), Some (c, m) ->
+  let refine_with_congruence ik (intv : t) ((c, m) : int_t * int_t) : t =
+    match intv with
+    | Some (x, y) ->
       if Ints_t.equal m Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
       else if Ints_t.equal m Ints_t.zero then
         Some (c, c)
@@ -492,19 +465,19 @@ struct
 
   let refine_with_congruence ik x y =
     let refn = refine_with_congruence ik x y in
-    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn;
+    if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty (Some y) pretty refn;
     refn
 
   let refine_with_bitfield ik a b =
     let interv = of_bitfield ik b in
     meet ik a interv
 
-  let refine_with_interval ik a b = meet ik a b
+  let refine_with_interval ik a b = meet ik a (Some b)
 
-  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int * int)) option) : t =
-    match intv, excl with
-    | None, _ | _, None -> intv
-    | Some(l, u), Some(ls, (rl, rh)) ->
+  let refine_with_excl_list ik (intv : t) ((ls, (rl, rh)) : int_t list * (int * int)) : t =
+    match intv with
+    | None -> intv
+    | Some(l, u) ->
       let rec shrink op b =
         let new_b = (op b (Ints_t.of_int(Bool.to_int(BatList.mem_cmp Ints_t.compare b ls)))) in
         if not (Ints_t.equal b new_b) then shrink op new_b else new_b
@@ -516,16 +489,16 @@ struct
       let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> fst in
       meet ik intv' range
 
-  let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
-    match intv, incl with
-    | None, _ | _, None -> intv
-    | Some(l, u), Some(ls) ->
+  let refine_with_incl_list ik (intv: t) (ls : int_t list) : t =
+    match intv with
+    | None -> intv
+    | Some(l, u) ->
       let rec min m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
         | None -> min (Some x) xs | Some m -> if Ints_t.compare m x < 0 then min (Some m) xs else min (Some x) xs in
       let rec max m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
         | None -> max (Some x) xs | Some m -> if Ints_t.compare m x > 0 then max (Some m) xs else max (Some x) xs in
       match min None ls, max None ls with
-      | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
+      | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (m1, m2)
       | _, _-> intv
 
   let project ik p t = t

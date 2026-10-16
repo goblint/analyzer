@@ -7,8 +7,7 @@ module SingleThreadedLifter (S: MCPSpec) =
 struct
   include S
 
-  let is_multithreaded (ask:Queries.ask) =
-    not @@ ask.f (MustBeSingleThreaded {since_start = true})
+  let is_multithreaded = ThreadFlag.has_ever_been_multi
 
   let query ctx =
     let return_top (type a) (q: a Queries.t) =

@@ -1,4 +1,6 @@
 //SKIP PARAM: --set ana.activated[+] affeq --enable ana.int.interval
+#include <goblint.h>
+
 int main() {
   int two = 2;
   int three = 3;

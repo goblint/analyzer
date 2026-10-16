@@ -51,6 +51,10 @@ jobs:
             z3: false
 
           # OS-s
+          - os: ubuntu-26.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
           - os: ubuntu-22.04
             ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
             apron: true
@@ -90,7 +94,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -143,7 +147,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -193,7 +197,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -262,7 +266,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -270,7 +274,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
 

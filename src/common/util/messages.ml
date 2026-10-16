@@ -177,14 +177,8 @@ let () = AfterConfig.register (fun () ->
       GobFormat.pp_set_ansi_color_tags !formatter
   )
 
-let xml_file_name = ref ""
-
 (** The file where everything is output *)
 let out = ref stdout
-
-let get_out name alternative = match get_string "dbg.dump" with
-  | "" -> alternative
-  | path -> open_out (Filename.concat path (name ^ ".out"))
 
 
 let print ?(ppf= !formatter) (m: Message.t) =

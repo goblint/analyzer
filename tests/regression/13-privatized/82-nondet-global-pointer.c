@@ -2,6 +2,8 @@
 // Like 81-nondet-struct-ptr.c, but with syntactic globals instead of escaping ones.
 #include<pthread.h>
 #include<stdlib.h>
+#include <goblint.h>
+
 struct a {
   int b;
 };

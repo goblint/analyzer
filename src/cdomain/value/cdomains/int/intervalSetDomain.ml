@@ -236,12 +236,8 @@ struct
 
   let zero = [IArith.zero]
   let one = [IArith.one]
-  let top_bool = [IArith.top_bool]
 
-  let not_bool (x:t) =
-    let is_false x = equal x zero in
-    let is_true x = equal x one in
-    if is_true x then zero else if is_false x then one else top_bool
+  let not_bool = Option.map not
 
   let to_bool = function
     | [(l,u)] when l =. Ints_t.zero && u =. Ints_t.zero -> Some false
@@ -264,31 +260,31 @@ struct
 
   let lt ik x y =
     match x, y with
-    | [], [] -> bot_of ik
+    | [], [] -> None
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <. min_y then
-        of_bool ik true
+        Some true
       else if min_x >=. max_y then
-        of_bool ik false
+        Some false
       else
-        top_bool
+        None
 
   let le ik x y =
     match x, y with
-    | [], [] -> bot_of ik
+    | [], [] -> None
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <=. min_y then
-        of_bool ik true
+        Some true
       else if min_x >. max_y then
-        of_bool ik false
+        Some false
       else
-        top_bool
+        None
 
   let gt ik x y = not_bool @@ le ik x y
 
@@ -296,21 +292,15 @@ struct
 
   let eq ik x y = match x, y with
     | (a, b)::[], (c, d)::[] when a =. b && c =. d && a =. c ->
-      one
+      Some true
     | _ ->
       if is_bot (meet ik x y) then
-        zero
+        Some false
       else
-        top_bool
+        None
 
   let ne ik x y = not_bool @@ eq ik x y
   let interval_to_int i = Interval.to_int (Some i)
-  let interval_to_bool i = Interval.to_bool (Some i)
-
-  let log f ik i1 i2 =
-    match (interval_to_bool i1, interval_to_bool i2) with
-    | Some x, Some y -> of_bool ik (f x y)
-    | _ -> top_of ik
 
 
   let bit f ik (i1, i2) =
@@ -438,23 +428,6 @@ struct
 
   let shift_right ik x y = binary_op_with_ovc x y (interval_shiftright ik)
 
-  let c_lognot ik x =
-    let log1 f ik i1 =
-      match interval_to_bool i1 with
-      | Some x -> of_bool ik (f x)
-      | _ -> top_of ik
-    in
-    let interval_lognot = log1 not ik in
-    unop x interval_lognot
-
-  let c_logand ik x y =
-    let interval_logand = log (&&) ik in
-    binop x y interval_logand
-
-  let c_logor ik x y =
-    let interval_logor = log (||) ik in
-    binop x y interval_logor
-
   let add ?no_ov = binary_op_with_norm IArith.add
   let sub ?no_ov = binary_op_with_norm IArith.sub
   let mul ?no_ov = binary_op_with_norm IArith.mul
@@ -572,6 +545,8 @@ struct
     in
     interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd
 
+  let widen ik x y = widen ik x (join ik x y) (* TODO: inline? *)
+
   let starting ik n = norm_interval ik (n, snd (range ik))
 
   let ending ik n = norm_interval ik (fst (range ik), n)
@@ -585,10 +560,10 @@ struct
     if result >=. Ints_t.zero then result
     else result +. k
 
-  let refine_with_congruence ik (intvs: t) (cong: (int_t * int_t ) option): t =
-    let refine_with_congruence_interval ik (cong : (int_t * int_t ) option) (intv : (int_t * int_t ) option): t =
-      match intv, cong with
-      | Some (x, y), Some (c, m) ->
+  let refine_with_congruence ik (intvs: t) (cong: int_t * int_t): t =
+    let refine_with_congruence_interval ik ((c, m) : int_t * int_t) (intv : (int_t * int_t ) option): t =
+      match intv with
+      | Some (x, y) ->
         if m =. Ints_t.zero && (c <. x || c >. y) then []
         else if m =. Ints_t.zero then
           [(c, c)]
@@ -607,15 +582,14 @@ struct
     in
     List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
-  let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
+  let refine_with_interval ik xs itv = meet ik xs [itv]
 
   let refine_with_bitfield ik x y =
     let interv = of_bitfield ik y in
     norm_intvs ik (meet ik x interv) |> fst
 
-  let refine_with_incl_list ik intvs  = function
-    | None -> intvs
-    | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
+  let refine_with_incl_list ik intvs xs =
+    meet ik intvs (List.map (fun x -> (x,x)) xs)
 
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t =
     let intv1 = (min, excl -. Ints_t.one) in
@@ -627,14 +601,12 @@ struct
     let res = List.fold_left (meet ik) (top_of ik) excl_list in
     res
 
-  let refine_with_excl_list ik (intv : t) = function
-    | None -> intv
-    | Some (xs, range) ->
-      let excl_to_intervalset (ik: ikind) ((rl, rh): (int * int)) (excl: int_t): t =
-        excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
-      in
-      let excl_list = List.map (excl_to_intervalset ik range) xs in
-      List.fold_left (meet ik) intv excl_list
+  let refine_with_excl_list ik (intv : t) (xs, range) =
+    let excl_to_intervalset (ik: ikind) ((rl, rh): (int * int)) (excl: int_t): t =
+      excl_range_to_intervalset ik (Ints_t.of_bigint (Size.min_from_bit_range rl),Ints_t.of_bigint (Size.max_from_bit_range rh)) excl
+    in
+    let excl_list = List.map (excl_to_intervalset ik range) xs in
+    List.fold_left (meet ik) intv excl_list
 
   let project ik p t = t
 
@@ -644,7 +616,7 @@ struct
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
-    let list_pair_arb = QCheck.small_list pair_arb in
+    let list_pair_arb = QCheck.list_small pair_arb in
     let canonize_randomly_generated_list = (fun x -> norm_intvs ik  x |> fst) in
     let shrink xs = GobQCheck.shrink list_pair_arb xs >|= canonize_randomly_generated_list
     in QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) canonize_randomly_generated_list list_pair_arb)
