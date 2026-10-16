@@ -50,7 +50,7 @@ class collectComplexityFactorsVisitor(factors) = object
     | Set _ ->
       factors.instructions <- factors.instructions + 1; DoChildren
     | Call (Some _, _,_,_,_) ->
-      factors.instructions <- factors.instructions + 2; (*Count function call and assignment of the result seperately *)
+      factors.instructions <- factors.instructions + 2; (*Count function call and assignment of the result separately *)
       factors.functionCalls <- factors.functionCalls + 1; DoChildren
     | Call _ ->
       factors.instructions <- factors.instructions + 1;
@@ -65,6 +65,7 @@ class collectComplexityFactorsVisitor(factors) = object
     | Switch _
     | Goto _
     | ComputedGoto _
+    | Asm {gotos = _ :: _; _} (* only if has gotos *)
     | Return _ -> factors.controlFlowStatements <- factors.controlFlowStatements + 1; DoChildren
     | Break _
     | Continue _ ->

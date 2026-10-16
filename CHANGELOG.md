@@ -1,3 +1,31 @@
+## v2.8.0 Clumsy Clurichaun
+* Add new may-happen-in-parallel analyses (#1805, #1865, #1913, #1928).
+* Add Open Verification Dashboard checks output (#1838, #1929).
+* Add negative bitwise shift warnings (#1637, #1989).
+* Add missing function declaration warnings (#1911).
+* Improve overflow warnings (#1894, #1895, #1896, #1905).
+* Fix spurious overflow checks (#1767, #1909, #1910, #1932, #2022).
+* Fix missing overflow and out-of-bounds checks (#1935, #2017, #2029).
+* Optimize base analysis domain using Patricia trees (#2002, #2015).
+* Optimize field offset calculations (#1964, #1973, #1974).
+* Optimize non-incremental top-down solver (#1566, #1972).
+* Add OCaml 5.5 support (#2006, #2010).
+
+## v2.7.1 Bamboozled Buffalo
+* Add library function specifications for fortified `inet_pton` and `inet_ntop` (#1883).
+
+## v2.7.0 Bamboozled Buffalo
+Functionally equivalent to Goblint in SV-COMP 2026.
+
+* Add sequential portfolio for SV-COMP (#1845, #1867, #1877).
+* Add struct bitfield support (#1739, #1823).
+* Improve bitwise operations for integer domains (#1739).
+* Reimplement HTML output in OCaml (#1752).
+* Remove YAML witness version 0.1 support (#1812, #1817, #1852, #1853, #1855).
+* Fix incorrect invariants in witnesses (#1818, #1876).
+* Simplify relational invariants in witnesses (#1826, #1871, #1873).
+* Fix argument types in Goblint stubs (#1684, #1814, #1779, #1820).
+
 ## v2.6.0 Awkward Aardvark
 * Add division by zero analysis (#1764).
 * Add bitfield domain (#1623).

@@ -105,7 +105,7 @@ module Base : GenericEqSolver =
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
         let widen a b =
           if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
-          S.Dom.widen a (S.Dom.join a b)
+          S.Dom.widen a b
         in
         let op a b = if !y_ref.wpoint then widen a b else S.Dom.join a b
         in
@@ -123,7 +123,7 @@ module Base : GenericEqSolver =
 
       and iterate x = (* ~(inner) solve in td3*)
 
-        (* begining of iterate*)
+        (* beginning of iterate*)
         let x_ref = init x in
         if tracing then trace "iter" "iterate %a, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (!x_ref.called) (!x_ref.stable) (!x_ref.wpoint);
         assert (S.system x <> None);

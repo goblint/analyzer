@@ -1,4 +1,4 @@
-  $ goblint --enable ana.sv-comp.functions --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant"]' --enable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --enable ana.int.congruence --disable ana.int.interval_set --disable witness.invariant.split-conjunction int.c
+  $ goblint --enable ana.sv-comp.functions --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant"]' --enable ana.int.def_exc --enable ana.int.enums --enable ana.int.interval --enable ana.int.congruence --disable ana.int.interval_set --enable ana.int.bitfield --disable witness.invariant.split-conjunction int.c
   [Success][Assert] Assertion "1" will succeed (int.c:9:5-9:23)
   [Success][Assert] Assertion "1" will succeed (int.c:12:5-12:23)
   [Success][Assert] Assertion "1" will succeed (int.c:15:5-15:23)
@@ -31,7 +31,7 @@
           line: 12
           column: 5
           function: main
-        value: 51 <= i && i <= 99
+        value: (51 <= i && i <= 99) && (i & (-0x7FFFFFFF-1)) == 0
         format: c_expression
     - invariant:
         type: location_invariant

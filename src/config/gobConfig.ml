@@ -241,17 +241,13 @@ struct
   (** (Global) flag to disallow modification of the configuration. *)
   let immutable = ref false
 
-  let set_immutable = (:=) immutable
-
   let is_immutable () = !immutable
 
   let with_immutable_conf f =
     (* allow nesting *)
     if is_immutable () then f ()
-    else (
-      set_immutable true;
-      Fun.protect ~finally:(fun () -> set_immutable false) f
-    )
+    else
+      GobRef.wrap immutable true f
 
   (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability.
       @raise Failure
@@ -415,14 +411,7 @@ struct
     in
     match file with
     | Some fn ->
-      let v =
-        let ic = Stdlib.open_in (Fpath.to_string fn) in
-        Fun.protect ~finally:(fun () ->
-            Stdlib.close_in ic
-          ) (fun () ->
-            Yojson.Safe.from_channel ic
-          )
-      in
+      let v = In_channel.with_open_text (Fpath.to_string fn) Yojson.Safe.from_channel in
       merge v;
       if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
     | None -> raise (Sys_error (Printf.sprintf "%s: No such file or directory" (Fpath.to_string fn)))

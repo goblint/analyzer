@@ -1,4 +1,5 @@
 // PARAM: --set ana.malloc.unique_address_count 1 --set ana.autotune.activated '["reduceAnalyses"]' --enable ana.autotune.enabled
+#include <stdlib.h>
 #include<pthread.h>
 #include<goblint.h>
 

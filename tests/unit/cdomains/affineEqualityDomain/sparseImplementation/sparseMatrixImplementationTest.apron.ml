@@ -226,6 +226,40 @@ let is_not_covered _ =
   let result = Matrix.is_covered_by m2 m1 in
   assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
 
+let is_covered_by_disjoint_simple _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
+let is_covered_by_disjoint_reversed _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
+let is_covered_by_equal _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 0; int 0]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_covered_by_sum_of_rows _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 0]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0];
+     [int 0; int 1; int 0]] in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_covered_by_missing_component _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 0; int 0]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0];
+     [int 0; int 0; int 1; int 0]] in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
 let is_covered_big _ =
   let m1 = make_matrix_of_2d_list @@
     [[int 1; int 0; int 0; int 0; int 0; int (-1); int 0];
@@ -337,12 +371,17 @@ let get_col_upper_triangular _ =
     [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
      [int 0; int 1; int 0; int 0; int 0; int 0; int 0];
      [int 0; int 0; int 1; frac (-1) 3; int 0; frac 1 3; int 1]] in
-
   let result = Matrix.get_col_upper_triangular m 5 in
-
   let expected = Vector.of_list [int 0; int 0; frac 1 3] in
-
   assert_equal expected result
+
+let linear_disjunct_redundant _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int (-1); int (-5)];
+     [int 0; int 1; int 0; int (-4)]] in
+  let expected = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
+  normalize_and_assert (Matrix.linear_disjunct m1 m2) expected
 
 let test () =
   "SparseMatrixImplementationTest-Apron"
@@ -358,6 +397,11 @@ let test () =
     "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
     "zero vector is covered by m2" >:: is_zero_vec_covered;
     "m1 is not covered by m2" >:: is_not_covered;
+    "[1;0;0] not covered by [0;1;0]" >:: is_covered_by_disjoint_simple;
+    "[0;1;0] not covered by [1;0;0]" >:: is_covered_by_disjoint_reversed;
+    "[1;0;0] covered by [1;0;0]" >:: is_covered_by_equal;
+    "[1;1;0] covered by [1;0;0],[0;1;0]" >:: is_covered_by_sum_of_rows;
+    "[1;1;0;0] not covered by [1;0;0;0],[0;0;1;0]" >:: is_covered_by_missing_component;
     "m1 is covered by m2 with big matrix" >:: is_covered_big;
     "does not change an empty matrix" >:: normalize_empty;
     "can correctly normalize a two column matrix" >:: normalize_two_columns;
@@ -368,4 +412,5 @@ let test () =
     "map2i one zero vector" >:: vectorMap2i_one_zero;
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
     "get column when matrix in rref" >:: get_col_upper_triangular;
+    "linear_disjunct of [y=-4] and [x-z=-5;y=-4] is [y=-4]" >:: linear_disjunct_redundant;
   ]

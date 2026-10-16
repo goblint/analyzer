@@ -14,7 +14,8 @@ struct
 
   let name () = Format.sprintf "lval (%s)" (Offs.name ())
 
-  let show ((v, o): t): string = CilType.Varinfo.show v ^ Offs.show o
+  (* Use Basetype.Variables to print with RichVarinfo. *)
+  let show ((v, o): t): string = Basetype.Variables.show v ^ Offs.show o
   include Printable.SimpleShow (
     struct
       type nonrec t = t

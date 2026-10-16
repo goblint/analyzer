@@ -62,10 +62,12 @@ class findAllocsInLoops = object
 
   method! vinst = function
     | Call (_, Lval (Var f, NoOffset), args,_,_) when LibraryFunctions.is_special f ->
-      Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
+      let@ () = Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id in
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Malloc _
+        | Calloc _
+        | Realloc _
         | Alloca _ when inloop -> raise Found
         | _ -> DoChildren
       end
@@ -96,11 +98,11 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 
 let findMallocWrappers () =
   let isMalloc f =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) in
     if LibraryFunctions.is_special f then
       let desc = LibraryFunctions.find f in
       let args = functionArgs f in
-      GobOption.exists (fun args -> match desc.special args with Malloc _ -> true | _ -> false) args
+      GobOption.exists (fun args -> WrapperFunctionAnalysis.MallocWrapper.WrapperArgs.is_wrapped (desc.special args)) args
     else
       false
   in
@@ -177,7 +179,7 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let hasFunction pred =
   let relevant_static var =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) in
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       GobOption.exists (fun args -> pred desc args) (functionArgs var)
@@ -185,7 +187,7 @@ let hasFunction pred =
       false
   in
   let relevant_dynamic var =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) in
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
@@ -213,8 +215,8 @@ let enableAnalyses reason description analyses =
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
-let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
-let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
+let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"; "threadDescendants"; "mustlockHistory"; "descendantLockset"; "creationLockset"]
+let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"; "mutexGhosts"]
 
 let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
 
@@ -320,7 +322,8 @@ end
 let selectArrayDomains file =
   set_bool "annotation.goblint_array_domain" true;
   let thisVisitor = new addTypeAttributeVisitor in
-  ignore (visitCilFileSameGlobals thisVisitor file)
+  ignore (visitCilFileSameGlobals thisVisitor file);
+  Cilfacade.sync_formals file
 (*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
 
 
@@ -342,7 +345,7 @@ let isComparison = function
 
 let rec extractVar = function
   | UnOp (Neg, e, _)
-  | CastE (_, e) -> extractVar e
+  | CastE (_, _, e) -> extractVar e
   | Lval ((Var info),_) when OctagonTracked.varinfo_tracked info -> Some info
   | _ -> None
 
@@ -455,7 +458,8 @@ let apronOctagonOption factors file =
     set_string "ana.apron.threshold_widening_constants" "comparisons";
     Logs.info "Enabled octagon domain ONLY for:";
     Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
-    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
+    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars;
+    Cilfacade.sync_formals file
   in
   {
     value = 50 * (List.length allVars) ;
@@ -488,6 +492,26 @@ let activateTmpSpecialAnalysis () =
     enableAnalyses "Math function" "tmpSpecial analysis and floating-point domain" ["tmpSpecial"];
     set_bool "ana.float.interval" true;
   )
+
+let activatePthreadBarriers () =
+  let isBarrierInit (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.BarrierInit _ -> true
+    | _ -> false 
+  in
+  let hasBarrierInit = hasFunction isBarrierInit in
+  if hasBarrierInit then
+    enableAnalyses "Barrier initialization" "pthread barrier analysis" ["pthreadBarriers"]
+
+let activatePthreadOnce () =
+  let isOnce (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.Once _ -> true
+    | _ -> false 
+  in
+  let hasOnce = hasFunction isOnce in
+  if hasOnce then
+    enableAnalyses "Once usage" "pthread once analysis" ["pthreadOnce"]
 
 let estimateComplexity factors file =
   let pathsEstimate = factors.loops + factors.controlFlowStatements / 90 in
@@ -555,6 +579,12 @@ let chooseConfig file =
 
   if isActivated "tmpSpecialAnalysis" then
     activateTmpSpecialAnalysis ();
+
+  if isActivated "pthreadBarriers" then
+    activatePthreadBarriers ();
+
+  if isActivated "pthreadOnce" then
+    activatePthreadOnce ();
 
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in

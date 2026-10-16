@@ -42,7 +42,7 @@ struct
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
-    let out = Messages.get_out result_name !Messages.out in
+    let out = !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "pretty-deterministic" -> ignore (fprintf out "%a\n" pretty_deterministic (Lazy.force table))
@@ -91,6 +91,15 @@ struct
           ("messages", Messages.Table.to_yojson ());
         ]
       in
+      Yojson.Safe.to_channel ~std:true out json
+    | "dashboard" ->
+      let timings = Timing.Default.root_with_current () in
+      let json = `Assoc [
+          ("files", Preprocessor.dependencies_to_yojson ());
+          ("time", `Float (if get_bool "dbg.timing.enabled" then timings.cputime else -1.));
+          ("checks", Checks.export ());
+          ("assumptions", Assumptions.to_dashboard_yojson ());
+        ] in
       Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s

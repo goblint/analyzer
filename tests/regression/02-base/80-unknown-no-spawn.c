@@ -2,6 +2,8 @@
 #include <goblint.h>
 #include <stddef.h>
 
+void magic(void (*)(void*));
+
 void *t_fun(void *arg) {
   __goblint_check(1); // NOWARN (unreachable)
   return NULL;

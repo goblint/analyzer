@@ -27,7 +27,8 @@ module type CFloatType = sig
   val hash: t -> int
   val compare: t -> t -> int
   val to_yojson: t -> Yojson.Safe.t
-  val to_string: t -> string
+  val show: t -> string
+  val pretty: unit -> t -> GoblintCil.Pretty.doc
 
   val neg: t -> t
   val fabs: t -> t
@@ -75,7 +76,11 @@ module CDouble = struct
   let pred = Float.pred
   let succ = Float.succ
 
-  let to_string = Float.to_string
+  let show = Float.to_string
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
 
   let neg = Float.neg
   let fabs = Float.abs
@@ -117,7 +122,11 @@ module CFloat = struct
 
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
 
-  let to_string = Float.to_string
+  let show = Float.to_string
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
 
   let neg = Float.neg
   let fabs = Float.abs

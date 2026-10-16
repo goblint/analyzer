@@ -1,7 +1,6 @@
 include AddressDomain_intf
 
 open GoblintCil
-open IntOps
 
 module M = Messages
 module Mval_outer = Mval
@@ -83,11 +82,6 @@ struct
     | StrPtr s -> SD.to_exp s
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
-  (* TODO: unused *)
-  let add_offset x o = match x with
-    | Addr m -> Addr (Mval.add_offset m o)
-    | x -> x
-
 
   let is_definite = function
     | NullPtr -> true
@@ -222,12 +216,10 @@ struct
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
 
   let of_int i =
-    match ID.to_int i with
-    | x when GobOption.exists BigIntOps.(equal (zero)) x -> null_ptr
-    | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null
-    | _ -> match ID.to_excl_list i with
-      | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
-      | _ -> top_ptr
+    match ID.equal_to Z.zero i with
+    | `Eq -> null_ptr
+    | `Neq -> not_null
+    | `Top -> top_ptr
 
   let to_int x =
     let ik = Cilfacade.ptr_ikind () in
@@ -320,9 +312,12 @@ struct
     (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
     if exists (fun a -> Option.is_some (Addr.to_c_string a)) dest then
       (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
+       Checks.warn Checks.Category.InvalidMemoryAccess "May write to a string literal, which leads to a segmentation fault in most cases";
        false)
-    else
+    else (
+      Checks.safe Checks.Category.InvalidMemoryAccess;
       true
+    )
 
   (* add an & in front of real addresses *)
   module ShortAddr =
@@ -377,7 +372,7 @@ struct
     | false, false -> cop x y
 
   let meet x y   = merge join meet x y
-  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
+  let narrow x y = merge widen narrow x y
 
   let meet x y =
     if M.tracing then M.traceli "ad" "meet %a %a" pretty x pretty y;

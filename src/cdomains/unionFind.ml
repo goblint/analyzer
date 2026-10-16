@@ -83,7 +83,7 @@ module T = struct
       | SizeOfError (msg, _) ->
         raise (UnsupportedCilExpression msg)
 
-  let show_type exp =
+  let pretty_type () exp =
     try
       let typ = typeOf exp in
       let typ_abbreviation = match Cil.unrollType typ with
@@ -99,35 +99,38 @@ module T = struct
         | TBuiltin_va_list _ -> "?"
       in
       let bit_size = get_size_in_bits typ in
-      let bit_size = Z.to_string bit_size in
-      "[" ^ typ_abbreviation ^ bit_size ^ "]"
+      Pretty.dprintf "[%s%a]" typ_abbreviation GobZ.pretty bit_size
 
     with UnsupportedCilExpression _ ->
-      "[?]"
+      Pretty.text "[?]"
 
-  let rec show : t -> string = function
+  let rec pretty (): t -> Pretty.doc =
+    let open Pretty in
+    function
     | Addr v ->
-      "&" ^ Var.show v
+      dprintf "&%a" Var.pretty v
     | Aux (v,exp) ->
-      "~" ^ Var.show v ^ show_type exp
+      dprintf "~%a%a" Var.pretty v pretty_type exp
     | Deref (Addr v, z, exp) when Z.equal z Z.zero ->
-      Var.show v ^ show_type exp
+      dprintf "%a%a" Var.pretty v pretty_type exp
     | Deref (t, z, exp) when Z.equal z Z.zero ->
-      "*" ^ show t^ show_type exp
+      dprintf "*%a%a" pretty t pretty_type exp
     | Deref (t, z, exp) ->
-      "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
+      dprintf "*(%a+%a)%a" GobZ.pretty z pretty t pretty_type exp
 
-  let show_prop = function
+  let pretty_prop (): v_prop -> Pretty.doc =
+    let open Pretty in
+    function
     | Equal (t1,t2,r) when Z.equal r Z.zero ->
-      show t1 ^ " = " ^ show t2
+      dprintf "%a = %a" pretty t1 pretty t2
     | Equal (t1,t2,r) ->
-      show t1 ^ " = " ^ Z.to_string r ^ "+" ^ show t2
+      dprintf "%a = %a+%a" pretty t1 GobZ.pretty r pretty t2
     | Nequal (t1,t2,r) when Z.equal r Z.zero ->
-      show t1 ^ " != " ^ show t2
+      dprintf "%a != %a" pretty t1 pretty t2
     | Nequal (t1,t2,r) ->
-      show t1 ^ " != " ^ Z.to_string r ^ "+" ^ show t2
+      dprintf "%a != %a+%a" pretty t1 GobZ.pretty r pretty t2
     | BlNequal (t1,t2) ->
-      "bl(" ^ show t1 ^ ") != bl(" ^ show t2 ^ ")"
+      dprintf "bl(%a) != bl(%a)" pretty t1 pretty t2
 
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm needle haystack =
@@ -158,7 +161,7 @@ module T = struct
     | ikind ->
       begin match ask.f (Queries.EvalInt exp) with
         | `Lifted i ->
-          let casted_i = IntDomain.IntDomTuple.cast_to ikind i in
+          let casted_i = IntDomain.IntDomTuple.cast_to ~kind:Internal ikind i in (* TODO: proper castkind *)
           let maybe_i = IntDomain.IntDomTuple.to_int casted_i in
           begin match maybe_i with
             | Some i -> i
@@ -193,12 +196,8 @@ module T = struct
     | None ->
       Z.one
 
-  let is_struct_type t =
-    match Cil.unrollType t with
-    | TComp _ ->
-      true
-    | _ ->
-      false
+  (* TODO: Should this actually be accounting for unions? *)
+  let is_struct_type = Cilfacade.isStructOrUnionType
 
   let is_struct_ptr_type t =
     match Cil.unrollType t with
@@ -238,14 +237,14 @@ module T = struct
         `NoOffset
       | Field (fld, ofs) ->
         `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         let exp_ikind = Cilfacade.get_ikind_exp exp in
         `Index (ValueDomain.ID.top_of exp_ikind, convert_offset ofs)
       | Index (exp, ofs) ->
         let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
         let i = match ask.f (Queries.EvalInt exp) with
           | `Lifted x ->
-            IntDomain.IntDomTuple.cast_to ptr_diff_ikind x
+            IntDomain.IntDomTuple.cast_to ~kind:Internal ptr_diff_ikind x (* TODO: proper castkind *)
           | _ ->
             ValueDomain.ID.top_of ptr_diff_ikind
         in
@@ -325,6 +324,10 @@ module T = struct
     | Aux (_, exp)
     | (Deref (_, _, exp)) -> exp
 
+  (** Wrapper to only do {!to_cil} on demand. *)
+  let pretty_exp () term =
+    d_exp () (to_cil term)
+
   let default_int_type =
     ILong
 
@@ -357,17 +360,8 @@ module T = struct
         let const = to_cil_constant off (Some typ) in
         BinOp (PlusPI, cil_t, const, typ)
     in
-    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;
+    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %a; res: %a" d_exp cil_t GobZ.pretty off d_exp res;
     res
-
-  (** Returns the integer offset of a field of a struct. *)
-  let get_field_offset finfo =
-    let field = `Field (finfo, `NoOffset) in
-    let field_to_index = offset_to_index field in
-    match IntDomain.IntDomTuple.to_int field_to_index with
-    | Some i -> i
-    | None ->
-      raise (UnsupportedCilExpression "unknown offset")
 
   let is_field = function
     | Field _ -> true
@@ -422,12 +416,12 @@ module T = struct
   (** Get a Cil expression that is equivalent to *(exp + offset),
       by taking into account type correctness.*)
   let dereference_exp exp offset =
-    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
+    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %a" d_exp exp GobZ.pretty offset;
     let res =
       let find_field cinfo =
         try
           let equal_to_offset field =
-            Z.equal (get_field_offset field) offset
+            Z.equal (Z.of_int (Cilfacade.fieldBitsOffsetOnly field)) offset
           in
           let field_equal_to_offset = List.find equal_to_offset cinfo.cfields in
           Field (field_equal_to_offset, NoOffset)
@@ -463,7 +457,7 @@ module T = struct
           | _ ->
             let void_ptr_type = TPtr(TVoid [], []) in
             let offset_plus_exp =  to_cil_sum offset exp in
-            Lval (Mem (CastE (void_ptr_type, offset_plus_exp)), NoOffset)
+            Lval (Mem (CastE (Internal, void_ptr_type, offset_plus_exp)), NoOffset) (* TODO: how can void* be dereferenced? *)
       in
       if check_valid_pointer res then
         res
@@ -537,14 +531,14 @@ module T = struct
         | _ ->
           raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)->
+    | CastE (kind, typ, exp)->
       begin match of_cil ask exp with
         | Some (Addr x), z ->
           Some (Addr x), z
         | Some (Aux (x, _)), z ->
-          Some (Aux (x, CastE (typ, exp))), z
+          Some (Aux (x, CastE (kind, typ, exp))), z
         | Some (Deref (x, z, _)), z' ->
-          Some (Deref (x, z, CastE (typ, exp))), z'
+          Some (Deref (x, z, CastE (kind, typ, exp))), z'
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
@@ -580,9 +574,9 @@ module T = struct
     (if M.tracing then
        match res with
        | exception (UnsupportedCilExpression s) ->
-         M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
+         M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s" d_plainlval lval s
        | t ->
-         M.trace "c2po-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t));
+         M.trace "c2po-cil-conversion" "lval: %a --> %a" d_plainlval lval pretty t);
     res
 
   let rec of_cil_neg ask neg e = match e with
@@ -612,14 +606,14 @@ module T = struct
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
         | exception (UnsupportedCilExpression s) ->
-          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s" d_plainexp e s;
           None, None
         | t, z -> t, Some z
       in
       (if M.tracing && not neg then
          match res with
-         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %a" d_plainexp e GobZ.pretty z
+         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %a + %a" d_plainexp e pretty t GobZ.pretty z;
          | _ -> ());
       res
 
@@ -634,7 +628,7 @@ module T = struct
       if check_valid_pointer exp then
         Some t, Some z
       else begin
-        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %a + %a" d_plainexp e pretty t GobZ.pretty z;
         None, None
       end
     | t, z -> t, z
@@ -683,7 +677,7 @@ module T = struct
       pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
-      returns a list of length 1 with the parsed expresion or an empty list if
+      returns a list of length 1 with the parsed expression or an empty list if
         the expression can't be expressed with the type `prop`. *)
   let rec prop_of_cil ask e pos =
     let e = Cil.constFold false e in
@@ -850,7 +844,7 @@ module UnionFind = struct
               let uf = modify_size v' uf ((+) size_v) in
               Z.(r0 + r''), uf
             in
-            (* perform path compresion *)
+            (* perform path compression *)
             let (r', uf) = List.fold_left f (Z.zero, uf) (v::list)
             in v', r', uf
           else
@@ -926,27 +920,17 @@ module UnionFind = struct
     BatList.group compare bindings
 
   (** Throws "Unknown value" if the data structure is invalid. *)
-  let show_uf uf =
-    let show_element acc (v, (t, size)) =
-      acc ^
-      "\t" ^
-      (if is_root uf v then "R: " else "") ^
-      "(" ^
-      T.show v ^
-      "; P: " ^
-      T.show (fst t) ^
-      "; o: " ^
-      Z.to_string (snd t) ^
-      "; s: " ^
-      string_of_int size ^
-      ")\n"
+  let pretty_uf () uf =
+    let pretty_element () (v, (t, size)) =
+      Pretty.dprintf "\t%s(%a; P:%a; o:%a; s: %d)\n"
+        (if is_root uf v then "R: " else "")
+        T.pretty v
+        T.pretty (fst t)
+        GobZ.pretty (snd t)
+        size
     in
-    let show_eq_class acc eq_class =
-      acc ^
-      List.fold_left show_element "" eq_class ^
-      "----\n"
-    in
-    List.fold_left show_eq_class "" (get_eq_classes uf) ^ "\n"
+    let pretty_eq_class () eq_class = Pretty.d_list "\n" pretty_element () eq_class in
+    Pretty.d_list "----\n" pretty_eq_class () (get_eq_classes uf)
 
   (** Returns a list of representative elements.*)
   let get_representatives uf =
@@ -1004,27 +988,19 @@ module LookupMap = struct
     in
     add v zmap map
 
-  let show_map (map:t) =
-    let show_inner_binding acc (r, v) =
-      acc ^
-      "\t" ^
-      Z.to_string r ^
-      ": " ^
-      T.show v ^
-      "; "
+  let pretty_map () (map:t) =
+    let pretty_inner_binding () (r, v) =
+      Pretty.dprintf "\t%a: %a; " GobZ.pretty r T.pretty v
     in
-    let show_inner_map zmap =
+    let pretty_inner_map () zmap =
       let inner_bindings = zmap_bindings zmap in
-      List.fold_left show_inner_binding "" inner_bindings
+      Pretty.docList ~sep:Pretty.nil (pretty_inner_binding ()) () inner_bindings
     in
-    let show_binding s (v, zmap) =
-      s ^
-      T.show v ^
-      "\t:\n" ^
-      show_inner_map zmap ^ "\n"
+    let pretty_binding () (v, zmap) =
+      Pretty.dprintf "%a\t:\n%a" T.pretty v pretty_inner_map zmap
     in
     let bindings = bindings map in
-    List.fold_left show_binding "" bindings
+    Pretty.docList ~sep:Pretty.line (pretty_binding ()) () bindings
 
   (** The value at v' is shifted by r and then added for v.
       The old entry for v' is removed. *)

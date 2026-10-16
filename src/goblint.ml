@@ -2,10 +2,16 @@ open Goblint_lib
 open GobConfig
 open Maingoblint
 
+let () =
+  (* Activate memtrace during module initialization (before at_exit).
+     Doesn't guarantee all module initialization is traced though. *)
+  Goblint_memtrace.trace_if_requested ()
+
 (** the main function *)
 let main () =
   try
     Maingoblint.parse_arguments ();
+    Maingoblint.print_version ~libraries:false { f = Logs.debug };
     Cilfacade.init ();
 
     (* Timing. *)
@@ -56,7 +62,7 @@ let main () =
         else
           None
       in
-      (* This is run independant of the autotuner being enabled or not to be sound for programs with longjmp *)
+      (* This is run independent of the autotuner being enabled or not to be sound for programs with longjmp *)
       AutoSoundConfig.activateLongjmpAnalysesWhenRequired ();
       if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;

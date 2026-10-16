@@ -24,7 +24,7 @@ struct
     (** Convert to definite integer if possible. *)
   end
 
-  module type Lattice = IntDomain.Z
+  module type Lattice = IntDomain.ZDefault
 end
 
 exception Type_of_error of GoblintCil.typ * string
@@ -128,10 +128,16 @@ sig
           Used for [exp.fast_global_inits]. *)
       val any: GoblintCil.exp Lazy.t
 
+      (** [is_any e] is like [CilType.Exp.equal e any], except it ignores cast kind. *)
+      val is_any: GoblintCil.exp -> bool
+
       (** Special index expression for all indices.
           Strongly updates array in assignment.
           Used for Goblint-specific witness invariants. *)
       val all: GoblintCil.exp Lazy.t
+
+      (** [is_all e] is like [CilType.Exp.equal e all], except it ignores cast kind. *)
+      val is_all: GoblintCil.exp -> bool
     end
 
     module Z: Printable with type t = Z.t

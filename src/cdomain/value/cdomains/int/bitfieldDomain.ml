@@ -52,7 +52,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let one = of_int Ints_t.one
   let zero = of_int Ints_t.zero
-  let top_bool = join one zero
 
   let bits_known (z,o) = z ^: o
   let bits_invalid (z,o) = !:(z |: o)
@@ -65,6 +64,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let nabla x y= if x =: (x |: y) then x else one_mask
 
   let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)
+  let widen x y = widen x (join x y) (* TODO: inline? *)
 
   let lognot (z,o) = (o,z)
 
@@ -263,25 +263,25 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       else
         top_of ik
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ?from_ik ?(no_ov=false) ik (z,o) =
     let (min_ik, max_ik) = Size.range ik in
-    let (underflow, overflow) = match torg with
+    let (underflow, overflow) = match from_ik with
       | None -> (false, false) (* ik does not change *)
-      | Some (GoblintCil.Cil.TInt (old_ik, _) | TEnum ({ekind = old_ik; _}, _)) ->
+      | Some old_ik ->
         let underflow = Z.compare (BArith.min old_ik (z,o)) min_ik < 0 in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in
         (underflow, overflow)
-      | _ ->
-        let isPos = z <: Ints_t.zero in
-        let isNeg = o <: Ints_t.zero in
-        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
-        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
-        (underflow, overflow)
+        (* | _ -> (* TODO: what is this case? was it always dead? *)
+             let isPos = z <: Ints_t.zero in
+             let isNeg = o <: Ints_t.zero in
+             let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+             let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
+             (underflow, overflow) *)
     in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ~kind ?from_ik ?(no_ov=false) ik (z,o) =
     if ik = GoblintCil.IBool then (
       let may_zero =
         if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
@@ -298,7 +298,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       (BArith.join may_zero may_one, {underflow=false; overflow=false})
     )
     else
-      cast_to ?torg ~no_ov ik (z,o)
+      cast_to ?from_ik ~no_ov ik (z,o)
 
   let join ik b1 b2 = norm ik @@ (BArith.join b1 b2)
 
@@ -341,7 +341,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
 
     (* constructs a bitfield of the interval: for each bit check if the smallest number that is greater than startv and has the bit flipped is still in the interval *)
-    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit cant change and is the same as in startv *)
+    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit can't change and is the same as in startv *)
     (* Runtime: O(bits) *)
     let rec construct_bitfield pos (acc_z, acc_o) =
       if pos < 0 then (acc_z, acc_o)
@@ -396,25 +396,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let o = mod_mask |: c in
       norm ik (z,o)
     else top_of ik
-
-  (* Logic *)
-
-  let log1 f ik i1 = match to_bool i1 with
-    | None -> top_of ik
-    | Some x -> of_bool ik (f x)
-
-  let log2 f ~annihilator ik i1 i2 = match to_bool i1, to_bool i2 with
-    | Some x, _ when x = annihilator -> of_bool ik annihilator
-    | _, Some y when y = annihilator -> of_bool ik annihilator
-    | Some x, Some y -> of_bool ik (f x y)
-    | _              -> top_of ik
-
-  let c_logor = log2 (||) ~annihilator:true
-
-  let c_logand = log2 (&&) ~annihilator:false
-
-  let c_lognot ik i1 = log1 not ik i1
-
 
   (* Bitwise *)
 
@@ -591,52 +572,69 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let eq ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 && Z.compare (BArith.min ik x) (BArith.max ik y) >= 0 then
-      of_bool ik true
+      Some true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) > 0 || Z.compare (BArith.max ik x) (BArith.min ik y) < 0 then
-      of_bool ik false
+      Some false
     else
-      BArith.top_bool
+      None
 
-  let ne ik x y = match eq ik x y with
-    | t when t = of_bool ik true -> of_bool ik false
-    | t when t = of_bool ik false -> of_bool ik true
-    | _ -> BArith.top_bool
+  let ne ik x y = Option.map not (eq ik x y)
 
   let le ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 then
-      of_bool ik true
+      Some true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) > 0 then
-      of_bool ik false
+      Some false
     else
-      BArith.top_bool
+      None
 
   let ge ik x y = le ik y x
 
   let lt ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) < 0 then
-      of_bool ik true
+      Some true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) >= 0 then
-      of_bool ik false
+      Some false
     else
-      BArith.top_bool
+      None
 
   let gt ik x y = lt ik y x
 
   (* Invariant *)
 
-  let invariant_ikind e ik (z,o) =
-    if z =: BArith.one_mask && o =: BArith.one_mask then
-      Invariant.top ()
-    else if  BArith.is_invalid (z,o) then
-      Invariant.none
-    else
-      let open GoblintCil.Cil in
+  let invariant_ikind e ik (z, o) =
+    assert (not (BArith.is_invalid (z, o)));
+    let open GoblintCil.Cil in
+    let ik_type = TInt (ik, []) in
+    let i1 =
       let def0 = z &: (!: o) in
+      if def0 =: BArith.zero_mask then
+        Invariant.none
+      else (
+        let def0 = Ints_t.to_bigint def0 in
+        if fitsInInt ik def0 then ( (* At least for _Bool and unsigned types, kintegerCilint can give an incorrect mask if doesn't fit. See https://github.com/goblint/analyzer/pull/1897/changes#r2610251390. *)
+          let def0 = kintegerCilint ik def0 in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def0, ik_type)), kintegerCilint ik Z.zero, intType))
+        )
+        else
+          Invariant.none
+      )
+    in
+    let i2 =
       let def1 = o &: (!: z) in
-      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint def0, Ints_t.to_bigint def1) in
-      let exp0 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, (UnOp (BNot, e, TInt(ik,[]))), def0, TInt(ik,[]))), def0, intType)) in
-      let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in
-      Invariant.meet exp0 exp1
+      if def1 =: BArith.zero_mask then
+        Invariant.none
+      else (
+        let def1 = Ints_t.to_bigint def1 in
+        if fitsInInt ik def1 then ( (* At least for _Bool and unsigned types, kintegerCilint can give an incorrect mask if doesn't fit. See https://github.com/goblint/analyzer/pull/1897/changes#r2610251390. *)
+          let def1 = kintegerCilint ik def1 in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, ik_type)), def1, intType))
+        )
+        else
+          Invariant.none
+      )
+    in
+    Invariant.(i1 && i2)
 
   let starting ik n =
     let (min_ik, max_ik) = Size.range ik in
@@ -648,30 +646,24 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Refinements *)
 
-  let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
-    match cong with
-    | Some (c, m) -> meet ik bf (of_congruence ik (c,m))
-    | _ -> norm ik bf
+  let refine_with_congruence ik bf (cong : int_t * int_t) : t =
+    meet ik bf (of_congruence ik cong)
 
   let refine_with_interval ik t itv =
-    match itv with
-    | None -> norm ik t
-    | Some (l, u) -> meet ik t (of_interval ik (l, u) |> fst)
+    meet ik t (of_interval ik itv |> fst)
 
   let refine_with_bitfield ik x y = meet ik x y
 
-  let refine_with_excl_list ik t (excl : (int_t list * (int * int)) option) : t = norm ik t
+  let refine_with_excl_list ik t (excl : int_t list * (int * int)) : t = norm ik t
 
-  let refine_with_incl_list ik t (incl : (int_t list) option) : t =
-    let joined =match incl with
-      | None -> top_of ik
-      | Some ls ->
-        List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
+  let refine_with_incl_list ik t (ls : int_t list) : t =
+    let joined =
+      List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
     in
     meet ik t joined
 
 
-  let refine_bor (az, ao) (bz, bo) (cz, co) =
+  let refine_bor ik (az, ao) (bz, bo) (cz, co) =
     let cDef0 = cz &: (!: co) in
     let cDef1 = co &: (!: cz) in
     let aDef0 = az &: (!: ao) in
@@ -679,16 +671,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* if a bit is definitely 0 in b and definitely 1 in c, the same bit must be definitely 1 in a *)
     (* example (with t for top): (tttt) | (t010) = (1011) *)
     (* we can refine (tttt) to (ttt1) because the lowest 1 of c must come from a *)
-    let az = az &: (!: (bDef0 &: cDef1)) in
-    let bz = bz &: (!: (aDef0 &: cDef1)) in
+    let az = !: (bDef0 &: cDef1) in
+    let bz = !: (aDef0 &: cDef1) in
     (* if a bit is definitely 0 in c, the same bit must be definitely 0 in a too *)
     (* example (with t for top): (ttt1) | (t010) = (1011) *)
     (* we can refine (ttt1) to (t0t1) because the second bit of a cannot be a 1 *)
-    let ao = ao &: (!: cDef0) in
-    let bo = bo &: (!: cDef0) in
-    ((az, ao), (bz, bo))
+    let ao = !: cDef0 in
+    let bo = !: cDef0 in
+    (norm ik (az, ao), norm ik (bz, bo))
 
-  let refine_band (az, ao) (bz, bo) (cz, co) =
+  let refine_band ik (az, ao) (bz, bo) (cz, co) =
     let cDef0 = cz &: (!: co) in
     let cDef1 = co &: (!: cz) in
     let aDef1 = ao &: (!: az) in
@@ -696,14 +688,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* if a bit is definitely 1 in c, the same bit must be definitely 1 in a too *)
     (* example (with t for top): (tttt) & (t010) = (1011) *)
     (* we can refine (tttt) to (1t11) *)
-    let az = az &: (!: cDef1) in
-    let bz = bz &: (!: cDef1) in
+    let az = !: cDef1 in
+    let bz = !: cDef1 in
     (* if a bit is definitely 1 in b and definitely 0 in c, the same bit must be definitely 0 in a *)
     (* example (with t for top): (tttt) & (t110) = (1011) *)
     (* we can refine (tttt) to (t0tt) *)
-    let ao = ao &: (!: (bDef1 &: cDef0)) in
-    let bo = bo &: (!: (aDef1 &: cDef0)) in
-    ((az, ao), (bz, bo))
+    let ao = !: (bDef1 &: cDef0) in
+    let bo = !: (aDef1 &: cDef0) in
+    (norm ik (az, ao), norm ik (bz, bo))
 
   let arbitrary ik =
     let open QCheck.Iter in

@@ -12,7 +12,7 @@ This matches the var_eq extra widening iteration, so we couldn't test if var_eq 
 
 Easiest to run again to get evals.
   $ goblint --set ana.activated[+] var_eq --disable ana.int.def_exc --enable ana.int.interval 74-var_eq-unassume-interval.c -v 2>&1 | grep 'evals'
-  [Info] vars = 9    evals = 12    narrow_reuses = 1
+  [Info] vars = 8    evals = 12    narrow_reuses = 1
 
 ## Unassume
 
@@ -28,4 +28,4 @@ Easiest to run again to get evals.
 Evals less than from scratch.
 If var_eq didn't do any unassume (and kept i == 0 in first iteration), then there would be extra widening iteration and 10 evals instead.
   $ goblint --set ana.activated[+] var_eq --disable ana.int.def_exc --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 74-var_eq-unassume-interval.yml 74-var_eq-unassume-interval.c -v 2>&1 | grep 'evals'
-  [Info] vars = 9    evals = 8    narrow_reuses = 1
+  [Info] vars = 8    evals = 8    narrow_reuses = 1

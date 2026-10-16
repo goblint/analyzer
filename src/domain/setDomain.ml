@@ -201,16 +201,16 @@ struct
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y Base.pretty evil
     end
 
-  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.small_list (Base.arbitrary ())
+  let arbitrary () = QCheck.map ~rev:elements of_list @@ QCheck.list_small (Base.arbitrary ())
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
   * analysis whenever the user elements coincide. Just as above there is no top
   * element, and calling [top ()] will raise an exception *)
 (* TODO: unused *)
-module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: Printable.S) =
+module SensitiveConf (Conf: Printable.ProdConf) (Base: Lattice.S) (User: Printable.S) =
 struct
-  module Elt = Printable.ProdConf (C) (Base) (User)
+  module Elt = Printable.ProdConf (Conf) (Base) (User)
   include Make(Elt)
   let name () = "Sensitive " ^ name ()
 
@@ -381,7 +381,7 @@ struct
     | `Top, _ -> `Top
     | _, `Top -> `Top
     | `Lifted x, `Lifted y -> `Lifted (S.join x y)
-  let widen x y = (* assumes y to be bigger than x *)
+  let widen x y =
     match x, y with
     | `Top, _
     | _, `Top -> `Top
@@ -455,7 +455,7 @@ struct
   module E =
   struct
     include E
-    let arbitrary () = QCheck.oneofl E.elems
+    let arbitrary () = QCheck.oneof_list E.elems
   end
 
   include Make (E)

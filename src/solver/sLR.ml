@@ -66,7 +66,7 @@ module SLR3 =
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           let tmp =
             if wpx then
-              if HM.mem globals x then S.Dom.widen old (S.Dom.join old tmp)
+              if HM.mem globals x then S.Dom.widen old tmp
               else box old tmp
             else tmp
           in
@@ -90,11 +90,11 @@ module SLR3 =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
-          let effects = ref Set.empty in
+          let effects = ref VS.empty in
           let sidef y d =
-            if not (Set.mem y !effects) then (
+            if not (VS.mem y !effects) then (
               HPM.replace rho' (x,y) (S.Dom.bot ());
-              effects := Set.add y !effects
+              effects := VS.add y !effects
             );
             set y d
           in
@@ -481,7 +481,7 @@ module PrintInfluence =
   struct
     module S1 = Sol (S) (HM)
     let solve x y =
-      let ch = Legacy.open_out "test.dot" in
+      let@ ch = Out_channel.with_open_text "test.dot" in
       let r = S1.solve x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
@@ -498,7 +498,6 @@ module PrintInfluence =
       ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
       HM.iter f r;
       ignore (Pretty.fprintf ch "}\n");
-      Legacy.close_out_noerr ch;
       r
   end
 

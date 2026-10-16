@@ -29,22 +29,22 @@ sig
 
   (** {b Comparison operators} *)
 
-  val lt: t -> t -> t
+  val lt: t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt: t -> t -> t
+  val gt: t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le: t -> t -> t
+  val le: t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge: t -> t -> t
+  val ge: t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq: t -> t -> t
+  val eq: t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne: t -> t -> t
+  val ne: t -> t -> bool option
   (** Not equal to: [x != y] *)
 
 
@@ -67,19 +67,6 @@ sig
 
   val shift_right: t -> t -> t
   (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val c_lognot: t -> t
-  (** Logical not: [!x] *)
-
-  val c_logand: t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val c_logor : t -> t -> t
-  (** Logical or: [x || y] *)
-
 end
 
 module type ArithIkind =
@@ -108,22 +95,22 @@ sig
 
   (** {b Comparison operators} *)
 
-  val lt: Cil.ikind -> t -> t -> t
+  val lt: Cil.ikind -> t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt: Cil.ikind -> t -> t -> t
+  val gt: Cil.ikind -> t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le: Cil.ikind -> t -> t -> t
+  val le: Cil.ikind -> t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge: Cil.ikind -> t -> t -> t
+  val ge: Cil.ikind -> t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq: Cil.ikind -> t -> t -> t
+  val eq: Cil.ikind -> t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne: Cil.ikind -> t -> t -> t
+  val ne: Cil.ikind -> t -> t -> bool option
   (** Not equal to: [x != y] *)
 
 
@@ -146,31 +133,15 @@ sig
 
   val shift_right: Cil.ikind -> t -> t -> t
   (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val c_lognot: Cil.ikind -> t -> t
-  (** Logical not: [!x] *)
-
-  val c_logand: Cil.ikind -> t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val c_logor : Cil.ikind -> t -> t -> t
-  (** Logical or: [x || y] *)
-
 end
 
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)
-module type B =
+module type BDefault =
 sig
   include Lattice.PO
   include Lattice.Bot with type t := t
   type int_t
   (** {b Accessing values of the ADT} *)
-
-  val bot_of: Cil.ikind -> t
-  val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val to_int: t -> int_t option
   (** Return a single integer value if the value is a known constant, otherwise
@@ -185,23 +156,29 @@ sig
   val to_excl_list: t -> (int_t list * (int * int)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
-  val of_excl_list: Cil.ikind -> int_t list -> t
-  (** Creates an exclusion set from a given list of integers. *)
-
-  val is_excl_list: t -> bool
-  (** Checks if the element is an exclusion set. *)
-
   val to_incl_list: t -> int_t list option
   (** Gives a list representation of the included values if possible. *)
 
   val maximal    : t -> int_t option
   val minimal    : t -> int_t option
+end
+
+(* Shared signature of IntDomain implementations and the lifted IntDomains *)
+module type B =
+sig
+  include BDefault
+
+  val bot_of: Cil.ikind -> t
+  val top_of: ?bitfield:int -> Cil.ikind -> t
+
+  val of_excl_list: Cil.ikind -> int_t list -> t
+  (** Creates an exclusion set from a given list of integers. *)
 
   (** {b Cast} *)
 
-  val cast_to: ?suppress_ovwarn:bool -> ?torg:Cil.typ -> Cil.ikind -> t -> t
-  (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
-
+  val cast_to: ?suppress_ovwarn:bool -> kind:castkind -> Cil.ikind -> t -> t
+  (** Cast to {!Cil.ikind}.
+      The function is also called to handle overflow/wraparound after operations. *)
 end
 
 (** The signature of integral value domains. They need to support all integer
@@ -241,8 +218,10 @@ sig
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
-  (** @param no_ov If true, assume no overflow can occur. *)
+  val cast_to : ?suppress_ovwarn:bool -> kind:castkind -> ?from_ik:Cil.ikind -> ?no_ov:bool -> Cil.ikind -> t -> t
+  (** Cast from [from_ik] (if known) to {!Cil.ikind}.
+      The function is also called to handle overflow/wraparound after operations.
+      @param no_ov If true, assume no overflow can occur. *)
 
   val join: Cil.ikind -> t ->  t -> t
   val meet: Cil.ikind -> t -> t -> t
@@ -264,11 +243,11 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
-  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_congruence: Cil.ikind -> t -> int_t * int_t -> t
   val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
-  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int * int)) option -> t
-  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_interval: Cil.ikind -> t -> int_t * int_t -> t
+  val refine_with_excl_list: Cil.ikind -> t -> int_t list * (int * int) -> t
+  val refine_with_incl_list: Cil.ikind -> t -> int_t list -> t
 
   val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
@@ -300,7 +279,10 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : kind:castkind -> ?from_ik:Cil.ikind -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  (** Cast from [from_ik] (if known) to {!Cil.ikind}.
+      The function is also called to handle overflow/wraparound after operations.
+      @param no_ov If true, assume no overflow can occur. *)
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 
@@ -346,7 +328,38 @@ sig
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
+module type YDefault =
+sig
+  include BDefault
+  include Lattice.Top with type t := t
+  include Arith with type t:=t
+
+  val of_int: ?suppress_ovwarn:bool -> int_t -> t
+  (** Transform an integer literal to your internal domain representation with the specified ikind. *)
+
+  val of_bool: bool -> t
+  (** Transform a known boolean value to the default internal representation of the specified ikind. It
+    * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
+
+  val of_interval: ?suppress_ovwarn:bool -> int_t * int_t -> t
+
+  val of_congruence: int_t * int_t -> t
+
+  val of_bitfield: int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
+
+  val starting   : ?suppress_ovwarn:bool -> int_t -> t
+  val ending     : ?suppress_ovwarn:bool -> int_t -> t
+
+  val of_excl_list: int_t list -> t
+
+  val project: PrecisionUtil.int_precision -> t -> t
+  val invariant: Cil.exp -> t -> Invariant.t
+end
+(** The signature of integral value domains keeping track of ikind information *)
+
 module type Z = Y with type int_t = Z.t
+module type ZDefault = YDefault with type int_t = Z.t
 
 module type Ikind =
 sig
@@ -374,7 +387,9 @@ sig
   module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t
 
   module type Y = Y
+  module type YDefault = YDefault
   module type Z = Z
+  module type ZDefault = ZDefault
 
   module IntDomLifter (I: S2): Y with type int_t = I.int_t
 
@@ -382,7 +397,7 @@ sig
 
   module PtrDiffIkind : Ikind
 
-  module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
+  module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : YDefault with type t = I.t and type int_t = I.int_t
 
   (* module ManyInts : S *)
   (* module IntDomList : S *)

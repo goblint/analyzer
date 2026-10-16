@@ -21,8 +21,8 @@ class GoblintRunner:
         parser = argparse.ArgumentParser(
             description="""A facade in front of goblint to enable running a portfolio of configurations for SV-COMP.
             All args apart from --portfolio-conf/-p are passed on to the actual goblint calls.
-            The portfolio config file is a plaintext file whose lines each consist of goblint parameters, in particular including 
-            --conf followed by a path to a goblint config file (relative to the goblint base dir, or absolute). 
+            The portfolio config file is a plaintext file whose lines each consist of goblint parameters, in particular including
+            --conf followed by a path to a goblint config file (relative to the goblint base dir, or absolute).
             Goblint is run with each parameterset in order of specification as long as goblint produces an unknown verdict or reaches the end of the list.
             You may add comments to the portfolio config file by starting a line with #.
             """
@@ -35,13 +35,14 @@ class GoblintRunner:
 
         self.configs = []
         if conf_args.portfolio:
+            conf_args.portfolio = path.join(path.dirname(self.goblint_executable_path), conf_args.portfolio)
             if not path.exists(conf_args.portfolio):
                 logger.error(f" Could not find portfolio conf file at {conf_args.portfolio}")
                 exit(1)
             with open(conf_args.portfolio, "r") as conflist_file:
                 self.configs = [c.strip() for c in conflist_file.readlines() if not c.strip().startswith("#")]
             logger.info(f"Loaded goblint configs: {", ".join(self.configs)}")
-            
+
     def run_with_config(self, config_str):
         config_args = config_str.split(" ")
         args = [*config_args] + self.other_args
@@ -58,9 +59,10 @@ class GoblintRunner:
                 if verdict == "unknown":
                     continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
         process.wait()
+        print(flush=True) # flush output from this run before logging about starting of the next run
         # handle the returncode:
         if process.returncode != 0 and not continue_portfolio:
-            if process.returncode== -11: 
+            if process.returncode== -11:
                 print("Segmentation fault (core dumped)")
                 continue_portfolio = True
             self.logger.error(f"goblint exited with code {process.returncode}")
@@ -79,7 +81,7 @@ class GoblintRunner:
             verdict, go_on = self.run_with_config(config)
             if not verdict:
                 logger.error(f"No SV-COMP verdict produced by goblint for config [{i}]")
-            if not go_on: 
+            if not go_on:
                 logger.info(f"Stopping portfolio sequence with verdict [{verdict}] after config [{i}]")
                 break
         if go_on:

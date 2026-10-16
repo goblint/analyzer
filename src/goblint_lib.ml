@@ -109,6 +109,7 @@ module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
 module MutexGhosts = MutexGhosts
+module MustlockHistory = MustlockHistory
 
 (** {3 Threads}
 
@@ -120,6 +121,7 @@ module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
+module ThreadDescendants = ThreadDescendants
 
 (** {3 Other} *)
 
@@ -131,6 +133,8 @@ module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
+module CreationLockset = CreationLockset
+module DescendantLockset = DescendantLockset
 
 (** {2 Longjmp}
 
@@ -150,6 +154,22 @@ module Constants = Constants
 module Signs = Signs
 module Taint = Taint
 module UnitAnalysis = UnitAnalysis
+module SimplifiedUnitAnalysis = SimplifiedUnitAnalysis
+
+module GStoreWidening = GStoreWidening
+module GStoreWideningHelper = GStoreWideningHelper
+
+module SimplifiedAnalysis = SimplifiedAnalysis
+module SimplifiedLifter = SimplifiedLifter
+
+(** {3 Solutions}
+
+    Looking at these spoils all the fun! *)
+
+module SignsSol = SignsSol
+module SignsExtendSol = SignsExtendSol
+module TaintSol = TaintSol
+module GStoreWideningSol = GStoreWideningSol
 
 (** {2 Other} *)
 
@@ -160,7 +180,6 @@ module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module BranchSet = BranchSet
-module StackTrace = StackTrace
 
 (** {2 Helper}
 
@@ -297,7 +316,6 @@ module AccessDomain = AccessDomain
 
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
-module StackDomain = StackDomain
 
 (** {2 Testing}
 
@@ -327,6 +345,8 @@ module CilMaps = CilMaps
 
 module Messages = Messages
 module Logs = Logs
+module Checks = Checks
+module Assumptions = Assumptions
 
 (** {2 Front-end}
 

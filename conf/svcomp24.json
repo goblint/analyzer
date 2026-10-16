@@ -105,6 +105,10 @@
     },
     "null-pointer": {
       "dereference": "assume_none"
+    },
+    "malloc": {
+      "fail": false,
+      "zero": "pointer"
     }
   },
   "witness": {

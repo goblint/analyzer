@@ -1,5 +1,5 @@
   $ goblint --enable ana.sv-comp.functions --enable ana.int.interval 34-verifier-assert-def.c
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow (34-verifier-assert-def.c:4:7-4:18)
+  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in << (34-verifier-assert-def.c:4:7-4:18)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 8
     dead: 0

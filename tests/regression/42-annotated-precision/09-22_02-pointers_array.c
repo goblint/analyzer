@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --enable annotation.int.enabled --set ana.int.refinement fixpoint
+#include <stdlib.h>
+#include <stdio.h>
 #include <goblint.h>
 
 int main(void) __attribute__((goblint_precision("no-interval")));
