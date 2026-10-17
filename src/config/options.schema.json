@@ -2874,6 +2874,12 @@
               "type": "boolean",
               "default": false
             },
+            "lock-atomic-st-without-mutex-ghost": {
+              "title": "witness.yaml.lock-atomic-st-without-mutex-ghost",
+              "description": "Lock the atomic mutex in single-threaded states during YAML witness validation without the mutexGhost analysis.",
+              "type": "boolean",
+              "default": true
+            },
             "lenient-location-matching": {
               "title": "witness.yaml.lenient-location-matching",
               "description": "Match witness locations by basename instead of full path.",
