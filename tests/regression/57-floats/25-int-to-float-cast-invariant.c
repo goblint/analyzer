@@ -29,9 +29,13 @@ int main()
         __goblint_check(x <= 9007199254740992LL); //UNKNOWN!
     }
 
-    // 2^25 + 1 is converted to 2^25 under round-to-nearest, conversion to float must not be refined using double precision
+    // 2^25 + 1 is converted to 2^25 under round-to-nearest, the next float after 2^25 is 2^25 + 4
     if (i >= 0 && (float)i <= 33554432.0f) {
+        __goblint_check(i <= 33554435);
         __goblint_check(i <= 33554432); //UNKNOWN!
+    }
+    if ((float)i < 5.0f) {
+        __goblint_check(i <= 4);
     }
 
     // pattern from SV-COMP Juliet CWE190 int64_t square tasks
