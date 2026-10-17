@@ -1081,10 +1081,10 @@ struct
   type relation_components_t =  RelationDomain.RelComponents (RD) (D).t
 
   let get_m_with_mutex_inits inits ask getg m =
-    let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
+    let get_m = get_relevant_writes ask m (get_shared getg (V.mutex m)) in
     if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a" LockDomain.MustLock.pretty m LRD.pretty get_m;
     let r =
-      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+      let get_mutex_inits = merge_all (get_shared getg V.mutex_inits) in
       let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
       let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits' in
       if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
@@ -1099,15 +1099,15 @@ struct
     let get_mutex_global_g =
       if Param.handle_atomic then (
         (* Unprotected invariant is one big relation. *)
-        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex)
+        get_relevant_writes_nofilter ask (get_shared getg (V.mutex atomic_mutex))
         |> Cluster.keep_global g
       )
       else
-        get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g)
+        get_relevant_writes_nofilter ask (get_shared getg (V.global g))
     in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
-      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+      let get_mutex_inits = merge_all (get_shared getg V.mutex_inits) in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
       let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits' in
       if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
@@ -1118,8 +1118,8 @@ struct
 
   let get_mutex_global_g_with_mutex_inits_atomic inits ask getg =
     (* Unprotected invariant is one big relation. *)
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
-    let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask (get_shared getg (V.mutex atomic_mutex)) in
+    let get_mutex_inits = merge_all (get_shared getg V.mutex_inits) in
     let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits in
     LRD.join get_mutex_global_g get_mutex_inits'
 
@@ -1183,11 +1183,10 @@ struct
       let rel_side = RD.keep_vars rel_local [g_var] in
       let rel_side, clusters = Cluster.unlock (W.singleton g) rel_side in
       let digest = Digest.current ask in
-      let sidev = GMutex.singleton digest rel_side in
       if Param.handle_atomic then
-        sideg (V.mutex atomic_mutex) (G.create_global sidev) (* Unprotected invariant is one big relation. *)
+        sideg_bucket sideg (V.mutex atomic_mutex) digest rel_side (* Unprotected invariant is one big relation. *)
       else
-        sideg (V.global g) (G.create_global sidev);
+        sideg_bucket sideg (V.global g) digest rel_side;
       let l' = L.add lm rel_side l in
       let rel_local' =
         if is_unprotected ask g then
@@ -1242,8 +1241,7 @@ struct
         let rel_side = keep_only_protected_globals ask m rel in
         let rel_side, clusters = Cluster.unlock w rel_side in
         let digest = Digest.current ask in
-        let sidev = GMutex.singleton digest rel_side in
-        sideg (V.mutex m) (G.create_mutex sidev);
+        sideg_bucket sideg (V.mutex m) digest rel_side;
         let lm = LLock.mutex m in
         let l' = L.add lm rel_side l in
         let lmust' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
@@ -1260,9 +1258,8 @@ struct
         let rel_side = keep_only_globals ask m rel in
         let rel_side, clusters = Cluster.unlock w rel_side in
         let digest = Digest.current ask in
-        let sidev = GMutex.singleton digest rel_side in
         (* Unprotected invariant is one big relation. *)
-        sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
+        sideg_bucket sideg (V.mutex atomic_mutex) digest rel_side;
         let (lmust', l') = W.fold (fun g (lmust, l) ->
             let lm = LLock.global g in
             let lmust'' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
@@ -1359,8 +1356,7 @@ struct
     let rel_side = RD.keep_vars rel g_vars in
     let rel_side, clusters = Cluster.unlock (W.top ()) rel_side in (* top W to avoid any filtering *)
     let digest = Digest.current ask in
-    let sidev = GMutex.singleton digest rel_side in
-    sideg V.mutex_inits (G.create_mutex sidev);
+    sideg_bucket sideg V.mutex_inits digest rel_side;
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
@@ -1373,7 +1369,9 @@ struct
 
   let iter_sys_vars getg vq vf =
     match vq with
-    | VarQuery.Global g -> vf (V.global g)
+    | VarQuery.Global g ->
+      let shared = V.global g in
+      iter_published_digests getg shared (fun digest -> vf (V.bucket shared digest))
     | _ -> ()
 
   let phase_change ask old_phase new_phase getg sideg (st: relation_components_t) =
@@ -1390,7 +1388,6 @@ struct
         let current_digest = Digest.current ask in
         let publish_l (lock:LLock.t) (value:L.value) =
           (* Carry forward L component of current thread *)
-          let sideval = GMutex.singleton current_digest value in
           match lock with
           | `Left mutex ->
             if Locksets.(MustLockset.mem mutex (current_lockset ask)) then
@@ -1401,16 +1398,16 @@ struct
               else
                 (* Propagate here, as a later unlock may or may not trigger a side-effect here *)
                 (* TODO: To improve precision, we could also consider adding things to W here? *)
-                sideg (V.mutex mutex) (G.create_mutex sideval)
+                sideg_bucket sideg (V.mutex mutex) current_digest value
             else
-              sideg (V.mutex mutex) (G.create_mutex sideval)
+              sideg_bucket sideg (V.mutex mutex) current_digest value
           | `Right g ->
             (* Publishing here is unconditional, should this be like this ? *)
-            sideg (V.global g) (G.create_global sideval)
+            sideg_bucket sideg (V.global g) current_digest value
         in
         L.iter publish_l l;
-        let publish_others (mutex:V.t) =
-          let current_bindings = G.mutex @@ getg mutex in
+        let publish_others shared =
+          let current_bindings = get_shared getg shared in
           (*
             Look up all current bindings and if we find one that belongs to the old phase,
             but is not accounted for, carry it forward.
@@ -1430,7 +1427,7 @@ struct
               GMutex.add target value acc
           in
           let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
-          sideg mutex (G.create_mutex res)
+          sideg_shared sideg shared res
         in
         let mutexes = ask.f Queries.AppearingMutexes in
         LockDomain.AppearingMutexesQuery.iter (fun mutex -> publish_others (V.mutex mutex)) mutexes;
