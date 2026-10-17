@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 46-mixed-range-table.c, line: 16, column: 3, function: owner_thread}
+    - location: {file_name: 46-mixed-range-table.c, line: 16, column: 30, function: owner_thread}
       updates:
       - variable: ghost_owner_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 46-mixed-range-table.c, line: 26, column: 3, function: thief_thread}
+    - location: {file_name: 46-mixed-range-table.c, line: 26, column: 30, function: thief_thread}
       updates:
       - variable: ghost_thief_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 46-mixed-range-table.c, line: 29, column: 3, function: thief_thread}
+    - location: {file_name: 46-mixed-range-table.c, line: 29, column: 30, function: thief_thread}
       updates:
       - variable: ghost_thief_thread_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 46-mixed-range-table.c, line: 36, column: 3, function: rebalance_thread}
+    - location: {file_name: 46-mixed-range-table.c, line: 36, column: 34, function: rebalance_thread}
       updates:
       - variable: ghost_rebalance_thread_phase
         value: "1"

@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 48-mixed-window-table.c, line: 16, column: 3, function: refill_thread}
+    - location: {file_name: 48-mixed-window-table.c, line: 16, column: 31, function: refill_thread}
       updates:
       - variable: ghost_refill_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 48-mixed-window-table.c, line: 24, column: 3, function: consumer_thread}
+    - location: {file_name: 48-mixed-window-table.c, line: 24, column: 33, function: consumer_thread}
       updates:
       - variable: ghost_consumer_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 48-mixed-window-table.c, line: 27, column: 3, function: consumer_thread}
+    - location: {file_name: 48-mixed-window-table.c, line: 27, column: 33, function: consumer_thread}
       updates:
       - variable: ghost_consumer_thread_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 48-mixed-window-table.c, line: 34, column: 3, function: epoch_thread}
+    - location: {file_name: 48-mixed-window-table.c, line: 34, column: 30, function: epoch_thread}
       updates:
       - variable: ghost_epoch_thread_phase
         value: "1"

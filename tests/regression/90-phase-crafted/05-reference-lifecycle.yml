@@ -25,27 +25,27 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 05-reference-lifecycle.c, line: 16, column: 3, function: frontend}
+    - location: {file_name: 05-reference-lifecycle.c, line: 16, column: 26, function: frontend}
       updates:
       - variable: ghost_frontend_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 05-reference-lifecycle.c, line: 19, column: 3, function: frontend}
+    - location: {file_name: 05-reference-lifecycle.c, line: 19, column: 26, function: frontend}
       updates:
       - variable: ghost_frontend_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 05-reference-lifecycle.c, line: 29, column: 3, function: backend}
+    - location: {file_name: 05-reference-lifecycle.c, line: 29, column: 25, function: backend}
       updates:
       - variable: ghost_backend_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 05-reference-lifecycle.c, line: 32, column: 3, function: backend}
+    - location: {file_name: 05-reference-lifecycle.c, line: 32, column: 25, function: backend}
       updates:
       - variable: ghost_backend_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 05-reference-lifecycle.c, line: 42, column: 3, function: sweeper}
+    - location: {file_name: 05-reference-lifecycle.c, line: 42, column: 25, function: sweeper}
       updates:
       - variable: ghost_sweeper_phase
         value: "1"

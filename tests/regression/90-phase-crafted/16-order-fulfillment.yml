@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 16-order-fulfillment.c, line: 46, column: 3, function: picker_thread}
+    - location: {file_name: 16-order-fulfillment.c, line: 46, column: 31, function: picker_thread}
       updates:
       - variable: ghost_picker_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 16-order-fulfillment.c, line: 56, column: 3, function: packer_thread}
+    - location: {file_name: 16-order-fulfillment.c, line: 56, column: 31, function: packer_thread}
       updates:
       - variable: ghost_packer_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 16-order-fulfillment.c, line: 61, column: 3, function: packer_thread}
+    - location: {file_name: 16-order-fulfillment.c, line: 61, column: 31, function: packer_thread}
       updates:
       - variable: ghost_packer_thread_phase
         value: "2"

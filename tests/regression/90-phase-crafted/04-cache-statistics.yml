@@ -21,27 +21,27 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 04-cache-statistics.c, line: 16, column: 3, function: reader}
+    - location: {file_name: 04-cache-statistics.c, line: 16, column: 24, function: reader}
       updates:
       - variable: ghost_reader_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 04-cache-statistics.c, line: 19, column: 3, function: reader}
+    - location: {file_name: 04-cache-statistics.c, line: 19, column: 24, function: reader}
       updates:
       - variable: ghost_reader_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 04-cache-statistics.c, line: 30, column: 3, function: evictor}
+    - location: {file_name: 04-cache-statistics.c, line: 30, column: 25, function: evictor}
       updates:
       - variable: ghost_evictor_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 04-cache-statistics.c, line: 33, column: 3, function: evictor}
+    - location: {file_name: 04-cache-statistics.c, line: 33, column: 25, function: evictor}
       updates:
       - variable: ghost_evictor_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 04-cache-statistics.c, line: 36, column: 3, function: evictor}
+    - location: {file_name: 04-cache-statistics.c, line: 36, column: 25, function: evictor}
       updates:
       - variable: ghost_evictor_phase
         value: "3"

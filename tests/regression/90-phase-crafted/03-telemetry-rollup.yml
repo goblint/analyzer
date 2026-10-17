@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 03-telemetry-rollup.c, line: 20, column: 3, function: sampler}
+    - location: {file_name: 03-telemetry-rollup.c, line: 20, column: 25, function: sampler}
       updates:
       - variable: ghost_sampler_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 03-telemetry-rollup.c, line: 23, column: 3, function: sampler}
+    - location: {file_name: 03-telemetry-rollup.c, line: 23, column: 25, function: sampler}
       updates:
       - variable: ghost_sampler_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 03-telemetry-rollup.c, line: 33, column: 3, function: radio}
+    - location: {file_name: 03-telemetry-rollup.c, line: 33, column: 23, function: radio}
       updates:
       - variable: ghost_radio_phase
         value: "1"

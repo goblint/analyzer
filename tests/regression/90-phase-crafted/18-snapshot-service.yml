@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 18-snapshot-service.c, line: 20, column: 3, function: memory_worker}
+    - location: {file_name: 18-snapshot-service.c, line: 20, column: 31, function: memory_worker}
       updates:
       - variable: ghost_memory_worker_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 18-snapshot-service.c, line: 27, column: 3, function: storage_worker}
+    - location: {file_name: 18-snapshot-service.c, line: 27, column: 32, function: storage_worker}
       updates:
       - variable: ghost_storage_worker_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 18-snapshot-service.c, line: 30, column: 3, function: storage_worker}
+    - location: {file_name: 18-snapshot-service.c, line: 30, column: 32, function: storage_worker}
       updates:
       - variable: ghost_storage_worker_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 18-snapshot-service.c, line: 40, column: 3, function: epoch_worker}
+    - location: {file_name: 18-snapshot-service.c, line: 40, column: 30, function: epoch_worker}
       updates:
       - variable: ghost_epoch_worker_phase
         value: "1"

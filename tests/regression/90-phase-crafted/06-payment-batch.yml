@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 06-payment-batch.c, line: 56, column: 3, function: authorizer}
+    - location: {file_name: 06-payment-batch.c, line: 56, column: 28, function: authorizer}
       updates:
       - variable: ghost_authorizer_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 06-payment-batch.c, line: 66, column: 3, function: capturer}
+    - location: {file_name: 06-payment-batch.c, line: 66, column: 26, function: capturer}
       updates:
       - variable: ghost_capturer_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 06-payment-batch.c, line: 69, column: 3, function: capturer}
+    - location: {file_name: 06-payment-batch.c, line: 69, column: 26, function: capturer}
       updates:
       - variable: ghost_capturer_phase
         value: "2"

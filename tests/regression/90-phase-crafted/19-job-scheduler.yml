@@ -25,27 +25,27 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 19-job-scheduler.c, line: 16, column: 3, function: dispatcher}
+    - location: {file_name: 19-job-scheduler.c, line: 16, column: 28, function: dispatcher}
       updates:
       - variable: ghost_dispatcher_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 19-job-scheduler.c, line: 19, column: 3, function: dispatcher}
+    - location: {file_name: 19-job-scheduler.c, line: 19, column: 28, function: dispatcher}
       updates:
       - variable: ghost_dispatcher_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 19-job-scheduler.c, line: 29, column: 3, function: retirer}
+    - location: {file_name: 19-job-scheduler.c, line: 29, column: 25, function: retirer}
       updates:
       - variable: ghost_retirer_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 19-job-scheduler.c, line: 32, column: 3, function: retirer}
+    - location: {file_name: 19-job-scheduler.c, line: 32, column: 25, function: retirer}
       updates:
       - variable: ghost_retirer_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 19-job-scheduler.c, line: 39, column: 3, function: prioritizer}
+    - location: {file_name: 19-job-scheduler.c, line: 39, column: 29, function: prioritizer}
       updates:
       - variable: ghost_prioritizer_phase
         value: "1"

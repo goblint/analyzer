@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 08-sensor-calibration.c, line: 20, column: 3, function: axis_worker}
+    - location: {file_name: 08-sensor-calibration.c, line: 20, column: 29, function: axis_worker}
       updates:
       - variable: ghost_axis_worker_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 08-sensor-calibration.c, line: 23, column: 3, function: axis_worker}
+    - location: {file_name: 08-sensor-calibration.c, line: 23, column: 29, function: axis_worker}
       updates:
       - variable: ghost_axis_worker_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 08-sensor-calibration.c, line: 33, column: 3, function: bias_worker}
+    - location: {file_name: 08-sensor-calibration.c, line: 33, column: 29, function: bias_worker}
       updates:
       - variable: ghost_bias_worker_phase
         value: "1"
