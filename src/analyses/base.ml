@@ -816,6 +816,10 @@ struct
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (Int x) *)
+          | `Lifted x when ID.is_bot x ->
+            (* The analyses answered with contradicting values, e.g. base excludes 0 while a relational analysis knows the value is 0.
+               Hence the current state is unreachable, even if no single analysis detected it. *)
+            raise Deadcode
           | `Lifted x -> Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
           | `Top -> Int (ID.top_of (Cilfacade.get_ikind typ)) (* query cycle *)
         end
