@@ -178,11 +178,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
          independently of the rounding mode (and analogously for high).
          Since pred and succ are computed in the precision of Float_t, this is also sound for wider floating-point types whose values are abstracted in this precision. *)
       let (ik_min, ik_max) = IntDomain.Size.range ik in
-      (* Z.of_float is exact for the integral values of floor and ceil, unlike Float_t.to_big_int beyond 2^52.
-         TODO: use Float_t.to_big_int once it is exact; Z.of_float bypasses Float_t and is only exact because Float_t.to_float is exact for CFloat and CDouble. *)
-      let int_of_integral x = Z.of_float (Float_t.to_float x) in
-      let least_int_above x = Z.succ (int_of_integral (Float_t.floor x)) in
-      let greatest_int_below x = Z.pred (int_of_integral (Float_t.ceil x)) in
+      let least_int_above x = Z.succ (Float_t.to_big_int (Float_t.floor x)) in
+      let greatest_int_below x = Z.pred (Float_t.to_big_int (Float_t.ceil x)) in
       let int_bound float_bound step_outward to_int ~default =
         let closest_excluded = step_outward float_bound in
         if Float_t.is_finite closest_excluded then to_int closest_excluded else default

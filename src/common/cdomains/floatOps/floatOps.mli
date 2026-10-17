@@ -19,6 +19,7 @@ module type CFloatType = sig
   val of_float: round_mode -> float -> t
   val to_float: t -> float
   val to_big_int: t -> Z.t
+  (** Integral part of a finite value, i.e., the value truncated toward zero. *)
 
   val is_finite: t -> bool
   val pred: t -> t
