@@ -6,6 +6,11 @@ import subprocess
 from os import path
 import logging
 
+def is_definitive(verdict):
+    # Definitive verdicts are "true" and "false(<property>)".
+    # Goblint's SV-COMP configurations currently never produce "false"; it can only arise with the experimental ana.wp.
+    return verdict is not None and (verdict == "true" or verdict.startswith("false"))
+
 class GoblintRunner:
 
     def __init__(self, logger):
@@ -23,7 +28,7 @@ class GoblintRunner:
             All args apart from --portfolio-conf/-p are passed on to the actual goblint calls.
             The portfolio config file is a plaintext file whose lines each consist of goblint parameters, in particular including
             --conf followed by a path to a goblint config file (relative to the goblint base dir, or absolute).
-            Goblint is run with each parameterset in order of specification as long as goblint produces an unknown verdict or reaches the end of the list.
+            Goblint is run with each parameterset in order of specification as long as goblint produces no definitive verdict (i.e., unknown, an error or a crash) or reaches the end of the list.
             You may add comments to the portfolio config file by starting a line with #.
             """
         )
@@ -43,28 +48,32 @@ class GoblintRunner:
                 self.configs = [c.strip() for c in conflist_file.readlines() if not c.strip().startswith("#")]
             logger.info(f"Loaded goblint configs: {", ".join(self.configs)}")
 
-    def run_with_config(self, config_str):
+    def run_with_config(self, config_str, is_last):
         config_args = config_str.split(" ")
         args = [*config_args] + self.other_args
         self.logger.info(f"Config details: ./goblint {" ".join(args)}")
         process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-        continue_portfolio = False
         verdict = None
         for line in process.stdout:
             decoded_line = line.decode("utf-8")
+            if not is_last and decoded_line.startswith("Fatal error: "):
+                # BenchExec reports the first "Fatal error" line as the result, even if a later config succeeds.
+                # Thus, reword the crash of a non-final config, after which the portfolio continues.
+                decoded_line = "Crashed with " + decoded_line[len("Fatal error: "):]
             print(decoded_line, end="")
             if decoded_line.startswith("SV-COMP result: "):
                 # remove "SV-COMP result: " prefix and any trailing whitespace
                 verdict = decoded_line[len("SV-COMP result: "):].strip()
-                if verdict == "unknown":
-                    continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
         process.wait()
         print(flush=True) # flush output from this run before logging about starting of the next run
+        # Continue with the next config unless a definitive verdict was produced.
+        # This includes errors (e.g. "ERROR (verify)") and crashes of this config, since the next config is an independent run.
+        # BenchExec uses the last "SV-COMP result" line.
+        continue_portfolio = not is_definitive(verdict)
         # handle the returncode:
-        if process.returncode != 0 and not continue_portfolio:
-            if process.returncode== -11:
+        if process.returncode != 0:
+            if process.returncode == -11:
                 print("Segmentation fault (core dumped)")
-                continue_portfolio = True
             self.logger.error(f"goblint exited with code {process.returncode}")
         return verdict,continue_portfolio
 
@@ -78,7 +87,7 @@ class GoblintRunner:
 
         for i, config in enumerate(self.configs):
             logger.info(f"Starting config [{i}]")
-            verdict, go_on = self.run_with_config(config)
+            verdict, go_on = self.run_with_config(config, i == len(self.configs) - 1)
             if not verdict:
                 logger.error(f"No SV-COMP verdict produced by goblint for config [{i}]")
             if not go_on:
