@@ -618,8 +618,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     match a, b with
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
     | Interval v1, Interval v2 -> eval_eq v1 v2
-    | NaN, NaN -> Some false
-    | NaN, _ | _, NaN -> Some false
+    | NaN, _ | _, NaN -> Some false (* NaN compares unequal to every value, including itself *)
     | Top, _ | _, Top -> None (*neither of the arguments is Top/Bot/NaN*)
     | PlusInfinity, PlusInfinity -> Some true
     | MinusInfinity, MinusInfinity -> Some true
@@ -634,8 +633,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     match a, b with
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
     | Interval v1, Interval v2 -> eval_ne v1 v2
-    | NaN, NaN -> Some true
-    | NaN, _ | _, NaN -> Some false
+    | NaN, _ | _, NaN -> Some true (* NaN compares unequal to every value, including itself *)
     | Top, _ | _, Top -> None (*neither of the arguments is Top/Bot/NaN*)
     | PlusInfinity, PlusInfinity -> Some false
     | MinusInfinity, MinusInfinity -> Some false
