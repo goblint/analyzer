@@ -816,6 +816,7 @@ struct
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (Int x) *)
+          | `Lifted x when ID.is_bot x -> raise Deadcode (* analyses answered with contradicting values, so this state is unreachable *)
           | `Lifted x -> Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
           | `Top -> Int (ID.top_of (Cilfacade.get_ikind typ)) (* query cycle *)
         end
@@ -1389,9 +1390,14 @@ struct
       | exception (Invalid_argument _) -> (* get_ikind *)
         BoolDomain.MayBool.top ()
       | ik ->
+        let eval_int e =
+          match man.ask (EvalInt e) with
+          | `Lifted i when ID.is_bot i -> `Bot (* analyses answered with contradicting values, so this state is unreachable and cannot overflow *)
+          | r -> r
+        in
         let checkDiv e1 e2 =
           let binop = (GobOption.map2 Z.div )in
-          match man.ask (EvalInt e1), man.ask (EvalInt e2) with
+          match eval_int e1, eval_int e2 with
           | `Bot, _ -> false
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
@@ -1410,7 +1416,7 @@ struct
                   | _ -> true ))
           | _   -> true in
         let checkBinop e1 e2 binop =
-          match man.ask (EvalInt e1), man.ask (EvalInt e2) with
+          match eval_int e1, eval_int e2 with
           | `Bot, _ -> false
           | _, `Bot -> false
           | `Lifted i1, `Lifted i2 ->
@@ -1425,7 +1431,7 @@ struct
               | _ -> true)
           | _   -> true in
         let checkPredicate e pred =
-          match man.ask (EvalInt e) with
+          match eval_int e with
           | `Bot -> false
           | `Lifted i ->
             (let (min_ik, _) = IntDomain.Size.range ik in
