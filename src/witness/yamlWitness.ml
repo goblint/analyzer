@@ -386,7 +386,7 @@ struct
     let common_format_version =
       List.to_seq entries
       |> Seq.map (fun (e: YamlWitnessType.Entry.t) -> YamlWitnessVersion.of_string e.metadata.format_version) (* TODO: avoid back and forth string conversion *)
-      |> Seq.fold_left (fun acc v -> Some (BatOption.map_default (YamlWitnessVersion.max v) v acc)) None
+      |> Seq.fold_left (fun acc v -> Some (BatOption.map_default (YamlWitnessVersion.join v) v acc)) None
       |> Option.map YamlWitnessVersion.show
     in
     let entries =
