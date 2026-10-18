@@ -284,6 +284,9 @@ module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+module Rationalinterval = Rationalinterval
+module Subpolycore = SubPolyhedraCore
+module SubPolyhedraDomain = SubPolyhedraDomain
 
 (** {5 2-Pointer Logic}
 

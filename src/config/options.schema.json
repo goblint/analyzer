@@ -980,6 +980,20 @@
           },
           "additionalProperties": false
         },
+        "subpoly": {
+          "title": "ana.subpoly",
+          "type": "object",
+          "properties": {
+            "basis-exploration": {
+              "title": "ana.subpoly.basis-exploration",
+              "description":
+                "Strengthen the reduction of the subpolyhedra domain by basis exploration with the linear explorer (rho_BE with delta_L of the SubPolyhedra paper), on top of the plain interval propagation through the equality rows.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "relation": {
           "title": "ana.relation",
           "type": "object",
