@@ -10,6 +10,9 @@ struct
     deep: bool; (** Depth of access
                     - Shallow only accesses directly pointed values (may point to).
                     - Deep additionally follows all pointers in values (reachable). Rarely needed. *)
+    atomic: bool; (** Whether the access is atomic (i.e. doesn't race with other atomic accesses).
+                      atomic and deep should be mutually exclusive.
+                      Only meaningful for Read/Write AccessKinds. *)
   }
 end
 
@@ -95,13 +98,17 @@ module Accesses =
 struct
   type t = Cil.exp list -> (Access.t * Cil.exp list) list
 
-  (* TODO: remove/rename after migration? *)
-  let find (accs: t): Access.t -> Cil.exp list -> Cil.exp list = fun acc args ->
-    BatOption.(List.assoc_opt acc (accs args) |? [])
-
-  let find_kind (accs: t): AccessKind.t -> Cil.exp list -> Cil.exp list = fun kind args ->
-    let f a = find accs a args in
-    f { kind; deep = true; } @ f { kind; deep = false; }
+  (** Find all accesses which match the given parameters (kind, deep, atomic).
+      If a parameter is not given, any value is considered matching.
+      May return duplicates if one arg is accessed multiple times (e.g. arg is
+      both read and written to, and no ~kind: filter was specified). *)
+  let find (accs: t) ?kind ?deep ?atomic (args: Cil.exp list): Cil.exp list =
+    accs args
+    |> List.filter (fun ((a, _): (Access.t * _)) ->
+        (kind = None || a.kind = Option.get kind) &&
+        (deep = None || a.deep = Option.get deep) &&
+        (atomic = None || a.atomic = Option.get atomic))
+    |> List.concat_map snd
 
   let iter (accs: t) (f: Access.t -> Cil.exp -> unit) args: unit =
     accs args
