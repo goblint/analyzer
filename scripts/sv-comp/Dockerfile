@@ -35,11 +35,7 @@ RUN unzip goblint.zip
 WORKDIR /root/goblint
 RUN ./smoketest.sh
 
-FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2026 AS smoketest-competition
-# TODO: FROM :2027
-# 2026 image fails with
-# ./goblint: /lib/x86_64-linux-gnu/libm.so.6: version `GLIBC_2.43' not found (required by ./goblint)
-# ./goblint: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.42' not found (required by ./goblint)
+FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2027 AS smoketest-competition
 
 RUN apt-get update \
     && apt-get install -y unzip \
