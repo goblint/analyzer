@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] branchSetFull --set ana.path_sens[+] branchSetFull --enable ana.sv-comp.functions --set ana.activated[+] memOutOfBounds --enable ana.arrayoob
-// Like 14-contradicting-evalint-dead, but b is used as an array index or as a memset size.
+// Like 08-contradicting-evalint-dead, but b is used as an array index or as a memset size.
 // In the unreachable partition (b != 0 in base, 0 <= b <= 0 in the octagon), b evaluates to bottom.
 // Without treating this as dead code, the out-of-bounds checks raised ArithmeticOnIntegerBot on these accesses.
 #include <string.h>

@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] branchSetFull --set ana.path_sens[+] branchSetFull --enable ana.sv-comp.functions
-// Like 14-contradicting-evalint-dead, but with a division by b.
+// Like 08-contradicting-evalint-dead, but with a division by b.
 // Before the assignment is evaluated by base, the relational analysis asks base whether the division may overflow.
 // In the unreachable partition (b != 0 in base, 0 <= b <= 0 in the octagon), the operands evaluate to bottom.
 // Without treating this as dead code, checking whether the divisor may be zero failed with "unsupported: equal_to with bottom".
