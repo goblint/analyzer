@@ -383,6 +383,29 @@ let linear_disjunct_redundant _ =
   let expected = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
   normalize_and_assert (Matrix.linear_disjunct m1 m2) expected
 
+let affine_hull_redundant _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int (-1); int (-5)];
+     [int 0; int 1; int 0; int (-4)]] in
+  assert_equal m1 (Matrix.affine_hull m1 m2);
+  assert_equal m1 (Matrix.affine_hull m2 m1)
+
+let affine_hull_combined_rows _ =
+  let m1 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 2];
+     [int 0; int 1; int 3]] in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 5]) in
+  assert_equal m2 (Matrix.affine_hull m1 m2);
+  assert_equal m2 (Matrix.affine_hull m2 m1);
+  assert_equal m1 (Matrix.affine_hull m1 m1);
+  assert_equal (Matrix.empty ()) (Matrix.affine_hull m1 (Matrix.empty ()))
+
+let affine_hull_distinct_constants _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 2]) in
+  let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 3]) in
+  assert_equal (Matrix.empty ()) (Matrix.affine_hull m1 m2)
+
 let test () =
   "SparseMatrixImplementationTest-Apron"
   >::: [
@@ -413,4 +436,7 @@ let test () =
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
     "get column when matrix in rref" >:: get_col_upper_triangular;
     "linear_disjunct of [y=-4] and [x-z=-5;y=-4] is [y=-4]" >:: linear_disjunct_redundant;
+    "affine_hull preserves a common row with differing pivots" >:: affine_hull_redundant;
+    "affine_hull finds combinations and handles identical and empty matrices" >:: affine_hull_combined_rows;
+    "affine_hull of distinct constants is empty" >:: affine_hull_distinct_constants;
   ]

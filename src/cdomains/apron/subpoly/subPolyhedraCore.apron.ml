@@ -358,41 +358,6 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   let dropped_rows (m: affeq) (joined: affeq) : CoeffVector.t list =
     List.filter (fun r -> not (row_implied_by joined r)) (rows m)
 
-  (** Affine hull (join) of two consistent equality systems, computed exactly:
-      an equality is valid on the union iff it is implied by each operand, so
-      the hull's row space is the intersection of the two augmented row
-      spaces, computed with the Zassenhaus algorithm.
-
-      Not the library's [Matrix.linear_disjunct], which loses rows when the
-      pivot structures of the operands differ (e.g. the hull of [y=-4] and
-      [x-z=-5; y=-4] comes out empty instead of [y=-4]). *)
-  let affine_hull ~(size: int) (m1: affeq) (m2: affeq) : affeq =
-    let w = size + 1 in
-    (* (u | u) for rows of m1, (v | 0) for rows of m2 *)
-    let dup r =
-      let es = CoeffVector.to_sparse_list r in
-      CoeffVector.of_sparse_list (2 * w) (es @ List.map (fun (i, c) -> (i + w, c)) es)
-    in
-    let left r = CoeffVector.of_sparse_list (2 * w) (CoeffVector.to_sparse_list r) in
-    let big = List.fold_left (fun m r ->
-        match Matrix.rref_vec m r with
-        | Some m -> m
-        | None -> m (* unreachable: a contradiction row cannot arise from consistent operands *)
-      ) (Matrix.empty ()) (List.map dup (rows m1) @ List.map left (rows m2))
-    in
-    (* rows with zero left half: their right halves span the intersection *)
-    List.fold_left (fun m r ->
-        match CoeffVector.find_first_non_zero r with
-        | Some (p, _) when p >= w ->
-          let row = CoeffVector.of_sparse_list w
-              (List.map (fun (i, c) -> (i - w, c)) (CoeffVector.to_sparse_list r))
-          in
-          (match Matrix.rref_vec m row with
-           | Some m -> m
-           | None -> m (* unreachable: the hull of nonempty sets is consistent *))
-        | _ -> m
-      ) (Matrix.empty ()) (rows big)
-
   (** Rewrites an RHS-form row into an equivalent one over program dimensions
       only, substituting every slack by its defining linear form. Only valid on
       states where the defining equalities hold. *)
