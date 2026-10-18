@@ -25,7 +25,7 @@ FROM ubuntu:26.04 AS smoketest-ubuntu
 # cannot use opam depext because no opam here, also additional preprocessing/header dependencies
 # libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
 RUN apt-get update \
-    && apt-get install -y unzip libgmp10 libmpfr6 cpp libc6-dev libc6-dev-i386 libgcc-13-dev lib32gcc-13-dev python3 \
+    && apt-get install -y unzip libgmp10 libmpfr6 cpp libc6-dev libc6-dev-i386 libgcc-15-dev lib32gcc-15-dev python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
