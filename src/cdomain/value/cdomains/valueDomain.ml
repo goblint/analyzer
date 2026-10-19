@@ -457,6 +457,15 @@ struct
         begin match Cil.unrollType vtype, Cil.unrollType t with
           (* only allow conversion of float pointers if source and target type are the same *)
           | TFloat (fkind, _), TFloat (fkind', _) when fkind = fkind' -> a
+          (* A float pointer converted to [void *] keeps its address: nothing
+             is read or written through [void *] itself, and the address
+             keeps its float type, so converting it on to a pointer to any
+             other type still gives [UnknownPtr] by the case below. *)
+          | TFloat _, TVoid _ -> a
+          (* A block without a type (from malloc) converted to a float
+             pointer takes that type, as the [TVoid] case below does for the
+             other types. *)
+          | TVoid _, TFloat _ -> Addr ({ v with vtype = t }, o)
           (* do not allow conversion from/to float pointers*)
           | TFloat _, _
           | _, TFloat _ -> UnknownPtr
