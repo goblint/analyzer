@@ -245,33 +245,6 @@ struct
         ) (Lazy.force invariant_global_nodes) acc
     in
 
-    (* Generate flow-insensitive entries (ghost instrumentation) *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
-        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
-        let module EntrySet = Queries.YS in
-        fst @@ GHT.fold (fun g v accs ->
-            match g with
-            | `Left g -> (* global unknown from analysis Spec *)
-              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
-                | `Lifted _ as inv ->
-                  Queries.YS.fold (fun entry (acc, acc') ->
-                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
-                        accs
-                      else
-                        (entry :: acc, EntrySet.add entry acc')
-                    ) inv accs
-                | `Top ->
-                  accs
-              end
-            | `Right _ -> (* global unknown for FromSpec contexts *)
-              accs
-          ) gh (entries, EntrySet.empty ())
-      )
-      else
-        entries
-    in
-
     (* Generate invariant set *)
     let entries =
       if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
@@ -378,6 +351,33 @@ struct
         let invariants = List.rev invariants in
         let entry = Entry.invariant_set ~task ~invariants in
         entry :: entries
+      )
+      else
+        entries
+    in
+
+    (* Generate flow-insensitive entries (ghost instrumentation) *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
+        let module EntrySet = Queries.YS in
+        fst @@ GHT.fold (fun g v accs ->
+            match g with
+            | `Left g -> (* global unknown from analysis Spec *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold (fun entry (acc, acc') ->
+                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
+                        accs
+                      else
+                        (entry :: acc, EntrySet.add entry acc')
+                    ) inv accs
+                | `Top ->
+                  accs
+              end
+            | `Right _ -> (* global unknown for FromSpec contexts *)
+              accs
+          ) gh (entries, EntrySet.empty ())
       )
       else
         entries
