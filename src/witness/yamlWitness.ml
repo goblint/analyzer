@@ -130,28 +130,33 @@ struct
     location = location;
     action = "follow";
     constraint_ = constraint_;
+    thread_id = None;
   }
 
   let violation_target ~location : ViolationSequence.Target.t = {
     location = location;
     action = "follow";
+    thread_id = None;
   }
 
   let function_enter ~location ~action : ViolationSequence.FunctionEnter.t = {
     location = location;
     action = action;
+    thread_id = None;
   }
 
   let function_return ~location ~action ~constraint_ : ViolationSequence.FunctionReturn.t = {
     location = location;
     action = action;
     constraint_ = constraint_;
+    thread_id = None;
   }
 
   let branching ~location ~action ~constraint_ : ViolationSequence.Branching.t = {
     location = location;
     action = action;
     constraint_ = constraint_;
+    thread_id = None;
   }
 
   let waypoint ~waypoint_type : ViolationSequence.Waypoint.t = {
