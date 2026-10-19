@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""Run up to 25 benchmark tasks concurrently and print the final results table."""
+
+import runpy
+from pathlib import Path
+
+
+if __name__ == "__main__":
+    runner = runpy.run_path(str(Path(__file__).with_name("run-times-ultimate.py")))
+    raise SystemExit(runner["main"](parallel=True))

@@ -85,3 +85,22 @@ all four configurations, with per-tool/per-mode logs, under
 and `--timeout` work as above; `--spec PATH` overrides the repository's
 `unreach-call.prp`. A timeout terminates the tool's process group, including
 Ultimate's Java process, and benchmarking continues with the next run.
+
+To run up to 25 tasks concurrently and collate the results at the end:
+
+```sh
+tests/regression/90-phase-crafted/run-times-ultimate-par
+```
+
+Use `--jobs N` to choose a smaller concurrency limit (1–25, default 25).
+Each task runs its four configurations sequentially, while different tasks
+run concurrently. Task working directories and Ultimate runtime data are
+isolated under the output directory to avoid shared temporary files.
+The parallel runner accepts the same options and compatible Bitwuzla selection
+as the sequential runner. Its default output directory is
+`90-phase-crafted/result/runtimes-ultimate-par/`.
+Progress goes to stderr; after all tasks finish, stdout contains the same
+Markdown timing table, sorted by task number. `runtimes.csv`, `runtimes.md`,
+and per-run logs are saved as before. Timeouts and failures appear in the table
+and cause a nonzero exit status. Parallel timings include contention for the
+machine's CPU and memory, so they are not directly comparable to sequential timings.
