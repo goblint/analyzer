@@ -260,6 +260,7 @@ struct
             let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
             let r' = assert_type_bounds ask r v in
             if M.tracing then M.traceu "relation" "-> %a" RD.pretty r';
+            if RD.is_bot_env r' then raise Deadcode;
             r'
           )
       )

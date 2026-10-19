@@ -168,8 +168,6 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
-
   let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ())
 
   let id_binary_pred result_ik f x y =
@@ -317,7 +315,7 @@ struct
     | _ -> false
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop_base ~man (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop_base ~man (op: binop) (a1:value) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -336,13 +334,13 @@ struct
           (* Binary operations on pointer types should not generate warnings in SV-COMP *)
           let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
-          `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
+          `Index(IdxDom.add i (IdxDom.lift n), `NoOffset)
         | `Field (f, `NoOffset) ->
           (* If we have arrived at the last Offset and it is a Field,
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let n_offset = iDtoIdx n in
+          let n_offset = IdxDom.lift n in
           begin match t with
             | Some t ->
               let f_offset_bytes = Cilfacade.fieldBytesOffsetOnly f in
@@ -359,7 +357,7 @@ struct
         | `Field (f, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
           `Field(f, addToOffset n t' o)
-        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+        | `NoOffset -> `Index(IdxDom.lift n, `NoOffset)
       in
       match addr with
       | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
@@ -382,10 +380,10 @@ struct
       | MinusPI ->
         let n = (* only speculative during ID.neg *)
           let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-          ID.neg (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n) (* TODO: proper castkind *)
+          IdxDom.neg (IdxDom.lift n)
         in
         Address (ad_concat_map (addToAddr n) p)
-      | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
+      | Mod -> Int (IdxDom.top ()) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
     in
     (* The main function! *)
@@ -429,7 +427,7 @@ struct
     | Address p, Top ->
       (* same as previous, but with Unknown instead of int *)
       (* TODO: why does this even happen in zstd-thread-pool-add? *)
-      let n = ID.top_of (Cilfacade.ptrdiff_ikind ()) in (* pretend to have unknown ptrdiff int instead *)
+      let n = IdxDom.top () in (* pretend to have unknown ptrdiff int instead *)
       addToAddrOp p n
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
@@ -492,7 +490,7 @@ struct
         | Ne ->
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik Z.one else match eq p1 p2 with Some x when x -> ID.of_int ik Z.zero | _ -> bool_top ik)
         | IndexPI when AD.to_string p2 = ["all_index"] ->
-          addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
+          addToAddrOp p1 (IdxDom.top ())
         | IndexPI | PlusPI ->
           addToAddrOp p1 (AD.to_int p2) (* sometimes index is AD for some reason... *)
         | _ -> VD.top ()
@@ -888,14 +886,14 @@ struct
         let a1 = eval_rv ~man st e1 in
         let a2 = eval_rv ~man st e2 in
         let extra_is_safe =
-          match evalbinop_base ~man op t1 a1 t2 a2 typ with
+          match evalbinop_base ~man op a1 a2 typ with
           | Int i -> ID.to_bool i = Some true
           | _
           | exception IntDomain.IncompatibleIKinds _ -> false
         in
         let (e1, e2) = binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
         (* re-evaluate e1 and e2 in evalbinop because might be with cast *)
-        evalbinop ~man st op ~e1 ~t1 ~e2 ~t2 typ
+        evalbinop ~man st op ~e1 ~e2 typ
       | BinOp (LOr, e1, e2, typ) as exp ->
         let open GobOption.Syntax in
         (* split nested LOr Eqs to equality pairs, if possible *)
@@ -1060,17 +1058,15 @@ struct
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
 
-  and evalbinop ~man (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
-    evalbinop_mustbeequal ~man st op ~e1 ?t1 ~e2 ?t2 t
+  and evalbinop ~man (st: store) (op: binop) ~(e1:exp) ~(e2:exp) (t:typ): value =
+    evalbinop_mustbeequal ~man st op ~e1 ~e2 t
 
   (** Evaluate BinOp using MustBeEqual query as fallback. *)
-  and evalbinop_mustbeequal ~man (st: store) (op: binop) ~(e1:exp) ?(t1:typ option) ~(e2:exp) ?(t2:typ option) (t:typ): value =
+  and evalbinop_mustbeequal ~man (st: store) (op: binop) ~(e1:exp) ~(e2:exp) (t:typ): value =
     (* Evaluate structurally using base at first. *)
     let a1 = eval_rv ~man st e1 in
     let a2 = eval_rv ~man st e2 in
-    let t1 = Option.default_delayed (fun () -> Cilfacade.typeOf e1) t1 in
-    let t2 = Option.default_delayed (fun () -> Cilfacade.typeOf e2) t2 in
-    let r = evalbinop_base ~man op t1 a1 t2 a2 t in
+    let r = evalbinop_base ~man op a1 a2 t in
     if Cil.isIntegralType t then (
       match r with
       | Int i when ID.to_int i <> None -> r (* Avoid fallback, cannot become any more precise. *)
@@ -1130,7 +1126,7 @@ struct
       `Index (IdxDom.top (), convert_offset ~man st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~man st exp with
-      | Int i -> `Index (iDtoIdx i, convert_offset ~man st ofs)
+      | Int i -> `Index (IdxDom.lift i, convert_offset ~man st ofs)
       | Address add -> `Index (AD.to_int add, convert_offset ~man st ofs)
       | Top   -> `Index (IdxDom.top (), convert_offset ~man st ofs)
       | Bot -> `Index (IdxDom.bot (), convert_offset ~man st ofs)
