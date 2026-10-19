@@ -447,7 +447,7 @@ module ListMatrix: SparseMatrixFunctor =
             | (i1, v1) :: xs1, (i2, v2) :: xs2    when i1 < i2   -> sub_and_last_aux ((i1,v1)::acclist,Some (i1,v1,A.zero)) xs1 ((i2, v2)::xs2)
             | (i1, v1) :: xs1, (i2, v2) :: xs2 (* when i1 > i2 *)-> sub_and_last_aux ((i2,A.neg v2)::acclist,Some (i2,A.zero,v2))  ((i1, v1)::xs1) xs2
             | (i,v)::xs ,[] -> sub_and_last_aux ((i,v)::acclist,Some (i,v,A.zero)) xs []
-            | [], (i,v)::xs -> sub_and_last_aux ((i,v)::acclist,Some (i,A.zero,v)) [] xs
+            | [], (i,v)::xs -> sub_and_last_aux ((i,A.neg v)::acclist,Some (i,A.zero,v)) [] xs
             | [], [] -> (acclist,acc)
           in
           let resl,rest = sub_and_last_aux ([],None) c1 c2 in
