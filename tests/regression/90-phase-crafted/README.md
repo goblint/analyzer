@@ -65,6 +65,16 @@ The default Ultimate directory is
 `/home/michael/Documents/papers/validating-concurrent-correctness-witnesses/ultimate/v.0.3.2/UGemCutter-linux`;
 use `--ultimate-dir PATH` to override it.
 
+The runner prefers the compatible Bitwuzla 0.9.1 build at
+`result/tools/bitwuzla-0.9.1` in the repository root, if present; otherwise it
+uses Ultimate's bundled solver. Use `--bitwuzla PATH` to select another build.
+The local binary is an ignored build artifact and is not included in a fresh
+checkout. The runner checks that the selected solver starts before benchmarking
+and prints its version and path. This avoids the bundled binary's
+`GLIBC_2.38 not found` failure on older systems. Ultimate runs in the output
+directory's `ultimate-work/` subdirectory, with a `bitwuzla` symlink selecting
+the solver even when Ultimate's launcher prepends its installation to `PATH`.
+
 This runs four configurations per task (200 invocations), using the same
 64-bit architecture as the suite's LP64 witnesses. Ultimate validation uses the
 witness from the task's Goblint validation command and considers location

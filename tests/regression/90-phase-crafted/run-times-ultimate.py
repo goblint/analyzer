@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--ultimate-dir", type=Path,
                         default=Path("/home/michael/Documents/papers/validating-concurrent-correctness-witnesses/ultimate/v.0.3.2/UGemCutter-linux"),
                         help="Ultimate installation directory containing Ultimate.py (default: %(default)s)")
+    parser.add_argument("--bitwuzla", type=Path,
+                        help="Bitwuzla executable (default: repository's result/tools/bitwuzla-0.9.1 if present, otherwise Ultimate's bundled solver)")
     parser.add_argument("--spec", type=Path,
                         default=suite.parents[2] / "scripts/sv-comp/smoketests/unreach-call.prp",
                         help="SV-COMP property file (default: unreach-call.prp)")
@@ -53,6 +55,27 @@ def main():
     for path in (ultimate / "Ultimate.py", spec):
         if not path.is_file():
             parser.error(f"File not found: {path}")
+
+    local_bitwuzla = suite.parents[2] / "result/tools/bitwuzla-0.9.1"
+    bitwuzla = (args.bitwuzla or (local_bitwuzla if local_bitwuzla.is_file()
+                                else ultimate / "bitwuzla")).expanduser().resolve()
+    try:
+        version = subprocess.run([str(bitwuzla), "--version"], capture_output=True,
+                                 text=True, timeout=10, check=True)
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        detail = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else str(error)
+        parser.error(f"Cannot run Bitwuzla at {bitwuzla}: {detail}. Use --bitwuzla PATH to select a compatible build.")
+
+    output = args.output.resolve()
+    ultimate_cwd = output / "ultimate-work"
+    ultimate_cwd.mkdir(parents=True, exist_ok=True)
+    # Ultimate.py prepends its installation to PATH, but Ultimate's Java solver
+    # lookup checks the working directory first, including for the FOX strategy.
+    solver_link = ultimate_cwd / "bitwuzla"
+    if solver_link.is_symlink():
+        solver_link.unlink()
+    solver_link.symlink_to(bitwuzla)
+    print(f"Using Bitwuzla {version.stdout.strip()}: {bitwuzla}", flush=True)
 
     # Reuse the regression commands, including task-specific invariant settings.
     tasks = []
@@ -74,6 +97,7 @@ def main():
             sys.executable, str(ultimate / "Ultimate.py"),
             "--spec", str(spec), "--file", str(source),
             "--full-output", "--architecture", "64bit",
+            "--witness-dir", str(ultimate_cwd),
         ]
         ultimate_witness_command = [
             *ultimate_command, "--witness-type", "correctness_witness",
@@ -83,14 +107,12 @@ def main():
         tasks.append((source.stem, [
             ("goblint.baseline", "unknown", commands[0], suite),
             ("goblint.witness", "true", commands[1], suite),
-            ("ultimate.baseline", "true", ultimate_command, ultimate),
-            ("ultimate.witness", "true", ultimate_witness_command, ultimate),
+            ("ultimate.baseline", "true", ultimate_command, ultimate_cwd),
+            ("ultimate.witness", "true", ultimate_witness_command, ultimate_cwd),
         ]))
     if len(tasks) != 50:
         parser.error(f"Expected 50 tasks, found {len(tasks)}")
 
-    output = args.output.resolve()
-    output.mkdir(parents=True, exist_ok=True)
     failed = False
     header = ("| Task | Goblint baseline (s) | Result | Goblint witness (s) | Result | "
               "Ultimate baseline (s) | Result | Ultimate witness (s) | Result |")
