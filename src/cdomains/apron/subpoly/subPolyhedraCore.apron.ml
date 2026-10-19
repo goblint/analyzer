@@ -139,7 +139,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
 
   let propagate ~(size: int) (t: t) : interval_map option =
     let row_data = List.map (split_row size) (rows t.affeq) in
-    let refine_row (map, changed) (terms, rhs) =
+    let refine_row (map, changed) (terms, rhs) = (* use (terms,rhs) to mutually refine occuring variables with their bounds *)
       match terms with
       | [] -> (map, changed) (* constant rows cannot occur in a consistent rref matrix *)
       | _ ->
@@ -150,27 +150,27 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
                 else I.add acc (scale_iv ai (get_iv map i))
               ) (I.of_const Q.zero) terms
             in
-            let cand =
+            let cand = (* bounds deduced from other's bounds *)
               I.scale (Q.inv (q_of_mpqf a))
                 (I.add (I.of_const (q_of_mpqf rhs)) (I.scale Q.minus_one others))
             in
             if I.is_top cand then (map, changed)
             else
               let old = get_iv map j in
-              match I.meet old cand with
+              match I.meet old cand with (* compare candidate bounds to old bounds *)
               | None -> raise Bottom
               | Some res ->
                 if I.equal res old then (map, changed)
-                else (VarMap.add j res map, true)
+                else (VarMap.add j res map, true) (* update if better *)
           ) (map, changed) terms
     in
-    let rec go map k =
+    let rec go map k = (* repeatedly propagate interval bounds through equality rows *)
       if k <= 0 then map
       else
         let map', changed = List.fold_left refine_row (map, false) row_data in
         if changed then go map' (k - 1) else map'
     in
-    let max_iter = max 2 (min 20 (List.length row_data + 1)) in
+    let max_iter = max 2 (min 20 (List.length row_data + 1)) in (* adjust here for a tighter cap *)
     try Some (go t.intervals max_iter)
     with Bottom -> None
 
@@ -180,13 +180,25 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
 
      [propagate] only moves bounds along the rows the rref pivoting happened
      to produce; bounds that need a linear combination of rows (e.g. the
-     half-sum of two rows) are invisible to it. Basis exploration re-pivots
-     the equality system onto a statically fixed sequence of bases and refines
-     the interval of the basic variable of every row in each basis. The linear
-     explorer takes as bases all windows of [m] consecutive dimensions
+     half-sum of two rows) are invisible to it. 
+
+     Basis exploration re-pivots the equality system (i.e. selects a different
+     set of dimensions to use as pivots) onto a statically fixed sequence of bases
+     and refines the interval of the basic variable of every row in each basis. 
+
+     For example, with
+     $     x0+x2+x3=1,            x1+x2-x3=0 $
+     the current rows solve for x0 and x1. Re-pivoting onto {x2,x3} gives
+     $     x2=(1-x0-x1)/2,        x3=(1-x0+x1)/2 $
+
+     The linear explorer takes as bases all windows of [m] consecutive dimensions
      (cyclically, in dimension order) out of the [n] dimensions occurring in
      the matrix, where [m] is the number of rows; every pair of distinct
      dimensions then has some basis containing the one but not the other.
+
+     For example: with dimensions [0; 1; 2; 3] and two rows, it tries 
+     {0,1}, {1,2}, {2,3}, and {3,0}. 
+
      Cost: [n] Gauss-Jordan eliminations of the [m]-row matrix. *)
 
   (** One exploration pass over all bases of the linear explorer, starting
