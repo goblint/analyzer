@@ -2370,6 +2370,20 @@ struct
     |> Seq.map (get_addr_size man)
     |> Seq.fold_left SizeDomain.join (SizeDomain.bot ())
 
+  (** The assumption that the analysis makes about an allocation whose size
+      may be zero under the value [mode] of [sem.malloc.zero] (for
+      [loc = Heap]) or [sem.alloca.zero] (for [loc = Stack]); [None] for
+      ["either"], under which both results are considered. C11 7.22.3 leaves
+      to the implementation whether such an allocation returns the null
+      pointer or a pointer that must not be used to access an object. *)
+  let zero_size_assumption (loc: Queries.AllocationLocation.t) mode =
+    match loc, mode with
+    | Heap, "pointer" -> Some "libc.malloc-zero-returns-pointer: malloc, calloc or realloc called with a size of zero (for calloc, a count or an element size of zero) returns a non-null pointer rather than the null pointer, a choice C leaves to the implementation; glibc's malloc and calloc make it, but glibc's realloc of a non-null pointer to size zero frees that pointer and returns the null pointer"
+    | Heap, "null" -> Some "libc.malloc-zero-returns-null: malloc, calloc or realloc called with a size of zero (for calloc, a count or an element size of zero) returns the null pointer rather than a non-null pointer, a choice C leaves to the implementation"
+    | Stack, "pointer" -> Some "libc.alloca-zero-returns-pointer: alloca called with a size of zero returns a non-null pointer rather than the null pointer"
+    | Stack, "null" -> Some "libc.alloca-zero-returns-null: alloca called with a size of zero returns the null pointer rather than a non-null pointer"
+    | _ -> None
+
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
       Option.map_default (fun lv ->
@@ -2507,7 +2521,7 @@ struct
           set ~man st lv_a lv_typ (VD.top_value lv_typ)
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
-    let alloc (loc: Q.AllocationLocation.t) size =
+    let alloc ?count (loc: Q.AllocationLocation.t) size =
       let zero_option, fail_option =
         match loc with
         | Heap -> "sem.malloc.zero", "sem.malloc.fail"
@@ -2521,10 +2535,21 @@ struct
         | "either" -> true, true
         | _ -> assert false
       in
-      let bytes = eval_int ~man st size in
-      let cmp_bytes_with_zero = ID.equal_to Z.zero bytes in
-      let bytes_may_be_zero = cmp_bytes_with_zero <> `Neq in
-      let bytes_may_be_nonzero = cmp_bytes_with_zero <> `Eq in
+      (* With [count] (calloc), the size requested is [count * size], which
+         is zero when either factor is; a product that overflows is not zero
+         but an allocation calloc fails, which is [fail_option]'s case. *)
+      let zero_cmp e = ID.equal_to Z.zero (eval_int ~man st e) in
+      let factors = match count with Some c -> [size; c] | None -> [size] in
+      let bytes_may_be_zero = List.exists (fun e -> zero_cmp e <> `Neq) factors in
+      let bytes_may_be_nonzero = List.for_all (fun e -> zero_cmp e <> `Eq) factors in
+      (* Where the size may be zero and the option picks one result, the
+         analysis relies on the implementation returning that result. *)
+      if bytes_may_be_zero then
+        Option.may (fun assumption ->
+            match count with
+            | None -> Assumptions.add ~final:("Used assumption " ^ assumption) "%s; relied on here for the call of %s with size %a, which the analysis cannot show to be nonzero" assumption f.vname d_exp size
+            | Some count -> Assumptions.add ~final:("Used assumption " ^ assumption) "%s; relied on here for the call of %s with count %a and element size %a, which the analysis cannot show to be both nonzero" assumption f.vname d_exp count d_exp size
+          ) (zero_size_assumption loc (get_string zero_option));
       let include_null = (bytes_may_be_nonzero && get_bool fail_option) || (bytes_may_be_zero && alloc_zero_null) in
       let include_pointer = bytes_may_be_nonzero || alloc_zero_pointer in
       if not include_pointer then
@@ -2755,7 +2780,7 @@ struct
     | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
+          let (heap_var, addr) = alloc ~count:n Queries.AllocationLocation.Heap size in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
           if ID.equal_to Z.one countval = `Eq then

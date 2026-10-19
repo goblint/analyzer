@@ -1675,7 +1675,7 @@
             },
             "zero": {
               "title": "sem.malloc.zero",
-              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases. Under 'null' and 'pointer', every malloc, calloc or realloc whose size the analysis cannot show nonzero reports the assumption libc.malloc-zero-returns-null or libc.malloc-zero-returns-pointer.",
               "type": "string",
               "enum": ["null", "pointer","either"],
               "default": "either"
@@ -1696,7 +1696,7 @@
             },
             "zero": {
               "title": "sem.alloca.zero",
-              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases. Under 'null' and 'pointer', every alloca whose size the analysis cannot show nonzero reports the assumption libc.alloca-zero-returns-null or libc.alloca-zero-returns-pointer.",
               "type": "string",
               "enum": ["null", "pointer","either"],
               "default": "either"
