@@ -370,7 +370,7 @@ struct
                       if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
                         accs
                       else
-                        (entry :: acc, EntrySet.add entry acc')
+                        (acc @ [entry], EntrySet.add entry acc') (* TODO: appending entry is inefficient, but currently there's only ever at most one *)
                     ) inv accs
                 | `Top ->
                   accs
