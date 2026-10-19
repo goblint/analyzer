@@ -2300,7 +2300,14 @@ struct
     let st' = invalidate ~must:false ~deep:false ~man man.local shallow_addrs in
     invalidate ~must:false ~deep:true ~man st' deep_addrs
 
-  let check_invalid_mem_dealloc man special_fn ptr =
+  (** Reports [ptr], the pointer passed to the deallocating function
+      [special_fn], unless every address it may hold is [NULL] or the start
+      of a heap object. A pointer that evaluates to an integer rather than
+      to addresses is reported, except that with [~null_allowed] (for [free]
+      and [realloc], which C11 7.22.3.3 and 7.22.3.5 define for a null
+      pointer) one that is definitely 0 is not: Base evaluates [(void * )0],
+      and a variable assigned it, to the integer 0. *)
+  let check_invalid_mem_dealloc ?(null_allowed=false) man special_fn ptr =
     let has_non_heap_var = AD.exists (function
         | Addr (v,_) -> is_not_heap_alloc_var man v
         | _ -> false)
@@ -2326,6 +2333,8 @@ struct
       ) else (
         Checks.safe Checks.Category.InvalidMemoryAccess
       )
+    | Int i when null_allowed && ID.to_int i = Some Z.zero ->
+      Checks.safe Checks.Category.InvalidMemoryAccess
     | _ ->
       AnalysisStateUtil.set_mem_safety_flag InvalidFree;
       M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname;
@@ -2768,7 +2777,7 @@ struct
       end
     | Realloc { ptr = p; size }, _ ->
       (* Realloc shouldn't be passed non-dynamically allocated memory *)
-      check_invalid_mem_dealloc man f p;
+      check_invalid_mem_dealloc ~null_allowed:true man f p;
       Option.map_default (fun lv ->
           let p_rv = eval_rv ~man st p in
           let p_addr =
@@ -2790,7 +2799,7 @@ struct
         ) st lv
     | Free ptr, _ ->
       (* Free shouldn't be passed non-dynamically allocated memory *)
-      check_invalid_mem_dealloc man f ptr;
+      check_invalid_mem_dealloc ~null_allowed:true man f ptr;
       st
     | Assert { exp; refine; _ }, _ -> assert_fn man exp refine
     | Setjmp { env }, _ ->
