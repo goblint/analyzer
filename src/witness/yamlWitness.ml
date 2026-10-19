@@ -623,6 +623,10 @@ struct
         List.iter validate_invariant_kind invariant_set.content
       in
 
+      let validate_ghost_instrumentation (ghost_instrumentation: YamlWitnessType.GhostInstrumentation.t) =
+        ()
+      in
+
       let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =
         (* TODO: update cnt-s appropriately (needs access to SV-COMP result pre-witness validation) *)
         (* Nothing needs to be checked here!
@@ -635,9 +639,11 @@ struct
       match entry_type_enabled target_type, entry.entry_type with
       | true, InvariantSet x ->
         validate_invariant_set x
+      | true, GhostInstrumentation ({ghost_variables = []; ghost_updates = []} as x) ->
+        validate_ghost_instrumentation x
       | true, ViolationSequence x ->
         validate_violation_sequence x
-      | false, (InvariantSet _ | ViolationSequence _) ->
+      | false, (InvariantSet _ | GhostInstrumentation _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
