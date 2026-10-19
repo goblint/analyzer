@@ -2357,6 +2357,19 @@
           "type": "boolean",
           "default": false
         },
+        "subpoly": {
+          "title": "dbg.subpoly",
+          "type": "object",
+          "properties": {
+            "check-invariants": {
+              "title": "dbg.subpoly.check-invariants",
+              "description": "Check the structural invariants of the subpolyhedra domain after every domain operation and fail on violation.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "termination-bounds": {
           "title": "dbg.termination-bounds",
           "description": "Output loop iteration bounds for terminating loops when termination analysis is activated.",
