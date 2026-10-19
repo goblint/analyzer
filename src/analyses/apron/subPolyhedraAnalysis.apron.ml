@@ -1,6 +1,12 @@
 (** {{!RelationAnalysis} Relational integer value analysis} using an OCaml implementation of the subpolyhedra domain ([subpoly]).
 
-    @see <http://doi.acm.org/NOTYETPUBLISHED>  Subpolyhedra. *)
+    It features a reduced product of our sparse affine equality implementation with an arbitrary precision rational integer domain.
+    We have also implemented
+    - reduction via propagation of intervals along linear equalities
+    - additional reduction via base exploration with a linear explorer
+    - restauration of implicit slack-defining equalities
+
+    @see <https://doi.org/10.1007/978-3-540-93900-9_20>  SubPolyhedra: A (More) Scalable Approach to Infer Linear Inequalities. Laviron & Logozzo, VMCAI 2009 *)
 
 open Analyses
 include RelationAnalysis
