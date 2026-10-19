@@ -76,6 +76,9 @@ struct
   let vterms_of_dims env (terms: (int * Mpqf.t) list) : (Var.t * Mpqf.t) list =
     List.map (fun (d, c) -> (Environment.var_of_dim env d, c)) terms
 
+  (** [dims_of_vterms]  converts a list of environment variables and coefficients into 
+      dimension indices and coefficients, then sorts it by dimension index
+  *)
   let dims_of_vterms env (ts: (Var.t * Mpqf.t) list) : (int * Mpqf.t) list =
     List.map (fun (v, c) -> (Environment.dim_of_var env v, c)) ts
     |> List.sort (fun (i, _) (j, _) -> Stdlib.compare i j)
@@ -85,6 +88,7 @@ struct
     let term_str (v, c) = Mpqf.to_string c ^ "*" ^ Var.to_string v in
     slack_prefix ^ "(" ^ String.concat "+" (List.map term_str sorted) ^ "|" ^ Mpqf.to_string iconst ^ ")"
 
+  (** [eq_dterms] checks whether two lists of linear-expression terms are exactly the same *)
   let eq_dterms (a: (int * Mpqf.t) list) (b: (int * Mpqf.t) list) =
     try List.for_all2 (fun (i, c) (j, d) -> i = j && Mpqf.equal c d) a b
     with Invalid_argument _ -> false
@@ -351,15 +355,15 @@ struct
     | None -> t
     | Some d ->
       let dterms = dims_of_vterms t.env vts in
-      let matches = P.VarMap.filter (fun _ (info: P.info) -> eq_dterms info.P.iterms dterms) d.P.infos in
+      let matches = P.VarMap.filter (fun _ (info: P.info) -> eq_dterms info.P.iterms dterms) d.P.infos in (* filter those iterms that exactly match vts *)
       if not (P.VarMap.is_empty matches) then begin
         let sz = size t in
         let exception Bot in
         try
           let d' = P.VarMap.fold (fun beta (info: P.info) d ->
               (* beta = sum vts + iconst, so sum vts ∈ iv iff beta ∈ iv + iconst *)
-              let cand = RationalInterval.add_const (P.q_of_mpqf info.P.iconst) iv in
-              let current = P.get_iv d.P.intervals beta in
+              let cand = RationalInterval.add_const (P.q_of_mpqf info.P.iconst) iv in (* candidate bounds for term *)
+              let current = P.get_iv d.P.intervals beta in (* current bounds for term *)
               let new_iv = match combine with
                 | TMeet ->
                   (match RationalInterval.meet current cand with
@@ -381,8 +385,8 @@ struct
           { t with d = Some d' }
         with Bot -> bot_env
       end
-      else if not create || RationalInterval.is_top iv then t
-      else begin
+      else if not create || RationalInterval.is_top iv then t 
+      else begin (* create fresh slack and bounds *)
         let sv = Var.of_string (slack_name vts Mpqf.zero) in
         if Environment.mem_var t.env sv then
           (* A stale dimension with this name exists (e.g. left behind by a
@@ -417,11 +421,19 @@ struct
      the equality rows allow it (e.g. [total >= seed] surviving a function
      return as [RETURN >= seed#arg]). *)
 
-  (** [rescue_dependent_slacks t removed dep] transfers the interval of every
-      dependent slack in [dep] to a template over surviving variables, if the
-      equality rows (projected onto the surviving dimensions) determine the
-      slack as a linear form of surviving program variables. [removed] are the
-      disappearing program variables; both lists still exist in [t]. *)
+  (** Before [removed] program variables and their dependent slacks [dep] are
+      discarded, try to express each slack using only surviving program variables
+      and transfer its interval to that expression. All dimensions still exist
+      in [t]; this function adds rescued constraints but does not remove them.
+
+      For example, if [beta = x + z], [x = y + 1], and [x] is being removed,
+      eliminating [x] leaves [beta = y + z + 1]. Thus [beta in iv] yields
+      [y + z in iv - 1]. Without such an equality, the slack bound cannot be
+      expressed over the surviving variables and is simply dropped by the caller.
+
+      Projecting first ensures that a candidate constraint does not depend on
+      the disappearing variables; projecting the other slacks ensures its new
+      template mentions program variables only. *)
   let rescue_dependent_slacks (t: t) (removed: Var.t list) (dep: Var.t list) : t =
     match t.d with
     | None -> t
@@ -462,11 +474,16 @@ struct
                       match List.remove_assoc beta terms with
                       | [] -> None
                       | others ->
-                        (* beta = (rhs - sum others)/c and beta ∈ iv, normalized
-                           to leading coefficient 1 *)
+                        (* c*beta + sum o_i*x_i = rhs, so
+                           beta = rhs/c + sum (-o_i/c)*x_i.
+                           The slack bound therefore constrains that sum to
+                           [iv - rhs/c]. *)
                         let f_terms = List.map (fun (i, o) -> (i, Mpqf.neg o /: c)) others in
                         let f_iv = RationalInterval.add_const (Q.neg (P.q_of_mpqf (rhs /: c))) iv in
                         let (_, p) = List.hd f_terms in
+                        (* Divide by the first coefficient to give the template
+                           leading coefficient 1; interval scaling also handles
+                           a negative [p] by reversing the bounds. *)
                         let t0 = List.map (fun (i, ci) -> (i, ci /: p)) f_terms in
                         let iv0 = RationalInterval.scale (P.q_of_mpqf (Mpqf.one /: p)) f_iv in
                         Some (vterms_of_dims env t0, iv0)
@@ -478,6 +495,7 @@ struct
             match vts, t.d with
             | _, None -> t
             | [(v, _)], Some d when Environment.mem_var t.env v ->
+              (* A single-variable template needs only an interval, no slack. *)
               let dim = Environment.dim_of_var t.env v in
               (match RationalInterval.meet (P.get_iv d.P.intervals dim) iv0 with
                | None -> bot_env
@@ -508,6 +526,9 @@ struct
     t.d <- t'.d;
     t.env <- t'.env
 
+  (** [keep_filter] t f keeps the program variables for which f returns true, while cleaning up
+      slacks that can no longer be interpreted
+  *)
   let keep_filter (t: t) f =
     match t.d with
     | None -> t
