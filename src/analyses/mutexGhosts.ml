@@ -116,6 +116,9 @@ struct
     | GhostVarAvailable v -> ghost_var_available man v
     | YamlEntryGlobal (g, task, vs) ->
       let g: V.t = Obj.obj g in
+      let ghost_var_used v =
+        Queries.VS.mem (WitnessGhost.to_varinfo v) vs
+      in
       begin match g with
         | `Right true when YamlWitness.entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type ->
           let nodes = G.update (man.global g) in
@@ -124,7 +127,7 @@ struct
               let variables' =
                 Locked.fold (fun l acc ->
                     match LockDomain.MustLock.of_addr l with
-                    | Some l when ghost_var_available man (Locked l) ->
+                    | Some l when ghost_var_used (Locked l) && ghost_var_available man (Locked l) ->
                       let variable = WitnessGhost.variable' (Locked l) in
                       VariableSet.add variable acc
                     | _ ->
@@ -134,7 +137,7 @@ struct
               let updates =
                 Locked.fold (fun l acc ->
                     match LockDomain.MustLock.of_addr l with
-                    | Some l when ghost_var_available man (Locked l) ->
+                    | Some l when ghost_var_used (Locked l) && ghost_var_available man (Locked l) ->
                       let update = WitnessGhost.update' (Locked l) GoblintCil.one in
                       update :: acc
                     | _ ->
@@ -144,7 +147,7 @@ struct
               let updates =
                 Unlocked.fold (fun l acc ->
                     match LockDomain.MustLock.of_addr l with
-                    | Some l when ghost_var_available man (Locked l) ->
+                    | Some l when ghost_var_used (Locked l) && ghost_var_available man (Locked l) ->
                       let update = WitnessGhost.update' (Locked l) GoblintCil.zero in
                       update :: acc
                     | _ ->
@@ -153,7 +156,7 @@ struct
               in
               let (variables', updates) =
                 if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
-                  if ghost_var_available man Multithreaded then (
+                  if ghost_var_used Multithreaded && ghost_var_available man Multithreaded then (
                     let variable = WitnessGhost.variable' Multithreaded in
                     let update = WitnessGhost.update' Multithreaded GoblintCil.one in
                     let variables' = VariableSet.add variable variables' in
