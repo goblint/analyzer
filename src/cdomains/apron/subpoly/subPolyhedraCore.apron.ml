@@ -324,7 +324,26 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
     | None -> direct (* only happens on bottom states; any sound answer is fine *)
 
   (* ---------------------------------------------------------------------- *)
-  (* Slack handling *)
+  (* Slack handling 
+
+     A slack variable \(\beta\) stands for a linear expression. Its defining row is the equality that connects the two.
+     For example, if infos records
+     $ \beta = 2x+y+3 $
+     then the defining row stored in the equality matrix is
+     $ 2x+y-\beta=-3 $
+
+     This is distinct from a bound on the slack. To represent 2x+y+3 <= 5, the state can keep the defining equality 
+     and the interval bound \beta <= 5. saturate re-establishes the defining equality when it is known from infos but 
+     may have been lost from the matrix during a join or widen.
+
+     Transfer functions must account for possible new values of variables e.g. during assignment:
+     suppose $\beta=x+y$, then execute [[x := x + 1]]. The old value held by $\beta$ is now $x_{new}+y-1$. 
+     In the invertible-assignment branch, the code substitutes through the equality matrix and the slack’s info, 
+     then renames the slack to match its new defining expression.
+     For a non-invertible assignment such as x := y, slacks whose definitions mention x are removed before the new 
+     assignment equality is added. A slack that does not depend on the assigned variable can keep its defining relationship.
+
+  *)
 
   (** Defining row of a slack: [beta = sum iterms + iconst], in RHS form
       [sum iterms - beta = -iconst]. *)
