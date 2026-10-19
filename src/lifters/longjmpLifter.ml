@@ -76,11 +76,11 @@ struct
         | _ ->
           Queries.Result.top q
       end
-    | YamlEntryGlobal (g, task) ->
+    | YamlEntryGlobal (g, task, vs) ->
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g ->
-          S.query (conv man) (YamlEntryGlobal (Obj.repr g, task))
+          S.query (conv man) (YamlEntryGlobal (Obj.repr g, task, vs))
         | _ ->
           Queries.Result.top q
       end

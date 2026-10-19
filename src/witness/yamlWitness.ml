@@ -245,31 +245,10 @@ struct
         ) (Lazy.force invariant_global_nodes) acc
     in
 
-    (* Generate flow-insensitive entries (ghost instrumentation) *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
-        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
-        let module EntrySet = Queries.YS in
-        fst @@ GHT.fold (fun g v accs ->
-            match g with
-            | `Left g -> (* global unknown from analysis Spec *)
-              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
-                | `Lifted _ as inv ->
-                  Queries.YS.fold (fun entry (acc, acc') ->
-                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
-                        accs
-                      else
-                        (entry :: acc, EntrySet.add entry acc')
-                    ) inv accs
-                | `Top ->
-                  accs
-              end
-            | `Right _ -> (* global unknown for FromSpec contexts *)
-              accs
-          ) gh (entries, EntrySet.empty ())
-      )
-      else
-        entries
+    let invariant_vars = ref (Queries.VS.empty ()) in (* TODO: dirty imperative hack *)
+    let add_invariant_vars (inv: Invariant.Exp.t): unit =
+      let inv_vars = Queries.VS.of_list (Basetype.CilExp.get_vars (Invariant.Exp.to_cil inv)) in (* TODO: to_cil breaks abstraction *)
+      invariant_vars := Queries.VS.union !invariant_vars inv_vars
     in
 
     (* Generate invariant set *)
@@ -294,6 +273,7 @@ struct
                   let location = Entry.location ~location:loc ~location_function in
                   let invs = Invariant.Exp.process inv in
                   List.fold_left (fun acc inv ->
+                      add_invariant_vars inv;
                       let invariant = Invariant.Exp.show inv in
                       let invariant = Entry.location_invariant ~location ~invariant in
                       incr cnt_location_invariant;
@@ -324,6 +304,7 @@ struct
                     let location = Entry.location ~location:loc ~location_function in
                     let invs = Invariant.Exp.process inv in
                     List.fold_left (fun acc inv ->
+                        add_invariant_vars inv;
                         let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
@@ -350,6 +331,7 @@ struct
                     | `Lifted inv, "invariant_set-flow_insensitive_invariant" ->
                       let invs = Invariant.Exp.process inv in
                       List.fold_left (fun acc inv ->
+                          add_invariant_vars inv;
                           let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.flow_insensitive_invariant ~invariant in
                           incr cnt_flow_insensitive_invariant;
@@ -358,6 +340,7 @@ struct
                     | `Lifted inv, "invariant_set-location_invariant" ->
                       (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
+                          add_invariant_vars inv;
                           let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.location_invariant ~location ~invariant in
                           incr cnt_location_invariant;
@@ -378,6 +361,33 @@ struct
         let invariants = List.rev invariants in
         let entry = Entry.invariant_set ~task ~invariants in
         entry :: entries
+      )
+      else
+        entries
+    in
+
+    (* Generate flow-insensitive entries (ghost instrumentation) *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
+        let module EntrySet = Queries.YS in
+        fst @@ GHT.fold (fun g v accs ->
+            match g with
+            | `Left g -> (* global unknown from analysis Spec *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task, !invariant_vars)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold (fun entry (acc, acc') ->
+                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
+                        accs
+                      else
+                        (acc @ [entry], EntrySet.add entry acc') (* TODO: appending entry is inefficient, but currently there's only ever at most one *)
+                    ) inv accs
+                | `Top ->
+                  accs
+              end
+            | `Right _ -> (* global unknown for FromSpec contexts *)
+              accs
+          ) gh (entries, EntrySet.empty ())
       )
       else
         entries
