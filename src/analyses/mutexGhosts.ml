@@ -175,8 +175,12 @@ struct
                 (variables', location_update :: location_updates)
             ) nodes (VariableSet.empty, [])
           in
-          let entry = WitnessGhost.instrumentation_entry ~task ~variables:(VariableSet.elements variables) ~location_updates in
-          Queries.YS.singleton entry
+          if VariableSet.is_empty variables then
+            Queries.YS.empty ()
+          else (
+            let entry = WitnessGhost.instrumentation_entry ~task ~variables:(VariableSet.elements variables) ~location_updates in
+            Queries.YS.singleton entry
+          )
         | `Left _ -> Queries.Result.top q
         | `Middle _ -> Queries.Result.top q
         | `Right _ -> Queries.Result.top q
