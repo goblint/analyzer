@@ -364,7 +364,7 @@ struct
         fst @@ GHT.fold (fun g v accs ->
             match g with
             | `Left g -> (* global unknown from analysis Spec *)
-              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task, Queries.VS.empty ())) with
                 | `Lifted _ as inv ->
                   Queries.YS.fold (fun entry (acc, acc') ->
                       if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)

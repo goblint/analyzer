@@ -114,7 +114,7 @@ struct
   let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | GhostVarAvailable v -> ghost_var_available man v
-    | YamlEntryGlobal (g, task) ->
+    | YamlEntryGlobal (g, task, vs) ->
       let g: V.t = Obj.obj g in
       begin match g with
         | `Right true when YamlWitness.entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type ->
