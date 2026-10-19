@@ -35,6 +35,15 @@ Exactly half of the ordinary witnesses (`01`-`20` and `26`-`30`) also contain
 location invariants. The remaining witnesses contain only ghost updates, so the
 suite covers both pure phase guidance and combined phase/invariant validation.
 
+Tasks `37`, `38`, `39`, `41`, `42`, `43`, and `45` give each worker's
+item buffer static storage to avoid a spurious counterexample in Ultimate
+`0.3.2-dev-43c3bf1a5c`: its one-dimensional bitvector stack allocator permits
+address wraparound and overlap with the shared summary. Each worker is created
+exactly once, and its buffer is initialized before use, so this storage change
+preserves the task's behavior. It does not guarantee that Ultimate finishes
+within the time or memory limit. See `ultimate-allocation-repro/README.md` for
+the reduced reproducer and diagnosis.
+
 All programs use pthreads directly. There are no `__VERIFIER_atomic_begin` or
 `__VERIFIER_atomic_end` calls; synchronization is by pthread mutexes and joins.
 

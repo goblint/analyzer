@@ -29,7 +29,7 @@ static int local_score(struct Item *items, int n) {
 }
 
 void *planner(void *arg) {
-  struct Item items[6];
+  static struct Item items[6];
   prepare_items(items, 6);
   int score = 5;
   pthread_mutex_lock(&summary_lock);
@@ -39,7 +39,7 @@ void *planner(void *arg) {
 }
 
 void *auditor(void *arg) {
-  struct Item items[5];
+  static struct Item items[5];
   prepare_items(items, 5);
   int checksum = 21;
   int rejected = 1;
