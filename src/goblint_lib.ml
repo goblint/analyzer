@@ -288,7 +288,6 @@ module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 module Intervalsig = Intervalsig
 module Rationalinterval = Rationalinterval
 module SubPolyhedraCore = SubPolyhedraCore
-module Subpolycore = SubPolyhedraCore
 module SubPolyhedraDomain = SubPolyhedraDomain
 
 (** {5 2-Pointer Logic}
