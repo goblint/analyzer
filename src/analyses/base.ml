@@ -2345,6 +2345,7 @@ struct
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
           begin
+            let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
             try SizeDomain.mul item_typ_size_in_bytes arr_len
             with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end

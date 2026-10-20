@@ -98,6 +98,7 @@ struct
           let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           begin
+            let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
             try SizeDomain.mul item_typ_size_in_bytes arr_len
             with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
@@ -265,6 +266,7 @@ struct
       let casted_en = IndexDomain.lift en in (* TODO: shouldn't this also be in SizeDomain? *)
       let casted_ao = IndexDomain.lift addr_offs in
       let dest_size_lt_count =
+        let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
         try
           SizeDomain.lt ds (SizeDomain.of_index (IndexDomain.add casted_en casted_ao)) (* TODO: which domain is the best for add-ing? *)
         with IntDomain.ArithmeticOnIntegerBot _ -> (* happens if add is definitely negative *)
