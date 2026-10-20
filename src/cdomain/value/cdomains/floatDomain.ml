@@ -171,7 +171,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | NaN -> None (* no integer is converted to NaN *)
     | Top
     | PlusInfinity
-    | MinusInfinity -> Some (IntDomain.IntDomTuple.top_of ik)
+    | MinusInfinity -> Some (IntDomain.IntDomTuple.top_of ik) (* TODO: could be more precise in some (but not all!) cases: https://github.com/goblint/analyzer/pull/2204#discussion_r4322794665 *)
     | Interval (low, high) ->
       (* In C, an integer that cannot be represented exactly is converted to the nearest higher or nearest lower representable value (C99/C11 6.3.1.4p2),
          so a converted value of at least low implies an integer greater than pred low (the highest representable value smaller than low),
