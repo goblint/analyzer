@@ -36,7 +36,7 @@ zip -r goblint/scripts/sv-comp/goblint.zip \
     goblint/lib/libboxD.so \
     goblint/lib/libpolkaMPQ.so \
     goblint/lib/LICENSE.APRON \
-    goblint/conf/svcomp26.json \
+    goblint/conf/svcomp27.json \
     goblint/lib/libc/stub/include/assert.h \
     goblint/lib/goblint/runtime/include/goblint.h \
     goblint/lib/libc/stub/src/stdlib.c \

@@ -11,7 +11,7 @@ set -o pipefail # Make pipes fail if any command in pipe fails.
 
 # Run smoke tests in subdirectory for convenience.
 cd smoketests/
-GOBLINT="../goblint --conf conf/svcomp26.json"
+GOBLINT="../goblint --conf conf/svcomp27.json"
 # This will also check if Goblint works when executed from different directory (finds Apron libs, conf, lib stubs), crashes otherwise.
 
 
