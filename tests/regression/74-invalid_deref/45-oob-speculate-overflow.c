@@ -30,8 +30,8 @@ void size_mul() {
   *(arr - 1) = 42; // NOWARN (overflow), TODO WARN! (OOB)
 
   long long *parr = &arr;
-  *parr = 42; // TODO NOWARN (overflow), NOWARN (OOB)
-  *(parr - 1) = 42; // TODO NOWARN (overflow), WARN! (OOB)
+  *parr = 42; // NOWARN (overflow), NOWARN (OOB)
+  *(parr - 1) = 42; // NOWARN (overflow), WARN! (OOB)
 }
 
 int main() {
