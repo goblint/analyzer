@@ -15,7 +15,7 @@ COPY --chown=opam make.sh goblint.opam goblint.opam.locked /home/opam/goblint/
 WORKDIR /home/opam/goblint/
 # unsafe-yes to allow opam to install depexts via apt unattended
 # RUN OPAMCONFIRMLEVEL=unsafe-yes ./make.sh setup
-RUN OPAMCONFIRMLEVEL=unsafe-yes opam switch -y create . --deps-only --packages=ocaml-variants.5.5.1+options,ocaml-option-flambda
+RUN OPAMCONFIRMLEVEL=unsafe-yes opam switch -y create . --deps-only --packages=ocaml-variants.5.5.1+options,ocaml-option-flambda,domainslib,apron
 
 # copy the rest
 COPY --chown=opam . /home/opam/goblint
