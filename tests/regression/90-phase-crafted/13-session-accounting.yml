@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 13-session-accounting.c, line: 20, column: 3, function: tls_worker}
+    - location: {file_name: 13-session-accounting.c, line: 20, column: 28, function: tls_worker}
       updates:
       - variable: ghost_tls_worker_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 13-session-accounting.c, line: 23, column: 3, function: tls_worker}
+    - location: {file_name: 13-session-accounting.c, line: 23, column: 28, function: tls_worker}
       updates:
       - variable: ghost_tls_worker_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 13-session-accounting.c, line: 31, column: 3, function: zip_worker}
+    - location: {file_name: 13-session-accounting.c, line: 31, column: 30, function: zip_worker}
       updates:
       - variable: ghost_zip_worker_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 13-session-accounting.c, line: 39, column: 3, function: audit_worker}
+    - location: {file_name: 13-session-accounting.c, line: 39, column: 30, function: audit_worker}
       updates:
       - variable: ghost_audit_worker_phase
         value: "1"

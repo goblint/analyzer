@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 11-index-maintenance.c, line: 41, column: 3, function: compactor}
+    - location: {file_name: 11-index-maintenance.c, line: 41, column: 27, function: compactor}
       updates:
       - variable: ghost_compactor_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 11-index-maintenance.c, line: 57, column: 3, function: segment_builder}
+    - location: {file_name: 11-index-maintenance.c, line: 57, column: 33, function: segment_builder}
       updates:
       - variable: ghost_segment_builder_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 11-index-maintenance.c, line: 60, column: 3, function: segment_builder}
+    - location: {file_name: 11-index-maintenance.c, line: 60, column: 33, function: segment_builder}
       updates:
       - variable: ghost_segment_builder_phase
         value: "2"

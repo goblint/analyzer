@@ -25,32 +25,32 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 09-resource-pool.c, line: 16, column: 3, function: borrower}
+    - location: {file_name: 09-resource-pool.c, line: 16, column: 26, function: borrower}
       updates:
       - variable: ghost_borrower_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 09-resource-pool.c, line: 19, column: 3, function: borrower}
+    - location: {file_name: 09-resource-pool.c, line: 19, column: 26, function: borrower}
       updates:
       - variable: ghost_borrower_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 09-resource-pool.c, line: 22, column: 3, function: borrower}
+    - location: {file_name: 09-resource-pool.c, line: 22, column: 26, function: borrower}
       updates:
       - variable: ghost_borrower_phase
         value: "3"
         format: c_expression
-    - location: {file_name: 09-resource-pool.c, line: 32, column: 3, function: cleaner}
+    - location: {file_name: 09-resource-pool.c, line: 32, column: 25, function: cleaner}
       updates:
       - variable: ghost_cleaner_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 09-resource-pool.c, line: 39, column: 3, function: returner}
+    - location: {file_name: 09-resource-pool.c, line: 39, column: 26, function: returner}
       updates:
       - variable: ghost_returner_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 09-resource-pool.c, line: 42, column: 3, function: returner}
+    - location: {file_name: 09-resource-pool.c, line: 42, column: 26, function: returner}
       updates:
       - variable: ghost_returner_phase
         value: "2"

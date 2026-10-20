@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 50-mixed-state-table.c, line: 13, column: 3, function: updater_thread}
+    - location: {file_name: 50-mixed-state-table.c, line: 13, column: 32, function: updater_thread}
       updates:
       - variable: ghost_updater_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 50-mixed-state-table.c, line: 16, column: 3, function: updater_thread}
+    - location: {file_name: 50-mixed-state-table.c, line: 16, column: 32, function: updater_thread}
       updates:
       - variable: ghost_updater_thread_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 50-mixed-state-table.c, line: 26, column: 3, function: reader_thread}
+    - location: {file_name: 50-mixed-state-table.c, line: 26, column: 31, function: reader_thread}
       updates:
       - variable: ghost_reader_thread_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 50-mixed-state-table.c, line: 33, column: 3, function: collector_thread}
+    - location: {file_name: 50-mixed-state-table.c, line: 33, column: 34, function: collector_thread}
       updates:
       - variable: ghost_collector_thread_phase
         value: "1"

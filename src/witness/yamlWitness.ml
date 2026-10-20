@@ -874,7 +874,16 @@ struct
                         local, inv_exp
                     end
                   in
-                  let local = lock_verifier_atomic_if_multithreaded lvar local in
+                  let lock_atomic =
+                    GobConfig.get_bool "witness.yaml.lock-atomic-st-without-mutex-ghost"
+                    || List.mem "mutexGhost" (GobConfig.get_string_list "ana.activated")
+                  in
+                  let local =
+                    if lock_atomic then
+                      lock_verifier_atomic_if_multithreaded lvar local
+                    else
+                      local
+                  in
                   let ask = fun (type a) (q: a Queries.t) -> ask_local lvar ~local q in
                   begin match Queries.eval_bool {f = ask} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)

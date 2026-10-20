@@ -8,9 +8,9 @@
       version: "0.0"
     task:
       input_files:
-      - 60-cyclic-producer-slot.c
+      - 65-cyclic-producer-slot.c
       input_file_hashes:
-        60-cyclic-producer-slot.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        65-cyclic-producer-slot.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -23,7 +23,7 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 60-cyclic-producer-slot.c
+        file_name: 65-cyclic-producer-slot.c
         line: 15
         column: 5
         function: producer
@@ -32,7 +32,7 @@
         value: "1"
         format: c_expression
     - location:
-        file_name: 60-cyclic-producer-slot.c
+        file_name: 65-cyclic-producer-slot.c
         line: 19
         column: 5
         function: producer

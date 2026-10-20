@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 10-sharded-counter.c, line: 16, column: 3, function: api_gateway}
+    - location: {file_name: 10-sharded-counter.c, line: 16, column: 29, function: api_gateway}
       updates:
       - variable: ghost_api_gateway_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 10-sharded-counter.c, line: 24, column: 3, function: batch_importer}
+    - location: {file_name: 10-sharded-counter.c, line: 24, column: 34, function: batch_importer}
       updates:
       - variable: ghost_batch_importer_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 10-sharded-counter.c, line: 28, column: 3, function: batch_importer}
+    - location: {file_name: 10-sharded-counter.c, line: 28, column: 32, function: batch_importer}
       updates:
       - variable: ghost_batch_importer_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 10-sharded-counter.c, line: 38, column: 3, function: health_probe}
+    - location: {file_name: 10-sharded-counter.c, line: 38, column: 30, function: health_probe}
       updates:
       - variable: ghost_health_probe_phase
         value: "1"

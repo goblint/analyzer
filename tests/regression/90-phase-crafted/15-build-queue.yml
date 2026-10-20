@@ -25,22 +25,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 15-build-queue.c, line: 21, column: 3, function: compiler}
+    - location: {file_name: 15-build-queue.c, line: 21, column: 26, function: compiler}
       updates:
       - variable: ghost_compiler_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 15-build-queue.c, line: 31, column: 3, function: packager}
+    - location: {file_name: 15-build-queue.c, line: 31, column: 26, function: packager}
       updates:
       - variable: ghost_packager_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 15-build-queue.c, line: 34, column: 3, function: packager}
+    - location: {file_name: 15-build-queue.c, line: 34, column: 26, function: packager}
       updates:
       - variable: ghost_packager_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 15-build-queue.c, line: 44, column: 3, function: tester}
+    - location: {file_name: 15-build-queue.c, line: 44, column: 24, function: tester}
       updates:
       - variable: ghost_tester_phase
         value: "1"

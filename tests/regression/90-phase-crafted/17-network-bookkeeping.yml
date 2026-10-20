@@ -21,17 +21,17 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 17-network-bookkeeping.c, line: 16, column: 3, function: sender}
+    - location: {file_name: 17-network-bookkeeping.c, line: 16, column: 24, function: sender}
       updates:
       - variable: ghost_sender_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 17-network-bookkeeping.c, line: 19, column: 3, function: sender}
+    - location: {file_name: 17-network-bookkeeping.c, line: 19, column: 24, function: sender}
       updates:
       - variable: ghost_sender_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 17-network-bookkeeping.c, line: 29, column: 3, function: receiver}
+    - location: {file_name: 17-network-bookkeeping.c, line: 29, column: 26, function: receiver}
       updates:
       - variable: ghost_receiver_phase
         value: "1"

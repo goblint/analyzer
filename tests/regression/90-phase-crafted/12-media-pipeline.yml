@@ -21,22 +21,22 @@
       type: int
       initial: {value: "0", format: c_expression}
     ghost_updates:
-    - location: {file_name: 12-media-pipeline.c, line: 22, column: 3, function: decoder}
+    - location: {file_name: 12-media-pipeline.c, line: 22, column: 25, function: decoder}
       updates:
       - variable: ghost_decoder_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 12-media-pipeline.c, line: 25, column: 3, function: decoder}
+    - location: {file_name: 12-media-pipeline.c, line: 25, column: 25, function: decoder}
       updates:
       - variable: ghost_decoder_phase
         value: "2"
         format: c_expression
-    - location: {file_name: 12-media-pipeline.c, line: 35, column: 3, function: encoder}
+    - location: {file_name: 12-media-pipeline.c, line: 35, column: 25, function: encoder}
       updates:
       - variable: ghost_encoder_phase
         value: "1"
         format: c_expression
-    - location: {file_name: 12-media-pipeline.c, line: 38, column: 3, function: encoder}
+    - location: {file_name: 12-media-pipeline.c, line: 38, column: 25, function: encoder}
       updates:
       - variable: ghost_encoder_phase
         value: "2"
