@@ -13,7 +13,7 @@ rm -f goblint
 cp _build/default/src/goblint.exe goblint
 chmod +w goblint
 # must replace absolute apron runpath to C library with relative
-chrpath -r '$ORIGIN/lib' goblint
+patchelf --set-rpath '$ORIGIN/lib' goblint
 # copy just necessary apron C libraries
 mkdir -p lib/
 cp _opam/share/apron/lib/libapron.so lib/

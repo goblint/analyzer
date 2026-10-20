@@ -4,7 +4,7 @@ FROM ocaml/opam:ubuntu-26.04-opam AS build
 RUN sudo ln -sf /usr/bin/opam-2.4 /usr/bin/opam
 
 RUN sudo apt-get update \
-    && sudo apt-get install -y gcc-multilib chrpath wget zip
+    && sudo apt-get install -y gcc-multilib patchelf wget zip
 # update local opam repository because base image may be outdated
 RUN cd /home/opam/opam-repository \
     && git pull origin master \
