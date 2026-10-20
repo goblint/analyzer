@@ -77,8 +77,6 @@
 
     This includes: git tag name, git tag message, zipped conf file and [SV-COMP container image tag](https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image).
 
-4. Open MR with conf file name to the [bench-defs](https://gitlab.com/sosy-lab/sv-comp/bench-defs) repository.
-
 ### For each prerun
 
 1. Make sure you have a clean git repository.
@@ -90,7 +88,7 @@
     The resulting archive is `scripts/sv-comp/goblint.zip`.
 
 4. Create (or add new version) Zenodo artifact and upload the archive.
-5. Open MR with Zenodo version DOI to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
+5. Open MR with Zenodo version DOI and updated conf file name to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
 
 ### After all preruns
 

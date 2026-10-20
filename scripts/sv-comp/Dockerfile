@@ -1,5 +1,5 @@
 # just -opam tag because make setup will install ocaml compiler
-FROM ocaml/opam:ubuntu-24.04-opam AS build
+FROM ocaml/opam:ubuntu-26.04-opam AS build
 # make opam 2.4 default for make setup
 RUN sudo ln -sf /usr/bin/opam-2.4 /usr/bin/opam
 
@@ -20,12 +20,12 @@ RUN OPAMCONFIRMLEVEL=unsafe-yes ./make.sh setup
 COPY --chown=opam . /home/opam/goblint
 RUN ./scripts/sv-comp/archive.sh
 
-FROM ubuntu:24.04 AS smoketest-ubuntu
+FROM ubuntu:26.04 AS smoketest-ubuntu
 
 # cannot use opam depext because no opam here, also additional preprocessing/header dependencies
 # libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
 RUN apt-get update \
-    && apt-get install -y unzip libgmp10 libmpfr6 cpp libc6-dev libc6-dev-i386 libgcc-13-dev lib32gcc-13-dev python3 \
+    && apt-get install -y unzip libgmp10 libmpfr6 cpp libc6-dev libc6-dev-i386 libgcc-15-dev lib32gcc-15-dev python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -35,7 +35,7 @@ RUN unzip goblint.zip
 WORKDIR /root/goblint
 RUN ./smoketest.sh
 
-FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2026 AS smoketest-competition
+FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2027 AS smoketest-competition
 
 RUN apt-get update \
     && apt-get install -y unzip \

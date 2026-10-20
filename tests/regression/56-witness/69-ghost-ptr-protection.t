@@ -5,9 +5,9 @@
     dead: 0
     total lines: 15
   [Warning][Race] Memory location p (race with conf. 110): (69-ghost-ptr-protection.c:7:5-7:12)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
-    read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
+    write with thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40], lock:{m2} (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
+    write with thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40], lock:{m2} (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
+    read with thread:[main], lock:{m1}, mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}} (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -117,9 +117,9 @@ Same with vojdani.
     dead: 0
     total lines: 15
   [Warning][Race] Memory location p (race with conf. 110): (69-ghost-ptr-protection.c:7:5-7:12)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
-    read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
+    write with thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40], lock:{m2} (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
+    write with thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40], lock:{m2} (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
+    read with thread:[main], lock:{m1}, mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}} (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -143,12 +143,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
         initial:
           value: "0"
           format: c_expression
-      - name: m2_locked
-        scope: global
-        type: int
-        initial:
-          value: "0"
-          format: c_expression
       - name: multithreaded
         scope: global
         type: int
@@ -156,24 +150,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           value: "0"
           format: c_expression
       ghost_updates:
-      - location:
-          file_name: 69-ghost-ptr-protection.c
-          line: 13
-          column: 3
-          function: t_fun
-        updates:
-        - variable: m2_locked
-          value: "1"
-          format: c_expression
-      - location:
-          file_name: 69-ghost-ptr-protection.c
-          line: 16
-          column: 3
-          function: t_fun
-        updates:
-        - variable: m2_locked
-          value: "0"
-          format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
           line: 22

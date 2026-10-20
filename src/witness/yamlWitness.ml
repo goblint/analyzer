@@ -24,7 +24,7 @@ struct
   let metadata ~format_version ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let conf_format_version = YamlWitnessVersion.of_option () in
-    if YamlWitnessVersion.compare format_version conf_format_version > 0 then
+    if not (YamlWitnessVersion.leq format_version conf_format_version) then
       M.warn_noloc ~category:Witness "witness entry version (%a) exceeds configured witness.yaml.format-version (%a)" YamlWitnessVersion.pretty format_version YamlWitnessVersion.pretty conf_format_version;
     let creation_time = TimeUtil.iso8601_now () in
     {
@@ -245,31 +245,10 @@ struct
         ) (Lazy.force invariant_global_nodes) acc
     in
 
-    (* Generate flow-insensitive entries (ghost instrumentation) *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
-        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
-        let module EntrySet = Queries.YS in
-        fst @@ GHT.fold (fun g v accs ->
-            match g with
-            | `Left g -> (* global unknown from analysis Spec *)
-              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
-                | `Lifted _ as inv ->
-                  Queries.YS.fold (fun entry (acc, acc') ->
-                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
-                        accs
-                      else
-                        (entry :: acc, EntrySet.add entry acc')
-                    ) inv accs
-                | `Top ->
-                  accs
-              end
-            | `Right _ -> (* global unknown for FromSpec contexts *)
-              accs
-          ) gh (entries, EntrySet.empty ())
-      )
-      else
-        entries
+    let invariant_vars = ref (Queries.VS.empty ()) in (* TODO: dirty imperative hack *)
+    let add_invariant_vars (inv: Invariant.Exp.t): unit =
+      let inv_vars = Queries.VS.of_list (Basetype.CilExp.get_vars (Invariant.Exp.to_cil inv)) in (* TODO: to_cil breaks abstraction *)
+      invariant_vars := Queries.VS.union !invariant_vars inv_vars
     in
 
     (* Generate invariant set *)
@@ -294,6 +273,7 @@ struct
                   let location = Entry.location ~location:loc ~location_function in
                   let invs = Invariant.Exp.process inv in
                   List.fold_left (fun acc inv ->
+                      add_invariant_vars inv;
                       let invariant = Invariant.Exp.show inv in
                       let invariant = Entry.location_invariant ~location ~invariant in
                       incr cnt_location_invariant;
@@ -324,6 +304,7 @@ struct
                     let location = Entry.location ~location:loc ~location_function in
                     let invs = Invariant.Exp.process inv in
                     List.fold_left (fun acc inv ->
+                        add_invariant_vars inv;
                         let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
@@ -350,6 +331,7 @@ struct
                     | `Lifted inv, "invariant_set-flow_insensitive_invariant" ->
                       let invs = Invariant.Exp.process inv in
                       List.fold_left (fun acc inv ->
+                          add_invariant_vars inv;
                           let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.flow_insensitive_invariant ~invariant in
                           incr cnt_flow_insensitive_invariant;
@@ -358,6 +340,7 @@ struct
                     | `Lifted inv, "invariant_set-location_invariant" ->
                       (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
+                          add_invariant_vars inv;
                           let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.location_invariant ~location ~invariant in
                           incr cnt_location_invariant;
@@ -381,6 +364,48 @@ struct
       )
       else
         entries
+    in
+
+    (* Generate flow-insensitive entries (ghost instrumentation) *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
+        let module EntrySet = Queries.YS in
+        fst @@ GHT.fold (fun g v accs ->
+            match g with
+            | `Left g -> (* global unknown from analysis Spec *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task, !invariant_vars)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold (fun entry (acc, acc') ->
+                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
+                        accs
+                      else
+                        (acc @ [entry], EntrySet.add entry acc') (* TODO: appending entry is inefficient, but currently there's only ever at most one *)
+                    ) inv accs
+                | `Top ->
+                  accs
+              end
+            | `Right _ -> (* global unknown for FromSpec contexts *)
+              accs
+          ) gh (entries, EntrySet.empty ())
+      )
+      else
+        entries
+    in
+
+    let common_format_version =
+      List.to_seq entries
+      |> Seq.map (fun (e: YamlWitnessType.Entry.t) -> YamlWitnessVersion.of_string e.metadata.format_version) (* TODO: avoid back and forth string conversion *)
+      |> Seq.fold_left (fun acc v -> Some (BatOption.map_default (YamlWitnessVersion.join v) v acc)) None
+      |> Option.map YamlWitnessVersion.show
+    in
+    let entries =
+      match common_format_version with
+      | Some common_format_version ->
+        List.map (fun (e: YamlWitnessType.Entry.t) ->
+            {e with metadata = {e.metadata with format_version = common_format_version}}
+          ) entries
+      | None -> entries
     in
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
@@ -598,6 +623,10 @@ struct
         List.iter validate_invariant_kind invariant_set.content
       in
 
+      let validate_ghost_instrumentation (ghost_instrumentation: YamlWitnessType.GhostInstrumentation.t) =
+        ()
+      in
+
       let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =
         (* TODO: update cnt-s appropriately (needs access to SV-COMP result pre-witness validation) *)
         (* Nothing needs to be checked here!
@@ -610,9 +639,11 @@ struct
       match entry_type_enabled target_type, entry.entry_type with
       | true, InvariantSet x ->
         validate_invariant_set x
+      | true, GhostInstrumentation ({ghost_variables = []; ghost_updates = []} as x) ->
+        validate_ghost_instrumentation x
       | true, ViolationSequence x ->
         validate_violation_sequence x
-      | false, (InvariantSet _ | ViolationSequence _) ->
+      | false, (InvariantSet _ | GhostInstrumentation _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->

@@ -365,8 +365,11 @@ module ListMatrix: SparseMatrixFunctor =
           match m' with
           | [] -> not @@ V.is_zero_vec v
           | x::xs ->
-            let new_v = V.map2_f_preserves_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
-            is_linearly_independent_rref new_v m'
+            match V.find_first_non_zero x with
+            | Some (idx, _) when idx > pivot_id -> true (* pivotsearch might have overshot v's pivot -> independent *)
+            | _ ->
+              let new_v = V.map2_f_preserves_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
+              is_linearly_independent_rref new_v m'
       in
       if compare_num_rows m1 m2 > 0 then false else
         let rec is_covered_by_helper m1 m2 =
@@ -418,6 +421,7 @@ module ListMatrix: SparseMatrixFunctor =
           ) m
       in
 
+      (** case 2: we get the result by adding row a[r], scaled with col_b to a[i<r] *)
       let case_two a r col_b =
         let a_r = get_row a r in
         let res = map2i (fun i x y -> if i < r then
@@ -427,6 +431,7 @@ module ListMatrix: SparseMatrixFunctor =
         res
       in
 
+      (** case 3: based on (col1!=col2), adjust rows to eliminate the difference *)
       let case_three col1 col2 m1 m2 result ridx cidx = (* no new pivots at ridx/cidx *)
         let sub_and_lastterm c1 c2 = (* return last element/idx pair that differs*)
           let len = V.length c1 in
@@ -451,17 +456,17 @@ module ListMatrix: SparseMatrixFunctor =
         in
         let coldiff,lastdiff = sub_and_lastterm col1 col2 in
         match lastdiff with
-        | None ->
+        | None -> (* no difference between col1 and col2, can push either to result and remove from both *)
           let sameinboth=get_col_upper_triangular m1 cidx in
           if M.tracing then M.trace "linear_disjunct_cases" "case_three: no difference found, cidx: %d, ridx: %d, coldiff: %a, sameinboth: %a" cidx ridx V.pretty coldiff V.pretty sameinboth;
           (del_col m1 cidx,  del_col m2 cidx, push_col result cidx sameinboth, ridx) (* No difference found -> (del_col m1 cidx, del_col m2 cidx, push hd to result, ridx)*)
-        | Some (idx,x,y) ->
+        | Some (idx,x,y) -> (* coldiff != 0, so fix that by elimination via row-transformations *)
           let r1 = safe_get_row m1 idx in
           let r2 = safe_get_row m2 idx in
           let resrow = safe_get_row result idx in
           let diff = x -: y in
           let multiply_by_t termorder m t =
-            map2i (fun i x c -> if i <= ridx then
+            map2i (fun i x c -> if i <= ridx then (* adjust each row with a scaled version of the row t*)
                       let beta = c /: diff in
                       V.map2_f_preserves_zero_helper (termorder) (fun u j -> u -: (beta *: j)) x t
                     else x) m coldiff
@@ -475,6 +480,15 @@ module ListMatrix: SparseMatrixFunctor =
           safe_remove_row (transformed_a) idx, safe_remove_row (multiply_by_t (-) m2 r2) idx, safe_remove_row (res) idx, ridx - 1
       in
 
+      (** [lindisjunc_aux] is the central driver of the linear disjunction 
+          - we walk through the matrix structure in lockstep, watching out for pivot elements
+          - if both agree upon a pivot, it is pushed to result
+          - one-sided pivots lead to discarding the pivot, inlining its consequences into the upper matrix portion
+          - no pivots in both 
+            remark: in order not having to perform column-operations or index-based accesses, we exploit that the
+            accesses to result are of increasing column index, and construct result in reversed column index during disjunct_aux,
+            and reverse the column sequence in postprocessing
+      *)
       let rec lindisjunc_aux currentrowindex currentcolindex m1 m2 result =
         if M.tracing then M.trace "linear_disjunct" "result so far: \n%a, currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a"
             pretty_rev result currentrowindex currentcolindex pretty m1 pretty m2;
@@ -483,29 +497,55 @@ module ListMatrix: SparseMatrixFunctor =
           let col1, rc1 = col_and_rc m1 currentcolindex currentrowindex in
           let col2, rc2 = col_and_rc m2 currentcolindex currentrowindex in
           match Z.to_int @@ A.get_num rc1, Z.to_int @@ A.get_num rc2 with
+
+          (*
+             case 1,1: both m1 and m2 have a pivot in this column: We
+             - propagate the pivot to the result matrix 
+             - then remove the current row from both matrices and 
+             - continue with the next row and column.
+          *)
           | 1, 1 -> lindisjunc_aux
                       (currentrowindex + 1) (currentcolindex+1)
                       (del_col m1 currentrowindex) (del_col m2 currentrowindex)
                       (List.mapi (fun idx row -> if idx = currentrowindex then V.push_first row currentcolindex A.one else row) result)
+
+          (* case 1,0: m1 has a pivot in this column, m2 has no pivot: We 
+             - remove currentrow from m1:
+             - save the entailed information to the upper part of m1
+             - actually remove currentrow from m1
+             - continue with the next column, but the same row, after propagating the current m1 column to the result matrix.
+          *)
           | 1, 0 -> let beta = get_col_upper_triangular m2 currentcolindex in
             if M.tracing then M.trace "linear_disjunct_cases" "case 1,0: currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a , beta %a" currentrowindex currentcolindex pretty m1 pretty m2 V.pretty beta;
             lindisjunc_aux
               (currentrowindex) (currentcolindex+1)
-              (safe_remove_row (case_two m1 currentrowindex col2) currentrowindex) (safe_remove_row m2 currentrowindex)
-              (safe_remove_row (push_col result currentcolindex beta) currentrowindex)
+              (safe_remove_row (case_two m1 currentrowindex col2) currentrowindex) m2
+              (push_col result currentcolindex beta)
+
+          (* case 0,1: m1 has no pivot in this column, m2 has a pivot: We
+             - remove currentrow from m2:
+             - save the entailed information to the upper part of m2
+             - actualy remove currentrow from m2
+             - continue with the next column, but the same row after propagating the current m2 column to the result matrix.
+          *)
           | 0, 1 -> let beta = get_col_upper_triangular m1 currentcolindex in
             if M.tracing then M.trace "linear_disjunct_cases" "case 0,1: currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a , beta %a" currentrowindex currentcolindex pretty m1 pretty m2 V.pretty beta;
             lindisjunc_aux
               (currentrowindex) (currentcolindex+1)
-              (safe_remove_row m1 currentrowindex) (safe_remove_row (case_two m2 currentrowindex col1) currentrowindex)
-              (safe_remove_row (push_col result currentcolindex beta) currentrowindex)
+              m1 (safe_remove_row (case_two m2 currentrowindex col1) currentrowindex)
+              (push_col result currentcolindex beta)
+
+          (* case 0,0: no pivot in ths column, we
+             - (in [case_three]) fix discrepancies between m1 and m2 by row-transformations, and remove the current row from both matrices
+             - continue with the next column
+          *)
           | 0, 0 -> let m1 , m2, result, currentrowindex = case_three col1 col2 m1 m2 result currentrowindex currentcolindex in
-            lindisjunc_aux currentrowindex (currentcolindex+1) m1 m2 result  (* we need to process m1, m2 and result *)
+            lindisjunc_aux currentrowindex (currentcolindex+1) m1 m2 result
           | a,b -> failwith (GobPretty.sprintf "matrix not in rref m1: %d%d%a m2: %a" a b pretty m1 pretty m2)
       in
       (* create a totally empty intial result, with dimensions rows x cols *)
-      let pseudoempty = BatList.make (max (num_rows m1) (num_rows m1)) (V.zero_vec (num_cols m1)) in
-      let res = rev_matrix @@ lindisjunc_aux 0 0 m1 m2 pseudoempty in
+      let pseudoempty = BatList.make (max (num_rows m1) (num_rows m2)) (V.zero_vec (num_cols m1)) in
+      let res = remove_zero_rows @@ rev_matrix @@ lindisjunc_aux 0 0 m1 m2 pseudoempty in
       if M.tracing then M.tracel "linear_disjunct" "linear_disjunct between \n%a and \n%a =>\n%a" pretty m1 pretty m2 pretty res;
       res
 

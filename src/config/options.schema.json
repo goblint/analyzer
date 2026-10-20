@@ -353,7 +353,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet", "branchSetLocal", "branchSetFull"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -1157,6 +1157,13 @@
               "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
+            },
+            "graph-coloring": {
+              "title": "ana.race.graph-coloring",
+              "description": "Group accesses in race warnings into safe subgroups by coloring the race interference graph with the chosen algorithm (none, greedy, dsatur, rlf, optimal).",
+              "type": "string",
+              "enum": ["none", "greedy", "dsatur", "rlf", "optimal"],
+              "default": "none"
             }
           },
           "additionalProperties": false
@@ -1276,7 +1283,7 @@
           "properties": {
             "precheck": {
               "title": "ana.unassume.precheck",
-              "description": "Check if invariant contradicts reached state before unassuming.",
+              "description": "Exclude invariant disjuncts (recursively) which contradict reached state before unassuming. This is useful for invariants from unrolled loops, but violates specification S6 from Simmo Saan's PhD thesis.",
               "type": "boolean",
               "default": false
             }
@@ -2845,7 +2852,11 @@
               "enum": [
                 "2.0",
                 "2.1",
-                "2.1-goblint"
+                "2.1-goblint",
+                "2.2",
+                "2.2-goblint",
+                "2.3",
+                "2.3-goblint"
               ],
               "default": "2.1"
             },

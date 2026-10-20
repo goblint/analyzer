@@ -161,8 +161,8 @@ sig
   include SOverflow
 
   (* necessary for baseInvariant *)
-  val refine_bor : t -> t -> t -> t * t
-  val refine_band : t -> t -> t -> t * t
+  val refine_bor : Cil.ikind -> t -> t -> t -> t * t
+  val refine_band : Cil.ikind -> t -> t -> t -> t * t
 
 end
 
@@ -197,21 +197,27 @@ struct
   let narrow = lift2 I.narrow
 
   let show x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      Printf.sprintf "%s (%s)" (I.show x.v) (CilType.Ikind.show x.ikind)
+    else if I.is_top_of x.ikind x.v then
       "⊤"
     else
-      I.show x.v  (* TODO add ikind to output *)
+      I.show x.v
   let pretty () x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      Pretty.dprintf "%a (%a)" I.pretty x.v CilType.Ikind.pretty x.ikind
+    else if I.is_top_of x.ikind x.v then
       Pretty.text "⊤"
     else
-      I.pretty () x.v (* TODO add ikind to output *)
+      I.pretty () x.v
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
   let printXml o x =
-    if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
+    if GobConfig.get_bool "dbg.full-output" then
+      BatPrintf.fprintf o "<value>\n<map>\n<key>\nvalue\n</key>\n%a<key>\nikind\n</key>\n%a</map>\n</value>\n" I.printXml x.v CilType.Ikind.printXml x.ikind
+    else if I.is_top_of x.ikind x.v then
       BatPrintf.fprintf o "<value>\n<data>\n⊤\n</data>\n</value>\n"
     else
-      I.printXml o x.v (* TODO add ikind to output *)
+      I.printXml o x.v
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
@@ -227,7 +233,6 @@ struct
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
   let to_excl_list x = I.to_excl_list x.v
   let of_excl_list ikind is = {v = I.of_excl_list ikind is; ikind}
-  let is_excl_list x = I.is_excl_list x.v
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
@@ -273,19 +278,28 @@ struct
   let ikind = Cilfacade.ptrdiff_ikind
 end
 
-module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t =
+module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : YDefault with type t = I.t and type int_t = I.int_t =
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
   let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
+  (* let is_bot x = I.is_bot_of (Ik.ikind ()) x *) (* TODO: add this? *)
+  let of_int ?suppress_ovwarn x = I.of_int ?suppress_ovwarn (Ik.ikind ()) x
+  let of_bool x = I.of_bool (Ik.ikind ()) x
+  let of_interval ?suppress_ovwarn x = I.of_interval ?suppress_ovwarn (Ik.ikind ()) x
+  let of_congruence x = I.of_congruence (Ik.ikind ()) x
+  let of_bitfield x = I.of_bitfield (Ik.ikind ()) x
+  let starting ?suppress_ovwarn x = I.starting ?suppress_ovwarn (Ik.ikind ()) x
+  let ending ?suppress_ovwarn x = I.ending ?suppress_ovwarn (Ik.ikind ()) x
+  let of_excl_list x = I.of_excl_list (Ik.ikind ()) x
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
   open Cil
   let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
-  let min_for x = intKindForValue x (sign x = `Unsigned)
+  let min_for ~ik x = Option.value ~default:ik (intKindForValue x (sign x = `Unsigned))
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -325,22 +339,19 @@ module Size = struct (* size in bits as int, range as int64 *)
       y
 
   (** @return Bit range always includes 0. *)
-  let min_range_sign_agnostic x =
+  let min_range_sign_agnostic ik x =
     let size ik =
       let a,b = bits ik in
       -a,b
     in
     if sign x = `Signed then
-      size (min_for x)
+      size (min_for ~ik x)
     else
-      let a, b = size (min_for x) in
-      if b <= 64 then
-        let upper_bound_less = b - 1 in
-        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
-        if x <= max_one_less then
-          a, upper_bound_less
-        else
-          a,b
+      let a, b = size (min_for ~ik x) in
+      let upper_bound_less = b - 1 in
+      let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
+      if x <= max_one_less then
+        a, upper_bound_less
       else
         a, b
 
@@ -358,7 +369,6 @@ module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = 
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
   let of_excl_list ik x = top_of ik
-  let is_excl_list    x = false
   let to_incl_list    x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
@@ -677,7 +687,6 @@ struct
 
   let to_excl_list x = None
   let of_excl_list ik x = top_of ik
-  let is_excl_list x = false
   let to_incl_list x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
