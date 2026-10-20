@@ -20,7 +20,7 @@ void issue_1801() {
 void count_add() {
   char *p = malloc(42);
   size_t r;
-  memset(p + 1, 0, r); // TODO NOWARN (overflow), WARN! (OOB)
+  memset(p + 1, 0, r); // NOWARN (overflow), WARN! (OOB)
 }
 
 void size_mul() {

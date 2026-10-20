@@ -3,7 +3,6 @@
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (45-oob-speculate-overflow.c:15:7-15:23)
   [Warning][Unknown] Size of lval dereference expression *(buffer + i) + j is top. Out-of-bounds memory access may occur (45-oob-speculate-overflow.c:15:7-15:23)
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of pointer *(buffer + i) + j is top. Memory out-of-bounds access might occur due to pointer arithmetic (45-oob-speculate-overflow.c:15:7-15:23)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in internal cast (45-oob-speculate-overflow.c:23:3-23:22)
   [Warning][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Could not compare size of dest (42) with address offset (1) count (⊤) in function memset. Memory out-of-bounds access may occur (45-oob-speculate-overflow.c:23:3-23:22)
   [Warning][Unknown] size of error: Array is so long that its size can't be represented with an OCaml int. (45-oob-speculate-overflow.c:32:13-32:25)
   [Error][Behavior > Undefined > MemoryOutOfBoundsAccess][CWE-823] Size of pointer is 18446744073709551608 (in bytes). It is offset by -8 (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur (45-oob-speculate-overflow.c:34:3-34:19)

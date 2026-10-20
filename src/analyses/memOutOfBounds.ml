@@ -263,26 +263,26 @@ struct
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Count parameter, passed to function %s is bottom" fun_name
     | ds, `Lifted en ->
-      let casted_en = IndexDomain.lift en in (* TODO: shouldn't this also be in SizeDomain? *)
+      let casted_en = SizeDomain.lift en in
       let casted_ao = IndexDomain.lift addr_offs in
       let dest_size_lt_count =
         let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
         try
-          SizeDomain.lt ds (SizeDomain.of_index (IndexDomain.add casted_en casted_ao)) (* TODO: which domain is the best for add-ing? *)
+          SizeDomain.lt ds (SizeDomain.add casted_en (SizeDomain.of_index casted_ao))
         with IntDomain.ArithmeticOnIntegerBot _ -> (* happens if add is definitely negative *)
           Some false (* then definitely before the end *)
       in
       match dest_size_lt_count with
       | Some true ->
         set_mem_safety_flag InvalidDeref;
-        M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name SizeDomain.pretty ds ID.pretty casted_ao ID.pretty casted_en;
-        Checks.error Checks.Category.InvalidMemoryAccess "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name SizeDomain.pretty ds ID.pretty casted_ao ID.pretty casted_en
+        M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en;
+        Checks.error Checks.Category.InvalidMemoryAccess "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en
       | Some false ->
         Checks.safe Checks.Category.InvalidMemoryAccess
       | None ->
         set_mem_safety_flag InvalidDeref;
-        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" SizeDomain.pretty ds ID.pretty casted_ao ID.pretty casted_en fun_name;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" SizeDomain.pretty ds ID.pretty casted_ao ID.pretty casted_en fun_name
+        M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en fun_name;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en fun_name
 
 
   (* TRANSFER FUNCTIONS *)
