@@ -11,14 +11,14 @@ RUN cd /home/opam/opam-repository \
     && opam update -y
 
 # copy only files for make setup to cache docker layers without code changes
-COPY --chown=opam make.sh goblint.opam goblint.opam.locked /home/opam/goblint/
-WORKDIR /home/opam/goblint/
+COPY --chown=opam make.sh goblint.opam goblint.opam.locked /home/opam/goblint-par/
+WORKDIR /home/opam/goblint-par/
 # unsafe-yes to allow opam to install depexts via apt unattended
 # RUN OPAMCONFIRMLEVEL=unsafe-yes ./make.sh setup
 RUN OPAMCONFIRMLEVEL=unsafe-yes opam switch -y create . --deps-only --packages=ocaml-variants.5.5.1+options,ocaml-option-flambda,domainslib,apron
 
 # copy the rest
-COPY --chown=opam . /home/opam/goblint
+COPY --chown=opam . /home/opam/goblint-par
 RUN ./scripts/sv-comp/archive.sh
 
 FROM ubuntu:26.04 AS smoketest-ubuntu
@@ -30,10 +30,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
-COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
-RUN unzip goblint.zip
+COPY --from=build /home/opam/goblint-par/scripts/sv-comp/goblint-par.zip .
+RUN unzip goblint-par.zip
 
-WORKDIR /root/goblint
+WORKDIR /root/goblint-par
 RUN ./smoketest.sh
 
 FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2027 AS smoketest-competition
@@ -43,11 +43,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
-COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
-RUN unzip goblint.zip
+COPY --from=build /home/opam/goblint-par/scripts/sv-comp/goblint-par.zip .
+RUN unzip goblint-par.zip
 
-WORKDIR /root/goblint
+WORKDIR /root/goblint-par
 RUN ./smoketest.sh
 
 FROM scratch
-COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
+COPY --from=build /home/opam/goblint-par/scripts/sv-comp/goblint-par.zip .
