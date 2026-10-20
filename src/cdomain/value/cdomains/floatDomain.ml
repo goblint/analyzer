@@ -103,6 +103,10 @@ module type FloatDomainBase = sig
 
   val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
 
+  val inv_of_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t option
+  (** Integers of the given kind whose conversion to a floating-point type abstracted by this domain may lie within the given value, or [None] if there are none.
+      This is the inverse of [of_int], used to refine an integer from the possible values of its cast to a floating-point type. *)
+
   val nan: unit -> t
 
   val of_const : float -> t
@@ -158,6 +162,33 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       (* as converting from float to integer is (exactly) defined as leaving out the fractional part,
          (value is truncated toward zero) we do not require specific rounding here *)
       IntDomain.IntDomTuple.of_interval ik (Float_t.to_big_int l, Float_t.to_big_int h)
+
+  (** Integers of kind [ik] whose conversion to a floating-point type abstracted by this domain may lie within [float_value], or [None] if there are none.
+      This is the inverse of [of_int], used to refine an integer from the possible values of its cast to a floating-point type. *)
+  let inv_of_int ik float_value =
+    match float_value with
+    | Bot
+    | NaN -> None (* no integer is converted to NaN *)
+    | Top
+    | PlusInfinity
+    | MinusInfinity -> Some (IntDomain.IntDomTuple.top_of ik)
+    | Interval (low, high) ->
+      (* In C, an integer that cannot be represented exactly is converted to the nearest higher or nearest lower representable value (C99/C11 6.3.1.4p2),
+         so a converted value of at least low implies an integer greater than pred low (the highest representable value smaller than low),
+         independently of the rounding mode (and analogously for high).
+         Since pred and succ are computed in the precision of Float_t, this is also sound for wider floating-point types whose values are abstracted in this precision. *)
+      let (ik_min, ik_max) = IntDomain.Size.range ik in
+      let least_int_above x = Z.succ (Float_t.to_big_int (Float_t.floor x)) in
+      let greatest_int_below x = Z.pred (Float_t.to_big_int (Float_t.ceil x)) in
+      let int_bound float_bound step_outward to_int ~default =
+        let closest_excluded = step_outward float_bound in
+        if Float_t.is_finite closest_excluded then to_int closest_excluded else default
+      in
+      let lower_from_float = int_bound low Float_t.pred least_int_above ~default:ik_min in
+      let upper_from_float = int_bound high Float_t.succ greatest_int_below ~default:ik_max in
+      let lower = Z.max ik_min lower_from_float in
+      let upper = Z.min ik_max upper_from_float in
+      if Z.gt lower upper then None else Some (IntDomain.IntDomTuple.of_interval ik (lower, upper))
 
   let of_int x =
     match IntDomain.IntDomTuple.minimal x, IntDomain.IntDomTuple.maximal x with
@@ -906,6 +937,11 @@ module type FloatDomain = sig
   include FloatArith with type t := t
 
   val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+
+  val inv_of_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t option
+  (** Integers of the given kind whose conversion to the floating-point type of the given value may lie within it, or [None] if there are none.
+      This is the inverse of [of_int], used to refine an integer from the possible values of its cast to a floating-point type. *)
+
   val cast_to : Cil.fkind -> t -> t
 
   val of_const : Cil.fkind -> float -> t
@@ -1090,6 +1126,7 @@ module FloatIntervalImplLifted = struct
   let minimal = dispatch (F1.minimal, F2.minimal)
   let maximal = dispatch (F1.maximal, F2.maximal)
   let to_int ikind = dispatch (F1.to_int ikind, F2.to_int ikind)
+  let inv_of_int ikind = dispatch (F1.inv_of_int ikind, F2.inv_of_int ikind)
   let cast_to fkind v =
     if is_nan v then
       nan_of fkind
@@ -1219,6 +1256,7 @@ module FloatDomTupleImpl = struct
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_int fkind); }
 
   let to_int ik = Option.map_default (F1.to_int ik) (IntDomain.IntDomTuple.top_of ik)
+  let inv_of_int ik = Option.map_default (F1.inv_of_int ik) (Some (IntDomain.IntDomTuple.top_of ik))
 
   let cast_to fkind =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> (fun x -> F.cast_to fkind x)); }
