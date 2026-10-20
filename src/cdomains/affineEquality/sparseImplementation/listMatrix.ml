@@ -412,6 +412,17 @@ module ListMatrix: SparseMatrixFunctor =
         col, rc
       in
 
+      (* Find the first unprocessed column that occurs in either matrix. Sparse
+         rows are ordered, but may still contain entries from processed columns. *)
+      let next_nonzero_col m start best =
+        List.fold_left (fun best row ->
+            if best = start then best
+            else match List.drop_while (fun (col, _) -> col < start) (V.to_sparse_list row) with
+              | (col, _) :: _ -> min best col
+              | [] -> best
+          ) best m
+      in
+
       let push_col m colidx col =
         List.mapi (fun idx row ->
             match V.nth col idx with
@@ -492,6 +503,9 @@ module ListMatrix: SparseMatrixFunctor =
       let rec lindisjunc_aux currentrowindex currentcolindex m1 m2 result =
         if M.tracing then M.trace "linear_disjunct" "result so far: \n%a, currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a"
             pretty_rev result currentrowindex currentcolindex pretty m1 pretty m2;
+        (* Empty columns would only remove already-processed entries from the
+           working rows. No later column or result entry depends on them. *)
+        let currentcolindex = next_nonzero_col m2 currentcolindex (next_nonzero_col m1 currentcolindex maxcols) in
         if currentcolindex >= maxcols then result
         else
           let col1, rc1 = col_and_rc m1 currentcolindex currentrowindex in
