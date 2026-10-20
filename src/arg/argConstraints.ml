@@ -34,7 +34,7 @@ struct
   struct
     include VIES
     (* new predecessors are always the right ones for the latest evaluation *)
-    let widen x y = y
+    let widen x y = join x y
     let narrow x y = y
   end
 
@@ -79,7 +79,7 @@ struct
   struct
     include SetDomain.Make (Spec.D)
     (* new predecessors are always the right ones for the latest evaluation *)
-    let widen x y = y
+    let widen x y = join x y
     let narrow x y = y
   end
   module Sync = SpecDMap (SyncSet)

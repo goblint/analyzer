@@ -150,7 +150,7 @@ type _ t =
   | TmpSpecial: Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
   | GasExhausted: CilType.Fundec.t ->  MustBool.t t
-  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
+  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t * VS.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]), YAML witness task and variables in YAML witness invariants. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
@@ -379,7 +379,12 @@ struct
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
-      | Any (YamlEntryGlobal (vi1, task1)), Any (YamlEntryGlobal (vi2, task2)) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) (* TODO: compare task *)
+      | Any (YamlEntryGlobal (vi1, task1, vs1)), Any (YamlEntryGlobal (vi2, task2, vs2)) ->
+        let r = Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) in (* TODO: compare task *)
+        if r <> 0 then
+          r
+        else
+          VS.compare vs1 vs2
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
@@ -431,7 +436,7 @@ struct
     | Any (Invariant i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
-    | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
+    | Any (YamlEntryGlobal (vi, task, vs)) -> 31 * Hashtbl.hash vi + VS.hash vs (* TODO: hash task *)
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MustProtectingLocks g) -> hash_mustprotectinglocks g
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
@@ -495,7 +500,7 @@ struct
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
-    | Any (YamlEntryGlobal (i, task)) -> Pretty.dprintf "YamlEntryGlobal _"
+    | Any (YamlEntryGlobal (i, task, vs)) -> Pretty.dprintf "YamlEntryGlobal _"
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
     | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"

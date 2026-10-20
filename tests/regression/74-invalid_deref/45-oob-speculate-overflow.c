@@ -20,7 +20,7 @@ void issue_1801() {
 void count_add() {
   char *p = malloc(42);
   size_t r;
-  memset(p + 1, 0, r); // TODO NOWARN (overflow), WARN! (OOB)
+  memset(p + 1, 0, r); // NOWARN (overflow), WARN! (OOB)
 }
 
 void size_mul() {
@@ -30,8 +30,8 @@ void size_mul() {
   *(arr - 1) = 42; // NOWARN (overflow), TODO WARN! (OOB)
 
   long long *parr = &arr;
-  *parr = 42; // TODO NOWARN (overflow), NOWARN (OOB)
-  *(parr - 1) = 42; // TODO NOWARN (overflow), WARN! (OOB)
+  *parr = 42; // NOWARN (overflow), NOWARN (OOB)
+  *(parr - 1) = 42; // NOWARN (overflow), WARN! (OOB)
 }
 
 int main() {
