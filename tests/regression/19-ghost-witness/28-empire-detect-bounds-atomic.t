@@ -11,8 +11,8 @@ all three invariants must remain unconfirmed.
   [Warning][Witness] invariant unconfirmed: (ghost_b == 0 && x >= 1) || (ghost_b == 1 && x >= 2) (28-empire-detect-bounds-atomic.c:18:1)
   [Warning][Witness] invariant unconfirmed: ghost_a == 1 && x >= 2 (28-empire-detect-bounds-atomic.c:37:5)
   [Warning][Witness] invariant unconfirmed: ghost_b == 1 && x >= 2 (28-empire-detect-bounds-atomic.c:37:5)
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@28-empire-detect-bounds-atomic.c:27:5-27:51] and is monotonically increased to known bounds
-  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@28-empire-detect-bounds-atomic.c:27:5-27:51] and has known lower and upper bounds
+  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 3

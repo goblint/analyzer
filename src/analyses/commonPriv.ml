@@ -313,12 +313,25 @@ struct
     let name () = "W"
   end
 
+  module VShared =
+  struct
+    module Bucket = Printable.Prod (MutexGlobals.V) (Digest)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (MutexGlobals.V) (Bucket)
+  end
+
   module V =
   struct
-    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (MutexGlobals.V) (TID)
-    let mutex x = `Left (MutexGlobals.V.mutex x)
-    let mutex_inits = `Left MutexGlobals.V.mutex_inits
-    let global x = `Left (MutexGlobals.V.global x)
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (VShared) (TID)
+
+    (* Shared values are represented by an index unknown and one unknown for
+       every digest in that index. Consequently, adding a digest cannot consume
+       the widening gas of values stored under existing digests. *)
+    let index x = `Left (`Left x)
+    let bucket x digest = `Left (`Right (x, digest))
+
+    let mutex x = MutexGlobals.V.mutex x
+    let mutex_inits = MutexGlobals.V.mutex_inits
+    let global x = MutexGlobals.V.global x
     let thread x = `Right x
   end
 
@@ -341,25 +354,23 @@ struct
     include MapDomain.MapBot_LiftTop (LLock) (LD)
     let name () = "L"
   end
+  (** A transient view used while combining all digest buckets of one shared
+      location. It is not stored in a solver global. *)
   module GMutex = MapDomain.MapBot_LiftTop (Digest) (LD)
+  module DigestSet = SetDomain.ToppedSet (Digest) (struct let topname = "all digests" end)
   module GThread = Lattice.Prod (LMust) (L)
 
   module G =
   struct
-    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (GMutex) (GThread)
+    include Lattice.Prod3 (LD) (DigestSet) (GThread)
 
-    let mutex = function
-      | `Bot -> GMutex.bot ()
-      | `Lifted1 x -> x
-      | _ -> failwith "PerMutexMeetPrivTID.mutex"
-    let thread = function
-      | `Bot -> GThread.bot ()
-      | `Lifted2 x -> x
-      | _ -> failwith "PerMutexMeetPrivTID.thread"
+    let bucket (bucket, _, _) = bucket
+    let index (_, index, _) = index
+    let thread (_, _, thread) = thread
 
-    let create_mutex mutex = `Lifted1 mutex
-    let create_global global = `Lifted1 global
-    let create_thread thread = `Lifted2 thread
+    let create_bucket bucket = bucket, DigestSet.bot (), GThread.bot ()
+    let create_index index = LD.bot (), index, GThread.bot ()
+    let create_thread thread = LD.bot (), DigestSet.bot (), thread
   end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
@@ -375,6 +386,22 @@ struct
 
   let merge_all v =
     GMutex.fold (fun _ v acc -> LD.join acc v) v (LD.bot ())
+
+  let iter_published_digests getg shared f =
+    DigestSet.iter f (G.index (getg (V.index shared)))
+
+  let get_shared getg shared =
+    let add_bucket digest acc =
+      GMutex.add digest (G.bucket (getg (V.bucket shared digest))) acc
+    in
+    DigestSet.fold add_bucket (G.index (getg (V.index shared))) (GMutex.empty ())
+
+  let sideg_bucket sideg shared digest value =
+    sideg (V.bucket shared digest) (G.create_bucket value);
+    sideg (V.index shared) (G.create_index (DigestSet.singleton digest))
+
+  let sideg_shared sideg shared values =
+    GMutex.iter (sideg_bucket sideg shared) values
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end

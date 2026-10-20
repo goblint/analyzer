@@ -9,7 +9,7 @@ to phase 3 and carry the phase-1 value of `x`, making the invariant unconfirmed.
     live: 11
     dead: 0
     total lines: 11
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@17-origin-phase-change.c:22:5-22:44] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@17-origin-phase-change.c:22:5-22:44] and has known lower and upper bounds
   [Info][Witness] witness validation summary:
     confirmed: 1
     unconfirmed: 0
