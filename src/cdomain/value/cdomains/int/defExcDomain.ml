@@ -129,12 +129,12 @@ struct
 
   let maximal = function
     | `Definite x -> Some x
-    | `Excluded (s,r) -> Some (Exclusion.max_of_range r)
+    | `Excluded (s,r) -> Exclusion.maximal (Exc (s, r))
     | `Bot -> None
 
   let minimal = function
     | `Definite x -> Some x
-    | `Excluded (s,r) -> Some (Exclusion.min_of_range r)
+    | `Excluded (s,r) -> Exclusion.minimal (Exc (s, r))
     | `Bot -> None
 
   let in_range r i =
