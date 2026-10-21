@@ -117,7 +117,8 @@ struct
 
   let meet (sub1: t) (sub2: t) = BatList.map2 VarSet.union sub1 sub2
 
-  let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if VarSet.subset s1x s2x then s2x else VarSet.empty) sub1 sub2
+  (* join on subs is a a finite height lattice, so we can only do n^2 widening steps *)
+  let widen (sub1: t) (sub2: t) = join sub1 sub2
 
   let forget_vars (vars : int BatList.t) =
     BatList.mapi (fun x ys ->

@@ -61,6 +61,19 @@ let test_invariant_uses_interval_bounds _ =
   assert_bool "upper constraint should be -x + 10 >= 0"
     (Coeff.equal (Lincons1.get_cst upper_bound) (Coeff.s_of_int 10))
 
+let test_subs_widen_is_upper_bound _ =
+  let x_lt_y = Subs.VarSet.singleton 1 in
+  let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
+  let old_state = [x_lt_y; Subs.VarSet.empty; Subs.VarSet.empty] in
+  let new_state = [x_lt_y_and_z; Subs.VarSet.empty; Subs.VarSet.empty] in
+  let widened = Subs.widen old_state new_state in
+  assert_bool "widening must overapproximate its old state"
+    (Subs.leq old_state widened);
+  assert_bool "widening must overapproximate its new state"
+    (Subs.leq new_state widened);
+  assert_bool "the common strict bound should be retained"
+    (Subs.VarSet.equal (Subs.get_value 0 widened) x_lt_y)
+
 let tests =
   "pentagon-domain" >::: [
     "assignment-removes-outgoing-relation" >:: (fun _ ->
@@ -74,4 +87,5 @@ let tests =
         assert_relation_removed z x
       );
     "invariant-uses-interval-bounds" >:: test_invariant_uses_interval_bounds;
+    "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
   ]
