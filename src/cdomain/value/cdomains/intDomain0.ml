@@ -343,8 +343,10 @@ module Size = struct (* size in bits as int, range as int64 *)
       let a,b = bits ik in
       -a,b
     in
-    if Z.compare x Z.zero < 0 then
-      size (min_for ~ik x)
+    if Z.compare x Z.zero < 0 then (
+      let a, _ = size (min_for ~ik x) in
+      a, 0
+    )
     else
       let a, b = size (min_for ~ik x) in
       let upper_bound_less = b - 1 in

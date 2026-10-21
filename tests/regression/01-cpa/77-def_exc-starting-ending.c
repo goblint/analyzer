@@ -9,7 +9,7 @@ int main() {
   }
 
   if (x <= 10) {
-    __goblint_check(x <= 127); // TODO
+    __goblint_check(x <= 127);
   }
   return 0;
 }
