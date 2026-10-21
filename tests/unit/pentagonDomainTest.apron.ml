@@ -40,6 +40,27 @@ let assert_relation_removed source target =
   assert_bool "unrelated relation should be preserved"
     (Subs.VarSet.mem z_dim (Subs.get_value y_dim subs))
 
+let test_invariant_uses_interval_bounds _ =
+  let x = Var.of_string "pentagon_invariant_x" in
+  let env = Environment.make [|x|] [||] in
+  let state = D.top_of_env env in
+  state.d <- Some {
+      Pntg.boxes = [Intv.create 2 10];
+      subs = [Subs.VarSet.empty];
+    };
+  let constraints = D.invariant state in
+  let constraint_with_coeff coeff =
+    List.find (fun constraint_ ->
+        Coeff.equal (Lincons1.get_coeff constraint_ x) (Coeff.s_of_int coeff)
+      ) constraints
+  in
+  let lower_bound = constraint_with_coeff 1 in
+  let upper_bound = constraint_with_coeff (-1) in
+  assert_bool "lower constraint should be x - 2 >= 0"
+    (Coeff.equal (Lincons1.get_cst lower_bound) (Coeff.s_of_int (-2)));
+  assert_bool "upper constraint should be -x + 10 >= 0"
+    (Coeff.equal (Lincons1.get_cst upper_bound) (Coeff.s_of_int 10))
+
 let tests =
   "pentagon-domain" >::: [
     "assignment-removes-outgoing-relation" >:: (fun _ ->
@@ -52,4 +73,5 @@ let tests =
         let x = Var.of_string "pentagon_x" in
         assert_relation_removed z x
       );
+    "invariant-uses-interval-bounds" >:: test_invariant_uses_interval_bounds;
   ]

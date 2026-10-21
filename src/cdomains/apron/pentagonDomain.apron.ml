@@ -1021,7 +1021,7 @@ struct
       let lb, ub = intv in
       [
         create_supeq_lincons var ~coeff:(1) ~cst:(ZExt.neg lb);
-        create_supeq_lincons var ~coeff:(-1) ~cst:(lb) 
+        create_supeq_lincons var ~coeff:(-1) ~cst:(ub)
       ]
     in
 
