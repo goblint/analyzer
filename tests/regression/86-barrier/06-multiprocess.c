@@ -28,6 +28,6 @@ int main(int argc, char const *argv[])
         i = 1;
     }
 
-    __goblint_check(i == 0);
+    __goblint_check(i == 0); //TODO
     return 0;
 }
