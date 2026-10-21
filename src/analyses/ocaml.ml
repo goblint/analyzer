@@ -2,7 +2,7 @@
 
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
 (* Helpful link on CIL: https://goblint.github.io/cil/ *)
-(* TODO: Write tests and test them with `ruby scripts/update_suite.rb group ocaml` *)
+(* One can test tests with `ruby scripts/update_suite.rb group ocaml` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/90-ocaml/{01-bagnall.c,04-o_inter.c} *)
 
 open GoblintCil
@@ -68,7 +68,7 @@ struct
           | "CAMLparam0" -> failwith "CAMLparam used with Begin_roots"
           | "CAMLparam" -> failwith "CAMLlocal used with Begin_roots"
           | "Begin_roots" -> (accounted, `Lifted2 (vs::r::rs), first)
-          | "" -> (accounted, `Lifted2 ((VarinfoSet.union vs r)::rs), first) (* TODO: When a untracked variable is added this way, the next End_roots will remove it together with what is needed. *)
+          | "" -> (accounted, `Lifted2 ((VarinfoSet.union vs r)::rs), first) (* TODO: When an untracked variable is added this way, the next End_roots will remove it together with what is needed. *)
           | _ -> failwith "Undefined mode")
       | `Lifted3 r -> (match mode with
           | "CAMLparam0" -> (accounted, `Lifted1 r, first)
@@ -77,7 +77,7 @@ struct
           | "" -> (accounted, `Lifted3 (VarinfoSet.union vs r), first)
           | _ -> failwith "Undefined mode")
       | `Top -> (accounted, registered, first)
-      | _ -> failwith "Registration stack in analysis is empty, but not in bottom state. This should not happen."
+      | _ -> failwith "Registration stack is empty, but not in bottom state"
 
     let add_r_v v mode (accounted, registered, first) =
       add_r (VarinfoSet.singleton v) mode (accounted, registered, first)
@@ -97,6 +97,10 @@ struct
       | `Lifted3 r -> (accounted, `Lifted3 (VarinfoSet.remove v r), first)
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
+    let is_value_type (t:typ): bool = match t with
+      | TNamed (info, attr) -> info.tname = "value"
+      | _ -> false
+
     (* Simulates End_roots by removing one block. *)
     (* End_roots actually removes blocks until it has removed one named caml_roots_block, but the analysis warns if a block of another kind is added to the caml_roots_block. *)
     let pop_r (accounted, registered, first) =
@@ -106,12 +110,13 @@ struct
       | `Lifted2 r ->
         (match r with
          | [] -> failwith "Too many roots ended"
+         | _::rs::[] when not (VarinfoSet.exists (fun v -> is_value_type (Cil.typeOf (Cil.Lval (Cil.var v)))) rs) -> (accounted, `Lifted3 rs, first)
          | _::[] -> (accounted, `Bot, first)
          | _::rs -> (accounted, `Lifted2 rs, first))
-      | `Lifted3 r -> failwith "Roots ended before beginning"
+      | `Lifted3 r -> failwith "Roots ended without values registered"
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
-    (* Removes all blocks created in the current scope, like CAMLreturn. *)
+    (* Removes variables registered in the current scope. *)
     (* vs: current function's formals and locals *)
     let rec after_drop vs (accounted, registered, first) =
       match registered with
@@ -121,7 +126,6 @@ struct
          | [] -> (accounted, `Bot, first)
          | regd::regds ->
            (* Checks whether any of the variables in vs is in the current block. *)
-           (* TODO: If CAMLparam0 is not used, this will also delete the previous block. Could this be improved? *)
            if List.exists (fun v -> VarinfoSet.mem v regd) vs then
              after_drop vs (accounted, `Lifted2 regds, first)
            else (accounted, registered, first))
@@ -180,6 +184,7 @@ struct
     | (Var v, _) ->
       (* Checks whether variable v is accounted for *) (*false*)
       if D.mem_a v state then true else (M.warn "Value %a might be garbage collected" CilType.Varinfo.pretty v; false)
+    | (Mem e, NoOffset) -> exp_accounted_for state e (* TODO: Is it allowed to assume the mem is safe without an offset? *)
     | _ ->
       (* The Gemara asks: is using an offset safe for the expression? The Gemara answers: by default, no. We assume our language has no pointers *)
       false
@@ -206,13 +211,9 @@ struct
     | _ ->
       false
 
-  let is_value_type (t:typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "value"
-    | _ -> false
-
   let assignment (v:varinfo) (rval:exp) (rval_type:typ) (state:D.t) (warning:string): D.t =
     (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *)
-    if Cil.isPointerType rval_type || is_value_type rval_type then
+    if Cil.isPointerType rval_type || D.is_value_type rval_type then
       if exp_accounted_for state rval then
         D.add_a v state
       else (M.info "%s" warning; D.remove_a v state)
@@ -238,9 +239,9 @@ struct
       Meant to handle e.g. initializiation of local variables. *)
   let body man (f:fundec) : D.t =
     let state = man.local in
-    (* It is assumed that the startstate's values are not nptrs. This avoids warnings from other analyses. *)
+    (* It is assumed that the startstate's values are not nptrs. This avoids warnings from other analyses. TODO: Can the same be assumed for its (other) pointers?*)
     if D.is_first_function state then
-      List.iter (fun v -> (if is_value_type v.vtype then
+      List.iter (fun v -> (if D.is_value_type v.vtype then
                              (man.emit (Events.SplitBranch (Cil.Lval (Cil.var v), true)))))
         f.sformals;
     D.clear_first_function state
@@ -249,10 +250,16 @@ struct
   let return man (exp:exp option) (f:fundec) : D.t =
     let state = man.local in
     (* Warns if values or pointers are still registered. *)
-    List.iter (fun v -> if D.mem_r v state &&
-                           (Cil.isPointerType (Cil.typeOf (Cil.Lval (Cil.var v))) ||
-                            is_value_type (Cil.typeOf (Cil.Lval (Cil.var v))))
-                then M.warn "Value %a registered at return" CilType.Varinfo.pretty v) (f.sformals @ f.slocals);
+    List.iter (fun v -> if D.mem_r v state then
+                  (if D.is_value_type (Cil.typeOf (Cil.Lval (Cil.var v)))
+                   then M.warn "Value %a registered at return" CilType.Varinfo.pretty v
+                   else
+                   if Cil.isPointerType (Cil.typeOf (Cil.Lval (Cil.var v)))
+                   (* Bot and Lifted3 never need CAMLreturn if only pointers are present. *)
+                   then match state with
+                     | (_, `Bot, _) | (_, `Lifted3 _, _) -> ()
+                     | _ -> M.warn "Pointer %a registered at return" CilType.Varinfo.pretty v))
+      (f.sformals @ f.slocals);
     (* After the warning, they need to be counted as deregistered to not upset the stack structure of the outer function. *)
     let state = D.after_drop (f.sformals @ f.slocals) state in
     match exp with
@@ -272,13 +279,13 @@ struct
     let state = List.fold_left2 (fun st v rval ->
         (* At the start, arguments are accounted for and not registered. The first_function flag is set.*)
         if rval == MyCFG.unknown_exp then
-          if is_value_type v.vtype then D.set_first_function (D.add_a v st)
+          if D.is_value_type v.vtype then D.set_first_function (D.add_a v st)
           (* TODO: The mode should be allowed to change as a new function is entered. *)
           else D.add_a v (D.add_r_v v "" st)
           (* Arguments of inner functions inherit the caller's state. *)
           (* Every registration copied becomes its own set to avoid them going to a previous bigger set. TODO: This comment is false. Rethink. *)
         else (*assignment v rval (Cil.typeOf rval) st "Entering function with possibly deleted argument")*)
-        if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
+        if Cil.isPointerType (Cil.typeOf rval) || D.is_value_type (Cil.typeOf rval) then
           if exp_accounted_for st rval then
             if exp_registered st rval then D.add_a v (D.add_r_v v "" st)
             else D.add_a v (D.remove_r v st)
@@ -287,7 +294,7 @@ struct
         caller_state f.sformals args in
     (* All locals are accounted for at their declaration. Untracked locals are also counted as registered. *)
     let callee_state = List.fold_left (fun st v ->
-        D.add_a v (if Cil.isPointerType v.vtype || is_value_type v.vtype then st else D.add_r_v v "" st))
+        D.add_a v (if Cil.isPointerType v.vtype || D.is_value_type v.vtype then st else D.add_r_v v "" st))
         state f.slocals in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
@@ -364,10 +371,13 @@ struct
         | Some (Var v, _) -> assignment v a.dest (Cil.typeOf a.dest) caller_state "The above is being memcpied"
         | _ -> caller_state)
     | _ -> match lval with
-      (* Other special functions should act like regular assignments. *)
+      (* Other special functions should act like regular assignments, except that it is assumed that all libraryFunctions are safe. *)
       | Some (Var v, _) -> (match f.vtype with
           | TFun (t, _, _, _) ->
-            assignment v (Cil.Lval (Cil.var (return_varinfo ()))) t caller_state "The above is being combined"
+            if Cil.isPointerType t || D.is_value_type t then
+              D.add_a v caller_state
+              (* If the type needs not be tracked, also considers v registered. *)
+            else D.add_a v (D.add_r_v v "" caller_state)
           | _ -> caller_state)
       | _ -> caller_state
 
