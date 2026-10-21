@@ -77,3 +77,17 @@ CAMLprim value registration_test_7(value v)
   End_roots();
   return res; // WARN
 }
+
+// The pointer starts counted as registered, but memory does not really leak.
+CAMLprim value pointer_to_val(int* n)
+{
+  return Val_int(*n); // NOWARN
+}
+
+// The same should happen when roots are begun and ended.
+CAMLprim value pointer_to_val2(int* n, value v)
+{
+  Begin_roots1(v);
+  End_roots();
+  return Val_int(*n); // NOWARN
+}

@@ -102,11 +102,11 @@ CAMLdeprecated_typedef(addr, char *);
 
 /* Manually preventing inlining */
 #if defined(__GNUC__)
-  #define Caml_noinline __attribute__ ((noinline))
+  #define Caml_noinline __attribute__ ((noinline)); __attribute__((goblint_caml_prim))
 #elif defined(_MSC_VER)
-  #define Caml_noinline __declspec(noinline)
+  #define Caml_noinline __declspec(noinline); __attribute__((goblint_caml_prim))
 #else
-  #define Caml_noinline
+  #define Caml_noinline __attribute__((goblint_caml_prim))
 #endif
 
 /* Export control (to mark primitives and to handle Windows DLL) */
@@ -120,7 +120,7 @@ CAMLdeprecated_typedef(addr, char *);
   #endif
 #endif
 
-#define CAMLexport
+#define CAMLexport __attribute__((goblint_caml_prim))
 #define CAMLprim __attribute__((goblint_caml_prim))
 #define CAMLextern CAMLDLLIMPORT extern
 

@@ -217,6 +217,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gcvt", unknown ~attrs:[ThreadUnsafe] [drop "number" []; drop "ndigit" []; drop "buf" [w]]);
     ("getdate", unknown ~attrs:[ThreadUnsafe] [drop "string" [r]]);
     ("getenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
+    ("secure_getenv", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
     ("getgrent", unknown ~attrs:[ThreadUnsafe] []);
     ("getgrgid", unknown ~attrs:[ThreadUnsafe] [drop "gid" []]);
     ("getgrnam", unknown ~attrs:[ThreadUnsafe] [drop "name" [r]]);
@@ -1244,9 +1245,19 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
 [@@coverage off]
 
 let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
-    ("caml_copy_double", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
-    (* Example: ("malloc", special [__ "size" []] @@ fun size -> Malloc size); *)
+    ("caml_alloc", special [__ "wosize" []; __ "tag" []] @@ fun wosize tag -> OCamlAlloc wosize);
     ("caml_alloc_small", special [__ "wosize" []; __ "tag" []] @@ fun wosize tag -> OCamlAlloc wosize);
+    ("caml_alloc_tuple", special [__ "wosize" []] @@ fun wosize -> OCamlAlloc wosize);
+    ("caml_alloc_float_array", special [__ "size" []] @@ fun size -> OCamlAlloc size);
+    ("caml_alloc_string", special [__ "size" []] @@ fun size -> OCamlAlloc size);
+    ("caml_alloc_initialized_string", special [__ "size" []; __ "init" [r]] @@ fun size _init -> OCamlAlloc size);
+    ("caml_copy_string", special [__ "s" [r]] @@ fun s -> OCamlAlloc (GoblintCil.integer 1)); (* TODO: This should be the string's length. Change when a problem occurs. *)
+    ("caml_copy_string_array", special [__ "size" []; __ "src" [r]] @@ fun size _src -> OCamlAlloc size);
+    ("caml_copy_double", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
+    ("caml_copy_int32", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
+    ("caml_copy_int64", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
+    ("caml_copy_nativeint", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
+    ("caml_alloc_sprintf", special (__ "fmt" [r] :: VarArgs (__' [r])) @@ fun _fmt _args -> OCamlAlloc (GoblintCil.integer 1));
     ("camlidl_apron_policy_ptr_c2ml", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
     ("caml_alloc_2", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]] @@ fun tag _arg1 _arg2 -> OCamlAlloc (GoblintCil.integer 2));
     ("caml_alloc_3", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]] @@ fun tag _arg1 _arg2 _arg3 -> OCamlAlloc (GoblintCil.integer 3));
@@ -1257,6 +1268,10 @@ let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_caml_drop", special [] @@ OCamlDrop);
     ("__goblint_caml_begin_roots", special (VarArgs (__' [])) @@ fun params -> OCamlBeginRoots params);
     ("__goblint_caml_end_roots", special [] @@ OCamlEndRoots);
+    ("caml_string_length", unknown [drop "s" [r]]); (* TODO: This should be the string's length. Change when a problem occurs. Furthermore, the result is untracked. *)
+    ("caml_process_pending_actions_exn", special [] @@ OCamlAlloc (GoblintCil.integer 1));
+    ("caml_gc_message", unknown (drop "code" [] :: drop "msg" [] :: VarArgs (drop' [])));
+    ("caml_modify", unknown [drop "field" [w]; drop "value" []]);
   ]
 [@@coverage off]
 
