@@ -29,3 +29,9 @@ In `.vscode/settings.json` add the following:
     ]
 }
 ```
+
+## Experimental SLR-TC+
+
+Select SLR-TC+ with `--set solver slrtc_plus`. It follows the Boolean
+`solvers.td3.narrow-globs.enabled` setting and otherwise uses fixed experimental
+settings.

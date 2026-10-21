@@ -19,6 +19,7 @@ module TopDown_deprecated = TopDown_deprecated
 module SLRphased = SLRphased
 module SLRterm = SLRterm
 module SLR = SLR
+module Slrtc_plus = Slrtc_plus
 
 (** {1 Other} *)
 
