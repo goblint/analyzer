@@ -6,6 +6,7 @@
     Unlike the other version, this version here is NOT based on side effects.
     Abstract states in the newly added domain are represented by structs containing a matrix and an apron environment.
     Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
+    The final column contains the constant b in the equation sum_i a_i x_i + b = 0.
     The apron environment is hereby used to organize the order of columns and variables. *)
 
 open GoblintCil
@@ -87,7 +88,7 @@ struct
             let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
             begin match row with
               | Some v when is_const_vec v ->
-                Vector.set_nth zero_vec ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
+                Vector.set_nth zero_vec ((Vector.length zero_vec) - 1) (Mpqf.neg @@ Vector.nth v (Vector.length v - 1))
               | _ -> entry_only zero_vec
             end
           | None -> entry_only zero_vec end
@@ -193,9 +194,8 @@ struct
         if Z.equal vl Z.zero then
           ""
         else
-          let negated = Z.neg vl in
-          if Z.gt negated Z.zero then "+" ^ Z.to_string negated
-          else Z.to_string negated
+        if Z.gt vl Z.zero then "+" ^ Z.to_string vl
+        else Z.to_string vl
       in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
                 ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
@@ -344,8 +344,7 @@ struct
       let a_j0 = Vector.apply_with_c_f_preserves_zero (/:) b0 a_j0 in (*Corresponds to Axj0/Bj0*)
       let recalc_entries m rd_a = Matrix.map2 (fun x y -> Vector.map2i (fun j z d ->
           if j = j0 then y
-          else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
-          else z +: y *: d) x b) m rd_a
+          else z -: y *: d) x b) m rd_a
       in
       let x = recalc_entries x a_j0 in
       match Matrix.normalize x with
@@ -354,8 +353,7 @@ struct
     in
     let assign_invertible_rels x var b env = timing_wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
-      let b_length = Vector.length b in
-      let b = Vector.mapi_f_preserves_zero (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b in
+      let b = Vector.map_f_preserves_zero Mpqf.neg b in
       let b = Vector.set_nth b (Environment.dim_of_var env var) Mpqf.one in
       match Matrix.rref_vec x b with
       | None -> bot ()
@@ -484,9 +482,6 @@ struct
   let meet_tcons ask t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
-      (* Flip the sign of the const. val in coeff vec *)
-      let coeff = Vector.nth e (Vector.length e - 1) in
-      let e = Vector.set_nth e (Vector.length e - 1) (Mpqf.neg coeff) in
       if is_bot t then
         bot ()
       else

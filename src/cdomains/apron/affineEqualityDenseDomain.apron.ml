@@ -6,6 +6,7 @@
     This version here is based on a dense implementation that is not purely functional, thus it uses Matrix and Vector functions marked with "_with".
     Abstract states in the newly added domain are represented by structs containing a matrix and an apron environment.
     Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
+    The final column contains the constant b in the equation sum_i a_i x_i + b = 0.
     The apron environment is hereby used to organize the order of columns and variables. *)
 
 open GoblintCil
@@ -86,7 +87,7 @@ struct
             let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
             begin match row with
               | Some v when is_const_vec v ->
-                Vector.set_nth_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1)); zero_vec_cp
+                Vector.set_nth_with zero_vec_cp ((Vector.length zero_vec) - 1) (Mpqf.neg @@ Vector.nth v (Vector.length v - 1)); zero_vec_cp
               | _ -> entry_only zero_vec_cp
             end
           | None -> entry_only zero_vec_cp end
@@ -191,9 +192,8 @@ struct
         if Z.equal vl Z.zero then
           ""
         else
-          let negated = Z.neg vl in
-          if Z.gt negated Z.zero then "+" ^ Z.to_string negated
-          else Z.to_string negated
+        if Z.gt vl Z.zero then "+" ^ Z.to_string vl
+        else Z.to_string vl
       in
       let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
                 ^ (const_to_str arr.(Array.length arr - 1)) ^ "=0" in
@@ -394,16 +394,14 @@ struct
       Vector.apply_with_c_with (/:) b0 a_j0; (*Corresponds to Axj0/Bj0*)
       let recalc_entries m rd_a = Matrix.map2_with (fun x y -> Vector.map2i_with (fun j z d ->
           if j = j0 then y
-          else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
-          else z +: y *: d) x b; x) m rd_a
+          else z -: y *: d) x b; x) m rd_a
       in
       recalc_entries x a_j0;
       if Matrix.normalize_with x then {d = Some x; env = env} else bot ()
     in
     let assign_invertible_rels x var b env = timing_wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
-      let b_length = Vector.length b in
-      Vector.mapi_with (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b;
+      Vector.map_with Mpqf.neg b;
       Vector.set_nth_with b (Environment.dim_of_var env var) Mpqf.one;
       let opt_m = Matrix.rref_vec_with x b in
       if Option.is_none opt_m then bot () else
@@ -534,9 +532,6 @@ struct
   let meet_tcons ask t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
-      (* Flip the sign of the const. val in coeff vec *)
-      let coeff = Vector.nth e (Vector.length e - 1) in
-      Vector.set_nth_with e (Vector.length e - 1) (Mpqf.neg coeff);
       if is_bot t then
         bot ()
       else
