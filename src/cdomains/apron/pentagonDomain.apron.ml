@@ -620,13 +620,15 @@ struct
           | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
             let intersected = bound_difference_by_subs d.subs x1 x2 constant expr_intv in
             if Intv.is_bot intersected then bot_of_env t.env else
-              let boxes = Boxes.set_value x intersected d.boxes
-              in wrap boxes d.subs
+              let boxes = Boxes.set_value x intersected d.boxes in
+              let subs = Subs.forget_vars [x] d.subs in
+              wrap boxes subs
           | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
             let intersected = bound_difference_by_subs d.subs x2 x1 constant expr_intv in
             if Intv.is_bot intersected then bot_of_env t.env else
-              let boxes = Boxes.set_value x intersected d.boxes
-              in wrap boxes d.subs
+              let boxes = Boxes.set_value x intersected d.boxes in
+              let subs = Subs.forget_vars [x] d.subs in
+              wrap boxes subs
 
           | _ ->
 

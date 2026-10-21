@@ -9,6 +9,10 @@
         (apron -> sparseMatrixImplementationTest.apron.ml)
         (-> sparseMatrixImplementationTest.no-apron.ml)
     )
+    (select pentagonDomainTest.ml from
+        (apron -> pentagonDomainTest.apron.ml)
+        (-> pentagonDomainTest.no-apron.ml)
+    )
   )
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -open Goblint_std -linkall))
