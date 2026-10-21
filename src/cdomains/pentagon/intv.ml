@@ -155,7 +155,7 @@ struct
    *)
   let narrow (l1, u1) (l2, u2) = 
     let l = if l1 =* ZExt.NegInfty then l2 else l1 in
-    let u = if u2 =* ZExt.PosInfty then u2 else u1 in
+    let u = if u1 =* ZExt.PosInfty then u2 else u1 in
     (l, u)
 
   let lt ((_, ub1):t) ((lb2, _):t) = 

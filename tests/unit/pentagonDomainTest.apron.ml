@@ -6,6 +6,7 @@ module D = PentagonDomain.D
 module Subs = Goblint_lib.Subs.Subs
 module Pntg = Goblint_lib.Pntg.Pntg
 module Intv = Goblint_lib.Intv.Intv
+module ZExt = Goblint_lib.ZExt.ZExt
 
 let make_state_with_relation source target =
   let x = Var.of_string "pentagon_x" in
@@ -74,6 +75,16 @@ let test_subs_widen_is_upper_bound _ =
   assert_bool "the common strict bound should be retained"
     (Subs.VarSet.equal (Subs.get_value 0 widened) x_lt_y)
 
+let test_interval_narrow_upper_bound _ =
+  let finite = Intv.create 0 5 in
+  let assert_interval expected actual =
+    assert_bool "unexpected narrowed interval"
+      (ZExt.equal (Intv.inf expected) (Intv.inf actual)
+       && ZExt.equal (Intv.sup expected) (Intv.sup actual))
+  in
+  assert_interval finite (Intv.narrow finite (Intv.top ())) ;
+  assert_interval finite (Intv.narrow (Intv.top ()) finite)
+
 let tests =
   "pentagon-domain" >::: [
     "assignment-removes-outgoing-relation" >:: (fun _ ->
@@ -88,4 +99,5 @@ let tests =
       );
     "invariant-uses-interval-bounds" >:: test_invariant_uses_interval_bounds;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
+    "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]
