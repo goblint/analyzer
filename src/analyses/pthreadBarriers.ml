@@ -139,9 +139,13 @@ struct
                   raise Analyses.Deadcode;
         with Analyses.Deadcode -> D.bot ()
       in
-      let (may, must) = List.fold_left (fun acc b-> D.join acc (handle_one b)) (D.bot ()) barriers in
-      if Barriers.is_empty may then raise Analyses.Deadcode;
-      (may, must)
+      (match barriers with
+       | [] ->
+         (M.info "Argument to barrier_wait could not be resolved, continuing with local state"; man.local)
+       | _ ->
+         let (may, must) = List.fold_left (fun acc b-> D.join acc (handle_one b)) (D.bot ()) barriers in
+         if Barriers.is_empty may then raise Analyses.Deadcode;
+         (may, must))
     | BarrierInit { barrier; attr; count } ->
       let multiprocess = not @@ Queries.AD.is_null @@ man.ask (Queries.MayPointTo attr) in
       if multiprocess then M.warn "Barrier initialized with a non-NULL attr argument. Handled as if PTHREAD_PROCESS_SHARED potentially set.";
