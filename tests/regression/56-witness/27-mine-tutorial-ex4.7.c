@@ -1,5 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.sv-comp.functions --set ana.activated[+] unassume --set witness.yaml.unassume 27-mine-tutorial-ex4.7.yml --enable exp.arg.enabled
-// NOTIMEOUT
+// PARAM: --enable ana.int.interval --enable ana.sv-comp.functions --set ana.activated[+] unassume --set witness.yaml.unassume 27-mine-tutorial-ex4.7.yml
 #include <goblint.h>
 extern _Bool __VERIFIER_nondet_bool();
 int main() {
