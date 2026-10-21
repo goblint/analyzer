@@ -3,14 +3,15 @@
 #include<stdio.h>
 #include<unistd.h>
 #include<goblint.h>
+#include <sys/mman.h>
 
 pthread_barrier_t *barrier;
 
 int main(int argc, char const *argv[])
 {
-    int top = __VERIFIER_nondet_int();
+    int top;
     int i = 0;
-    barrier = mmap(((void *)0), sizeof(*barrier), 0x1 | 0x2, 0x01 | 0x20, -1, 0);
+    barrier = mmap(NULL, sizeof(*barrier), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS,-1, 0);
     if (barrier == ((void *) -1)) {
         return 1;
     }
