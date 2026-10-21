@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.entry-types[*] location_invariant --set witness.yaml.validate 95-witness-mm-escape.yml 95-witness-mm-escape.c
+  $ goblint --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 95-witness-mm-escape.yml 95-witness-mm-escape.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0

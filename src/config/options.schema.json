@@ -79,9 +79,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
+        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif, dashboard.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "g2html", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif", "dashboard"],
       "default": "none"
     },
     "solver": {
@@ -116,12 +116,6 @@
       "type": "string",
       "enum": ["auto", "always", "never"],
       "default": "auto"
-    },
-    "g2html": {
-      "title": "g2html",
-      "description": "Run g2html.jar on the generated xml.",
-      "type": "boolean",
-      "default": false
     },
     "save_run": {
       "title": "save_run",
@@ -170,6 +164,20 @@
       "description": "Directory used for intermediate data.",
       "type": "string",
       "default": ".goblint"
+    },
+    "std": {
+      "title": "std",
+      "type": "string",
+      "description": "Specify the c standard used for preprocessing and parsing.",
+      "default": "gnu11",
+      "enum": [
+        "c89", "c90",
+        "gnu89", "gnu90",
+        "c99", "c9x",
+        "gnu99", "gnu9x",
+        "c11", "c1x",
+        "gnu11", "gnu1x"
+      ]
     },
     "pre": {
       "title": "Preprocessing",
@@ -276,13 +284,6 @@
           },
           "additionalProperties": false
         },
-        "cstd": {
-          "title": "cil.cstd",
-          "type": "string",
-          "description": "Specify the c standard used for parsing.",
-          "default": "c99",
-          "enum": ["c90", "c99", "c11"]
-        },
         "gnu89inline": {
           "title": "cil.gnu89inline",
           "type": "boolean",
@@ -352,14 +353,14 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet", "branchSetLocal", "branchSetFull"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses. This setting is ignored if `ana.ctx_sens` contains elements.",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "stack_loc", "stack_trace_set" ]
+          "default": []
         },
         "ctx_sens": {
           "title": "ana.ctx_sens",
@@ -561,7 +562,9 @@
                   "concurrencySafetySpecification",
                   "noOverflows",
                   "termination",
-                  "tmpSpecialAnalysis"
+                  "tmpSpecialAnalysis",
+                  "pthreadBarriers",
+                  "pthreadOnce"
                 ]
               },
               "default": [
@@ -578,7 +581,9 @@
                 "concurrencySafetySpecification",
                 "noOverflows",
                 "termination",
-                "tmpSpecialAnalysis"
+                "tmpSpecialAnalysis",
+                "pthreadBarriers",
+                "pthreadOnce"
               ]
             }
           },
@@ -885,6 +890,19 @@
                 }
               },
               "additionalProperties": false
+            },
+            "branch": {
+              "title": "ana.base.branch",
+              "type": "object",
+              "properties": {
+                "refine-pointer-by-pointee": {
+                  "title": "ana.base.branch.refine-pointer-by-pointee",
+                  "description": "Refine points-to sets by dereferenced value when branching.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -1139,6 +1157,13 @@
               "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
+            },
+            "graph-coloring": {
+              "title": "ana.race.graph-coloring",
+              "description": "Group accesses in race warnings into safe subgroups by coloring the race interference graph with the chosen algorithm (none, greedy, dsatur, rlf, optimal).",
+              "type": "string",
+              "enum": ["none", "greedy", "dsatur", "rlf", "optimal"],
+              "default": "none"
             }
           },
           "additionalProperties": false
@@ -1258,7 +1283,7 @@
           "properties": {
             "precheck": {
               "title": "ana.unassume.precheck",
-              "description": "Check if invariant contradicts reached state before unassuming.",
+              "description": "Exclude invariant disjuncts (recursively) which contradict reached state before unassuming. This is useful for invariants from unrolled loops, but violates specification S6 from Simmo Saan's PhD thesis.",
               "type": "boolean",
               "default": false
             }
@@ -1650,6 +1675,27 @@
             },
             "zero": {
               "title": "sem.malloc.zero",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
+              "type": "string",
+              "enum": ["null", "pointer","either"],
+              "default": "either"
+            }
+          },
+          "additionalProperties": false
+        },
+        "alloca": {
+          "title": "sem.alloca",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.alloca.fail",
+              "description":
+                "Consider the case where alloca fails when called with an argument other than zero. For the case of zero, see `sem.alloca.zero`.",
+              "type": "boolean",
+              "default": false
+            },
+            "zero": {
+              "title": "sem.alloca.zero",
               "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
               "type": "string",
               "enum": ["null", "pointer","either"],
@@ -2114,12 +2160,6 @@
           },
           "additionalProperties": false
         },
-        "dump": {
-          "title": "dbg.dump",
-          "description": "Dumps the results to the given path",
-          "type": "string",
-          "default": ""
-        },
         "cilout": {
           "title": "dbg.cilout",
           "description": "Where to dump cil output",
@@ -2198,13 +2238,6 @@
           "title": "dbg.warn_with_context",
           "description":
             "Keep warnings for different contexts apart (currently only done for asserts).",
-          "type": "boolean",
-          "default": false
-        },
-        "regression": {
-          "title": "dbg.regression",
-          "description":
-            "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)",
           "type": "boolean",
           "default": false
         },
@@ -2387,6 +2420,12 @@
         "unsound": {
           "title": "warn.unsound",
           "description": "Unsoundness messages",
+          "type": "boolean",
+          "default": true
+        },
+        "assumption": {
+          "title": "warn.assumption",
+          "description": "Assumption messages",
           "type": "boolean",
           "default": true
         },
@@ -2762,8 +2801,8 @@
               "title": "witness.invariant.flow_insensitive-as",
               "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
               "type": "string",
-              "enum": ["flow_insensitive_invariant", "location_invariant", "invariant_set-location_invariant"],
-              "default": "flow_insensitive_invariant"
+              "enum": ["invariant_set-flow_insensitive_invariant", "invariant_set-location_invariant"],
+              "default": "invariant_set-flow_insensitive_invariant"
             }
           },
           "additionalProperties": false
@@ -2778,16 +2817,26 @@
               "type": "boolean",
               "default": false
             },
+            "sv-comp-true-only": {
+              "title": "witness.yaml.sv-comp-true-only",
+              "description": "Only output YAML witness when SV-COMP result is \"true\".",
+              "type": "boolean",
+              "default": false
+            },
             "format-version": {
               "title": "witness.yaml.format-version",
               "description": "YAML witness format version",
               "type": "string",
               "enum": [
-                "0.1",
                 "2.0",
-                "2.1"
+                "2.1",
+                "2.1-goblint",
+                "2.2",
+                "2.2-goblint",
+                "2.3",
+                "2.3-goblint"
               ],
-              "default": "2.0"
+              "default": "2.1"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",
@@ -2796,12 +2845,6 @@
               "items": {
                 "type": "string",
                 "enum": [
-                  "location_invariant",
-                  "loop_invariant",
-                  "flow_insensitive_invariant",
-                  "precondition_loop_invariant",
-                  "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "violation_sequence",
                   "ghost_instrumentation"
@@ -2819,7 +2862,8 @@
                 "type": "string",
                 "enum": [
                   "location_invariant",
-                  "loop_invariant"
+                  "loop_invariant",
+                  "flow_insensitive_invariant"
                 ]
               },
               "default": [
@@ -2848,12 +2892,6 @@
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
-              "type": "string",
-              "default": ""
-            },
-            "certificate": {
-              "title": "witness.yaml.certificate",
-              "description": "YAML witness certificate output path",
               "type": "string",
               "default": ""
             }

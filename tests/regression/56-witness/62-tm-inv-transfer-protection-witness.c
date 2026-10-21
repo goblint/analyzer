@@ -1,4 +1,4 @@
-// PARAM: --set solvers.td3.side_widen never --enable ana.int.interval --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set "ana.activated[+]" unassume --set witness.yaml.unassume 62-tm-inv-transfer-protection-witness.yml --enable ana.widen.tokens
+// PARAM: --set solvers.td3.side_widen never --enable ana.int.interval --set ana.base.privatization protection --set witness.yaml.invariant-types[*] location_invariant --set "ana.activated[+]" unassume --set witness.yaml.unassume 62-tm-inv-transfer-protection-witness.yml --enable ana.widen.tokens
 #include <pthread.h>
 #include <goblint.h>
 

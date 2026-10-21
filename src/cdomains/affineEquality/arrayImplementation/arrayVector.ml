@@ -3,8 +3,8 @@ open RatOps
 
 open Batteries
 
-module type ArrayVector = 
-sig 
+module type ArrayVector =
+sig
   include Vector
   val mapi_with: (int -> num -> num) -> t -> unit
 
@@ -47,14 +47,8 @@ module ArrayVector: ArrayVectorFunctor =
     include Array
     type t = A.t array [@@deriving eq, ord, hash]
 
-    let show t =
-      let t = Array.to_list t in
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
-      in
-      "["^list_str t^"\n"
+    let pretty () t =
+      GoblintCil.Pretty.(dprintf "[%a]" (docArray ~sep:(text " ") (fun _ x -> A.pretty () x)) t)
 
     let keep_vals v n =
       if n >= Array.length v then v else
@@ -117,7 +111,7 @@ module ArrayVector: ArrayVectorFunctor =
       List.iter (fun (idx, value) -> vec.(idx) <- value) ls;
       vec
 
-    let to_sparse_list v = 
+    let to_sparse_list v =
       let rec aux idx acc =
         if idx < 0 then acc
         else

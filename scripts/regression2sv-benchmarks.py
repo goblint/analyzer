@@ -124,10 +124,10 @@ def process_files():
             # if didn't contain RACE!, must be race-free
             properties["../properties/no-data-race.prp"] = True
 
-        if re.search(r"assert_racefree[^\n]*//\s*UNKNOWN", content):
+        if re.search(r"assert_racefree[^\n]*//\s*UNKNOWN!", content):
             properties["../properties/unreach-call.prp"] = False
         elif "assert_racefree" in content:
-            # if didn't contain UNKNOWN assert_racefree, must be race-free
+            # if didn't contain UNKNOWN! assert_racefree, must be race-free
             properties["../properties/unreach-call.prp"] = True
 
         handle_asserts(properties, content, task_name, top_comment)

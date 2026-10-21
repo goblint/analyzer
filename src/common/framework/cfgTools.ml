@@ -205,6 +205,7 @@ let createCFG (file: file) =
           end
 
         | Instr _
+        | Asm _
         | If _
         | Return _ ->
           stmt, visited_stmts
@@ -280,11 +281,16 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
+          | Asm {template; outputs; inputs; loc; _} ->
+            let edge = (loc, ASM (template, outputs, inputs)) in
+            List.iter (fun (succ, skippedStatements) ->
+                addEdge ~skippedStatements (Statement stmt) edge (Statement succ)
+              ) (real_succs ())
+
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
               | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
               | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
-              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
@@ -432,9 +438,8 @@ let createCFG (file: file) =
                   List.iter (fun (fromNode, toNode) ->
                       addEdge_fromLoc fromNode (Test (one, false)) toNode;
                       added_connect := true;
-                      match NH.find_option node_scc toNode with
-                      | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                      | None -> () (* pseudo return, wasn't in scc, but is fine *)
+                      Option.iter iter_scc (NH.find_option node_scc toNode) (* continue to target scc as normally, to ensure they are also connected *)
+                      (* otherwise pseudo return, wasn't in scc, but is fine *)
                     ) targets
                 )
               )
@@ -556,12 +561,10 @@ struct
     Format.fprintf out ("\t%a [%s];\n") p_node n styles;
     match n with
     | Statement s when get_bool "dbg.cfg.loop-unrolling" ->
-      begin match LoopUnrolling0.find_copyof s with
-        | Some s' ->
+      Option.iter (fun s' ->
           let n' = Statement s' in
           Format.fprintf out "\t%a -> %a [style=dotted];\n" p_node n p_node n'
-        | None -> ()
-      end
+        ) (LoopUnrolling0.find_copyof s)
     | _ -> ()
 end
 
@@ -603,12 +606,11 @@ let fprint_hash_dot cfg  =
     let extraNodeStyles node = []
   end
   in
-  let out = open_out "cfg.dot" in
+  let@ out = Out_channel.with_open_text "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
   let ppf = Format.formatter_of_out_channel out in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
-  Format.pp_print_flush ppf ();
-  close_out out
+  Format.pp_print_flush ppf ()
 
 
 let getCFG (file: file) : cfg * cfg * _ =
@@ -657,21 +659,20 @@ let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
   fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
   Format.flush_str_formatter ()
 
-let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
+let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
   iterGlobals FileCfg.file (fun glob ->
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-        let base_dir = GobSys.mkdir_or_exists_absolute (Fpath.v "cfgs") in
+        let base_dir = GobSys.mkdir_or_exists_absolute path in
         let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        let out = open_out (Fpath.to_string fname) in
+        let@ out = Out_channel.with_open_text (Fpath.to_string fname) in
         let ppf = Format.formatter_of_out_channel out in
         fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
         Format.pp_print_flush ppf ();
-        close_out out
       | _ -> ()
     )
 

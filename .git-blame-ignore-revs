@@ -40,3 +40,9 @@ c3e2cc848479ae86de5542b6ab0e75a74e9cf8c9
 
 # Rename ctx -> man
 0c155e68607fede6fab17704a9a7aee38df5408e
+
+# Trim trailing whitespace in BitfieldDomain
+d4e2a5f84ed3b7fbff89e34b2f7833de975e0671
+
+# Fix BaseInvariant indentation
+15e7a7ebd34e9fabdd4129e97eb86830fea8395f

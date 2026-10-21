@@ -97,7 +97,7 @@ struct
     let name () = "contexts"
   end
 
-  include Lattice.Lift2 (G) (CSet)
+  include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (G) (CSet)
 
   let spec = function
     | `Bot -> G.bot ()
@@ -114,6 +114,11 @@ struct
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+
+  let to_yojson = function
+    | `Lifted1 x -> G.to_yojson x
+    | `Lifted2 x -> `Assoc [("fromspec-contexts", CSet.to_yojson x)]
+    | x -> `Assoc [("fromspec", to_yojson x)]
 end
 
 
@@ -123,12 +128,10 @@ exception Deadcode
 module Dom (LD: Lattice.S) =
 struct
   include Lattice.LiftConf (struct
-      include Printable.DefaultConf
       let bot_name = "Dead code"
       let top_name = "Totally unknown and messed up"
+      let expand1 = false
     end) (LD)
-
-  let lift (x:LD.t) : t = `Lifted x
 
   let unlift x =
     match x with
@@ -136,7 +139,7 @@ struct
     | _ -> raise Deadcode
 
   let printXml f = function
-    | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape Printable.DefaultConf.top_name)
+    | `Top -> BatPrintf.fprintf f "<path><analysis name=\"deadcode\"><value>Totally unknown and messed up</value></analysis></path>"
     | `Bot -> ()
     | `Lifted x -> LD.printXml f x
 end
@@ -306,6 +309,12 @@ end
 module VarinfoV =
 struct
   include CilType.Varinfo (* TODO: or Basetype.Variables? *)
+  include StdV
+end
+
+module TIDV =
+struct
+  include ThreadIdDomain.Thread
   include StdV
 end
 

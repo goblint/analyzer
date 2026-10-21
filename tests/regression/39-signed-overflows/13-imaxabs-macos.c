@@ -3,6 +3,8 @@
 #include<stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <goblint.h>
+
 int main() {
     long long data;
     if (data > (-0x7fffffffffffffff - 1))

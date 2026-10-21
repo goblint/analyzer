@@ -47,6 +47,9 @@ __VERIFIER_nondet2(unsigned short, ushort)
 // void* __VERIFIER_nondet_pointer() { void* val; return val; }
 __VERIFIER_nondet2(void*, pointer)
 
+// Instead of using reference implementation from SV-COMP rules,
+// __VERIFIER_nondet_memory is in LibraryFunctions to avoid supertop warnings.
+
 // atomics are now special in Goblint
 // void __VERIFIER_atomic_begin() { }
 // void __VERIFIER_atomic_end() { }

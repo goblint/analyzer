@@ -4,10 +4,11 @@
  (alias runtest)
  (mode promote)
  (deps
-  (:files ; patterns from ReachSafety-Basic.set
+  (:files ; patterns from ReachSafety-Basic.set and now more
    (glob_files basic/*.c)
    (glob_files eq/*.c)
    (glob_files cfg/multicall_*.c)
+   (glob_files cfg/nondetcall_*.c)
    (glob_files cfg/join_true-unreach-call.c)
    (glob_files cfg/builtin_expect_true-unreach-call.c)
    (glob_files cfg/region_global_init_true-unreach-call.c)

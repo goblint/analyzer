@@ -1,6 +1,6 @@
-- entry_type: location_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: b000a41c-b7eb-4187-92ea-40530a44479c
     creation_time: 2023-01-24T09:33:20Z
     producer:
@@ -13,38 +13,22 @@
         07-base-lor-interval.c: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
       data_model: LP64
       language: C
-  location:
-    file_name: 07-base-lor-interval.c
-    file_hash: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
-    line: 8
-    column: 3
-    function: main
-  location_invariant:
-    string: r || 2 <= x
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: b000a41c-b7eb-4187-92ea-40530a44479c
-    creation_time: 2023-01-24T09:33:20Z
-    producer:
-      name: Simmo Saan
-      version: n/a
-    task:
-      input_files:
-      - 07-base-lor-interval.c
-      input_file_hashes:
-        07-base-lor-interval.c: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
-      data_model: LP64
-      language: C
-  location:
-    file_name: 07-base-lor-interval.c
-    file_hash: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
-    line: 9
-    column: 3
-    function: main
-  location_invariant:
-    string: 2 <= x || r
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 07-base-lor-interval.c
+        line: 8
+        column: 3
+        function: main
+      value: r || 2 <= x
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 07-base-lor-interval.c
+        line: 9
+        column: 3
+        function: main
+      value: 2 <= x || r
+      format: c_expression

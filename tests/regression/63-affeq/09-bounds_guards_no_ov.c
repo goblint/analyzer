@@ -1,4 +1,5 @@
 //SKIP PARAM:  --set ana.activated[+] affeq --set sem.int.signed_overflow assume_none
+#include <goblint.h>
 
 int main() {
     int x, y;

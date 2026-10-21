@@ -25,7 +25,8 @@ let rmdir_if_empty dirname =
   with Unix.Unix_error (Unix.ENOTEMPTY, _, _) ->
     ()
 
-(** Remove directory and its content, as "rm -rf" would do. *)
+(** Remove directory and its content, as "rm -rf" would do.
+    @raise Sys_error if [path] doesn't exist. *)
 let rmdir_recursive path =
   let rec f path =
     let path_str = Fpath.to_string path in
@@ -37,6 +38,12 @@ let rmdir_recursive path =
       Sys.remove path_str
   in
   f path
+
+let rmdir_recursive_if_exists path =
+  try
+    rmdir_recursive path
+  with Sys_error _ ->
+    ()
 
 
 let exe_dir = Fpath.(parent (v Sys.executable_name))

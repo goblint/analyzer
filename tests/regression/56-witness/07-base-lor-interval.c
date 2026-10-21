@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set witness.yaml.validate 07-base-lor-interval.yml
+// PARAM: --enable ana.int.interval --set witness.yaml.validate 07-base-lor-interval.yml
 #include <goblint.h>
 
 int main() {

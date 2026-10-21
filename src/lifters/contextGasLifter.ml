@@ -28,7 +28,12 @@ struct
 
   module Context_Gas_Prod (Base1: Lattice.S) (Base2: Lattice.S) =
   struct
-    include Lattice.Prod (Base1) (Base2)
+    module Base2 =
+    struct
+      include Base2
+      let name () = "context gas"
+    end
+    include Lattice.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (Base1) (Base2)
     let printXml f (x,y) =
       BatPrintf.fprintf f "\n%a<analysis name=\"context gas value\">\n%a\n</analysis>" Base1.printXml x Base2.printXml y
   end
@@ -125,7 +130,7 @@ let get_gas_lifter () =
       (* 5 join 4 = 4 *)
       module G = Lattice.Reverse(GasChain)
       (* Missing bindings are bot, i.e., have maximal gas for this function *)
-      module M = MapDomain.MapBot_LiftTop(CilType.Fundec)(G)
+      module M = MapDomain.PatriciaMapBot_LiftTop(CilType.Fundec)(G)
       let startgas () = M.empty ()
       let is_exhausted f v = GobOption.exists (fun g -> g <= 0) (M.find_opt f v)  (* v <= 0 *)
       let callee_gas f v =

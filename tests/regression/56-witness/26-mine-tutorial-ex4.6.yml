@@ -1,6 +1,6 @@
-- entry_type: loop_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: 0e84a9de-b9f6-44dd-ab8d-ebdeca941482
     creation_time: 2022-10-07T09:14:31Z
     producer:
@@ -13,13 +13,13 @@
         26-mine-tutorial-ex4.6.c: e119cc77f5ce2a60d7c2b65c5dfbe8037f877b5621deab62b9580c5bbdebd97b
       data_model: LP64
       language: C
-  location:
-    file_name: 26-mine-tutorial-ex4.6.c
-    file_hash: e119cc77f5ce2a60d7c2b65c5dfbe8037f877b5621deab62b9580c5bbdebd97b
-    line: 5
-    column: 3
-    function: main
-  loop_invariant:
-    string: 0 <= x && x <= 40
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 26-mine-tutorial-ex4.6.c
+        line: 5
+        column: 3
+        function: main
+      value: 0 <= x && x <= 40
+      format: c_expression

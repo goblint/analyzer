@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 25-struct_nr.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 25-struct_nr.c
   [Success][Assert] Assertion "glob1 == 5" will succeed (25-struct_nr.c:26:3-26:30)
   [Success][Assert] Assertion "t == 5" will succeed (25-struct_nr.c:16:3-16:26)
   [Success][Assert] Assertion "glob1 == -10" will succeed (25-struct_nr.c:18:3-18:32)
@@ -11,7 +11,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 2
-    total generation entries: 3
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -80,13 +80,13 @@
         - variable: lock1_mutex_locked
           value: "0"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (lock1_mutex_locked || glob1 == 5)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || ((-128 <= glob1 && glob1 <= 127) && glob1 != 0)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || ((-128 <= glob1 && glob1 <= 127) && glob1 != 0)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (lock1_mutex_locked || glob1 == 5)'
+        format: c_expression

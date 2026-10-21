@@ -1,0 +1,37 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 0a72f7b3-7826-4f68-bc7b-25425e95946e
+    creation_time: 2022-07-26T09:11:03Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g48503c690-dirty
+      command_line: '''./goblint'' ''--enable'' ''dbg.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--set'' ''ana.activated[+]'' ''apron'' ''--enable'' ''witness.yaml.enabled''
+        ''74-var_eq-unassume-interval.c'''
+    task:
+      input_files:
+      - 74-var_eq-unassume-interval.c
+      input_file_hashes:
+        74-var_eq-unassume-interval.c: 71e40ed99b5217343d0831e293e7207e5bd30ce53f6ab73f0c1ef6ced1afcc60
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 74-var_eq-unassume-interval.c
+        line: 6
+        column: 3
+        function: main
+      value: 100LL - (long long )i >= 0LL
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 74-var_eq-unassume-interval.c
+        line: 6
+        column: 3
+        function: main
+      value: (long long )i >= 0LL
+      format: c_expression

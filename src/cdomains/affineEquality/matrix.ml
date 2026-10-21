@@ -5,11 +5,11 @@ sig
   type vec
   type t [@@deriving eq, ord, hash]
 
-  val show: t -> string
+  val pretty: unit -> t -> GoblintCil.Pretty.doc
 
   val copy: t -> t
 
-  val empty: unit -> t 
+  val empty: unit -> t
 
   val is_empty: t -> bool
 

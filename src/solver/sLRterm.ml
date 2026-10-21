@@ -49,13 +49,13 @@ module SLR3term =
       let count  = ref 0 in
       let count_side  = ref (max_int - 1) in
 
-      let () = print_solver_stats := fun () ->
+      print_solver_stats := (fun () ->
           Logs.info "wpoint: %d, rho: %d, rho': %d, q: %d, count: %d, count_side: %d" (HM.length wpoint) (HM.length rho) (HPM.length rho') (H.size !q) (Int.neg !count) (max_int - !count_side);
           let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
           HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k) ((+)1) histo) rho;
           let vid,n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
           Logs.info "max #contexts: %d for var_id %s" n vid
-      in
+        );
 
       let init ?(side=false) x =
         if not (HM.mem rho x) then begin
@@ -103,7 +103,7 @@ module SLR3term =
           HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
           HM.find rho y
         in
-        let effects = ref Set.empty in
+        let effects = ref VS.empty in
         let side y d =
           assert (not (S.Dom.is_bot d));
           (*
@@ -122,8 +122,8 @@ module SLR3term =
           *)
           (* if S.Dom.is_bot d then print_endline "BOT" else *)
           if tracing then trace "sol" "SIDE: Var: %a\nVal: %a" S.Var.pretty_trace y S.Dom.pretty d;
-          let first = not (Set.mem y !effects) in
-          effects := Set.add y !effects;
+          let first = not (VS.mem y !effects) in
+          effects := VS.add y !effects;
           if first then (
             HPM.replace rho' (x,y) d;
             HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
@@ -164,7 +164,7 @@ module SLR3term =
               nar, true
             )
             else (
-              let wid = S.Dom.widen old (S.Dom.join old tmp) in
+              let wid = S.Dom.widen old tmp in
               if tracing then trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
               wid, false
             )

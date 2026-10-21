@@ -38,7 +38,11 @@ struct
 
   let name () = "pthreadBarriers"
 
-  module MustObserved = MapDomain.MapTop_LiftBot (TID) (MustBarriers)
+  module MustObserved =
+  struct
+    include MapDomain.MapTop_LiftBot (TID) (MustBarriers)
+    let name () = "must observed"
+  end
   module D = Lattice.Prod (Barriers) (MustObserved)
 
   include Analyses.ValueContexts(D)
@@ -108,15 +112,27 @@ struct
                     in
                     let can_proceed = exists_k can_proceed_pred (min_cap - 1) relevant_waiters in
                     if not can_proceed then raise Analyses.Deadcode;
-                    (* limit to this case to avoid having to construct all permutations above *)
-                    if BatList.compare_length_with waiters (min_cap - 1) = 0 then
-                      List.fold_left (fun acc (_,tid) ->
-                          let curr = MustObserved.find tid acc in
-                          let must' = MustObserved.add tid (Barriers.add addr curr) acc in
-                          must'
-                        ) must waiters
-                    else
+                    let exists_non_unique = List.exists (function
+                        | _, `Lifted tid -> not @@ ThreadIdDomain.Thread.is_unique tid
+                        | _ -> true
+                      ) waiters
+                    in
+                    if exists_non_unique then
+                      (* There can be non-unique threads that don't race with themselves because of mutexes etc *)
+                      (* We do nothing for those cases *)
                       must
+                    else
+                      (* All TIDs are definite here, they may have other MCPA stuff but that is irrelevant. *)
+                      let tids = waiters |> List.map snd |> List.sort_uniq TID.compare in
+                      (* limit to this case to avoid having to construct all permutations above *)
+                      if BatList.compare_length_with tids (min_cap - 1) = 0 then
+                        List.fold_left (fun acc tid ->
+                            let curr = MustObserved.find tid acc in
+                            let must' = MustObserved.add tid (Barriers.add addr curr) acc in
+                            must'
+                          ) must tids
+                      else
+                        must
                   in
                   (may, must)
                 else
@@ -142,22 +158,28 @@ struct
 
   module A =
   struct
-    include Lattice.Prod3 (Barriers) (MustObserved) (TID)
+    include Lattice.Prod (D) (TID)
     let name () = "barriers"
-    let may_race (may_await_t1, must_observed_by_t1, t1) (may_await_t2, must_observed_by_t2, t2) =
-      let observed_from_t2 = MustObserved.find t2 must_observed_by_t1 in
-      if not (Barriers.subset observed_from_t2 may_await_t2) then
-        false
-      else
-        let observed_from_t1 = MustObserved.find t1 must_observed_by_t2 in
-        Barriers.subset observed_from_t1 may_await_t1
-    let should_print f = true
+
+    (* TID is queried from other analysis which already prints it, so hide it here to avoid duplication in race warnings *)
+    let pretty () (d, _) = D.pretty () d
+    let show (d, _) = D.show d
+    let to_yojson (d, _) = D.to_yojson d
+    let printXml f (d, _) = D.printXml f d
+
+    let may_race' ((_, must_observed_by_t), _) ((may_await_t', _), t') =
+      let observed_from_t' = MustObserved.find t' must_observed_by_t in
+      Barriers.subset observed_from_t' may_await_t'
+
+    let may_race a1 a2 =
+      may_race' a1 a2 && may_race' a2 a1
+
+    let should_print _ = true
   end
 
   let access man (a: Queries.access) =
-    let (may,must) = man.local in
     let mhp = MHP.current (Analyses.ask_of_man man) in
-    (may, must, mhp.tid)
+    (man.local, mhp.tid)
 end
 
 let _ =

@@ -18,6 +18,7 @@ module type CFloatType = sig
   val of_float: round_mode -> float -> t
   val to_float: t -> float
   val to_big_int: t -> Z.t
+  (** Integral part of a finite value, i.e., the value truncated toward zero. *)
 
   val is_finite: t -> bool
   val pred: t -> t
@@ -27,7 +28,8 @@ module type CFloatType = sig
   val hash: t -> int
   val compare: t -> t -> int
   val to_yojson: t -> Yojson.Safe.t
-  val to_string: t -> string
+  val show: t -> string
+  val pretty: unit -> t -> GoblintCil.Pretty.doc
 
   val neg: t -> t
   val fabs: t -> t
@@ -49,14 +51,6 @@ module type CFloatType = sig
   val atof: round_mode -> string -> t
 end
 
-let big_int_of_float f =
-  let x, n = Float.frexp f in
-  let shift = min 52 n in
-  let x' = x *. Float.pow 2. (Float.of_int shift) in
-  Z.mul
-    (Z.of_int64 (Int64.of_float x'))
-    (Z.pow (Z.of_int 2) (n - shift))
-
 module CDouble = struct
   type t = float [@@deriving eq, ord, hash, to_yojson]
 
@@ -69,13 +63,17 @@ module CDouble = struct
 
   let of_float _ x = x
   let to_float x = x
-  let to_big_int = big_int_of_float
+  let to_big_int = Z.of_float
 
   let is_finite = Float.is_finite
   let pred = Float.pred
   let succ = Float.succ
 
-  let to_string = Float.to_string
+  let show = Float.to_string
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
 
   let neg = Float.neg
   let fabs = Float.abs
@@ -113,11 +111,15 @@ module CFloat = struct
   let pi = pi' ()
 
   let to_float x = x
-  let to_big_int = big_int_of_float
+  let to_big_int = Z.of_float
 
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
 
-  let to_string = Float.to_string
+  let show = Float.to_string
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
 
   let neg = Float.neg
   let fabs = Float.abs

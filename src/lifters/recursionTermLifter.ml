@@ -31,7 +31,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (G) (CallerSet)
+    include Lattice.Lift2Conf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (G) (CallerSet)
 
     let spec = function
       | `Bot -> G.bot ()
@@ -106,11 +106,11 @@ struct
         | `Right v ->
           Queries.Result.top q
       end
-    | YamlEntryGlobal (v, task) ->
+    | YamlEntryGlobal (v, task, vs) ->
       let v: V.t = Obj.obj v in
       begin match v with
         | `Left v ->
-          S.query (conv man) (YamlEntryGlobal (Obj.repr v, task))
+          S.query (conv man) (YamlEntryGlobal (Obj.repr v, task, vs))
         | `Right v ->
           Queries.Result.top q
       end

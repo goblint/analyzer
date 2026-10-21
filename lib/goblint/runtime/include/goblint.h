@@ -1,6 +1,6 @@
-void __goblint_check(int exp);
-void __goblint_assume(int exp);
-void __goblint_assert(int exp);
+void __goblint_check(_Bool exp);
+void __goblint_assume(_Bool exp);
+void __goblint_assert(_Bool exp);
 
 void __goblint_assume_join(/* pthread_t thread */); // undeclared argument to avoid pthread.h interfering with Linux kernel headers
 void __goblint_globalize(void *ptr);

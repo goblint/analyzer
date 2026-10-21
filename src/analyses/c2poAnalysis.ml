@@ -26,7 +26,7 @@ struct
       reachable_from_exp @ acc
     in
     let res = List.fold collect_reachable_from_exp [] args in
-    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %s\n" (List.fold_left (fun s v -> s ^ v.vname ^"; ") "" res);
+    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %a" GoblintCil.Pretty.(d_list "; " CilType.Varinfo.pretty) res;
     res
 
   (* Returns Some true if we know for sure that it is true,
@@ -100,7 +100,7 @@ struct
     | lval_size, (Some rterm, Some roffset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
 
-      if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show rterm) (Z.to_string roffset) d_exp (T.to_cil lterm) d_exp (T.to_cil rterm);
+      if M.tracing then M.trace "c2po-assign" "assigning: var: %a; expr: %a + %a. \nTo_cil: lval: %a; expr: %a" T.pretty lterm T.pretty rterm GobZ.pretty roffset T.pretty_exp lterm T.pretty_exp rterm;
 
       let equal_dummy_rterm = [Equal (dummy_var, rterm, roffset)] in
       let equal_dummy_lterm = [Equal (lterm, dummy_var, Z.zero)] in
@@ -138,7 +138,7 @@ struct
       let cc = assign_lval d ask lval (T.of_cil ask expr) in
       let cc = reset_normal_form cc in
       let res = `Lifted cc in
-      if M.tracing then M.trace "c2po-assign" "assign: var: %a; expr: %a; result: %s.\n" d_lval lval d_plainexp expr (D.show res);
+      if M.tracing then M.trace "c2po-assign" "assign: var: %a; expr: %a; result: %a." d_lval lval d_plainexp expr D.pretty res;
       res
 
   let branch ctx e pos =
@@ -158,7 +158,7 @@ struct
           with Unsat ->
             `Bot
     in
-    if M.tracing then M.trace "c2po" "branch:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n" d_exp e pos (show_conj valid_props) (D.is_bot res);
+    if M.tracing then M.trace "c2po" "branch:\n Actual equality: %a; pos: %b; valid_prop_list: %a; is_bot: %b" d_exp e pos pretty_conj valid_props (D.is_bot res);
     if D.is_bot res then raise Deadcode;
     res
 
@@ -188,7 +188,7 @@ struct
         end
       | None -> ctx.local
     in
-    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);
+    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %a; result: %a" (Pretty.docOpt (d_exp ())) exp_opt D.pretty ctx.local D.pretty res;
     res
 
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
@@ -212,7 +212,7 @@ struct
               let cc = begin match desc.special exprs with
                 | Malloc _
                 | Calloc _
-                | Alloca _ ->
+                | Alloca _ -> (* No Realloc because it may return the same pointer. *)
                   add_block_diseqs cc lterm
                 | _ -> cc
               end
@@ -247,9 +247,9 @@ struct
       let state_with_ghosts = meet_conjs_opt equalities_to_add d.data in
       let state_with_ghosts = data_to_t state_with_ghosts in
       if M.tracing then begin
-        let dummy_lval = Var (Var.dummy_varinfo (TVoid [])), NoOffset in
+        let dummy_lval = Cil.var (Var.dummy_varinfo (TVoid [])) in
         let lval = BatOption.default dummy_lval var_opt in
-        M.trace "c2po-function" "enter1: var_opt: %a; state: %s; state_with_ghosts: %s\n" d_lval lval (D.show ctx.local) (C2PODomain.show state_with_ghosts);
+        M.trace "c2po-function" "enter1: var_opt: %a; state: %a; state_with_ghosts: %a" d_lval lval D.pretty ctx.local C2PODomain.pretty state_with_ghosts;
       end;
       (* remove callee vars that are not reachable and not global *)
       let reachable_variables =
@@ -258,14 +258,13 @@ struct
       in
       let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_ghosts.data in
       let new_state = data_to_t new_state in
-      if M.tracing then M.trace "c2po-function" "enter2: result: %s\n" (C2PODomain.show new_state);
+      if M.tracing then M.trace "c2po-function" "enter2: result: %a" C2PODomain.pretty new_state;
       let new_state = reset_normal_form new_state in
       [ctx.local, `Lifted new_state]
 
   let remove_out_of_scope_vars cc f =
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = f.sformals in
-    let cc = D.remove_terms_containing_return_variable cc in
     D.remove_terms_containing_variables (Var.from_varinfo local_vars duplicated_vars) cc
 
   let combine_env ctx lval_opt expr f args t_context_opt f_d (f_ask: Queries.ask) =
@@ -282,11 +281,11 @@ struct
       in
       let state_with_assignments = List.fold_left assign_term d arg_assigns in
 
-      if M.tracing then M.trace "c2po-function" "combine_env0: state_with_assignments: %s\n" (C2PODomain.show state_with_assignments);
+      if M.tracing then M.trace "c2po-function" "combine_env0: state_with_assignments: %a" C2PODomain.pretty state_with_assignments;
 
       (*remove all variables that were tainted by the function*)
       let tainted = f_ask.f (MayBeTainted) in
-      if M.tracing then M.trace "c2po-tainted" "combine_env1: %a\n" MayBeEqual.AD.pretty tainted;
+      if M.tracing then M.trace "c2po-tainted" "combine_env1: %a" MayBeEqual.AD.pretty tainted;
 
       let local = D.remove_tainted_terms caller_ask tainted state_with_assignments.data in
       let local = data_to_t local in
@@ -296,9 +295,9 @@ struct
         let cc = remove_out_of_scope_vars d.data f in
         let d = data_to_t cc in
         if M.tracing then begin
-          let dummy_lval = Var (Var.dummy_varinfo (TVoid[])), NoOffset in
+          let dummy_lval = Cil.var (Var.dummy_varinfo (TVoid[])) in
           let lval = BatOption.default dummy_lval lval_opt in
-          M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %s; f_state: %s; meeting everything: %s\n" d_lval lval (D.show ctx.local) (D.show f_d) (C2PODomain.show d)
+          M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %a; f_state: %a; meeting everything: %a" d_lval lval D.pretty ctx.local D.pretty f_d C2PODomain.pretty d
         end;
         `Lifted d
 
@@ -306,32 +305,21 @@ struct
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted d ->
-      let caller_ask = ask_of_man ctx in
-      (* assign function parameters to duplicated values *)
-      let arg_assigns = GobList.combine_short f.sformals args in
-      let assign_term st (var, arg) =
-        let ghost_var = T.term_of_varinfo (DuplicVar var) in
-        let arg = T.of_cil f_ask arg in
-        assign_term st caller_ask ghost_var arg var.vtype
+      let d =
+        match var_opt with
+        | None ->
+          d
+        | Some lval ->
+          let return_type = typeOfLval lval in
+          let return_var = MayBeEqual.return_var return_type  in
+          let return_var = (Some return_var, Some Z.zero) in
+          assign_lval d f_ask lval return_var
       in
-      let state_with_assignments = List.fold_left assign_term d arg_assigns in
-      match D.meet (`Lifted state_with_assignments) f_d with
-      | `Bot -> `Bot
-      | `Lifted d ->
-        let d = match var_opt with
-          | None ->
-            d
-          | Some lval ->
-            let return_type = typeOfLval lval in
-            let return_var = MayBeEqual.return_var return_type  in
-            let return_var = (Some return_var, Some Z.zero) in
-            assign_lval d f_ask lval return_var
-        in
-        if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %s\n" (C2PODomain.show d);
-        let d = remove_out_of_scope_vars d.data f in
-        let d = data_to_t d in
-        if M.tracing then M.trace "c2po-function" "combine_assign2: result: %s\n" (C2PODomain.show d);
-        `Lifted d
+      if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %a" C2PODomain.pretty d;
+      let d = D.remove_terms_containing_return_variable d.data in
+      let d = data_to_t d in
+      if M.tracing then M.trace "c2po-function" "combine_assign2: result: %a" C2PODomain.pretty d;
+      `Lifted d
 
   let startstate v =
     D.top ()
