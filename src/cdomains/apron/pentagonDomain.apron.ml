@@ -314,6 +314,19 @@ let simplified_monomials_from_texp env texp =
        let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
        Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
 
+(* Bound x - y using SUBs when the strict order is known.  If neither
+   direction is known, the difference can have either sign. *)
+let bound_difference_by_subs subs x y constant numeric_intv =
+  let symbolic_intv =
+    if Subs.gt x y subs then
+      (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty)
+    else if Subs.gt y x subs then
+      (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
+    else
+      Intv.top ()
+  in
+  Intv.inter symbolic_intv numeric_intv
+
 
 (* let simplified_monomials_from_texp env texp = timing_wrap "simplified_monomials_from_texp" (simplified_monomials_from_texp env) texp *)
 
@@ -334,13 +347,9 @@ struct
         let numeric_intv = eval_monoms_to_intv d.boxes monoms in
         match fst monoms with
         | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
-          let symbolic_intv =
-            if Subs.gt x1 x2 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
-          in Intv.to_z_opt_intv (Intv.inter symbolic_intv numeric_intv)
+          Intv.to_z_opt_intv (bound_difference_by_subs d.subs x1 x2 constant numeric_intv)
         | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
-          let symbolic_intv =
-            if Subs.gt x2 x1 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
-          in Intv.to_z_opt_intv (Intv.inter symbolic_intv numeric_intv)
+          Intv.to_z_opt_intv (bound_difference_by_subs d.subs x2 x1 constant numeric_intv)
         | _ -> Intv.to_z_opt_intv numeric_intv
 
 
@@ -609,18 +618,12 @@ struct
 
           match sum_of_terms with
           | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
-            let symbolic_intv =
-              if Subs.gt x1 x2 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
-            in
-            let intersected = (Intv.inter symbolic_intv expr_intv) in
+            let intersected = bound_difference_by_subs d.subs x1 x2 constant expr_intv in
             if Intv.is_bot intersected then bot_of_env t.env else
               let boxes = Boxes.set_value x intersected d.boxes
               in wrap boxes d.subs
           | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
-            let symbolic_intv =
-              if Subs.gt x2 x1 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
-            in
-            let intersected = (Intv.inter symbolic_intv expr_intv) in
+            let intersected = bound_difference_by_subs d.subs x2 x1 constant expr_intv in
             if Intv.is_bot intersected then bot_of_env t.env else
               let boxes = Boxes.set_value x intersected d.boxes
               in wrap boxes d.subs
