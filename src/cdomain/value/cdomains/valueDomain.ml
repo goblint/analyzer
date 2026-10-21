@@ -959,12 +959,17 @@ struct
             end
           | `Field (fld, offs) -> begin
               match x with
-              | Union (_, value) ->
+              | Union (active_field, value) ->
+                let reads_active_field = UnionDomain.Field.equal active_field (`Lifted fld) in
                 (match value, Cil.unrollType fld.ftype with
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
                  | Float _, t -> top_value t
                  | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
+                 | _, (TArray _ | TComp _) when not reads_active_field ->
+                   (* cast cannot reinterpret the elements or fields of another member, so they would keep their types *)
+                   let l', o' = shift_one_over l o in
+                   do_eval_offset (top_value fld.ftype) offs l' o'
                  | _ ->
                    let x = cast ~kind:Internal fld.ftype value in (* TODO: proper castkind *)
                    let l', o' = shift_one_over l o in
