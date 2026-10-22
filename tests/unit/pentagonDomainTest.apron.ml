@@ -90,6 +90,27 @@ let test_mod_assignment_when_divisor_is_destination _ =
   check_case "_positive" 3 1 1;
   check_case "_negative" (-3) (-1) (-1)
 
+let test_meet_promotes_contradictory_subs_to_bottom _ =
+  let x = Var.of_string "pentagon_meet_x" in
+  let y = Var.of_string "pentagon_meet_y" in
+  let env = Environment.make [|x; y|] [||] in
+  let x_dim = Environment.dim_of_var env x in
+  let y_dim = Environment.dim_of_var env y in
+  let make_state source target =
+    let state = D.top_of_env env in
+    let subs =
+      List.init 2 (fun _ -> Subs.VarSet.empty)
+      |> Subs.set_value source (Subs.VarSet.singleton target)
+    in
+    state.d <- Some {Pntg.boxes = List.init 2 (fun _ -> Intv.top ()); subs};
+    state
+  in
+  let result = D.meet (make_state x_dim y_dim) (make_state y_dim x_dim) in
+  assert_bool "meeting x < y with y < x should produce explicit bottom"
+    (D.is_bot_env result);
+  assert_bool "the empty-environment top should remain distinct from explicit bottom"
+    (not (D.is_bot_env (D.meet (D.top ()) (D.top ()))))
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -127,6 +148,7 @@ let tests =
       );
     "invariant-uses-interval-bounds" >:: test_invariant_uses_interval_bounds;
     "mod-assignment-destination-is-divisor" >:: test_mod_assignment_when_divisor_is_destination;
+    "meet-promotes-contradictory-subs-to-bottom" >:: test_meet_promotes_contradictory_subs_to_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]

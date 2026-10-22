@@ -452,7 +452,14 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; subs = Subs.meet d1'.subs d2'.subs}; env = sup_env}: t)
+      let res : t = {d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; subs = Subs.meet d1'.subs d2'.subs}; env = sup_env} in
+      (* The empty environment intentionally identifies top and bottom. For
+         non-empty environments, expose component-level contradictions as
+         the explicit bottom representation expected by RelationAnalysis. *)
+      if not (Environment.equal sup_env empty_env) && is_bot res then
+        bot_of_env sup_env
+      else
+        res
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
