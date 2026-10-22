@@ -99,10 +99,13 @@ struct
     | Lval    (Mem e,_)
     | CastE (_,_,e)           -> interesting e
 
+  let normalize_exp e =
+    constFold false (stripCasts e) (* TODO: use machdep? *)
+
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
-    let e1 = constFold false (stripCasts e1) in
-    let e2 = constFold false (stripCasts e2) in
+    let e1 = normalize_exp e1 in
+    let e2 = normalize_exp e2 in
     if exp_equal e1 e2 then true else
       match D.find_class e1 s with
       | Some ss when D.B.mem e2 ss -> true
@@ -444,7 +447,7 @@ struct
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   let assign man (lval:lval) (rval:exp) : D.t  =
-    let rval = constFold true (stripCasts rval) in
+    let rval = normalize_exp rval in
     assign_eq (Analyses.ask_of_man man) lval rval man.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
