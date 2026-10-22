@@ -552,7 +552,14 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.narrow d1'.boxes d2'.boxes; subs =d1'.subs}; env = sup_env}: t)
+      let res : t = {d = Some {boxes = Boxes.narrow d1'.boxes d2'.boxes; subs = d1'.subs}; env = sup_env} in
+      (* The empty environment intentionally identifies top and bottom. In a
+         non-empty environment, canonicalize component-level bottom so the
+         analysis layer can recognize it. *)
+      if not (Environment.equal sup_env empty_env) && is_bot res then
+        bot_of_env sup_env
+      else
+        res
     | _ -> {d = None; env = sup_env}
 
   let narrow a b =

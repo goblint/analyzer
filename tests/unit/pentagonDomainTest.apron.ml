@@ -176,6 +176,21 @@ let test_leq_recognizes_strict_bound_bottom _ =
   assert_bool "the empty-environment top convention should remain unchanged"
     (D.leq (D.top ()) (D.top ()))
 
+let test_narrow_promotes_empty_interval_to_bottom _ =
+  let x = Var.of_string "pentagon_narrow_x" in
+  let env = Environment.make [|x|] [||] in
+  let top = D.top_of_env env in
+  let interval_bottom = D.top_of_env env in
+  interval_bottom.d <- Some {
+      Pntg.boxes = [Intv.bot ()];
+      subs = [Subs.VarSet.empty];
+    };
+  let narrowed = D.narrow top interval_bottom in
+  assert_bool "narrowing to an empty interval should produce explicit bottom"
+    (D.is_bot_env narrowed);
+  assert_bool "narrowing at the empty environment should preserve its top convention"
+    (not (D.is_bot_env (D.narrow (D.top ()) (D.top ()))))
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -216,6 +231,7 @@ let tests =
     "meet-promotes-contradictory-subs-to-bottom" >:: test_meet_promotes_contradictory_subs_to_bottom;
     "join-keeps-interval-implied-bound" >:: test_join_keeps_bound_implied_by_other_interval;
     "leq-recognizes-strict-bound-bottom" >:: test_leq_recognizes_strict_bound_bottom;
+    "narrow-promotes-empty-interval-to-bottom" >:: test_narrow_promotes_empty_interval_to_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]
