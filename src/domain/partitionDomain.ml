@@ -193,7 +193,8 @@ struct
 end
 
 module NormExp: sig
-  include Printable.S
+  type t = private CilType.Exp.t
+  include Printable.S with type t := t
   val lift: CilType.Exp.t -> t
   val unlift: t -> CilType.Exp.t
 end =
@@ -203,4 +204,16 @@ struct
   let unlift x = x
 end
 
-module ExpPartitions = SetSet (NormExp)
+module ExpPartitions =
+struct
+  include SetSet (NormExp)
+
+  module B =
+  struct
+    include B
+    (* let filter_exp = (filter :> (CilType.Exp.t -> bool) -> t -> t) *)
+  end
+
+  (* let filter_exp' = (B.filter :> (CilType.Exp.t -> bool) -> B.t -> B.t) *)
+  let filter_exp = (filter :> (CilType.Exp.t -> bool) -> t -> t)
+end
