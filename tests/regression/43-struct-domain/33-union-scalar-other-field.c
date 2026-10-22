@@ -25,7 +25,7 @@ int main() {
 
   union IU iu;
   iu.i = 5;
-  __goblint_check(iu.u == 5); // same size, only the signedness differs: nonnegative values have the same representation (C99 6.2.5p9)
+  __goblint_check(iu.u == 5); // same size, only the signedness differs: nonnegative values have the same representation (C99 and C11 6.2.5p9)
   iu.i = -1;
   __goblint_check(iu.u == UINT_MAX); // relies on two's complement (guaranteed since C23, and by GCC)
 
