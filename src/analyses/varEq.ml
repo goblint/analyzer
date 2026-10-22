@@ -384,6 +384,7 @@ struct
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
+    let rv = normalize_exp rv in
     let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     if M.tracing then (
       M.tracel "var_eq" "add_eq is_global_var %a = %B" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
@@ -459,7 +460,6 @@ struct
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   let assign man (lval:lval) (rval:exp) : D.t  =
-    let rval = normalize_exp rval in
     assign_eq (Analyses.ask_of_man man) lval rval man.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
