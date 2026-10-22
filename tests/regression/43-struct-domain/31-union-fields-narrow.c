@@ -12,10 +12,11 @@ struct S { union U u; int x; };
 
 int main() {
   struct S s;
-  if (__VERIFIER_nondet_int())
+  if (__VERIFIER_nondet_int()){
     s.u.a = 1;
-  else
+  } else{
     s.u.b = 2;
+  }
   int i = 0;
   while (i < 10) {
     s.x = 0;

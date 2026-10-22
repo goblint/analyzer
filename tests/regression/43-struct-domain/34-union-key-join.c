@@ -12,10 +12,11 @@ int main() {
   int y = 5;
   struct S s;
   s.x = 3;
-  if (__VERIFIER_nondet_int())
+  if (__VERIFIER_nondet_int()){
     s.u.a = 1;
-  else
+  } else {
     s.u.b = 2;
+  }
   __goblint_check(y == 5);
   __goblint_check(s.x == 3);
   return 0;
