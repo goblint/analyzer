@@ -473,7 +473,13 @@ struct
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = dimchange2_add t1 sup_env in
     let t2 = dimchange2_add t2 sup_env in
-    match t1.d, t2.d with
+    (* With variables, component contradictions represent bottom and must
+       satisfy the usual lattice ordering. In the empty environment top and
+       bottom are intentionally identified, so retain the special-case logic
+       below there. *)
+    if not (Environment.equal sup_env empty_env) && is_bot t1 then true
+    else if not (Environment.equal sup_env empty_env) && is_bot t2 then false
+    else match t1.d, t2.d with
     | Some d1', Some d2' ->
       let boxes_1, boxes_2 = d1'.boxes, d2'.boxes in
       let sub1, sub2 = d1'.subs, d2'.subs in

@@ -111,6 +111,71 @@ let test_meet_promotes_contradictory_subs_to_bottom _ =
   assert_bool "the empty-environment top should remain distinct from explicit bottom"
     (not (D.is_bot_env (D.meet (D.top ()) (D.top ()))))
 
+let test_join_keeps_bound_implied_by_other_interval _ =
+  let x = Var.of_string "pentagon_join_x" in
+  let y = Var.of_string "pentagon_join_y" in
+  let env = Environment.make [|x; y|] [||] in
+  let x_dim = Environment.dim_of_var env x in
+  let y_dim = Environment.dim_of_var env y in
+  let state boxes source target =
+    let state = D.top_of_env env in
+    let subs =
+      List.init 2 (fun _ -> Subs.VarSet.empty)
+      |> fun subs ->
+      match source, target with
+      | Some source, Some target ->
+        Subs.set_value source (Subs.VarSet.singleton target) subs
+      | _ -> subs
+    in
+    state.d <- Some {Pntg.boxes = boxes; subs};
+    state
+  in
+  let symbolic = state [Intv.top (); Intv.top ()] (Some x_dim) (Some y_dim) in
+  let interval = state [Intv.create 0 0; Intv.create 1 1] None None in
+  let assert_join_keeps_x_lt_y left right =
+    let joined = D.join left right in
+    assert_bool "the join should retain x < y, implied by the interval branch"
+      (Subs.VarSet.mem y_dim (Subs.get_value x_dim (Option.get joined.d).Pntg.subs))
+  in
+  assert_join_keeps_x_lt_y symbolic interval;
+  assert_join_keeps_x_lt_y interval symbolic
+
+let test_leq_recognizes_strict_bound_bottom _ =
+  let x = Var.of_string "pentagon_leq_x" in
+  let y = Var.of_string "pentagon_leq_y" in
+  let z = Var.of_string "pentagon_leq_z" in
+  let w = Var.of_string "pentagon_leq_w" in
+  let env = Environment.make [|x; y; z; w|] [||] in
+  let x_dim = Environment.dim_of_var env x in
+  let y_dim = Environment.dim_of_var env y in
+  let z_dim = Environment.dim_of_var env z in
+  let w_dim = Environment.dim_of_var env w in
+  let bottom_like = D.top_of_env env in
+  let subs =
+    List.init 4 (fun _ -> Subs.VarSet.empty)
+    |> Subs.set_value x_dim (Subs.VarSet.singleton y_dim)
+    |> Subs.set_value y_dim (Subs.VarSet.singleton x_dim)
+  in
+  bottom_like.d <- Some {Pntg.boxes = List.init 4 (fun _ -> Intv.top ()); subs};
+  let unrelated_constraint = D.top_of_env env in
+  let unrelated_subs =
+    Subs.get_value z_dim (Option.get unrelated_constraint.d).Pntg.subs
+    |> Subs.VarSet.add w_dim
+    |> Subs.set_value z_dim
+  in
+  unrelated_constraint.d <- Some {
+      Pntg.boxes = List.init 4 (fun _ -> Intv.top ());
+      subs = unrelated_subs (Option.get unrelated_constraint.d).Pntg.subs;
+    };
+  assert_bool "the first state is bottom by its contradictory strict bounds"
+    (D.is_bot bottom_like);
+  assert_bool "bottom should be below any state"
+    (D.leq bottom_like unrelated_constraint);
+  assert_bool "a non-bottom state should not be below bottom"
+    (not (D.leq unrelated_constraint bottom_like));
+  assert_bool "the empty-environment top convention should remain unchanged"
+    (D.leq (D.top ()) (D.top ()))
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -149,6 +214,8 @@ let tests =
     "invariant-uses-interval-bounds" >:: test_invariant_uses_interval_bounds;
     "mod-assignment-destination-is-divisor" >:: test_mod_assignment_when_divisor_is_destination;
     "meet-promotes-contradictory-subs-to-bottom" >:: test_meet_promotes_contradictory_subs_to_bottom;
+    "join-keeps-interval-implied-bound" >:: test_join_keeps_bound_implied_by_other_interval;
+    "leq-recognizes-strict-bound-bottom" >:: test_leq_recognizes_strict_bound_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]
