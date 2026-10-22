@@ -116,6 +116,7 @@ struct
 
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
+    let e1, e2 = Cilfacade.remove_binop_pointer_conversions e1 e2 in
     let e1 = normalize_exp e1 in
     let e2 = normalize_exp e2 in
     if exp_equal e1 e2 then true else
@@ -433,8 +434,7 @@ struct
   let rec assume ask exp st =
     match exp with
     | BinOp (Eq, e1, e2, t) ->
-      (* Pointer equalities have casts on both sides. Strip them to get to the actual Lval. *)
-      begin match stripCasts e1, stripCasts e2 with
+      begin match Cilfacade.remove_binop_pointer_conversions e1 e2 with
         | Lval lval, exp
         | exp, Lval lval ->
           add_eq ask lval exp st
