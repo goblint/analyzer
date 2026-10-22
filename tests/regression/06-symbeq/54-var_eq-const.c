@@ -16,5 +16,13 @@ int main() {
 
   *p = sizeof(int); // var_eq should do machdep-based constant folding and account for the implicit cast
   __goblint_check(*p == 4);
+
+  *p = r; // forget previous 4
+  if (*p == 0x4) // different syntax for the same constant shouldn't bother var_eq via branch
+    __goblint_check(*p == 4); // TODO
+
+  *p = r; // forget previous 4
+  if (*p == 4U) // var_eq should account for the implicit cast via branch
+    __goblint_check(*p == 4); // TODO
   return 0;
 }
