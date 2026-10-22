@@ -132,6 +132,21 @@ struct
   let hs_map f s = if HS.is_bot s
     then s
     else HS.map (SS.map f) s
+
+  (** Whether two field values may describe the same concrete value, so that structs containing them may overlap.
+      Bottom counts as overlapping, because it stands for not yet initialized contents (e.g., of arrays) rather than for no value. *)
+  let values_overlap (a: value) (b: value) =
+    let meet_may_be_non_bot () =
+      match Val.meet a b with
+      | meet -> not (Val.is_bot_value meet)
+      | exception Lattice.Uncomparable -> true (* raised for unions with different active fields, which may still overlap *)
+    in
+    Val.is_bot_value a || Val.is_bot_value b || meet_may_be_non_bot ()
+
+  (** Whether the structs [ssx] and [ssy] may overlap, i.e., the values of all their fields may overlap. *)
+  let maps_overlap (ssx: SS.t) (ssy: SS.t) =
+    let fields = SS.keys ssx in
+    List.for_all (fun field -> values_overlap (SS.get ssx field) (SS.get ssy field)) fields
 end
 
 module Sets (Val: Arg) =
@@ -168,17 +183,6 @@ struct
     That's why we take a more involved approach and only discard those variants
     that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
-    let values_overlap (a: value) (b: value) =
-      (* The meet of unions with different active fields raises Uncomparable; such values may still overlap. *)
-      let meet_may_be_non_bot () =
-        try not (Val.is_bot_value (Val.meet a b)) with Lattice.Uncomparable -> true
-      in
-      Val.is_bot_value a || Val.is_bot_value b || meet_may_be_non_bot ()
-    in
-    let maps_overlap ssx ssy =
-      let fields = SS.keys ssx in
-      List.for_all (fun field -> values_overlap (SS.get ssx field) (SS.get ssy field)) fields
-    in
     let x_list = HS.elements x in
     let y_list = HS.elements y in
     (* TODO: GobList.cartesian_filter_map? or just Seq? *)
@@ -365,17 +369,6 @@ struct
     that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
     begin
-      let fields_overlap a b =
-        (* The meet of unions with different active fields raises Uncomparable; such values may still overlap. *)
-        let meet_may_be_non_bot () =
-          try not (Val.is_bot_value (Val.meet a b)) with Lattice.Uncomparable -> true
-        in
-        Val.is_bot_value a || Val.is_bot_value b || meet_may_be_non_bot ()
-      in
-      let maps_overlap ssx ssy =
-        let fields = SS.keys ssx in
-        List.for_all (fun field -> fields_overlap (SS.get ssx field) (SS.get ssy field)) fields
-      in
       let ((sx, kx), (sy, ky)) = (x, y) in
       let x_list = HS.elements sx in
       let y_list = HS.elements sy in
