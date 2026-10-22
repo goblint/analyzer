@@ -100,7 +100,7 @@ struct
     | CastE (_,_,e)           -> interesting e
 
   let normalize_exp e =
-    constFold false (stripCasts e) (* TODO: use machdep? *)
+    constFold true (stripCasts e) (* TODO: don't strip casts? *)
 
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
