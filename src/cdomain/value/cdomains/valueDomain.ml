@@ -967,7 +967,6 @@ struct
                  | Float _, t -> top_value t
                  | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
                  | _, (TArray _ | TComp _) when not reads_active_field ->
-                   (* cast cannot reinterpret the elements or fields of another member, so they would keep their types *)
                    let l', o' = shift_one_over l o in
                    do_eval_offset (top_value fld.ftype) offs l' o'
                  | _ ->
