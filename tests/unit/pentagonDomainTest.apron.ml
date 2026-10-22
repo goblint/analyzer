@@ -3,6 +3,7 @@ open OUnit2
 open GobApron
 
 module D = PentagonDomain.D
+module Boxes = Goblint_lib.Boxes.Boxes
 module Subs = Goblint_lib.Subs.Subs
 module Pntg = Goblint_lib.Pntg.Pntg
 module Intv = Goblint_lib.Intv.Intv
@@ -62,6 +63,33 @@ let test_invariant_uses_interval_bounds _ =
   assert_bool "upper constraint should be -x + 10 >= 0"
     (Coeff.equal (Lincons1.get_cst upper_bound) (Coeff.s_of_int 10))
 
+let test_mod_assignment_when_divisor_is_destination _ =
+  let check_case suffix divisor dividend expected =
+    let x = Var.of_string ("pentagon_mod_x" ^ suffix) in
+    let y = Var.of_string ("pentagon_mod_y" ^ suffix) in
+    let env = Environment.make [|x; y|] [||] in
+    let x_dim = Environment.dim_of_var env x in
+    let state = D.top_of_env env in
+    state.d <- Some {
+        Pntg.boxes = [Intv.create divisor divisor; Intv.create dividend dividend];
+        subs = List.init 2 (fun _ -> Subs.VarSet.empty);
+      };
+    let result =
+      D.assign_texpr state x
+        (Texpr1.Binop (Texpr1.Mod, Texpr1.Var y, Texpr1.Var x,
+                       Texpr1.Int, Texpr1.Near))
+    in
+    assert_bool "modulo assignment with destination as divisor is not bottom"
+      (not (D.is_bot result));
+    let result_data = Option.get result.d in
+    assert_bool "the modulo result has the expected interval"
+      (Intv.equal (Boxes.get_value x_dim result_data.Pntg.boxes) (Intv.create expected expected));
+    assert_bool "the assignment should not introduce x < x"
+      (not (Subs.VarSet.mem x_dim (Subs.get_value x_dim result_data.Pntg.subs)))
+  in
+  check_case "_positive" 3 1 1;
+  check_case "_negative" (-3) (-1) (-1)
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -98,6 +126,7 @@ let tests =
         assert_relation_removed z x
       );
     "invariant-uses-interval-bounds" >:: test_invariant_uses_interval_bounds;
+    "mod-assignment-destination-is-divisor" >:: test_mod_assignment_when_divisor_is_destination;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]

@@ -586,8 +586,12 @@ struct
                 let dim_d = Environment.dim_of_var t.env d' in
                 let d_intv = Boxes.get_value dim_d d.boxes in
 
+                (* The divisor's old value is unavailable if it is also the
+                   assignment target. In particular, don't add x < x. *)
+                if dim_d = x then
+                  Fun.id
                 (* Check if all possible divisors are positive. *)
-                if (Intv.inf d_intv) >* ZExt.zero then
+                else if (Intv.inf d_intv) >* ZExt.zero then
                   (* We can set SUBs(x) := {d} *)
                   Subs.set_value x (Subs.VarSet.singleton dim_d)
                 else if Intv.sup d_intv <* ZExt.zero then
