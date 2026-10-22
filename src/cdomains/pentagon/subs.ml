@@ -80,10 +80,18 @@ struct
     in
     List.filteri_map move_or_delete_set subs
 
-  (**
-        This isn't precise: we might return false even if there are transitive contradictions;
-        Other possibility: compute transitive closure first (would be expensive)
-  *)
+  (** Detect self-loops and direct contradictions of the form [x < y] and [y < x].
+
+      This deliberately does not compute transitive closure, so a longer cycle
+      such as [x < y], [y < z], [z < x] may remain unrecognized as bottom.
+      Logozzo and Fähndrich, “Pentagons: A weakly relational abstract domain
+      for the efficient validation of array accesses” (2010, §5, Fig. 5), define
+      bottom using a direct two-way contradiction and explain that saturating
+      strict upper bounds for transitivity costs O(n^3); Clousot omits full
+      closure and uses only limited, transfer-driven transitivity. Leaving
+      longer cycles unnormalized may miss unreachable states. This is a
+      precision loss, not an unsoundness: these contradictory constraints have
+      empty concretization. *)
   let is_bot (subs: t) =
     (* exists function for lists where the predicate f also gets the index of a list element *)
     let existsi f lst =
