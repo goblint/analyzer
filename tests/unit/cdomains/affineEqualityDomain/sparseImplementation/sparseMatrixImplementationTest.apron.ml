@@ -405,6 +405,34 @@ let affine_hull_distinct_constants _ =
   let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 2]) in
   let m2 = Matrix.init_with_vec (Vector.of_list [int 1; int 3]) in
   assert_equal (Matrix.empty ()) (Matrix.affine_hull m1 m2)
+let linear_disjunct_common_difference _ =
+  (* x = y = 0 and x + w = y + w = 0 both imply x - y = 0. *)
+  let m1 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0];
+     [int 0; int 1; int 0; int 0]] in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 1; int 0];
+     [int 0; int 1; int 1; int 0]] in
+  let expected = Matrix.init_with_vec (Vector.of_list [int 1; int (-1); int 0; int 0]) in
+  assert_equal expected (Matrix.linear_disjunct m1 m2);
+  assert_equal expected (Matrix.linear_disjunct m2 m1)
+
+let linear_disjunct_skips_empty_columns _ =
+  let width = 81 in
+  let matrix rows =
+    List.fold_left (fun m entries -> Matrix.append_row m (Vector.of_sparse_list width entries)) (Matrix.empty ()) rows
+  in
+  let m1 = matrix
+      [[(3, int 1); (80, int 2)];
+       [(40, int 1); (80, int 3)]] in
+  let m2 = matrix
+      [[(3, int 1); (79, int 1); (80, int 2)];
+       [(40, int 1); (79, int 1); (80, int 3)]] in
+  let expected = Matrix.init_with_vec (Vector.of_sparse_list width [(3, int 1); (40, int (-1)); (80, int (-1))]) in
+  assert_equal expected (Matrix.linear_disjunct m1 m2);
+  assert_equal expected (Matrix.linear_disjunct m2 m1);
+  let no_constant = matrix [[(3, int 1)]; [(40, int 1)]] in
+  assert_equal no_constant (Matrix.linear_disjunct no_constant no_constant)
 
 let test () =
   "SparseMatrixImplementationTest-Apron"
@@ -439,4 +467,6 @@ let test () =
     "affine_hull preserves a common row with differing pivots" >:: affine_hull_redundant;
     "affine_hull finds combinations and handles identical and empty matrices" >:: affine_hull_combined_rows;
     "affine_hull of distinct constants is empty" >:: affine_hull_distinct_constants;
+    "linear_disjunct keeps a common difference with one-sided coefficients" >:: linear_disjunct_common_difference;
+    "linear_disjunct skips long runs of empty columns" >:: linear_disjunct_skips_empty_columns;
   ]

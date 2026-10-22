@@ -143,12 +143,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
         initial:
           value: "0"
           format: c_expression
-      - name: m2_locked
-        scope: global
-        type: int
-        initial:
-          value: "0"
-          format: c_expression
       - name: multithreaded
         scope: global
         type: int
@@ -156,24 +150,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           value: "0"
           format: c_expression
       ghost_updates:
-      - location:
-          file_name: 69-ghost-ptr-protection.c
-          line: 13
-          column: 3
-          function: t_fun
-        updates:
-        - variable: m2_locked
-          value: "1"
-          format: c_expression
-      - location:
-          file_name: 69-ghost-ptr-protection.c
-          line: 16
-          column: 3
-          function: t_fun
-        updates:
-        - variable: m2_locked
-          value: "0"
-          format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
           line: 22
