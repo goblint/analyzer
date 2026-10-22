@@ -534,10 +534,15 @@ struct
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = dimchange2_add t1 sup_env in
     let t2 = dimchange2_add t2 sup_env in
-    match t1.d, t2.d with
-    | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; subs = Subs.widen d1'.subs d2'.subs}; env = sup_env}: t)
-    | _ -> {d = None; env = sup_env}
+    if not (Environment.equal sup_env empty_env) && is_bot t1 then
+      if is_bot t2 then bot_of_env sup_env else t2
+    else if not (Environment.equal sup_env empty_env) && is_bot t2 then
+      t1
+    else
+      match t1.d, t2.d with
+      | Some d1', Some d2' ->
+        ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; subs = Subs.widen d1'.subs d2'.subs}; env = sup_env}: t)
+      | _ -> {d = None; env = sup_env}
 
   let widen a b =
     let res = widen a b in

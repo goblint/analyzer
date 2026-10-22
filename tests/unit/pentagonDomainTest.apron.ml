@@ -191,6 +191,34 @@ let test_narrow_promotes_empty_interval_to_bottom _ =
   assert_bool "narrowing at the empty environment should preserve its top convention"
     (not (D.is_bot_env (D.narrow (D.top ()) (D.top ()))))
 
+let test_widen_overapproximates_component_bottom _ =
+  let x = Var.of_string "pentagon_widen_x" in
+  let env = Environment.make [|x|] [||] in
+  let make_state interval =
+    let state = D.top_of_env env in
+    state.d <- Some {
+        Pntg.boxes = [interval];
+        subs = [Subs.VarSet.empty];
+      };
+    state
+  in
+  let old = make_state (Intv.create 0 5) in
+  let component_bottom = make_state (Intv.bot ()) in
+  let widened = D.widen old component_bottom in
+  assert_bool "widening with a bottom second operand must preserve the old state"
+    (not (D.is_bot widened));
+  assert_bool "widening must overapproximate the old interval"
+    (Intv.equal (Boxes.get_value 0 (Option.get widened.d).Pntg.boxes) (Intv.create 0 5));
+  assert_bool "widening must be an upper bound of the old state"
+    (D.leq old widened);
+  let reverse_widened = D.widen component_bottom old in
+  assert_bool "a bottom first operand should leave the second state unchanged"
+    (Intv.equal (Boxes.get_value 0 (Option.get reverse_widened.d).Pntg.boxes) (Intv.create 0 5));
+  assert_bool "widening two component-bottom states should produce explicit bottom"
+    (D.is_bot_env (D.widen component_bottom component_bottom));
+  assert_bool "widening at the empty environment should preserve its top convention"
+    (not (D.is_bot_env (D.widen (D.top ()) (D.top ()))))
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -232,6 +260,7 @@ let tests =
     "join-keeps-interval-implied-bound" >:: test_join_keeps_bound_implied_by_other_interval;
     "leq-recognizes-strict-bound-bottom" >:: test_leq_recognizes_strict_bound_bottom;
     "narrow-promotes-empty-interval-to-bottom" >:: test_narrow_promotes_empty_interval_to_bottom;
+    "widen-overapproximates-component-bottom" >:: test_widen_overapproximates_component_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]
