@@ -1,6 +1,7 @@
 open Goblint_lib
 open OUnit2
 open GobApron
+open GoblintCil
 
 module D = PentagonDomain.D
 module Boxes = Goblint_lib.Boxes.Boxes
@@ -236,6 +237,53 @@ let test_forget_vars_promotes_component_bottom _ =
   assert_bool "forgetting variables from a component-bottom state should retain explicit bottom"
     (D.is_bot_env result)
 
+let test_eq_assertion_meets_strict_bound_to_bottom _ =
+  let x_info = Cil.makeGlobalVar "pentagon_eq_x" (TInt (IInt, [])) in
+  let y_info = Cil.makeGlobalVar "pentagon_eq_y" (TInt (IInt, [])) in
+  let x = D.V.global x_info in
+  let y = D.V.global y_info in
+  let env = Environment.make [|x; y|] [||] in
+  let x_dim = Environment.dim_of_var env x in
+  let y_dim = Environment.dim_of_var env y in
+  let state = D.top_of_env env in
+  let subs =
+    List.init 2 (fun _ -> Subs.VarSet.empty)
+    |> Subs.set_value x_dim (Subs.VarSet.singleton y_dim)
+  in
+  state.d <- Some {Pntg.boxes = List.init 2 (fun _ -> Intv.top ()); subs};
+  let ask =
+    let f (type a) (q : a Queries.t) : a = Queries.Result.top q in
+    ({ f } : Queries.ask)
+  in
+  let equality =
+    BinOp (Eq, Lval (Var x_info, NoOffset), Lval (Var y_info, NoOffset), intType)
+  in
+  let result = D.assert_constraint ask state equality false (lazy true) in
+  assert_bool "asserting x == y in a state with x < y should produce explicit bottom"
+    (D.is_bot_env result)
+
+let test_diseq_assertion_with_equal_singletons_is_bottom _ =
+  let x_info = Cil.makeGlobalVar "pentagon_diseq_x" (TInt (IInt, [])) in
+  let y_info = Cil.makeGlobalVar "pentagon_diseq_y" (TInt (IInt, [])) in
+  let x = D.V.global x_info in
+  let y = D.V.global y_info in
+  let env = Environment.make [|x; y|] [||] in
+  let state = D.top_of_env env in
+  state.d <- Some {
+      Pntg.boxes = [Intv.create 2 2; Intv.create 2 2];
+      subs = List.init 2 (fun _ -> Subs.VarSet.empty);
+    };
+  let ask =
+    let f (type a) (q : a Queries.t) : a = Queries.Result.top q in
+    ({ f } : Queries.ask)
+  in
+  let disequality =
+    BinOp (Ne, Lval (Var x_info, NoOffset), Lval (Var y_info, NoOffset), intType)
+  in
+  let result = D.assert_constraint ask state disequality false (lazy true) in
+  assert_bool "asserting x != y when x and y are both 2 should produce explicit bottom"
+    (D.is_bot_env result)
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -279,6 +327,8 @@ let tests =
     "narrow-promotes-empty-interval-to-bottom" >:: test_narrow_promotes_empty_interval_to_bottom;
     "widen-overapproximates-component-bottom" >:: test_widen_overapproximates_component_bottom;
     "forget-vars-promotes-component-bottom" >:: test_forget_vars_promotes_component_bottom;
+    "eq-assertion-meets-strict-bound-to-bottom" >:: test_eq_assertion_meets_strict_bound_to_bottom;
+    "diseq-assertion-with-equal-singletons-is-bottom" >:: test_diseq_assertion_with_equal_singletons_is_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]
