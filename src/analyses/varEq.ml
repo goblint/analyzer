@@ -99,7 +99,19 @@ struct
     | Lval    (Mem e,_)
     | CastE (_,_,e)           -> interesting e
 
+  (** Removes textual representation from {!GoblintCil.constant}s.
+      This avoids treating the same constant with different textual representation as different. *)
+  let remove_textual_representation_visitor = object
+    inherit nopCilVisitor
+    method! vexpr (e: exp) =
+      match e with
+      | Const (CInt (z, ik, Some _)) -> ChangeTo (Const (CInt (z, ik, None)))
+      | Const (CReal (f, fk, Some _)) -> ChangeTo (Const (CReal (f, fk, None)))
+      | _ -> DoChildren
+  end
+
   let normalize_exp e =
+    let e = visitCilExpr remove_textual_representation_visitor e in
     constFold true e (* Used to [stripCasts] before [constFold], but that creates mistyped equalities. *)
 
   (* helper to decide equality *)
