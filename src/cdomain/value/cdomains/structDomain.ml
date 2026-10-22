@@ -169,9 +169,11 @@ struct
     that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
     let values_overlap (a: value) (b: value) =
-      Val.is_bot_value a || Val.is_bot_value b ||
       (* The meet of unions with different active fields raises Uncomparable; such values may still overlap. *)
-      (try not (Val.is_bot_value (Val.meet a b)) with Lattice.Uncomparable -> true)
+      let meet_may_be_non_bot () =
+        try not (Val.is_bot_value (Val.meet a b)) with Lattice.Uncomparable -> true
+      in
+      Val.is_bot_value a || Val.is_bot_value b || meet_may_be_non_bot ()
     in
     let maps_overlap ssx ssy =
       let fields = SS.keys ssx in
@@ -364,9 +366,11 @@ struct
      *)
     begin
       let fields_overlap a b =
-        Val.is_bot_value a || Val.is_bot_value b ||
         (* The meet of unions with different active fields raises Uncomparable; such values may still overlap. *)
-        (try not (Val.is_bot_value (Val.meet a b)) with Lattice.Uncomparable -> true)
+        let meet_may_be_non_bot () =
+          try not (Val.is_bot_value (Val.meet a b)) with Lattice.Uncomparable -> true
+        in
+        Val.is_bot_value a || Val.is_bot_value b || meet_may_be_non_bot ()
       in
       let maps_overlap ssx ssy =
         let fields = SS.keys ssx in
