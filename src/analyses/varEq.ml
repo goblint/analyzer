@@ -5,6 +5,7 @@ module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
 module Exp = CilType.Exp
 module LF = LibraryFunctions
+module NormExp = PartitionDomain.NormExp
 open GoblintCil
 open Analyses
 
@@ -25,17 +26,17 @@ struct
 
     let invariant ~scope ss =
       fold (fun s a ->
-          if B.mem MyCFG.unknown_exp s then
+          if B.mem (NormExp.lift MyCFG.unknown_exp) s then
             a
           else (
-            let s' = B.filter (fun x -> InvariantCil.exp_is_suitable ~scope x && not (is_str_constant x)) s in
+            let s' = B.filter (fun x -> let x = NormExp.unlift x in InvariantCil.exp_is_suitable ~scope x && not (is_str_constant x)) s in
             if B.cardinal s' >= 2 then (
               (* instead of returning quadratically many pairwise equalities from a cluster,
                  output linear number of equalities with just one expression *)
               let lhs = B.choose s' in (* choose arbitrary expression for lhs *)
               let rhss = B.remove lhs s' in (* and exclude it from rhs-s (no point in reflexive equality) *)
               let i = B.fold (fun rhs a ->
-                  let eq = BinOp (Eq, lhs, rhs, intType) in
+                  let eq = BinOp (Eq, NormExp.unlift lhs, NormExp.unlift rhs, intType) in
                   Invariant.(a && of_exp eq)
                 ) rhss (Invariant.top ())
               in
@@ -104,6 +105,8 @@ struct
     let e1 = constFold false (stripCasts e1) in
     let e2 = constFold false (stripCasts e2) in
     if exp_equal e1 e2 then true else
+      let e1 = NormExp.lift e1 in
+      let e2 = NormExp.lift e2 in
       match D.find_class e1 s with
       | Some ss when D.B.mem e2 ss -> true
       | _ -> false
@@ -321,7 +324,7 @@ struct
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp ask (e:exp) (st:D.t) : D.t =
-    D.filter (fun x -> not (may_change ask e x)) st
+    D.filter (fun x -> let x = NormExp.unlift x in not (may_change ask e x)) st
 
   let remove ask (e:lval) (st:D.t) : D.t =
     remove_exp ask (mkAddrOf e) st
@@ -380,7 +383,7 @@ struct
     && interesting rv
     && is_global_var ask rv = Some false
     && (isIntegralType lvt || isPointerType lvt)
-    then D.add_eq (rv,Lval lv) st
+    then D.add_eq (NormExp.lift rv, NormExp.lift (Lval lv)) st
     else st
   (*    in
         match rv with
@@ -479,7 +482,7 @@ struct
           |> List.map Addr.Mval.to_cil_exp
           |> Queries.ES.of_list
         in
-        D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) man.local
+        D.filter (fun exp -> not (Queries.ES.mem (NormExp.unlift exp) taint_exp)) man.local
     in
     let d = D.meet au d_local in
     match D.is_bot man.local with
@@ -539,13 +542,13 @@ struct
   (* query stuff *)
 
   let eq_set (e:exp) s =
-    match D.find_class e s with
+    match D.find_class (NormExp.lift e) s with
     | None -> Queries.ES.empty ()
     | Some es when D.B.is_bot es -> Queries.ES.bot ()
     | Some es ->
       let et = Cilfacade.typeOf e in
       let add x xs =
-        Queries.ES.add (CastE (Internal,et,x)) xs
+        Queries.ES.add (CastE (Internal,et,NormExp.unlift x)) xs
       in
       D.B.fold add es (Queries.ES.empty ())
 

@@ -192,4 +192,15 @@ struct
       BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
-module ExpPartitions = SetSet (CilType.Exp)
+module NormExp: sig
+  include Printable.S
+  val lift: CilType.Exp.t -> t
+  val unlift: t -> CilType.Exp.t
+end =
+struct
+  include CilType.Exp
+  let lift x = x (* TODO: normalize *)
+  let unlift x = x
+end
+
+module ExpPartitions = SetSet (NormExp)
