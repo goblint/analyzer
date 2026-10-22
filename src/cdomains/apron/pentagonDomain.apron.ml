@@ -578,7 +578,9 @@ struct
   let is_bot_env t = t.d = None
 
   let forget_vars t vars = 
-    if is_bot t || is_bot_env t || vars = [] then t
+    if is_bot_env t then t
+    else if not (Environment.equal t.env empty_env) && is_bot t then bot_of_env t.env
+    else if vars = [] then t
     else 
       let (pntg: Pntg.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in

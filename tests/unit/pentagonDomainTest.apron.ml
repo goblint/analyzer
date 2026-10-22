@@ -219,6 +219,23 @@ let test_widen_overapproximates_component_bottom _ =
   assert_bool "widening at the empty environment should preserve its top convention"
     (not (D.is_bot_env (D.widen (D.top ()) (D.top ()))))
 
+let test_forget_vars_promotes_component_bottom _ =
+  let x = Var.of_string "pentagon_forget_x" in
+  let y = Var.of_string "pentagon_forget_y" in
+  let env = Environment.make [|x; y|] [||] in
+  let x_dim = Environment.dim_of_var env x in
+  let y_dim = Environment.dim_of_var env y in
+  let state = D.top_of_env env in
+  let subs =
+    List.init 2 (fun _ -> Subs.VarSet.empty)
+    |> Subs.set_value x_dim (Subs.VarSet.singleton y_dim)
+    |> Subs.set_value y_dim (Subs.VarSet.singleton x_dim)
+  in
+  state.d <- Some {Pntg.boxes = List.init 2 (fun _ -> Intv.top ()); subs};
+  let result = D.forget_vars state [x] in
+  assert_bool "forgetting variables from a component-bottom state should retain explicit bottom"
+    (D.is_bot_env result)
+
 let test_subs_widen_is_upper_bound _ =
   let x_lt_y = Subs.VarSet.singleton 1 in
   let x_lt_y_and_z = Subs.VarSet.of_list [1; 2] in
@@ -261,6 +278,7 @@ let tests =
     "leq-recognizes-strict-bound-bottom" >:: test_leq_recognizes_strict_bound_bottom;
     "narrow-promotes-empty-interval-to-bottom" >:: test_narrow_promotes_empty_interval_to_bottom;
     "widen-overapproximates-component-bottom" >:: test_widen_overapproximates_component_bottom;
+    "forget-vars-promotes-component-bottom" >:: test_forget_vars_promotes_component_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
   ]
