@@ -316,7 +316,7 @@ struct
             let h_key = SS.get h key in
             let variant_overlaps ss =
               let v = SS.get ss key in
-              Val.leq h_key v || Val.leq v h_key || not (Val.is_bot_value (Val.meet h_key v))
+              Val.leq h_key v || Val.leq v h_key || values_overlap h_key v
             in
             let (overlapping, rem_uniq) = List.partition variant_overlaps unique in
             let joined = List.fold_left (fun el acc -> f el acc) h overlapping in
@@ -427,7 +427,7 @@ struct
             let h_key = SS.get h key in
             let (overlapping, rem_uniq) = List.partition (fun ss ->
                 let ss_key = SS.get ss key in
-                Val.leq h_key ss_key || Val.leq ss_key h_key || not (Val.is_bot_value (Val.meet h_key ss_key))
+                Val.leq h_key ss_key || Val.leq ss_key h_key || values_overlap h_key ss_key
               ) unique in
             let joined = List.fold_left (fun el acc ->
                 let res = join_f acc el in
