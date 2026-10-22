@@ -714,7 +714,7 @@ struct
             let joined_m =
               if Matrix.is_empty sa.P.affeq || Matrix.is_empty sb.P.affeq then Matrix.empty ()
               else if Matrix.equal sa.P.affeq sb.P.affeq then sa.P.affeq
-              else Matrix.affine_hull sa.P.affeq sb.P.affeq
+              else Matrix.linear_disjunct sa.P.affeq sb.P.affeq
             in
             let intervals = P.join_intervals ra rb in
             let infos = P.VarMap.union (fun _ x _ -> Some x) sa.P.infos sb.P.infos in
@@ -762,7 +762,7 @@ struct
               let widened_m =
                 if Matrix.is_empty da.P.affeq || Matrix.is_empty sb.P.affeq then Matrix.empty ()
                 else if Matrix.equal da.P.affeq sb.P.affeq then da.P.affeq
-                else Matrix.affine_hull da.P.affeq sb.P.affeq
+                else Matrix.linear_disjunct da.P.affeq sb.P.affeq
               in
               let intervals = P.widen_intervals ?thresholds:(ResettableLazy.force widening_thresholds) da.P.intervals rb in
               let infos = P.VarMap.union (fun _ x _ -> Some x) da.P.infos sb.P.infos in
