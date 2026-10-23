@@ -528,20 +528,24 @@ struct
         | Ok inv_cabs ->
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
-              let fundec = Node.find_fundec n in
+              if Spec.D.is_bot (LHT.find lh lvar) then
+                acc (* dead code *)
+              else (
+                let fundec = Node.find_fundec n in
 
-              let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
-                | Ok inv_exp ->
-                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
-                    | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
-                    | `Lifted true -> Confirmed
-                    | `Lifted false -> Refuted
-                    | `Top -> Unconfirmed
-                  end
-                | Error e ->
-                  ParseError
-              in
-              VR.join acc (VR.result_to_enum result)
+                let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                  | Ok inv_exp ->
+                    begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
+                      | `Bot -> Unconfirmed (* the state is not dead, so bottom comes from the invariant itself, e.g. an overflow assumed not to happen *)
+                      | `Lifted true -> Confirmed
+                      | `Lifted false -> Refuted
+                      | `Top -> Unconfirmed
+                    end
+                  | Error e ->
+                    ParseError
+                in
+                VR.join acc (VR.result_to_enum result)
+              )
             ) lvars (VR.bot ())
           in
 

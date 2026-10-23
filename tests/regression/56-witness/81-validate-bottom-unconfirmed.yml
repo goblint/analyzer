@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 872fc896-7029-4d06-b733-6ecc2d3f8074
+    creation_time: 2022-06-29T09:18:35Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 81-validate-bottom-unconfirmed.c
+      input_file_hashes:
+        81-validate-bottom-unconfirmed.c: d790e356d7833ab8575b9921bfab45dfbcddb5b3441d866aa50054c9a7dd80fb
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 81-validate-bottom-unconfirmed.c
+        line: 9
+        column: 3
+        function: main
+      value: (char)(x + 1)
+      format: c_expression
