@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <stdio.h>
+// Read the field without introducing unrelated standard-stream accesses.
 
 struct S {
   int field;
@@ -10,7 +10,7 @@ struct S s;
 extern struct S* getS();
 
 void *t_fun(void *arg) {
-  printf("%d",getS()->field); // RACE!
+  volatile int value = getS()->field; // RACE!
 
   return NULL;
 }

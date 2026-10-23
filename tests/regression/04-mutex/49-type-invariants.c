@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <stdio.h>
+// Read the field without introducing unrelated standard-stream accesses.
 
 struct S {
   int field;
@@ -8,7 +8,7 @@ struct S {
 struct S s;
 
 void *t_fun(void *arg) {
-  printf("%d",s.field); // RACE!
+  volatile int value = s.field; // RACE!
 
   return NULL;
 }
