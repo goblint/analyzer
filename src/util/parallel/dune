@@ -5,6 +5,7 @@
  (public_name goblint.parallel)
  (libraries
    batteries.unthreaded
+   saturn
    (select gobMutex.ml from
       (domainslib -> gobMutex.domainslib.ml)
       ( -> gobMutex.no-domainslib.ml)

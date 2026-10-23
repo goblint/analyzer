@@ -10,6 +10,7 @@
    fpath
    yojson
    yaml
+   domain_shims
    qcheck-core)
  (preprocess
   (pps
