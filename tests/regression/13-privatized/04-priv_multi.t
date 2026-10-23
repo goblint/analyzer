@@ -18,7 +18,7 @@
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
-    flow-insensitive invariants: 3
+    flow-insensitive invariants: 4
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -180,6 +180,10 @@
         type: flow_insensitive_invariant
         value: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
         format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || A <= 127'
+        format: c_expression
 
 Flow-insensitive invariants as location invariants.
 
@@ -201,7 +205,7 @@ Flow-insensitive invariants as location invariants.
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45:10-45:11)
   [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47:9-47:14)
   [Info][Witness] witness generation summary:
-    location invariants: 9
+    location invariants: 12
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 2
@@ -234,7 +238,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >         line: 64
   >         column: 3
   >         function: main
-  151c161,220
+  151c161,166
   <       type: flow_insensitive_invariant
   ---
   >       type: location_invariant
@@ -243,7 +247,16 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >         line: 64
   >         column: 3
   >         function: main
-  >       value: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
+  155c170,247
+  <       type: flow_insensitive_invariant
+  ---
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 64
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || A <= 127'
   >       format: c_expression
   >   - invariant:
   >       type: location_invariant
@@ -276,6 +289,15 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >       type: location_invariant
   >       location:
   >         file_name: 04-priv_multi.c
+  >         line: 65
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || A <= 127'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
   >         line: 67
   >         column: 3
   >         function: main
@@ -289,6 +311,15 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >         column: 3
   >         function: main
   >       value: '! multithreaded || (mutex_A_locked || A == 5)'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 67
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
   >       format: c_expression
   >   - invariant:
   >       type: location_invariant
