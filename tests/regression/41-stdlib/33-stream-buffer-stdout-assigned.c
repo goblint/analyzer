@@ -1,4 +1,4 @@
-// PARAM: --disable warn.imprecise --disable warn.unsound --enable cil.addNestedScopeAttr
+// CRAM PARAM: --disable warn.imprecise --disable warn.unsound --enable cil.addNestedScopeAttr
 #include <stdio.h>
 
 // Once the program assigns stdout, the variable may point to a stream other
