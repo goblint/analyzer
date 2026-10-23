@@ -787,6 +787,16 @@ struct
     done;
     !collected
 
+  (** Whether base is currently answering a query.
+      Queries may also be asked for expressions which the program does not evaluate (e.g. witness invariants),
+      so bottom does not mean that the current state is dead then. *)
+  let answering_query = ref false
+
+  let while_answering_query f =
+    let old = !answering_query in
+    answering_query := true;
+    Fun.protect ~finally:(fun () -> answering_query := old) f
+
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv ~(man: _ man) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a" d_exp exp;
@@ -811,13 +821,12 @@ struct
       match Cilfacade.typeOf exp with
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a" d_exp exp;
-        (* through queries includes eval_next, so no (exponential) branching is necessary *)
-        (* Deadcode for contradicting answers is also raised when base answers queries, which catch it in [query_evalint] and [query]. *)
-        let a = Analyses.eval_int_or_dead (Analyses.ask_of_man man) exp in
+        let a = man.ask (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a" d_exp exp Queries.ID.pretty a;
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (Int x) *)
+          | `Lifted x when ID.is_bot x && not !answering_query -> raise Deadcode (* analyses answered with contradicting values (or an operation is assumed not to happen), so this state is dead *)
           | `Lifted x -> Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
           | `Top -> Int (ID.top_of (Cilfacade.get_ikind typ)) (* query cycle *)
         end
@@ -1194,13 +1203,12 @@ struct
 
   let query_evalint ~man st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a" d_exp e;
-    let r = match eval_rv_no_ask_evalint ~man st e with
+    let r = match while_answering_query (fun () -> eval_rv_no_ask_evalint ~man st e) with
       | Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
-      | exception (IntDomain.ArithmeticOnIntegerBot _)  when not !AnalysisState.should_warn -> Queries.ID.bot ()
-      | exception Deadcode -> Queries.ID.bot_of (Cilfacade.get_ikind_exp e) (* subexpression has contradicting answers, pass the contradiction on instead of raising during query answering *)
+      | exception (IntDomain.ArithmeticOnIntegerBot _) -> Queries.ID.bot () (* e.g. an operand has contradicting answers, which is not detected as dead code while answering queries *)
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a" d_exp e Queries.ID.pretty r;
     r
@@ -1500,7 +1508,7 @@ struct
     in
     host_may_signed_overflow host || offset_may_signed_overflow offset
 
-  let query_unsafe man (type a) (q: a Q.t): a Q.result =
+  let query_answer man (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
       eval_funvar man e
@@ -1668,8 +1676,7 @@ struct
     | _ -> Q.Result.top q
 
   let query man (type a) (q: a Q.t): a Q.result =
-    try query_unsafe man q with
-    | Deadcode -> Q.Result.top q (* evaluation found contradicting answers, but queries must not raise Deadcode *)
+    while_answering_query (fun () -> query_answer man q)
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
