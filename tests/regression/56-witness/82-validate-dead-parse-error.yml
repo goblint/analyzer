@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 7b0bc514-07a8-461a-b75b-17bcb5264336
+    creation_time: 2026-10-23T13:28:15Z
+    producer:
+      name: Julian Erhard
+      version: n/a
+    task:
+      input_files:
+      - 82-validate-dead-parse-error.c
+      input_file_hashes:
+        82-validate-dead-parse-error.c: 7bbb0df1386de91edac031b31dc46b6c00657ff954f976fc821be395f7afdca6
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 82-validate-dead-parse-error.c
+        line: 7
+        column: 5
+        function: main
+      value: y == 0
+      format: c_expression
