@@ -2,7 +2,7 @@
 #include <goblint.h>
 static void f(int x, int *outer) {
   if (outer) {
-    __goblint_check(*outer == 2); // UNKNOWN! (outer cell is still 2; must not disprove it)
+    __goblint_check(*outer == 2); // outer activation still holds 2
   }
   else f(1, &x);
 }
