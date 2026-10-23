@@ -33,8 +33,11 @@ struct
   module R =
   struct
     include VIES
-    (* new predecessors are always the right ones for the latest evaluation *)
-    let widen x y = y
+    (* New predecessors from the latest evaluation should be the right ones.
+       This is (probably) true for locals at loop head widenings.
+       But this isn't true for globals at function entry side effect widenings.
+       So must join to not wipe out predecessors for other calls. *)
+    let widen x y = join x y
     let narrow x y = y
   end
 
@@ -72,14 +75,16 @@ struct
   end
 
   (* Additional dependencies component between values before and after sync.
-     This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
-     sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed).
+     sync is automatically applied in FromSpec before any transition, so previous values may change.
      We now use Sync for every tf such that threadspawn after tf could look up state before tf. *)
   module SyncSet =
   struct
     include SetDomain.Make (Spec.D)
-    (* new predecessors are always the right ones for the latest evaluation *)
-    let widen x y = y
+    (* New predecessors from the latest evaluation should be the right ones.
+       This is (probably) true for locals at loop head widenings.
+       But this isn't true for globals at function entry side effect widenings.
+       So must join to not wipe out predecessors for other calls. *)
+    let widen x y = join x y
     let narrow x y = y
   end
   module Sync = SpecDMap (SyncSet)
