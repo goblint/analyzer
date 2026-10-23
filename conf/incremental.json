@@ -1,7 +1,7 @@
 {
   "ana": {
     "activated": [
-      "base", "mallocWrapper"
+      "base", "mallocWrapper", "weakUpdates"
     ],
     "int": {
       "interval": true,
