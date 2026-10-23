@@ -62,7 +62,7 @@ struct
   let is_top x = x = top ()
 
   let equal_to i = function
-    | None -> failwith "unsupported: equal_to with bottom"
+    | None -> raise (ArithmeticOnIntegerBot "equal_to with bottom")
     | Some (a, b) when b =: Z.zero -> if a =: i then `Eq else `Neq
     | Some (a, b) ->  if i %: b =: a then `Top else `Neq
 
