@@ -166,6 +166,7 @@ struct
   type t = {
     genv: (string, Cabs2cil.envdata * Cil.location) Hashtbl.t;
     global_vars: Cil.varinfo list;
+    types: Cil.typeinfo list;
   }
 
   module VarinfoH = Cilfacade.VarinfoH
@@ -176,8 +177,10 @@ struct
        and incremental update doesn't remove the excess. *)
     let genv = Hashtbl.create (Hashtbl.length Cabs2cil.genvironment) in
     let global_vars = VarinfoH.create 113 in (* Deduplicates varinfos from declarations and definitions. *)
+    let types = ref [] in
     Cil.iterGlobals file (function
         | Cil.GType ({tname; _} as t, loc) ->
+          types := t :: !types;
           let name = "type " ^ tname in
           Hashtbl.replace genv name (Cabs2cil.EnvTyp (TNamed (t, [])), loc)
         | Cil.GCompTag ({cstruct; cname; _} as c, loc)
@@ -200,7 +203,9 @@ struct
         | _ -> ()
       );
     let global_vars = List.of_seq (VarinfoH.to_seq_keys global_vars) in
-    {genv; global_vars}
+    (* Preserve declaration order: a typedef can refer to a typedef defined earlier. *)
+    let types = List.rev !types in
+    {genv; global_vars; types}
 
   let parse_cabs (inv: string): (Cabs.expression, string) result =
     Errormsg.hadErrors := false; (* reset because CIL doesn't *)
@@ -213,7 +218,7 @@ struct
       Errormsg.log "\n"; (* CIL prints garbage without \n before *)
       Error e
 
-  let parse_cil {genv; global_vars} ?(check=true) ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
+  let parse_cil {genv; global_vars; types} ?(check=true) ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
     let env = Hashtbl.copy genv in
     List.iter (fun (v: Cil.varinfo) ->
         Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
@@ -239,7 +244,7 @@ struct
     match inv_exp_opt with
     | _ when !Errormsg.hadErrors ->
       Error "hadErrors"
-    | Some inv_exp when not check || Check.checkStandaloneExp ~vars inv_exp ->
+    | Some inv_exp when not check || Check.checkStandaloneExp ~types ~vars inv_exp ->
       Ok inv_exp
     | _ ->
       Error "parse_cil"
