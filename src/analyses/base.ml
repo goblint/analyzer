@@ -1506,7 +1506,7 @@ struct
     in
     host_may_signed_overflow host || offset_may_signed_overflow offset
 
-  let query_answer man (type a) (q: a Q.t): a Q.result =
+  let query man (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
       eval_funvar man e
@@ -1674,7 +1674,7 @@ struct
     | _ -> Q.Result.top q
 
   let query man (type a) (q: a Q.t): a Q.result =
-    while_answering_query (fun () -> query_answer man q)
+    while_answering_query (fun () -> query man q)
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
