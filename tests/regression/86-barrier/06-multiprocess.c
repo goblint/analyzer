@@ -29,6 +29,6 @@ int main(int argc, char const *argv[])
         i = 1;
     }
 
-    __goblint_check(i == 0); //TODO
+    __goblint_check(i == 0); //UNKNOWN!
     return 0;
 }
