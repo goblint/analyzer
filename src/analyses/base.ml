@@ -811,12 +811,13 @@ struct
       match Cilfacade.typeOf exp with
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
         if M.tracing then M.traceli "evalint" "base ask EvalInt %a" d_exp exp;
-        let a = man.ask (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
+        (* through queries includes eval_next, so no (exponential) branching is necessary *)
+        (* Deadcode for contradicting answers is also raised when base answers queries, which catch it in [query_evalint] and [query]. *)
+        let a = Analyses.eval_int_or_dead (Analyses.ask_of_man man) exp in
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a" d_exp exp Queries.ID.pretty a;
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (Int x) *)
-          | `Lifted x when ID.is_bot x -> raise Deadcode (* analyses answered with contradicting values, so this state is unreachable *)
           | `Lifted x -> Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
           | `Top -> Int (ID.top_of (Cilfacade.get_ikind typ)) (* query cycle *)
         end
@@ -1199,6 +1200,7 @@ struct
       | Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
       | exception (IntDomain.ArithmeticOnIntegerBot _)  when not !AnalysisState.should_warn -> Queries.ID.bot ()
+      | exception Deadcode -> Queries.ID.bot_of (Cilfacade.get_ikind_exp e) (* subexpression has contradicting answers, pass the contradiction on instead of raising during query answering *)
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a" d_exp e Queries.ID.pretty r;
     r
@@ -1498,7 +1500,7 @@ struct
     in
     host_may_signed_overflow host || offset_may_signed_overflow offset
 
-  let query man (type a) (q: a Q.t): a Q.result =
+  let query_unsafe man (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
       eval_funvar man e
@@ -1664,6 +1666,10 @@ struct
                                 if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp e res; res
                                )
     | _ -> Q.Result.top q
+
+  let query man (type a) (q: a Q.t): a Q.result =
+    try query_unsafe man q with
+    | Deadcode -> Q.Result.top q (* evaluation found contradicting answers, but queries must not raise Deadcode *)
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then

@@ -169,6 +169,17 @@ let man_failwith s = raise (Man_failure s) (* TODO: use everywhere in man *)
 (** Convert [man] to [Queries.ask]. *)
 let ask_of_man man: Queries.ask = { Queries.f = man.ask }
 
+(** Ask [EvalInt] for [exp] and raise [Deadcode] if [exp] is an lvalue (possibly behind casts) whose answer is bottom.
+    Then the current state is dead: the analyses' states contradict each other,
+    or the lvalue holds the result of an operation assumed not to happen (e.g. an overflow under [assume_none]).
+    Bottom for other expressions may come from the operation itself, which does not make the state dead
+    if the expression is not evaluated by the program (e.g. a witness invariant), so it is returned as is.
+    Must only be used in transfer functions, because [Deadcode] is not caught when queries are asked elsewhere. *)
+let eval_int_or_dead (ask: Queries.ask) exp: Queries.ID.t =
+  match ask.f (Queries.EvalInt exp), Cil.stripCasts exp with
+  | v, Lval _ when Queries.ID.is_bot_ikind v -> raise Deadcode
+  | v, _ -> v
+
 
 module type Spec =
 sig
