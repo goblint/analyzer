@@ -168,7 +168,7 @@ int t10(){
 
 
 int t9(){
-	int x,q;
+	int x, *q;
 	char *y;
 	struct s z;
 	struct s *a, *b;

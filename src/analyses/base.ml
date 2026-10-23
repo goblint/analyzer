@@ -882,7 +882,7 @@ struct
         eval_rv_base_lval ~eval_lv ~man st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
-      | BinOp ((Eq | Ne) as op, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
+      | BinOp ((Eq | Ne) as op, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 -> (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
         let a1 = eval_rv ~man st e1 in
         let a2 = eval_rv ~man st e2 in
         let extra_is_safe =
@@ -899,7 +899,7 @@ struct
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
-          | BinOp (Eq, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
+          | BinOp (Eq, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 -> (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
             Some [binop_remove_same_casts ~extra_is_safe:false ~e1 ~e2 ~t1 ~t2 ~c1 ~c2]
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
