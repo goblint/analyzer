@@ -678,15 +678,13 @@ let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
 
 
 let getGlobalInits (file: file) : edges  =
-  (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
+  let assigns = ref [] in
   let inits = Hashtbl.create 13 in
-  (* The assignments in the order their globals are declared, newest first. *)
-  let ordered = ref [] in
   let add_init assign =
     Hashtbl.add inits assign ();
-    ordered := assign :: !ordered
+    assigns := assign :: !assigns
   in
-  let fast_global_inits = get_bool "exp.fast_global_inits" in
+  let fast_global_inits = get_bool "exp.fast_global_inits" in (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
   let rec doInit lval loc init is_zero =
     let initoffs offs init typ lval =
       doInit (addOffsetLval offs lval) loc init is_zero;
@@ -727,11 +725,8 @@ let getGlobalInits (file: file) : edges  =
   in
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
-  (* The assignments run in declaration order: GCC and Clang accept an initializer
-     that reads a const-qualified global declared and initialized earlier, as in
-     [static const int k = 1; int x = k;], and reading [k] before its own
-     assignment finds no value for it. *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: List.rev !ordered
+  (* Reverse assigns, so they run in declaration order and can refer to earlier initialized globals. *)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: List.rev !assigns
 
 
 let numGlobals file =
