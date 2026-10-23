@@ -676,18 +676,24 @@ let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
       | _ -> ()
     )
 
+module LocationEdge =
+struct
+  type t = CilType.Location.t * Edge.t [@@deriving eq, hash]
+end
+
+module LocationEdgeH = Hashtbl.Make (LocationEdge)
 
 let getGlobalInits (file: file) : edges  =
   let fast_global_inits = get_bool "exp.fast_global_inits" in (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
   let inits = ref [] in
-  let fast_inits = Hashtbl.create 13 in
+  let fast_inits = LocationEdgeH.create 13 in
   let add_init init =
     if not fast_global_inits then
       inits := init :: !inits
-    else if not (Hashtbl.mem fast_inits init) then (
+    else if not (LocationEdgeH.mem fast_inits init) then (
       (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
          Instead, we get one assign for each distinct value in the array *)
-      Hashtbl.replace fast_inits init ();
+      LocationEdgeH.replace fast_inits init ();
       inits := init :: !inits
     )
   in
