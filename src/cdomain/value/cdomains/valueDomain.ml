@@ -465,7 +465,7 @@ struct
               adjust_offs v (Addr.Offs.add_offset o (`Field (fi, `NoOffset))) (Some false)
             | TArray _ ->
               if M.tracing then M.tracel "casta" "same-size cast array to its first element";
-              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset))) (Some false)
+              adjust_offs v (Addr.Offs.add_offset o (`Index (IndexDomain.of_int Z.zero, `NoOffset))) (Some false)
             | _ -> err "Cast to different type of same size."
           in
           (try outward () with CastError _ -> inward ())
