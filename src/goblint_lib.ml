@@ -128,6 +128,7 @@ module ThreadDescendants = ThreadDescendants
 module RaceAnalysis = RaceAnalysis
 module BasePriv = BasePriv
 module RelationPriv = RelationPriv
+module EscapeUtil = EscapeUtil
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
