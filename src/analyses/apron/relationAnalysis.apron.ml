@@ -52,17 +52,23 @@ struct
   (* Functions for manipulating globals as temporary locals. *)
 
   let read_global ask getg st g x =
-    if ThreadFlag.has_ever_been_multi ask then
-      Priv.read_global ask getg st g x
-    else (
-      let rel = st.rel in
-      (* If it has escaped and we have never been multi-threaded, we can still refer to the local *)
-      let g_var = if g.vglob then RV.global g else RV.local g in
-      let x_var = RV.local x in
-      let rel' = RD.add_vars rel [g_var] in
-      let rel' = RD.assign_var rel' x_var g_var in
+    let x_var = RV.local x in
+    let rel' =
+      if ThreadFlag.has_ever_been_multi ask then
+        Priv.read_global ask getg st g x
+      else (
+        let rel = st.rel in
+        (* If it has escaped and we have never been multi-threaded, we can still refer to the local *)
+        let g_var = if g.vglob then RV.global g else RV.local g in
+        let rel' = RD.add_vars rel [g_var] in
+        let rel' = RD.assign_var rel' x_var g_var in
+        rel'
+      )
+    in
+    if (GobConfig.get_bool "exp.volatiles_are_top" && BaseUtil.is_always_unknown g) || GobConfig.get_bool "exp.globs_are_top" then
+      RD.forget_vars rel' [x_var]
+    else
       rel'
-    )
 
   module VH = BatHashtbl.Make (Basetype.Variables)
 
