@@ -48,7 +48,9 @@ struct
   include Analyses.ValueContexts(D)
 
   let possible_vinfos (a: Queries.ask) barrier =
-    Queries.AD.to_var_may (a.f (Queries.MayPointTo barrier))
+    let target = (a.f (Queries.MayPointTo barrier)) in
+    let definite = not @@ Queries.AD.may_be_unknown target in
+    (Queries.AD.to_var_may target, definite)
 
   let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let exists_k pred k waiters =
@@ -71,7 +73,7 @@ struct
       let may, must = man.local in
       let mcpa = part_access man in
       let tid = ThreadId.get_current ask in
-      let barriers = possible_vinfos ask barrier in
+      let barriers, definite = possible_vinfos ask barrier in
       let handle_one b =
         try
           man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mcpa, tid));
@@ -140,14 +142,19 @@ struct
         with Analyses.Deadcode -> D.bot ()
       in
       let (may, must) = List.fold_left (fun acc b-> D.join acc (handle_one b)) (D.bot ()) barriers in
-      if Barriers.is_empty may then raise Analyses.Deadcode;
-      (may, must)
+      if definite then
+        (if Barriers.is_empty may then raise Analyses.Deadcode;
+         (may, must))
+      else
+        (M.error ~category:Unsound  "Argument to barrier_wait could not be resolved, continuing with local top state.";
+         D.top ()
+        )
     | BarrierInit { barrier; attr; count } ->
       let multiprocess = not @@ Queries.AD.is_null @@ man.ask (Queries.MayPointTo attr) in
       if multiprocess then M.warn "Barrier initialized with a non-NULL attr argument. Handled as if PTHREAD_PROCESS_SHARED potentially set.";
       let count = man.ask (Queries.EvalInt count) in
       let publish_one b = man.sideg b (multiprocess, count, Waiters.bot ()) in
-      let barriers = possible_vinfos (Analyses.ask_of_man man) barrier in
+      let barriers,_ = possible_vinfos (Analyses.ask_of_man man) barrier in
       List.iter publish_one barriers;
       man.local
     | _ -> man.local

@@ -862,6 +862,10 @@ struct
                | TFloat (fk, _), FLongDouble
                | TFloat (FDouble as fk, _), FDouble
                | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
+               | (TInt (ik_e, _) | TEnum ({ekind = ik_e; _}, _)), _ ->
+                 (match FD.inv_of_int ik_e c with
+                  | Some possible_ints -> inv_exp (Int possible_ints) e st
+                  | None -> contra st)
                | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
             | (TInt (ik, _) as t), Int c
             | (TEnum ({ekind = ik; _ }, _) as t), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)

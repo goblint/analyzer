@@ -168,8 +168,6 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
-
   let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ())
 
   let id_binary_pred result_ik f x y =
@@ -336,13 +334,13 @@ struct
           (* Binary operations on pointer types should not generate warnings in SV-COMP *)
           let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
-          `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
+          `Index(IdxDom.add i (IdxDom.lift n), `NoOffset)
         | `Field (f, `NoOffset) ->
           (* If we have arrived at the last Offset and it is a Field,
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let n_offset = iDtoIdx n in
+          let n_offset = IdxDom.lift n in
           begin match t with
             | Some t ->
               let f_offset_bytes = Cilfacade.fieldBytesOffsetOnly f in
@@ -359,7 +357,7 @@ struct
         | `Field (f, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
           `Field(f, addToOffset n t' o)
-        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+        | `NoOffset -> `Index(IdxDom.lift n, `NoOffset)
       in
       match addr with
       | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
@@ -382,10 +380,10 @@ struct
       | MinusPI ->
         let n = (* only speculative during ID.neg *)
           let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-          ID.neg (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n) (* TODO: proper castkind *)
+          IdxDom.neg (IdxDom.lift n)
         in
         Address (ad_concat_map (addToAddr n) p)
-      | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
+      | Mod -> Int (IdxDom.top ()) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
     in
     (* The main function! *)
@@ -429,7 +427,7 @@ struct
     | Address p, Top ->
       (* same as previous, but with Unknown instead of int *)
       (* TODO: why does this even happen in zstd-thread-pool-add? *)
-      let n = ID.top_of (Cilfacade.ptrdiff_ikind ()) in (* pretend to have unknown ptrdiff int instead *)
+      let n = IdxDom.top () in (* pretend to have unknown ptrdiff int instead *)
       addToAddrOp p n
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
@@ -492,7 +490,7 @@ struct
         | Ne ->
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik Z.one else match eq p1 p2 with Some x when x -> ID.of_int ik Z.zero | _ -> bool_top ik)
         | IndexPI when AD.to_string p2 = ["all_index"] ->
-          addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
+          addToAddrOp p1 (IdxDom.top ())
         | IndexPI | PlusPI ->
           addToAddrOp p1 (AD.to_int p2) (* sometimes index is AD for some reason... *)
         | _ -> VD.top ()
@@ -1139,7 +1137,7 @@ struct
       `Index (IdxDom.top (), convert_offset ~man st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~man st exp with
-      | Int i -> `Index (iDtoIdx i, convert_offset ~man st ofs)
+      | Int i -> `Index (IdxDom.lift i, convert_offset ~man st ofs)
       | Address add -> `Index (AD.to_int add, convert_offset ~man st ofs)
       | Top   -> `Index (IdxDom.top (), convert_offset ~man st ofs)
       | Bot -> `Index (IdxDom.bot (), convert_offset ~man st ofs)
@@ -2366,6 +2364,7 @@ struct
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
           begin
+            let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
             try SizeDomain.mul item_typ_size_in_bytes arr_len
             with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end
