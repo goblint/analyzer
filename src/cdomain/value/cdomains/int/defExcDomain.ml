@@ -146,7 +146,7 @@ struct
       Z.compare i upperb <= 0
 
   let equal_to i = function
-    | `Bot -> failwith "unsupported: equal_to with bottom"
+    | `Bot -> raise (ArithmeticOnIntegerBot "equal_to with bottom")
     | `Definite x -> if i = x then `Eq else `Neq
     | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 

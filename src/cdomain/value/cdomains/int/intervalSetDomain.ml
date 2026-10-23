@@ -136,7 +136,7 @@ struct
       `Neq
 
   let equal_to i xs = match List.map (equal_to_interval i) xs with
-    | [] -> failwith "unsupported: equal_to with bottom"
+    | [] -> raise (ArithmeticOnIntegerBot "equal_to with bottom")
     | [`Eq] ->  `Eq
     | ys when List.for_all ((=) `Neq) ys -> `Neq
     | _ -> `Top

@@ -28,7 +28,7 @@ struct
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let equal_to i = function
-    | None -> failwith "unsupported: equal_to with bottom"
+    | None -> raise (ArithmeticOnIntegerBot "equal_to with bottom")
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 

@@ -117,7 +117,7 @@ struct
       | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
-        let i = match man.ask (Queries.EvalInt exp) with
+        let i = match Analyses.eval_int_or_dead (Analyses.ask_of_man man) exp with
           | `Lifted x -> IndexDomain.lift x
           | _ -> IndexDomain.top ()
         in
@@ -240,7 +240,7 @@ struct
   let check_count man fun_name ptr n =
     let (behavior:MessageCategory.behavior) = Undefined MemoryOutOfBoundsAccess in
     let cwe_number = 823 in
-    let eval_n = man.ask (Queries.EvalInt n) in
+    let eval_n = Analyses.eval_int_or_dead (Analyses.ask_of_man man) n in
     let ptr_type = typeOf ptr in
     let* addr = man.ask (Queries.MayPointTo ptr) in
     let ptr_size = get_addr_size man addr in

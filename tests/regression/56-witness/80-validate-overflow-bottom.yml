@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: b1c19849-e610-4bf6-83e9-9af404090fd7
+    creation_time: 2026-10-23T13:29:17Z
+    producer:
+      name: Julian Erhard
+      version: n/a
+    task:
+      input_files:
+      - 80-validate-overflow-bottom.c
+      input_file_hashes:
+        80-validate-overflow-bottom.c: e2cdd5a4a60f5c8fb4d17aab0a08d2e1daa911f2e93d8d95f5cd4d24514a74a8
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 80-validate-overflow-bottom.c
+        line: 9
+        column: 3
+        function: main
+      value: (x + 1) && 0
+      format: c_expression
