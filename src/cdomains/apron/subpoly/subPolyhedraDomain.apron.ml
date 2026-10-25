@@ -6,9 +6,9 @@
     dimension [beta] with [beta = e] (a row of the equality component) and
     [beta ∈ [-inf, c]] (interval component) is introduced.
 
-     Slack variables live in the Apron environment under canonical names derived
-     from their constant-free linear form (constants belong to interval bounds),
-     so the same constraint template maps to
+    Slack variables live in the Apron environment under canonical names derived
+    from their constant-free linear form with leading coefficient 1
+    (constants and scaling belong to interval bounds), so the same template maps to
     the same dimension in every state. Reduction between the two components is
     performed by interval propagation through the equality rows (a cheap, sound
     approximation of the Simplex-based reduction of the paper), optionally
@@ -88,6 +88,17 @@ struct
     let sorted = List.sort (fun (v1, _) (v2, _) -> String.compare (Var.to_string v1) (Var.to_string v2)) vts in
     let term_str (v, c) = Mpqf.to_string c ^ "*" ^ Var.to_string v in
     slack_prefix ^ "(" ^ String.concat "+" (List.map term_str sorted) ^ ")"
+
+  (** Normalize nonzero terms in canonical variable order. Returns the terms
+      and the factor applied to their value; a negative factor reverses
+      interval bounds when passed to [RationalInterval.scale]. *)
+  let normalize_template (vts: (Var.t * Mpqf.t) list) =
+    let sorted = List.sort (fun (v1, _) (v2, _) -> String.compare (Var.to_string v1) (Var.to_string v2)) vts in
+    match sorted with
+    | [] -> ([], Mpqf.one)
+    | (_, p) :: _ ->
+      let factor = Mpqf.one /: p in
+      (List.map (fun (v, c) -> (v, c /: p)) sorted, factor)
 
   (** [eq_dterms] checks whether two lists of linear-expression terms are exactly the same *)
   let eq_dterms (a: (int * Mpqf.t) list) (b: (int * Mpqf.t) list) =
@@ -292,6 +303,11 @@ struct
             else
               let name = Var.to_string (Environment.var_of_dim t.env beta) in
               let expected = slack_name (vterms_of_dims t.env info.P.iterms) in
+              let acc = match info.P.iterms with
+                | (_, p) :: _ when not (Mpqf.equal p Mpqf.one) ->
+                  Printf.sprintf "slack %s does not have leading coefficient 1" name :: acc
+                | _ -> acc
+              in
               if String.equal name expected then acc
               else Printf.sprintf "slack %s is not canonically named (expected %s)" name expected :: acc
           ) d.P.infos []
@@ -341,7 +357,7 @@ struct
   (* ---------------------------------------------------------------------- *)
   (* Slack templates.
 
-     [constrain_template t vts iv] constrains the normalized linear form
+     [constrain_template t vts iv] normalizes and constrains the linear form
      [sum vts] to lie within [iv]: existing slacks for the same form are
       refined; otherwise a fresh
      slack with defining row [sum vts - beta = 0] is created. *)
@@ -354,6 +370,8 @@ struct
     match t.d with
     | None -> t
     | Some d ->
+      let vts, factor = normalize_template vts in
+      let iv = RationalInterval.scale (P.q_of_mpqf factor) iv in
       let dterms = dims_of_vterms t.env vts in
       let matches = P.VarMap.filter (fun _ (info: P.info) -> eq_dterms info.P.iterms dterms) d.P.infos in (* filter those iterms that exactly match vts *)
       if not (P.VarMap.is_empty matches) then begin
@@ -805,9 +823,9 @@ struct
   (* ---------------------------------------------------------------------- *)
   (* Assignment *)
 
-  (** Moves a slack dimension to a new name with [new = old + offset],
-      shifting its interval and projecting the old dimension out. *)
-  let move_slack ?(offset = Mpqf.zero) (t: t) (old_v: Var.t) (new_v: Var.t) : t =
+  (** Moves a slack dimension with [new = factor * old + offset], scaling
+      and shifting its interval and projecting the old dimension out. *)
+  let move_slack ?(factor = Mpqf.one) ?(offset = Mpqf.zero) (t: t) (old_v: Var.t) (new_v: Var.t) : t =
     let t1 = add_vars t [new_v] in
     match t1.d with
     | None -> t1
@@ -815,13 +833,15 @@ struct
       let sz = size t1 in
       let d_old = Environment.dim_of_var t1.env old_v in
       let d_new = Environment.dim_of_var t1.env new_v in
-      let row = P.vec_of_terms sz [(d_new, Mpqf.one); (d_old, Mpqf.mone)] offset in
+      let row = P.vec_of_terms sz [(d_new, Mpqf.one); (d_old, Mpqf.neg factor)] offset in
       match Matrix.rref_vec d.P.affeq row with
       | None -> bot_env (* unreachable: new_v is fresh *)
       | Some m ->
         let d = { d with P.affeq = m } in
         let d = match P.VarMap.find_opt d_old d.P.intervals with
-          | Some iv -> P.set_intv d_new (RationalInterval.add_const (P.q_of_mpqf offset) iv) d
+          | Some iv ->
+            let iv = RationalInterval.scale (P.q_of_mpqf factor) iv in
+            P.set_intv d_new (RationalInterval.add_const (P.q_of_mpqf offset) iv) d
           | None -> d
         in
         VarManagement.remove_vars { t1 with d = Some d } [old_v]
@@ -904,6 +924,7 @@ struct
                 match t.d with
                 | None -> t
                 | Some _ ->
+                  let vts, factor = normalize_template vts in
                   let final_v = Var.of_string (slack_name vts) in
                   let info_of t = { P.iterms = dims_of_vterms t.env vts } in
                   if Environment.mem_var t.env final_v then
@@ -911,9 +932,11 @@ struct
                        injective), but a stale dimension may exist; drop the slack *)
                     VarManagement.remove_vars t [tmp_v]
                   else
-                    (* old beta = sum vts + k; the canonical slack is
-                       sum vts, so subtract k from its value and bounds. *)
-                    let t' = move_slack ~offset:(Mpqf.neg k) t tmp_v final_v in
+                    (* old beta = sum raw_terms + k; the canonical slack is
+                       factor * (old beta - k). Scale before shifting so a
+                       negative leading coefficient reverses the bounds. *)
+                    let offset = Mpqf.neg (factor *: k) in
+                    let t' = move_slack ~factor ~offset t tmp_v final_v in
                     (match t'.d with
                      | None -> t'
                      | Some d' ->

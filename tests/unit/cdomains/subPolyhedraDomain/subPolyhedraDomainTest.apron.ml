@@ -623,9 +623,74 @@ let constant_free_slack_tests =
         loop bounded_sum 10)
   ]
 
+let normalized_slack_tests =
+  let bounded_sum = run [Guard (1, (-2, [1; 1; 0])); Guard (1, (8, [-1; -1; 0]))] in
+  let expect t coefficients lower upper =
+    assert_equal [] (D.check_invariants t);
+    let d = Option.get t.VM.d in
+    assert_equal 1 (P.VarMap.cardinal d.P.infos);
+    let beta, info = List.hd (P.VarMap.bindings d.P.infos) in
+    let terms = List.filter_map (fun (v, c) ->
+        if Q.equal c Q.zero then None else Some (v, Q.to_string c)) (List.combine prog_vars coefficients) in
+    let actual = List.map (fun (i, c) -> (Apron.Environment.var_of_dim (D.env t) i, Mpqf.to_string c)) info.P.iterms in
+    assert_equal terms actual;
+    let expected = RI.of_bounds ~lower ~upper in
+    assert_bool ("expected " ^ RI.show expected ^ ", got " ^ D.show t)
+      (RI.equal expected (P.get_iv d.P.intervals beta))
+  in
+  let qs = List.map Q.of_int in
+  [
+    "template creation and refinement normalize scaled forms" >:: (fun _ ->
+        let template cs = List.combine prog_vars (List.map Mpqf.of_int cs)
+                          |> List.filter (fun (_, c) -> not (Mpqf.equal c Mpqf.zero)) in
+        let iv lo hi = RI.of_bounds ~lower:(Some (Q.of_int lo)) ~upper:(Some (Q.of_int hi)) in
+        let t = D.constrain_template D.TMeet base (template [2; 4; 0]) (iv 4 16) in
+        expect t (qs [1; 2; 0]) (Some (Q.of_int 2)) (Some (Q.of_int 8));
+        let t = D.constrain_template D.TMeet t (template [-3; -6; 0]) (iv (-18) (-9)) in
+        expect t (qs [1; 2; 0]) (Some (Q.of_int 3)) (Some (Q.of_int 6)));
+
+    "positive leading coefficient scales shifted slack" >:: (fun _ ->
+        let t = apply bounded_sum (Assign (0, (3, [2; 0; 0]))) in
+        expect t (qs [1; 2; 0]) (Some (Q.of_int 7)) (Some (Q.of_int 19));
+        let equivalent = run [Guard (1, (-7, [1; 2; 0])); Guard (1, (19, [-1; -2; 0]))] in
+        assert_bool "same canonical representation" (D.equal t equivalent);
+        assert_bool "concrete assignment image is retained" (mem_point t (Array.of_list (qs [7; 0; 0]))));
+
+    "negative leading coefficient reverses shifted bounds" >:: (fun _ ->
+        let t = apply bounded_sum (Assign (0, (3, [-2; 0; 0]))) in
+        expect t (qs [1; -2; 0]) (Some (Q.of_int (-13))) (Some (Q.of_int (-1)));
+        let refined = apply t (Guard (1, (10, [1; -2; 0]))) in
+        expect refined (qs [1; -2; 0]) (Some (Q.of_int (-10))) (Some (Q.of_int (-1))));
+
+    "fractional normalization scales all coefficients and bounds" >:: (fun _ ->
+        let t = apply bounded_sum (Assign (1, (0, [-1; 1; 0]))) in
+        expect t [Q.one; Q.make Z.one (Z.of_int 2); Q.zero]
+          (Some Q.one) (Some (Q.of_int 4)));
+
+    "normalization uses the new first variable after substitution" >:: (fun _ ->
+        let t = run [Guard (1, (-2, [0; 1; 1])); Guard (1, (8, [0; -1; -1]))] in
+        let t = apply t (Assign (2, (0, [2; 0; 1]))) in
+        let half = Q.make (Z.of_int (-1)) (Z.of_int 2) in
+        expect t [Q.one; half; half] (Some (Q.of_int (-4))) (Some (Q.of_int (-1))));
+
+    "negative normalization swaps finite and infinite endpoints" >:: (fun _ ->
+        let lower = run [Guard (1, (-2, [1; 1; 0]))] in
+        let upper = run [Guard (1, (8, [-1; -1; 0]))] in
+        let negate t = apply t (Assign (0, (3, [-2; 0; 0]))) in
+        expect (negate lower) (qs [1; -2; 0]) None (Some (Q.of_int (-1)));
+        expect (negate upper) (qs [1; -2; 0]) (Some (Q.of_int (-13))) None);
+
+    "scaled templates share identity across joins and widening" >:: (fun _ ->
+        let scaled = apply bounded_sum (Assign (0, (3, [-2; 0; 0]))) in
+        let other = run [Guard (1, (15, [1; -2; 0])); Guard (1, (-1, [-1; 2; 0]))] in
+        let joined = D.join scaled other in
+        expect joined (qs [1; -2; 0]) (Some (Q.of_int (-15))) (Some (Q.of_int (-1)));
+        expect (D.widen scaled joined) (qs [1; -2; 0]) None (Some (Q.of_int (-1))))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
 
 let test () =
-  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ QCheck_ounit.to_ounit2_test_list tests
+  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ QCheck_ounit.to_ounit2_test_list tests
