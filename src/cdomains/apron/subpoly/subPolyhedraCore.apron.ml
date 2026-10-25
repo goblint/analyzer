@@ -204,8 +204,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (** One exploration pass over all bases of the linear explorer, starting
       from the interval map [map]. Refinements found in earlier bases feed the
       later ones. Returns [None] if a contradiction (bottom) is detected. *)
-  let explore_linear ~(size: int) (t: t) (map: interval_map) : interval_map option =
-    let rs = rows t.affeq in
+  let explore_linear_rows ~(size: int) (rs: CoeffVector.t list) (map: interval_map) : interval_map option =
     let m = List.length rs in
     if m = 0 then Some map
     else begin
@@ -269,6 +268,62 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
       with Bottom -> None
     end
 
+  (** The naive linear explorer over the entire equality matrix. *)
+  let explore_linear ~(size: int) (t: t) (map: interval_map) : interval_map option =
+    explore_linear_rows ~size (rows t.affeq) map
+
+  (** Partitions rows by shared variable dimensions, ignoring the RHS column.
+      Union-find is indexed by rows, and the dimension-to-row table contains
+      only occurring dimensions: neither allocation depends on [size].
+      Rows retain their original order within each component. *)
+  let connected_row_components ~(size: int) (rs: CoeffVector.t list) : CoeffVector.t list list =
+    let m = List.length rs in
+    let parent = Array.init m Fun.id in
+    let rank = Array.make m 0 in
+    let rec find i =
+      if parent.(i) = i then i
+      else begin
+        parent.(i) <- find parent.(i);
+        parent.(i)
+      end
+    in
+    let union i j =
+      let i, j = find i, find j in
+      if i <> j then
+        if rank.(i) < rank.(j) then parent.(i) <- j
+        else begin
+          parent.(j) <- i;
+          if rank.(i) = rank.(j) then rank.(i) <- rank.(i) + 1
+        end
+    in
+    let owner = Hashtbl.create m in
+    List.iteri (fun row r ->
+        List.iter (fun (dim, _) ->
+            if dim < size then
+              match Hashtbl.find_opt owner dim with
+              | None -> Hashtbl.add owner dim row
+              | Some other -> union row other
+          ) (CoeffVector.to_sparse_list r)
+      ) rs;
+    let module IntMap = Map.Make (Int) in
+    let _, components = List.fold_left (fun (i, components) r ->
+        let root = find i in
+        let previous = Option.default [] (IntMap.find_opt root components) in
+        (i + 1, IntMap.add root (r :: previous) components)
+      ) (0, IntMap.empty) rs
+    in
+    List.map (fun (_, rs) -> List.rev rs) (IntMap.bindings components)
+
+  (** Explore independent components separately, using each component's own
+      row count and occurring dimensions for the linear windows. Dimension
+      indices and the interval map remain global; no matrix rebuilding or
+      renumbering is needed. Component-local windows may differ from the naive
+      explorer's schedule, so a finite pass can produce different refinements. *)
+  let explore_components ~(size: int) (t: t) (map: interval_map) : interval_map option =
+    List.fold_left (fun acc rs ->
+        Option.bind acc (explore_linear_rows ~size rs)
+      ) (Some map) (connected_row_components ~size (rows t.affeq))
+
   (** Reduction entry point: fixpoint interval propagation, optionally
       followed by one basis-exploration pass and a final propagation pass
       spreading the newly found bounds. Returns [None] on contradiction. *)
@@ -278,7 +333,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
     | Some map ->
       if not explore then Some map
       else
-        match explore_linear ~size t map with
+        match explore_components ~size t map with
         | None -> None
         | Some map' ->
           if map' == map then Some map (* exploration refined nothing *)

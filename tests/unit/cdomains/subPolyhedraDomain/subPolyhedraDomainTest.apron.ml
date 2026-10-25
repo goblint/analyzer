@@ -511,9 +511,72 @@ let explore_example5 =
     expect "v2" 2 (iv (Q.of_int (-2)) (half 1));
     expect "v3" 3 (iv (half (-1)) (Q.of_int 2))
 
+let component_exploration_tests =
+  let row size terms rhs =
+    P.vec_of_terms size (List.map (fun i -> (i, Mpqf.of_int 1)) terms) (Mpqf.of_int rhs)
+  in
+  [
+    "row components ignore RHS and join transitively" >:: (fun _ ->
+        let size = 1000 in
+        let a = row size [0; 100] 1 in
+        let b = row size [2; 200] 1 in
+        let c = row size [100; 900] 1 in
+        let d = row size [200; 900] 1 in
+        let isolated = row size [999] 1 in
+        let components = P.connected_row_components ~size [a; isolated; b; c; d] in
+        assert_equal [1; 4] (List.sort Int.compare (List.map List.length components));
+        assert_bool "row order is preserved" (List.mem [a; b; c; d] components));
+
+    "empty component exploration preserves map" >:: (fun _ ->
+        let map = P.VarMap.singleton 100 (RI.of_const Q.one) in
+        let st = P.empty () in
+        assert_equal [] (P.connected_row_components ~size:1000 []);
+        assert_bool "empty exploration returns original map"
+          (Option.get (P.explore_components ~size:1000 st map) == map));
+
+    "component exploration on interleaved sparse blocks" >:: (fun _ ->
+        let size = 1000 in
+        let mk_block a b c d =
+          let row terms rhs =
+            P.vec_of_terms size (List.map (fun (i, c) -> (i, Mpqf.of_int c)) terms) (Mpqf.of_int rhs)
+          in
+          let m = Option.get (P.Matrix.rref_vec (P.Matrix.empty ())
+                                (row [a, 1; c, 1; d, 1] 1)) in
+          Option.get (P.Matrix.rref_vec m (row [b, 1; c, 1; d, -1] 0))
+        in
+        let first = mk_block 0 4 40 80 in
+        let second = mk_block 1 5 41 81 in
+        let combined = List.fold_left (fun m r -> Option.get (P.Matrix.rref_vec m r))
+            first (P.rows second) in
+        let iv lo hi = RI.of_bounds ~lower:(Some (Q.of_int lo)) ~upper:(Some (Q.of_int hi)) in
+        let map = List.fold_left (fun map (i, v) -> P.VarMap.add i v map) P.VarMap.empty
+            [0, iv 0 2; 4, iv 0 3; 1, iv 0 2; 5, iv 0 3; 999, iv 7 7] in
+        let state m = { P.affeq = m; P.intervals = map; P.infos = P.VarMap.empty } in
+        assert_equal [2; 2]
+          (List.map List.length (P.connected_row_components ~size (P.rows combined)));
+        let reduced = Option.get (P.explore_components ~size (state combined) map) in
+        let expected = Option.get (P.explore_linear ~size (state first) map)
+                       |> P.explore_linear ~size (state second) |> Option.get in
+        assert_bool "matches separate naive passes" (P.equal_interval_map expected reduced);
+        List.iter (fun dim ->
+            let want = RI.of_bounds ~lower:(Some (Q.of_int (-2)))
+                ~upper:(Some (Q.make Z.one (Z.of_int 2))) in
+            assert_bool "combining rows bounds the nonbasic variable"
+              (RI.equal want (P.get_iv reduced dim))
+          ) [40; 41];
+        assert_bool "unrelated interval is preserved" (RI.equal (iv 7 7) (P.get_iv reduced 999));
+        let bad = P.VarMap.add 41 (iv 10 10) map in
+        assert_equal None (P.explore_components ~size (state combined) bad);
+        let connected = state first in
+        assert_bool "single component matches naive explorer"
+          (Option.equal P.equal_interval_map
+             (P.explore_linear ~size connected map)
+             (P.explore_components ~size connected map)))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
 
 let test () =
-  "subPolyhedraDomain" >::: explore_example5 :: QCheck_ounit.to_ounit2_test_list tests
+  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ QCheck_ounit.to_ounit2_test_list tests
