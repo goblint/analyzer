@@ -198,7 +198,7 @@ let mem_point (t: D.t) (sigma: Q.t array) : bool =
               match acc, prog_value i with
               | Some acc, Some q -> Some (Q.add acc (Q.mul (P.q_of_mpqf c) q))
               | _ -> None
-            ) (Some (P.q_of_mpqf info.P.iconst)) info.P.iterms
+            ) (Some Q.zero) info.P.iterms
     in
     let row_ok r =
       let terms, rhs = P.split_row sz r in
@@ -574,9 +574,58 @@ let component_exploration_tests =
              (P.explore_components ~size connected map)))
   ]
 
+let constant_free_slack_tests =
+  let bounded_sum = run [Guard (1, (0, [1; 1; 0])); Guard (1, (10, [-1; -1; 0]))] in
+  let slacks t = List.filter VM.is_slack_var (D.vars t) in
+  let expect_interval t lo hi =
+    assert_equal [] (D.check_invariants t);
+    assert_equal 1 (List.length (slacks t));
+    let d = Option.get t.VM.d in
+    let beta = Apron.Environment.dim_of_var (D.env t) (List.hd (slacks t)) in
+    let expected = RI.of_bounds ~lower:(Option.map Q.of_int lo) ~upper:(Option.map Q.of_int hi) in
+    assert_bool ("expected " ^ RI.show expected ^ ", got " ^ D.show t)
+      (RI.equal expected (P.get_iv d.P.intervals beta))
+  in
+  [
+    "translations shift bounds without changing slack identity" >:: (fun _ ->
+        let shifted = apply bounded_sum (Assign (0, (3, [1; 0; 0]))) in
+        assert_equal (slacks bounded_sum) (slacks shifted);
+        expect_interval shifted (Some 3) (Some 13);
+        let shifted = apply shifted (Assign (1, (-5, [0; 1; 0]))) in
+        assert_equal (slacks bounded_sum) (slacks shifted);
+        expect_interval shifted (Some (-2)) (Some 8);
+        assert_bool "shift preserves concrete points" (mem_point shifted [|Q.zero; Q.zero; Q.zero|]));
+
+    "guards reuse translated slack" >:: (fun _ ->
+        let shifted = apply bounded_sum (Assign (0, (3, [1; 0; 0]))) in
+        let refined = apply shifted (Guard (1, (-5, [1; 1; 0]))) in
+        expect_interval refined (Some 5) (Some 13);
+        assert_bool "inconsistent guard is bottom"
+          (D.is_bot_env (apply refined (Guard (1, (4, [-1; -1; 0]))))));
+
+    "join and widening share translated slack" >:: (fun _ ->
+        let shifted = apply bounded_sum (Assign (0, (3, [1; 0; 0]))) in
+        let joined = D.join bounded_sum shifted in
+        expect_interval joined (Some 0) (Some 13);
+        assert_bool "join covers original" (D.leq bounded_sum joined);
+        assert_bool "join covers shifted" (D.leq shifted joined);
+        expect_interval (D.widen bounded_sum joined) (Some 0) None);
+
+    "repeated translations do not accumulate slack dimensions" >:: (fun _ ->
+        let rec loop t n =
+          if n = 0 then ()
+          else
+            let shifted = apply t (Assign (0, (1, [1; 0; 0]))) in
+            let joined = D.join t shifted in
+            expect_interval joined (Some 0) (Some (21 - n));
+            loop joined (n - 1)
+        in
+        loop bounded_sum 10)
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
 
 let test () =
-  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ QCheck_ounit.to_ounit2_test_list tests
+  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ QCheck_ounit.to_ounit2_test_list tests

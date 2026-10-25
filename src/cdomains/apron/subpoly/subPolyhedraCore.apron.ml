@@ -22,7 +22,8 @@ end
     - [intervals]: interval bounds for dimensions (program variables and slacks).
       A missing entry means top.
     - [infos]: for each slack dimension [beta], the linear form it was introduced
-      for: [beta = sum iterms + iconst]. Invariant: this equality is implied by
+       for: [beta = sum iterms]. Constants are absorbed into interval bounds.
+       Invariant: this equality is implied by
       [affeq], and [iterms] only mentions program (non-slack) dimensions. *)
 module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (* Reuse the SparseVector and ListMatrix modules from the AffineEqualityDomain. *)
@@ -42,7 +43,6 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   type interval_map = I.t VarMap.t [@@deriving eq, ord] (*Map from Var to Interval*)
   type info = {
     iterms: (Var.t * Mpqf.t) list; (* sorted by Var, nonzero coefficients, program dims only *)
-    iconst: Mpqf.t;
   } [@@deriving eq, ord, hash]
   type info_map = info VarMap.t [@@deriving eq, ord] (*Map from slack Var to info*)
 
@@ -383,27 +383,27 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
 
      A slack variable \(\beta\) stands for a linear expression. Its defining row is the equality that connects the two.
      For example, if infos records
-     $ \beta = 2x+y+3 $
+     $ \beta = 2x+y $
      then the defining row stored in the equality matrix is
-     $ 2x+y-\beta=-3 $
+     $ 2x+y-\beta=0 $
 
      This is distinct from a bound on the slack. To represent 2x+y+3 <= 5, the state can keep the defining equality 
-     and the interval bound \beta <= 5. saturate re-establishes the defining equality when it is known from infos but 
+     and the interval bound \beta <= 2. saturate re-establishes the defining equality when it is known from infos but
      may have been lost from the matrix during a join or widen.
 
      Transfer functions must account for possible new values of variables e.g. during assignment:
      suppose $\beta=x+y$, then execute [[x := x + 1]]. The old value held by $\beta$ is now $x_{new}+y-1$. 
      In the invertible-assignment branch, the code substitutes through the equality matrix and the slack’s info, 
-     then renames the slack to match its new defining expression.
+     then shifts the slack and its interval by +1 to keep its definition constant-free.
      For a non-invertible assignment such as x := y, slacks whose definitions mention x are removed before the new 
      assignment equality is added. A slack that does not depend on the assigned variable can keep its defining relationship.
 
   *)
 
-  (** Defining row of a slack: [beta = sum iterms + iconst], in RHS form
-      [sum iterms - beta = -iconst]. *)
+  (** Defining row of a slack: [beta = sum iterms], in RHS form
+      [sum iterms - beta = 0]. *)
   let defining_row (size: int) (beta: Var.t) (info: info) : CoeffVector.t =
-    vec_of_terms size ((beta, Mpqf.mone) :: info.iterms) (Mpqf.neg info.iconst)
+    vec_of_terms size ((beta, Mpqf.mone) :: info.iterms) Mpqf.zero
 
   (** Establishes the defining rows of all slacks of [other_infos] in [t].
       Returns [None] if this exposes an inconsistency (i.e. [t] is bottom).
@@ -553,7 +553,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (* Apron dimension changes *)
 
   let shift_info (f: Var.t -> Var.t) (info: info) : info =
-    { info with iterms = List.map (fun (v, c) -> (f v, c)) info.iterms }
+    { iterms = List.map (fun (v, c) -> (f v, c)) info.iterms }
 
   (**
      [dim_add] Apron dimension change
@@ -679,13 +679,9 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
     |> String.concat "; "
 
   let string_of_info (e: info) =
-    let terms =
-      e.iterms
-      |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
-      |> String.concat " + "
-    in
-    if e.iconst =: Mpqf.zero then terms
-    else terms ^ " + " ^ Mpqf.to_string e.iconst
+    e.iterms
+    |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
+    |> String.concat " + "
 
   let string_of_infos (infos: info_map) =
     VarMap.bindings infos

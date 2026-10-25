@@ -6,8 +6,9 @@
     dimension [beta] with [beta = e] (a row of the equality component) and
     [beta ∈ [-inf, c]] (interval component) is introduced.
 
-    Slack variables live in the Apron environment under canonical names derived
-    from their normalized linear form, so the same constraint template maps to
+     Slack variables live in the Apron environment under canonical names derived
+     from their constant-free linear form (constants belong to interval bounds),
+     so the same constraint template maps to
     the same dimension in every state. Reduction between the two components is
     performed by interval propagation through the equality rows (a cheap, sound
     approximation of the Simplex-based reduction of the paper), optionally
@@ -83,10 +84,10 @@ struct
     List.map (fun (v, c) -> (Environment.dim_of_var env v, c)) ts
     |> List.sort (fun (i, _) (j, _) -> Stdlib.compare i j)
 
-  let slack_name (vts: (Var.t * Mpqf.t) list) (iconst: Mpqf.t) =
+  let slack_name (vts: (Var.t * Mpqf.t) list) =
     let sorted = List.sort (fun (v1, _) (v2, _) -> String.compare (Var.to_string v1) (Var.to_string v2)) vts in
     let term_str (v, c) = Mpqf.to_string c ^ "*" ^ Var.to_string v in
-    slack_prefix ^ "(" ^ String.concat "+" (List.map term_str sorted) ^ "|" ^ Mpqf.to_string iconst ^ ")"
+    slack_prefix ^ "(" ^ String.concat "+" (List.map term_str sorted) ^ ")"
 
   (** [eq_dterms] checks whether two lists of linear-expression terms are exactly the same *)
   let eq_dterms (a: (int * Mpqf.t) list) (b: (int * Mpqf.t) list) =
@@ -229,7 +230,6 @@ struct
       let ivs_str = List.map iv_str (P.VarMap.bindings d.P.intervals) in
       let info_str (beta, (info: P.info)) =
         var_name beta ^ " := " ^ terms_str info.P.iterms
-        ^ (if Mpqf.equal info.P.iconst Mpqf.zero then "" else " + " ^ Mpqf.to_string info.P.iconst)
       in
       let infos_str = List.map info_str (P.VarMap.bindings d.P.infos) in
       if rows_str = [] && ivs_str = [] && infos_str = [] then "⊤"
@@ -291,7 +291,7 @@ struct
             if List.exists (fun (v, _) -> v >= sz) info.P.iterms || beta >= sz then acc (* out of range, reported by core *)
             else
               let name = Var.to_string (Environment.var_of_dim t.env beta) in
-              let expected = slack_name (vterms_of_dims t.env info.P.iterms) info.P.iconst in
+              let expected = slack_name (vterms_of_dims t.env info.P.iterms) in
               if String.equal name expected then acc
               else Printf.sprintf "slack %s is not canonically named (expected %s)" name expected :: acc
           ) d.P.infos []
@@ -343,7 +343,7 @@ struct
 
      [constrain_template t vts iv] constrains the normalized linear form
      [sum vts] to lie within [iv]: existing slacks for the same form are
-     refined (their info constant is taken into account); otherwise a fresh
+      refined; otherwise a fresh
      slack with defining row [sum vts - beta = 0] is created. *)
 
   type template_combine =
@@ -361,8 +361,7 @@ struct
         let exception Bot in
         try
           let d' = P.VarMap.fold (fun beta (info: P.info) d ->
-              (* beta = sum vts + iconst, so sum vts ∈ iv iff beta ∈ iv + iconst *)
-              let cand = RationalInterval.add_const (P.q_of_mpqf info.P.iconst) iv in (* candidate bounds for term *)
+              let cand = iv in
               let current = P.get_iv d.P.intervals beta in (* current bounds for term *)
               let new_iv = match combine with
                 | TMeet ->
@@ -387,7 +386,7 @@ struct
       end
       else if not create || RationalInterval.is_top iv then t 
       else begin (* create fresh slack and bounds *)
-        let sv = Var.of_string (slack_name vts Mpqf.zero) in
+        let sv = Var.of_string (slack_name vts) in
         if Environment.mem_var t.env sv then
           (* A stale dimension with this name exists (e.g. left behind by a
              dimension change); reusing it would be unsound, skipping the
@@ -407,7 +406,7 @@ struct
             | Some m ->
               let d1 = { d1 with P.affeq = m } in
               let d1 = P.set_intv beta iv d1 in
-              let d1 = P.set_info beta { P.iterms = dterms; P.iconst = Mpqf.zero } d1 in
+              let d1 = P.set_info beta { P.iterms = dterms } d1 in
               { t1 with d = Some d1 }
       end
 
@@ -806,10 +805,9 @@ struct
   (* ---------------------------------------------------------------------- *)
   (* Assignment *)
 
-  (** Moves a slack dimension to a new name (value-preserving): introduces the
-      new dimension, equates it with the old one, transfers interval and info,
-      and projects the old dimension out. *)
-  let move_slack (t: t) (old_v: Var.t) (new_v: Var.t) (info_opt: P.info option) : t =
+  (** Moves a slack dimension to a new name with [new = old + offset],
+      shifting its interval and projecting the old dimension out. *)
+  let move_slack ?(offset = Mpqf.zero) (t: t) (old_v: Var.t) (new_v: Var.t) : t =
     let t1 = add_vars t [new_v] in
     match t1.d with
     | None -> t1
@@ -817,17 +815,13 @@ struct
       let sz = size t1 in
       let d_old = Environment.dim_of_var t1.env old_v in
       let d_new = Environment.dim_of_var t1.env new_v in
-      let row = P.vec_of_terms sz [(d_new, Mpqf.one); (d_old, Mpqf.mone)] Mpqf.zero in
+      let row = P.vec_of_terms sz [(d_new, Mpqf.one); (d_old, Mpqf.mone)] offset in
       match Matrix.rref_vec d.P.affeq row with
       | None -> bot_env (* unreachable: new_v is fresh *)
       | Some m ->
         let d = { d with P.affeq = m } in
         let d = match P.VarMap.find_opt d_old d.P.intervals with
-          | Some iv -> P.set_intv d_new iv d
-          | None -> d
-        in
-        let d = match info_opt with
-          | Some info -> P.set_info d_new info d
+          | Some iv -> P.set_intv d_new (RationalInterval.add_const (P.q_of_mpqf offset) iv) d
           | None -> d
         in
         VarManagement.remove_vars { t1 with d = Some d } [old_v]
@@ -851,7 +845,7 @@ struct
       let bc = Vector.nth b sz in
       (* normalize through a vector roundtrip: merges duplicates, drops zeros, sorts *)
       let merged, _ = P.split_row sz (P.vec_of_terms sz (base @ [(dim_x, scale)] @ subst_terms) Mpqf.zero) in
-      Some (vterms_of_dims t.env merged, info.P.iconst -: scale *: bc)
+      Some (vterms_of_dims t.env merged, Mpqf.neg (scale *: bc))
 
   let assign_texpr (t: t) var texp =
     match t.d with
@@ -903,21 +897,23 @@ struct
                   (VarManagement.remove_vars t [old_v], moved)
                 else
                   let tmp_v = Var.of_string (tmp_prefix ^ Var.to_string old_v) in
-                  (move_slack t old_v tmp_v None, (tmp_v, vts, k) :: moved)
+                  (move_slack t old_v tmp_v, (tmp_v, vts, k) :: moved)
               ) (t, []) pending
             in
             List.fold_left (fun t (tmp_v, vts, k) ->
                 match t.d with
                 | None -> t
                 | Some _ ->
-                  let final_v = Var.of_string (slack_name vts k) in
-                  let info_of t = { P.iterms = dims_of_vterms t.env vts; P.iconst = k } in
+                  let final_v = Var.of_string (slack_name vts) in
+                  let info_of t = { P.iterms = dims_of_vterms t.env vts } in
                   if Environment.mem_var t.env final_v then
                     (* cannot happen for renames among themselves (substitution is
                        injective), but a stale dimension may exist; drop the slack *)
                     VarManagement.remove_vars t [tmp_v]
                   else
-                    let t' = move_slack t tmp_v final_v None in
+                    (* old beta = sum vts + k; the canonical slack is
+                       sum vts, so subtract k from its value and bounds. *)
+                    let t' = move_slack ~offset:(Mpqf.neg k) t tmp_v final_v in
                     (match t'.d with
                      | None -> t'
                      | Some d' ->
