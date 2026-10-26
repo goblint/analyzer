@@ -797,7 +797,7 @@ struct
      raises [SizeOfError] for a type whose width the machine model does not
      fix, and then the answer is no. *)
   let is_pointer_integer_roundtrip (t: typ) (it: typ): bool =
-    isPointerType (unrollType t) && isIntegralType (unrollType it)
+    isPointerType t && isIntegralType it
     && (try bitsSizeOf it >= bitsSizeOf voidPtrType with SizeOfError _ -> false)
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
