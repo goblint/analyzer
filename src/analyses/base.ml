@@ -785,6 +785,14 @@ struct
     done;
     !collected
 
+  (** Does casting a pointer to [it] and (back) to [t] have to give the original pointer?
+
+      Implementation-defined by C11 6.3.2.3p5-6.
+      Well-behaved under GCC: https://gcc.gnu.org/onlinedocs/gcc/Arrays-and-pointers-implementation.html. *)
+  let is_pointer_integer_roundtrip (t: typ) (it: typ): bool =
+    isPointerType t && isIntegralType it
+    && (try bitsSizeOf it >= bitsSizeOf t with SizeOfError _ -> false)
+
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv ~(man: _ man) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a" d_exp exp;
@@ -985,6 +993,13 @@ struct
         let array_start = add_offset_varinfo array_ofs in
         Address (ad_concat_map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
+      (* [(T * )(uintptr_t )p] preserves the pointer when the intermediate integer type can represent it.
+         Evaluating the casts separately would turn non-null addresses into unknown integers and pointers. *)
+      | CastE (kind, t, CastE (int_kind, it, inner)) when is_pointer_integer_roundtrip t it ->
+        begin match eval_rv ~man st inner with
+          | Address _ as v -> VD.cast ~kind t v
+          | v -> VD.cast ~kind t (VD.cast ~kind:int_kind it v)
+        end
       | CastE (kind, t, exp) ->
         let v = eval_rv ~man st exp in
         VD.cast ~kind t v
