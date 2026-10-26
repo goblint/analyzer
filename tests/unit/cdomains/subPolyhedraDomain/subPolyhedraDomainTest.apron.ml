@@ -688,9 +688,44 @@ let normalized_slack_tests =
         expect (D.widen scaled joined) (qs [1; -2; 0]) None (Some (Q.of_int (-1))))
   ]
 
+let disequality_tests =
+  let check before guard expected =
+    let got = apply (run before) (Guard (3, guard)) in
+    assert_equal [] (D.check_invariants got);
+    assert_bool ("unexpected disequality result: " ^ D.show got) (L.equal got (run expected))
+  in
+  [
+    "disequality trims lower endpoint" >:: (fun _ ->
+        let before = [Guard (1, (0, [1; 0; 0])); Guard (1, (5, [-1; 0; 0]))] in
+        check before (0, [1; 0; 0]) (before @ [Guard (1, (-1, [1; 0; 0]))]));
+    "disequality trims upper endpoint with negative coefficient" >:: (fun _ ->
+        let before = [Guard (1, (0, [1; 0; 0])); Guard (1, (5, [-1; 0; 0]))] in
+        check before (5, [-1; 0; 0]) (before @ [Guard (1, (4, [-1; 0; 0]))]));
+    "disequality trims relational slack" >:: (fun _ ->
+        let before = [Guard (1, (0, [-1; 1; 0]))] in
+        check before (0, [1; -1; 0]) [Guard (1, (-1, [-1; 1; 0]))]);
+    "disequality keeps interior holes abstract" >:: (fun _ ->
+        let before = [Guard (1, (5, [1; 0; 0])); Guard (1, (5, [-1; 0; 0]))] in
+        check before (0, [1; 0; 0]) before);
+    "disequality rejects zero singleton" >:: (fun _ ->
+        assert_bool "zero cannot satisfy disequality"
+          (D.is_bot_env (run [Guard (0, (0, [1; 0; 0])); Guard (3, (0, [1; 0; 0]))])));
+    "disequality clears rational denominators" >:: (fun _ ->
+        let before = run [Guard (1, (-1, [1; 0; 0]))] in
+        let open Apron.Texpr1 in
+        let half = Cst (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_string "1/2"))) in
+        let expr = Binop (Sub, Binop (Mul, half, Var (List.hd prog_vars), Real, Near), half, Real, Near) in
+        let got = D.meet_tcons before (Apron.Tcons1.make (of_expr (D.env before) expr) Apron.Tcons1.DISEQ) in
+        assert_equal [] (D.check_invariants got);
+        assert_bool ("expected x >= 2: " ^ D.show got)
+          (L.equal got (run [Guard (1, (-2, [1; 0; 0]))]));
+        assert_bool "first nonzero fractional value remains feasible"
+          (mem_point got [|Q.of_int 2; Q.zero; Q.zero|]))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
 
 let test () =
-  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ QCheck_ounit.to_ounit2_test_list tests
+  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests @ QCheck_ounit.to_ounit2_test_list tests

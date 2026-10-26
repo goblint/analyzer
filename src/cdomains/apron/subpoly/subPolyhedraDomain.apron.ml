@@ -1026,7 +1026,7 @@ struct
 
   (** Meets a constraint given as a value-form coefficient vector [v]
       ([sum v(i) * x_i + v(size)] ⋈ 0) into the state. *)
-  let meet_tcons (t: t) (tcons: Tcons1.t) =
+  let rec meet_tcons (t: t) (tcons: Tcons1.t) =
     match t.d with
     | None -> t
     | Some d ->
@@ -1047,11 +1047,30 @@ struct
           in
           if violated then bot_env else t
         | _, DISEQ ->
+          (* A closed interval cannot represent a hole, but when zero is an
+             endpoint we can select the remaining strict half-space. Clear
+             denominators so SUP can use the integer gap, even for rational
+             coefficients. This requires integer program dimensions. *)
+          let trim positive =
+            let ivars, _ = Environment.vars t.env in
+            if not (List.for_all (fun (i, _) ->
+                Array.mem (Environment.var_of_dim t.env i) ivars) terms) then t
+            else
+              let denominator = List.fold_left (fun acc (_, ci) ->
+                  Z.lcm acc (Mpqf.get_den ci)) (Mpqf.get_den c) terms in
+              let factor = Mpqf.of_string (Z.to_string (if positive then denominator else Z.neg denominator)) in
+              let open Texpr1 in
+              let expr = Binop (Mul, Cst (Coeff.Scalar (Scalar.Mpqf factor)),
+                                to_expr (Tcons1.get_texpr1 tcons), Real, Near) in
+              meet_tcons t (Tcons1.make (of_expr t.env expr) SUP)
+          in
           (match reduce ~size:sz d with
            | None -> bot_env
            | Some refined ->
              (match RationalInterval.bounds (P.eval_vec ~size:sz d refined v) with
               | Some l, Some u when Q.equal l u && Q.equal l Q.zero -> bot_env
+              | Some l, _ when Q.equal l Q.zero -> trim true
+              | _, Some u when Q.equal u Q.zero -> trim false
               | _ -> t))
         | _, EQ ->
           (* sum terms = -c as an equality row *)
