@@ -202,7 +202,7 @@ sig
   val context: (D.t, G.t, C.t, V.t) man -> fundec -> D.t -> C.t
   val startcontext: unit -> C.t
 
-  (** @raise Deadcode if resulting state is unreachable. *)
+  (** @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
 
   (** Should {e not} raise {!Deadcode}. *)
@@ -229,7 +229,7 @@ sig
   (** A transfer function which handles going from the start node of a function (fundec) into
       its function body. Meant to handle, e.g., initialization of local variables
 
-      @raise Deadcode if resulting state is unreachable. *)
+      @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val body  : (D.t, G.t, C.t, V.t) man -> fundec -> D.t
 
   (** A transfer function which handles the return statement, i.e.,
@@ -246,7 +246,7 @@ sig
   (** A transfer function which works as the identity function, i.e., it skips and does nothing.
       Used for empty loops.
 
-      @raise Deadcode if resulting state is unreachable. *)
+      @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val skip  : (D.t, G.t, C.t, V.t) man -> D.t
 
   (** A transfer function which, for a call to a {e special} function f "lval = f(args)" or "f(args)",
@@ -291,7 +291,7 @@ sig
 
   (** Updates the local state of the creator thread using initial state of created thread.
 
-      @raise Deadcode if resulting state is unreachable. *)
+      @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val threadspawn : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) man -> D.t
 
   (** @raise Deadcode if resulting state is unreachable. *)
