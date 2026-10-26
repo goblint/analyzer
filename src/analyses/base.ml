@@ -785,17 +785,10 @@ struct
     done;
     !collected
 
-  (* Does converting a pointer to [it] and immediately back to [t] have to give
-     the pointer it started from? True when [t] is a pointer type and [it] is an
-     integer type at least as wide as a pointer under the analyzed machine
-     model. C11 6.3.2.3p5-6 leave both conversions implementation-defined, and
-     7.20.1.4p1 guarantees the round trip only for a [void *] through
-     [intptr_t] or [uintptr_t]. GCC documents both conversions as leaving the
-     bits unchanged when the two types are equally wide, and a pointer
-     converted to a wider integer as extended and then truncated back to the
-     same bits, so under GCC the round trip holds for every pointer type. [bitsSizeOf]
-     raises [SizeOfError] for a type whose width the machine model does not
-     fix, and then the answer is no. *)
+  (** Does casting a pointer to [it] and (back) to [t] have to give the original pointer?
+
+      Implementation-defined by C11 6.3.2.3p5-6.
+      Well-behaved under GCC: https://gcc.gnu.org/onlinedocs/gcc/Arrays-and-pointers-implementation.html. *)
   let is_pointer_integer_roundtrip (t: typ) (it: typ): bool =
     isPointerType t && isIntegralType it
     && (try bitsSizeOf it >= bitsSizeOf t with SizeOfError _ -> false)
@@ -1000,10 +993,8 @@ struct
         let array_start = add_offset_varinfo array_ofs in
         Address (ad_concat_map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
-      (* [(T * )(uintptr_t )p] preserves the pointer when the intermediate
-         integer type can represent it. Evaluating the inner cast separately
-         would turn every non-null address into an unknown integer and then
-         an unknown pointer, losing the target for reads and writes. *)
+      (* [(T * )(uintptr_t )p] preserves the pointer when the intermediate integer type can represent it.
+         Evaluating the casts separately would turn non-null addresses into unknown integers and pointers. *)
       | CastE (kind, t, CastE (int_kind, it, inner)) when is_pointer_integer_roundtrip t it ->
         begin match eval_rv ~man st inner with
           | Address _ as v -> VD.cast ~kind t v
