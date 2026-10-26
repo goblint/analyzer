@@ -487,6 +487,7 @@ struct
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
+  module NH = GobHashtbl.Make (Node)
 
   let validate () =
     let location_locator = Locator.create () in
@@ -526,11 +527,14 @@ struct
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
+          let memo = NH.create 13 in
+          let parse_cil n =
+            let fundec = Node.find_fundec n in
+            InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs
+          in
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
-              let fundec = Node.find_fundec n in
-
-              let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              let result: VR.result = match NH.find_or_add_default_delayed ~default:parse_cil memo n with
                 | Ok inv_exp ->
                   begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
