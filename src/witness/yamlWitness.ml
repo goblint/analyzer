@@ -683,4 +683,6 @@ struct
       Ok Unknown
     | _ ->
       Ok True
+
+  let validate = Timing.wrap "yaml witness validate" validate
 end

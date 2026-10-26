@@ -164,6 +164,8 @@ struct
         | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
+  let init = Timing.wrap "unassume init" init
+
   (** Precheck leaf expressions of the invariant expression.
       Parts which contradict the current state are dropped to avoid unassuming something unrelated/unintended.
       In particular, this is useful for disjunctive invariants over loop unrollings to only unassume the parts possibly related to the current unrolling. *)
