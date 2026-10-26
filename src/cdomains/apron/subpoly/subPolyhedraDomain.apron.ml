@@ -664,6 +664,24 @@ struct
 
   let meet a b = verify "meet" (meet a b)
 
+  (** Feed singleton bounds back into the affine component before taking its
+      hull. This also covers singleton slacks and bounds found by reduction.
+      Keep this separate from widening, which must not repeatedly reintroduce
+      equalities it has dropped. *)
+  let reduce_with_equalities ~size (d: P.t) =
+    match reduce ~size d with
+    | None -> None
+    | Some intervals ->
+      let affeq = P.VarMap.fold (fun dim iv acc ->
+          match acc, RationalInterval.bounds iv with
+          | Some m, (Some l, Some u) when Q.equal l u ->
+            let row = P.vec_of_terms size [(dim, Mpqf.one)] (Mpqf.of_string (Q.to_string l)) in
+            Matrix.rref_vec m row
+          | _ -> acc
+        ) intervals (Some d.P.affeq)
+      in
+      Option.map (fun affeq -> { d with P.affeq = affeq; P.intervals = intervals }) affeq
+
   let leq (a: t) (b: t) =
     if is_bot_env a then true
     else if is_bot_env b then false
@@ -673,11 +691,11 @@ struct
       match P.saturate ~size:sz da (union_infos da.P.infos db.P.infos) with
       | None -> true (* a is bottom *)
       | Some sa ->
-        match reduce ~size:sz sa with
+        match reduce_with_equalities ~size:sz sa with
         | None -> true (* a is bottom *)
-        | Some ra ->
+        | Some sa ->
           P.matrix_implied_by sa.P.affeq db.P.affeq
-          && P.leq_intervals ra db.P.intervals
+          && P.leq_intervals sa.P.intervals db.P.intervals
 
   let leq a b =
     let res = leq a b in
@@ -725,10 +743,11 @@ struct
         | None, _ -> { d = Some db; env = sup_env } (* a is bottom *)
         | _, None -> { d = Some da; env = sup_env } (* b is bottom *)
         | Some sa, Some sb ->
-          match reduce ~size:sz sa, reduce ~size:sz sb with
+          match reduce_with_equalities ~size:sz sa, reduce_with_equalities ~size:sz sb with
           | None, _ -> { d = Some db; env = sup_env }
           | _, None -> { d = Some da; env = sup_env }
-          | Some ra, Some rb ->
+          | Some sa, Some sb ->
+            let ra = sa.P.intervals and rb = sb.P.intervals in
             let joined_m =
               if Matrix.is_empty sa.P.affeq || Matrix.is_empty sb.P.affeq then Matrix.empty ()
               else if Matrix.equal sa.P.affeq sb.P.affeq then sa.P.affeq

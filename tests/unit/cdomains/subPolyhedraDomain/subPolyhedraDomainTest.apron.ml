@@ -797,6 +797,47 @@ let assignment_interval_tests =
           (D.is_bot_env (apply D.bot_env (Assign (0, (3, [-2; 1; 0]))))))
   ]
 
+let singleton_join_tests =
+  let bound t cs lo hi =
+    D.constrain_template D.TMeet t
+      (List.combine prog_vars (List.map Mpqf.of_int cs)
+       |> List.filter (fun (_, c) -> not (Mpqf.equal c Mpqf.zero)))
+      (RI.of_bounds ~lower:(Some lo) ~upper:(Some hi))
+  in
+  let check a b relation =
+    let joined = D.join a b in
+    assert_equal [] (D.check_invariants joined);
+    assert_bool "join contains the left operand" (D.leq a joined);
+    assert_bool "join contains the right operand" (D.leq b joined);
+    assert_bool "join is commutative" (L.equal joined (D.join b a));
+    let expr = Apron.Texpr1.of_expr (D.env joined) (texpr_of relation) in
+    assert_equal ~msg:(D.show joined) (Some Z.zero, Some Z.zero)
+      (D.Bounds.bound_texpr joined expr)
+  in
+  [
+    "singleton boxes contribute to the affine hull" >:: (fun _ ->
+        let point x y = run [Guard (1, (-x, [1; 0; 0])); Guard (1, (x, [-1; 0; 0]));
+                             Guard (1, (-y, [0; 1; 0])); Guard (1, (y, [0; -1; 0]))] in
+        check (point 1 2) (point 2 1) (-3, [1; 1; 0]));
+
+    "fractional singleton slacks contribute to the affine hull" >:: (fun _ ->
+        let two = Q.of_int 2 in
+        let a = bound (bound base [2; 1; 0] Q.one Q.one) [0; 0; 1] two two in
+        let b = bound (bound base [2; 1; 0] two two) [0; 0; 1] Q.zero Q.zero in
+        (* Normalization makes the first slack x+y/2=1/2. Both branches
+           satisfy 2 * (2*x+y) + z = 4 without singleton program x or y. *)
+        check a b (-4, [4; 2; 1]));
+
+    "non-singleton intervals are not treated as equalities" >:: (fun _ ->
+        let a = bound (bound base [1; 0; 0] Q.one (Q.of_int 2))
+            [0; 1; 0] Q.one Q.one in
+        let b = run [Assign (0, (1, [0; 0; 0])); Assign (1, (2, [0; 0; 0]))] in
+        let joined = D.join a b in
+        assert_bool "lower endpoint is retained" (mem_point joined [|Q.one; Q.one; Q.zero|]);
+        assert_bool "upper endpoint is retained" (mem_point joined [|Q.of_int 2; Q.one; Q.zero|]);
+        assert_bool "other operand is retained" (mem_point joined [|Q.one; Q.of_int 2; Q.zero|]))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
@@ -804,4 +845,5 @@ let tests =
 let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
+                            @ ["singleton interval joins" >::: singleton_join_tests]
                             @ QCheck_ounit.to_ounit2_test_list tests
