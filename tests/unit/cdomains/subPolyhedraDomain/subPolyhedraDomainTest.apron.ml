@@ -723,9 +723,88 @@ let disequality_tests =
           (mem_point got [|Q.of_int 2; Q.zero; Q.zero|]))
   ]
 
+let assignment_interval_tests =
+  let bounded_x = [Guard (1, (0, [1; 0; 0])); Guard (1, (10, [-1; 0; 0]))] in
+  let expect_bounds t e lower upper =
+    assert_equal [] (D.check_invariants t);
+    let expr = Apron.Texpr1.of_expr (D.env t) (texpr_of e) in
+    let expected = (Option.map Z.of_int lower, Option.map Z.of_int upper) in
+    assert_equal ~msg:(D.show t) expected (D.Bounds.bound_texpr t expr)
+  in
+  let slack_count t = P.VarMap.cardinal (Option.get t.VM.d).P.infos in
+  [
+    "addition preserves the old interval as a difference" >:: (fun _ ->
+        let t = run [Guard (1, (100, [1; 0; 0])); Guard (1, (-1, [-1; 0; 0]));
+                     Assign (0, (0, [1; 1; 0]))] in
+        expect_bounds t (0, [1; -1; 0]) (Some (-100)) (Some (-1));
+        assert_bool "valid image is retained" (mem_point t [|Q.of_int 50; Q.of_int 51; Q.zero|]);
+        assert_bool "impossible image is excluded" (not (mem_point t [|Q.of_int 50; Q.zero; Q.zero|])));
+
+    "positive coefficient and constant preserve both endpoints" >:: (fun _ ->
+        let t = run (bounded_x @ [Assign (0, (3, [2; 1; 0]))]) in
+        expect_bounds t (0, [1; -1; 0]) (Some 3) (Some 23));
+
+    "negative coefficient reverses the preserved interval" >:: (fun _ ->
+        let t = run (bounded_x @ [Assign (0, (3, [-2; 1; 0]))]) in
+        expect_bounds t (0, [1; -1; 0]) (Some (-17)) (Some 3));
+
+    "assigned variable need not lead the normalized template" >:: (fun _ ->
+        let t = run [Guard (1, (-2, [0; 1; 0])); Guard (1, (8, [0; -1; 0]));
+                     Assign (1, (3, [2; 1; 0]))] in
+        expect_bounds t (0, [2; -1; 0]) (Some (-11)) (Some (-5)));
+
+    "inverse template retains all RHS variables" >:: (fun _ ->
+        let t = run (bounded_x @ [Assign (0, (5, [2; 3; -1]))]) in
+        expect_bounds t (0, [1; -3; 1]) (Some 5) (Some 25));
+
+    "negative coefficient preserves one-sided bounds" >:: (fun _ ->
+        let lower = run [Guard (1, (-2, [1; 0; 0])); Assign (0, (3, [-2; 1; 0]))] in
+        let upper = run [Guard (1, (8, [-1; 0; 0])); Assign (0, (3, [-2; 1; 0]))] in
+        expect_bounds lower (0, [1; -1; 0]) None (Some (-1));
+        expect_bounds upper (0, [1; -1; 0]) (Some (-13)) None);
+
+    "preservation uses bounds implied by equalities" >:: (fun _ ->
+        let before = run [Guard (1, (-2, [0; 0; 1])); Guard (1, (8, [0; 0; -1]));
+                          Guard (0, (0, [1; 0; -1]))] in
+        (* Keep x's bound only implicitly, through x=z and z's interval. *)
+        let dim_x = Apron.Environment.dim_of_var (D.env before) (List.hd prog_vars) in
+        let d = Option.get before.VM.d in
+        let before = { before with VM.d = Some { d with P.intervals = P.VarMap.remove dim_x d.P.intervals } } in
+        let t = apply before (Assign (0, (0, [1; 1; 0]))) in
+        expect_bounds t (0, [1; -1; 0]) (Some 2) (Some 8));
+
+    "preservation reuses a transformed singleton template" >:: (fun _ ->
+        let before = D.constrain_template D.TMeet base [(List.hd prog_vars, Mpqf.one)]
+            (RI.of_bounds ~lower:(Some Q.zero) ~upper:(Some (Q.of_int 10))) in
+        let t = apply before (Assign (0, (0, [1; 1; 0]))) in
+        expect_bounds t (0, [1; -1; 0]) (Some 0) (Some 10);
+        assert_equal 1 (slack_count t));
+
+    "unbounded old variable needs no new slack" >:: (fun _ ->
+        let t = apply base (Assign (0, (0, [1; 1; 0]))) in
+        expect_bounds t (0, [1; -1; 0]) None None;
+        assert_equal 0 (slack_count t));
+
+    "unary affine assignment needs no new slack" >:: (fun _ ->
+        let t = run (bounded_x @ [Assign (0, (3, [-2; 0; 0]))]) in
+        expect_bounds t (0, [1; 0; 0]) (Some (-17)) (Some 3);
+        assert_equal 0 (slack_count t));
+
+    "non-invertible assignment does not preserve overwritten bounds" >:: (fun _ ->
+        let t = run (bounded_x @ [Assign (0, (0, [0; 1; 0]))]) in
+        expect_bounds t (0, [1; 0; 0]) None None;
+        assert_bool "old x bound is forgotten" (mem_point t [|Q.of_int 100; Q.of_int 100; Q.zero|]));
+
+    "assignment preserves bottom" >:: (fun _ ->
+        assert_bool "bottom stays bottom"
+          (D.is_bot_env (apply D.bot_env (Assign (0, (3, [-2; 1; 0]))))))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
 
 let test () =
-  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests @ QCheck_ounit.to_ounit2_test_list tests
+  "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
+                            @ ["invertible assignment intervals" >::: assignment_interval_tests]
+                            @ QCheck_ounit.to_ounit2_test_list tests

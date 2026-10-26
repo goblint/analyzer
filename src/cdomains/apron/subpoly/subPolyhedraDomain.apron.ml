@@ -878,12 +878,25 @@ struct
       | Some v ->
         let sz = size t in
         let dim_x = Environment.dim_of_var t.env var in
-        let rhs_iv =
+        let rhs_iv, old_x_iv =
           match reduce ~size:sz d with
-          | None -> RationalInterval.top (* pre-state is bottom; detected below *)
-          | Some refined -> P.eval_vec ~size:sz d refined v
+          | None -> (RationalInterval.top, RationalInterval.top) (* pre-state is bottom; detected below *)
+          | Some refined -> (P.eval_vec ~size:sz d refined v, P.get_iv refined dim_x)
         in
         if Vector.nth v dim_x <>: Mpqf.zero then begin
+          (* An interval on old x becomes a relational constraint after a
+             multivariable invertible assignment. Reuse slack substitution to
+             express old x = sum vts + k in post-state variables. Capture names
+             now: renaming existing slacks below changes dimension indices.
+             Unary assignments already preserve this bound in rhs_iv. *)
+          let preserved_interval =
+            if RationalInterval.is_top old_x_iv then None
+            else
+              match subst_info t v dim_x { P.iterms = [(dim_x, Mpqf.one)] } with
+              | Some ((_ :: _ :: _ as vts), k) ->
+                Some (vts, RationalInterval.add_const (Q.neg (P.q_of_mpqf k)) old_x_iv)
+              | _ -> None
+          in
           (* invertible assignment: substitute x in rows and slack infos *)
           let a_j0 = Matrix.get_col_upper_triangular d.P.affeq dim_x in
           let b0 = Vector.nth v dim_x in
@@ -920,7 +933,7 @@ struct
                   (move_slack t old_v tmp_v, (tmp_v, vts, k) :: moved)
               ) (t, []) pending
             in
-            List.fold_left (fun t (tmp_v, vts, k) ->
+            let t = List.fold_left (fun t (tmp_v, vts, k) ->
                 match t.d with
                 | None -> t
                 | Some _ ->
@@ -943,6 +956,12 @@ struct
                        let beta = Environment.dim_of_var t'.env final_v in
                        { t' with d = Some (P.set_info beta (info_of t') d') })
               ) t moved
+            in
+            (* The canonical template machinery handles scale/sign and reuses
+               an existing slack if the inverse form is already represented. *)
+            match preserved_interval with
+            | None -> t
+            | Some (vts, iv) -> constrain_template TMeet t vts iv
         end
         else begin
           (* non-invertible: slacks mentioning x lose their meaning *)
