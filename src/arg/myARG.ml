@@ -303,7 +303,7 @@ struct
   let () =
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
-  let rec next_opt' n = match n with
+  let rec next_opt' alt_targets n = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
@@ -313,9 +313,12 @@ struct
       let and_next =
         match if_true_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
+        | Statement {sid=sid2; skind=If _; _} when
+            sid <> sid2
+            && CilType.Location.equal loc (Node.location if_true_next_n)
+            && not (List.exists (Node.equal if_true_next_n) alt_targets) ->
           (* get e2 from edge because recursive next returns it there *)
-          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next if_true_next_n) in
+          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next_until (if_false_next_n :: alt_targets) if_true_next_n) in
           if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
             Some [
@@ -332,9 +335,12 @@ struct
           (* A failed && join can still be a ||, so try it independently. *)
           begin match if_false_next_n with
             (* || *)
-            | Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_false_next_n) ->
+            | Statement {sid=sid2; skind=If _; _} when
+                sid <> sid2
+                && CilType.Location.equal loc (Node.location if_false_next_n)
+                && not (List.exists (Node.equal if_false_next_n) alt_targets) ->
               (* get e2 from edge because recursive next returns it there *)
-              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next if_false_next_n) in
+              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next_until (if_true_next_n :: alt_targets) if_false_next_n) in
               if Node.equal if_true_next_n if_false_next_true_next_n then
                 let exp = BinOp (LOr, e, e2, intType) in
                 Some [
@@ -347,12 +353,14 @@ struct
           end
       end
     | _ -> None
-  and next_opt n = match next_opt' n with
-    | Some _ as next_opt -> next_opt
-    | None -> Arg.next_opt n
-  and next n = match next_opt' n with
+  and next_until alt_branch_succs n = match next_opt' alt_branch_succs n with
     | Some next -> next
     | None -> Arg.next n
+
+  let next_opt n = match next_opt' [] n with
+    | Some _ as next_opt -> next_opt
+    | None -> Arg.next_opt n
+  let next n = next_until [] n
 end
 
 module UnCilTernaryIntra (Arg: SIntraOpt): SIntraOpt =
