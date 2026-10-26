@@ -984,8 +984,12 @@ struct
             | Some (vts, iv) -> constrain_template TMeet t vts iv
         end
         else begin
-          (* non-invertible: slacks mentioning x lose their meaning *)
+          (* Non-invertible: rescue bounds over surviving variables before
+             discarding slacks mentioning the old x. For example, after
+             saved = x, a bound on x-y can survive as a bound on saved-y.
+             Rescue may add dimensions, so recompute the RHS vector below. *)
           let dep = dependent_slack_vars t [var] in
+          let t = rescue_dependent_slacks t [var] dep in
           let t1 = VarManagement.remove_vars t dep in
           match t1.d with
           | None -> t1

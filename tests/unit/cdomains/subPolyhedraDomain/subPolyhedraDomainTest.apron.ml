@@ -838,6 +838,43 @@ let singleton_join_tests =
         assert_bool "other operand is retained" (mem_point joined [|Q.one; Q.of_int 2; Q.zero|]))
   ]
 
+let saved_inequality_tests =
+  let bounded_difference = [Guard (1, (-1, [1; -1; 0])); Guard (1, (5, [-1; 1; 0]))] in
+  let expect_bounds t e lower upper =
+    assert_equal [] (D.check_invariants t);
+    let expr = Apron.Texpr1.of_expr (D.env t) (texpr_of e) in
+    assert_equal ~msg:(D.show t) (Option.map Z.of_int lower, Option.map Z.of_int upper)
+      (D.Bounds.bound_texpr t expr)
+  in
+  [
+    "saved copy retains both inequality endpoints when original is overwritten" >:: (fun _ ->
+        let t = run (bounded_difference @ [Assign (2, (0, [1; 0; 0])); Assign (0, (0, [0; 1; 0]))]) in
+        expect_bounds t (0, [0; -1; 1]) (Some 1) (Some 5);
+        expect_bounds t (0, [1; -1; 0]) (Some 0) (Some 0);
+        assert_bool "assignment image remains feasible"
+          (mem_point t [|Q.of_int 10; Q.of_int 10; Q.of_int 12|]));
+
+    "affine saved copy rescales and shifts the rescued inequality" >:: (fun _ ->
+        let t = run (bounded_difference @ [Assign (2, (3, [-2; 0; 0])); Assign (0, (0, [0; 1; 0]))]) in
+        (* z=-2*old_x+3, so z+2*y = 3-2*(old_x-y). *)
+        expect_bounds t (0, [0; 2; 1]) (Some (-7)) (Some 1));
+
+    "constant overwrite keeps the saved relation without retaining stale bounds" >:: (fun _ ->
+        let t = run (bounded_difference @ [Assign (2, (0, [1; 0; 0])); Assign (0, (0, [0; 0; 0]))]) in
+        expect_bounds t (0, [0; -1; 1]) (Some 1) (Some 5);
+        expect_bounds t (0, [1; 0; 0]) (Some 0) (Some 0);
+        assert_bool "old x-y constraint must not constrain the new x"
+          (mem_point t [|Q.zero; Q.of_int 10; Q.of_int 12|]));
+
+    "overwriting the saved copy prevents invalid recovery" >:: (fun _ ->
+        let t = run (bounded_difference @ [Assign (2, (0, [1; 0; 0]));
+                                           Assign (2, (42, [0; 0; 0]));
+                                           Assign (0, (0, [0; 1; 0]))]) in
+        expect_bounds t (0, [0; -1; 1]) None None;
+        assert_bool "the discarded saved value must impose no constraint"
+          (mem_point t [|Q.of_int 100; Q.of_int 100; Q.of_int 42|]))
+  ]
+
 let speculative_query_tests =
   let open GoblintCil in
   let vi = makeVarinfo false "query_x" intType in
@@ -876,4 +913,5 @@ let test () =
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
                             @ ["singleton interval joins" >::: singleton_join_tests]
                             @ ["speculative expression queries" >::: speculative_query_tests]
+                            @ ["saved inequalities across assignments" >::: saved_inequality_tests]
                             @ QCheck_ounit.to_ounit2_test_list tests
