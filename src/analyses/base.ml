@@ -798,7 +798,7 @@ struct
      fix, and then the answer is no. *)
   let is_pointer_integer_roundtrip (t: typ) (it: typ): bool =
     isPointerType t && isIntegralType it
-    && (try bitsSizeOf it >= bitsSizeOf voidPtrType with SizeOfError _ -> false)
+    && (try bitsSizeOf it >= bitsSizeOf t with SizeOfError _ -> false)
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv ~(man: _ man) (st: store) (exp:exp): value =
