@@ -1182,10 +1182,19 @@ struct
     if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     verify "substitute_exp" res
 
-  let assert_constraint ask (d: t) e negate (no_ov: bool Lazy.t) =
-    match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
-    | tcons1 -> meet_tcons d tcons1
-    | exception Convert.Unsupported_CilExp _ -> d
+  let rec assert_constraint ask (d: t) e negate (no_ov: bool Lazy.t) =
+    match e with
+    | UnOp (LNot, e, _) -> assert_constraint ask d e (not negate) no_ov
+    | BinOp ((LAnd | LOr as op), lhs, rhs, _) ->
+      let assert_l = assert_constraint ask d lhs negate no_ov in
+      let assert_r = assert_constraint ask d rhs negate no_ov in
+      (* Negation swaps conjunction and disjunction by De Morgan's laws. *)
+      if (op = LAnd) <> negate then meet assert_l assert_r else join assert_l assert_r
+    | _ ->
+      begin match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
+        | tcons1 -> meet_tcons d tcons1
+        | exception Convert.Unsupported_CilExp _ -> d
+      end
 
   let assert_constraint ask d e negate no_ov =
     let res = assert_constraint ask d e negate no_ov in
