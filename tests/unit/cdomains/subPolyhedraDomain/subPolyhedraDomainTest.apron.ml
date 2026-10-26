@@ -838,6 +838,35 @@ let singleton_join_tests =
         assert_bool "other operand is retained" (mem_point joined [|Q.one; Q.of_int 2; Q.zero|]))
   ]
 
+let speculative_query_tests =
+  let open GoblintCil in
+  let vi = makeVarinfo false "query_x" intType in
+  let var = D.V.local vi in
+  let x = Lval (Cil.var vi) in
+  let expr = BinOp (PlusA, BinOp (PlusA, x, integer 1, intType), integer 1, intType) in
+  let check (result: unit -> Queries.ID.t) =
+    let ask : Queries.ask = { f = (fun (type a) (q: a Queries.t) : a Queries.result ->
+        match q with
+        | Queries.EvalInt _ -> result ()
+        | _ -> Queries.Result.top q)
+      } in
+    let before = D.add_vars (D.top ()) [var] in
+    let before = D.assign_texpr before var (Apron.Texpr1.Cst (Apron.Coeff.s_of_int 7)) in
+    let speculative = !AnalysisState.executing_speculative_computations in
+    let after = D.assign_exp ask before var expr (lazy true) in
+    assert_equal speculative !AnalysisState.executing_speculative_computations;
+    assert_equal [] (D.check_invariants after);
+    let value = Apron.Texpr1.of_expr (D.env after) (Apron.Texpr1.Var var) in
+    assert_equal ~msg:(D.show after) (Some (Z.of_int 9), Some (Z.of_int 9))
+      (D.Bounds.bound_texpr after value)
+  in
+  [
+    "arithmetic-on-bottom query falls back to symbolic conversion" >:: (fun _ ->
+        check (fun () -> raise (IntDomain.ArithmeticOnIntegerBot "speculative query")));
+    "typed bottom query falls back to symbolic conversion" >:: (fun _ ->
+        check (fun () -> `Lifted (IntDomain.IntDomTuple.bot_of IInt)))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
@@ -846,4 +875,5 @@ let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
                             @ ["singleton interval joins" >::: singleton_join_tests]
+                            @ ["speculative expression queries" >::: speculative_query_tests]
                             @ QCheck_ounit.to_ounit2_test_list tests
