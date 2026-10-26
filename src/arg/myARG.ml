@@ -303,9 +303,9 @@ struct
   let () =
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
-  let rec next_opt' alt_targets n = match n with
+  let rec next_opt' alt_targets n edges = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
-      let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next (Arg.next n) in
+      let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next edges in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       (* TODO: need to handle longer loops? *)
@@ -329,7 +329,7 @@ struct
             None
         | _ -> None
       in
-      begin match and_next with
+      let merged = begin match and_next with
         | Some _ as next -> next
         | None ->
           (* A failed && join can still be a ||, so try it independently. *)
@@ -351,13 +351,23 @@ struct
                 None
             | _ -> None
           end
+      end in
+      begin match merged with
+        | Some edges ->
+          begin match next_opt' alt_targets n edges with
+            | Some _ as next -> next
+            | None -> Some edges
+          end
+        | None -> None
       end
     | _ -> None
-  and next_until alt_branch_succs n = match next_opt' alt_branch_succs n with
+  and next_until alt_targets n =
+    let edges = Arg.next n in
+    match next_opt' alt_targets n edges with
     | Some next -> next
-    | None -> Arg.next n
+    | None -> edges
 
-  let next_opt n = match next_opt' [] n with
+  let next_opt n = match next_opt' [] n (Arg.next n) with
     | Some _ as next_opt -> next_opt
     | None -> Arg.next_opt n
   let next n = next_until [] n
