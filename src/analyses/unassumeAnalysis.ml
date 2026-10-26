@@ -14,6 +14,7 @@ struct
   let name () = "unassume"
 
   module Locator = WitnessUtil.Locator (Node)
+  module FundecH = GobHashtbl.Make (CilType.Fundec)
 
   let location_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
   let loop_locator: Locator.t = Locator.create () (* empty default, so don't have to use option everywhere *)
@@ -80,11 +81,16 @@ struct
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
+          (* do parse_cil at most once per function *)
+          let memo = FundecH.create 1 in (* loc should just be in one function *)
+          let parse_cil fundec =
+            InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs
+          in
 
           Locator.ES.iter (fun n ->
               let fundec = Node.find_fundec n in
 
-              match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
+              match FundecH.find_or_add_default_delayed ~default:parse_cil memo fundec with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                 NH.add invs n {exp = inv_exp; token = (uuid, i)}
