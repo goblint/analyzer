@@ -259,6 +259,7 @@ struct
   (* ---------------------------------------------------------------------- *)
   (* Basic lattice elements *)
 
+  let bot () = { d = None; env = empty_env }
   let top () = { d = Some (P.empty ()); env = empty_env }
   let is_top (t: t) = GobOption.exists P.is_empty t.d
   let is_bot = is_bot_env

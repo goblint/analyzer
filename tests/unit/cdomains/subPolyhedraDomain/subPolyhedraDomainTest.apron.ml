@@ -87,12 +87,9 @@ let gen_state : D.t Gen.t =
 (* Lattice wrapper for DomainProperties: lattice laws are stated up to the
    order's equivalence. Structural equality distinguishes states that differ
    only in redundant slack dimensions or environment layout, so [equal] is
-   mutual [leq] here. [D.bot ()] (inherited from VarManagementOps) is an empty
-   non-bottom state; the actual bottom element is [bot_env]. *)
+    mutual [leq] here. *)
 module L = struct
   include D
-  let bot () = D.bot_env
-  let is_bot = D.is_bot_env
   let equal a b = D.leq a b && D.leq b a
   let arbitrary () = QCheck.make ~print:D.show gen_state
 end
