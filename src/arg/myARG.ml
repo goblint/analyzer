@@ -310,9 +310,10 @@ struct
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       (* TODO: need to handle longer loops? *)
       let loc = Node.location n in
-      begin match if_true_next_n, if_false_next_n with
+      let and_next =
+        match if_true_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If _; _}, _ when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
+        | Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next if_true_next_n) in
           if Node.equal if_false_next_n if_true_next_false_next_n then
@@ -323,19 +324,27 @@ struct
             ]
           else
             None
-        (* || *)
-        | _, Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_false_next_n) ->
-          (* get e2 from edge because recursive next returns it there *)
-          let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next if_false_next_n) in
-          if Node.equal if_true_next_n if_false_next_true_next_n then
-            let exp = BinOp (LOr, e, e2, intType) in
-            Some [
-              (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_append if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
-              (Test (exp, false), if_false_next_false_next_n, cartesian_append if_false_next_ps if_false_next_false_next_ps)
-            ]
-          else
-            None
-        | _, _ -> None
+        | _ -> None
+      in
+      begin match and_next with
+        | Some _ as next -> next
+        | None ->
+          (* A failed && join can still be a ||, so try it independently. *)
+          begin match if_false_next_n with
+            (* || *)
+            | Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_false_next_n) ->
+              (* get e2 from edge because recursive next returns it there *)
+              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next if_false_next_n) in
+              if Node.equal if_true_next_n if_false_next_true_next_n then
+                let exp = BinOp (LOr, e, e2, intType) in
+                Some [
+                  (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_append if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
+                  (Test (exp, false), if_false_next_false_next_n, cartesian_append if_false_next_ps if_false_next_false_next_ps)
+                ]
+              else
+                None
+            | _ -> None
+          end
       end
     | _ -> None
   and next_opt n = match next_opt' n with
