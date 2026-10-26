@@ -951,6 +951,72 @@
   (deps
    (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
    (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_or.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_or.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_or.expected and_or.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_or_and.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_or_and.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_or_and.expected and_or_and.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_or_groups.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_or_groups.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_or_groups.expected and_or_groups.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
    (:c and_true-unreach-call.c)
    (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
   (target and_true-unreach-call.output)
@@ -1055,6 +1121,94 @@
   (enabled_if %{bin-available:graph-easy})
   (action
    (diff or3dead_true-unreach-call.expected or3dead_true-unreach-call.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c or_and.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target or_and.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff or_and.expected or_and.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c or_and_groups.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target or_and_groups.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff or_and_groups.expected or_and_groups.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c or_and_or.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target or_and_or.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff or_and_or.expected or_and_or.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c or_and_partition.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target or_and_partition.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff or_and_partition.expected or_and_partition.output))))
 
 (subdir cfg/uncil
  (rule
