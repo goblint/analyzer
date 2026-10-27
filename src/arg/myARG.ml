@@ -300,6 +300,8 @@ module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
   open Cil
 
+  module NodeSet = BatSet.Make (Node)
+
   let () =
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
@@ -312,8 +314,8 @@ struct
         (* && *)
         | Statement {skind=If _; _} when
             CilType.Location.equal loc (Node.location if_true_next_n)
-            && not (List.exists (Node.equal if_true_next_n) blocked) ->
-          let next, consumed = collapse (if_false_next_n :: blocked) if_true_next_n in
+            && not (NodeSet.mem if_true_next_n blocked) ->
+          let next, consumed = collapse (NodeSet.add if_false_next_n blocked) if_true_next_n in
           (* get e2 from edge because recursive next returns it there *)
           let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next next in
           if Node.equal if_false_next_n if_true_next_false_next_n then
@@ -334,8 +336,8 @@ struct
             (* || *)
             | Statement {skind=If _; _} when
                 CilType.Location.equal loc (Node.location if_false_next_n)
-                && not (List.exists (Node.equal if_false_next_n) blocked) ->
-              let next, consumed = collapse (if_true_next_n :: blocked) if_false_next_n in
+                && not (NodeSet.mem if_false_next_n blocked) ->
+              let next, consumed = collapse (NodeSet.add if_true_next_n blocked) if_false_next_n in
               (* get e2 from edge because recursive next returns it there *)
               let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next next in
               if Node.equal if_true_next_n if_false_next_true_next_n then
@@ -353,16 +355,16 @@ struct
   and collapse blocked n =
     let rec extend consumed edges =
       (* Block the starting node and all nodes absorbed by previous merges. *)
-      match merge (consumed @ blocked) n edges with
-      | Some (next, consumed') -> extend (consumed' @ consumed) next
+      match merge (NodeSet.union consumed blocked) n edges with
+      | Some (next, consumed') -> extend (NodeSet.union consumed' consumed) next
       | None -> edges, consumed
     in
-    extend [n] (Arg.next n)
+    extend (NodeSet.singleton n) (Arg.next n)
 
-  let next_opt n = match collapse [] n with
-    | _, [_] -> Arg.next_opt n (* no nodes were merged into the starting node *)
+  let next_opt n = match collapse NodeSet.empty n with
+    | _, consumed when NodeSet.is_singleton consumed -> Arg.next_opt n (* no nodes were merged into the starting node *)
     | next, _ -> Some next
-  let next n = fst (collapse [] n)
+  let next n = fst (collapse NodeSet.empty n)
 end
 
 module UnCilTernaryIntra (Arg: SIntraOpt): SIntraOpt =
