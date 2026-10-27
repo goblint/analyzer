@@ -132,7 +132,7 @@ struct
       | Some c when Mpqf.get_den c = Z.one ->
         let int_val = Mpqf.get_num c in
         Some (Some int_val, Some int_val)
-      | Some _ -> None (* Term is a constant but has a denominator different from 1; meaning an actual fracture -> no integer value *)
+      | Some _ -> None (* Term is a constant but has a denominator different from 1; meaning an actual fraction -> no integer value *)
       | None -> Some (None, None) (* Term is not constant *)
 
 
