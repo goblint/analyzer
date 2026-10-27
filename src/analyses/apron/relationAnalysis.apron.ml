@@ -506,8 +506,8 @@ struct
   let special_unknown_invalidate man f args =
     (* No warning here, base already produces the appropriate warnings *)
     let desc = LibraryFunctions.find f in
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true args in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         foldGlobals !Cilfacade.current_file (fun acc global ->

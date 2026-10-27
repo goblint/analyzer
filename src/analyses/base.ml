@@ -2271,8 +2271,8 @@ struct
         List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | _, _ ->
-      let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
-      let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
+      let shallow_args = LibraryDesc.Accesses.find desc.accs ~kind:Spawn ~deep:false args in
+      let deep_args = LibraryDesc.Accesses.find desc.accs ~kind:Spawn ~deep:true args in
       let shallow_flist = collect_invalidate ~deep:false ~man man.local shallow_args in
       let deep_flist = collect_invalidate ~deep:true ~man man.local deep_args in
       let flist = AD.join shallow_flist deep_flist in
@@ -2294,8 +2294,8 @@ struct
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called";
       ));
     let desc = LF.find f in
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true args in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
