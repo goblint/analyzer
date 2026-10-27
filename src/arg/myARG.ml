@@ -305,64 +305,68 @@ struct
   let () =
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
-  let rec merge blocked n edges = match n with
+  (* Try one outer merge, returning the new edges and the additional consumed nodes.
+     The caller includes n and all previously consumed nodes in blocked. *)
+  let rec try_merge blocked n edges = match n with
     | Statement {skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next edges in
-      let loc = Node.location n in
-      let and_next =
-        match if_true_next_n with
-        (* && *)
-        | Statement {skind=If _; _} when
-            CilType.Location.equal loc (Node.location if_true_next_n)
-            && not (NodeSet.mem if_true_next_n blocked) ->
+      let can_follow = function
+        | Statement {skind=If _; _} as node ->
+          CilType.Location.equal (Node.location n ) (Node.location node)
+          && not (NodeSet.mem node blocked)
+        | _ -> false
+      in
+      let and_merge =
+        if can_follow if_true_next_n then
+          (* Preserve the other branch's destination as the potential && join. *)
           let next, consumed = collapse (NodeSet.add if_false_next_n blocked) if_true_next_n in
-          (* get e2 from edge because recursive next returns it there *)
           let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next next in
           if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
             Some ([
-              (Test (exp, true), if_true_next_true_next_n, cartesian_append if_true_next_ps if_true_next_true_next_ps);
-              (Test (exp, false), if_true_next_false_next_n, if_false_next_ps @ cartesian_append if_true_next_ps if_true_next_false_next_ps) (* concat two different path families to same false node *)
-            ], consumed)
+                (Test (exp, true), if_true_next_true_next_n, cartesian_append if_true_next_ps if_true_next_true_next_ps);
+                (* e is false, or e is true and e2 is false. *)
+                (Test (exp, false), if_true_next_false_next_n, if_false_next_ps @ cartesian_append if_true_next_ps if_true_next_false_next_ps) (* concat two different path families to same false node *)
+              ], consumed)
           else
             None
-        | _ -> None
+        else
+          None
       in
-      begin match and_next with
+      begin match and_merge with
         | Some _ as next -> next
         | None ->
           (* A failed && join can still be a ||, so try it independently. *)
-          begin match if_false_next_n with
-            (* || *)
-            | Statement {skind=If _; _} when
-                CilType.Location.equal loc (Node.location if_false_next_n)
-                && not (NodeSet.mem if_false_next_n blocked) ->
-              let next, consumed = collapse (NodeSet.add if_true_next_n blocked) if_false_next_n in
-              (* get e2 from edge because recursive next returns it there *)
-              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next next in
-              if Node.equal if_true_next_n if_false_next_true_next_n then
-                let exp = BinOp (LOr, e, e2, intType) in
-                Some ([
+          if can_follow if_false_next_n then
+            (* Preserve the other branch's destination as the potential || join. *)
+            let next, consumed = collapse (NodeSet.add if_true_next_n blocked) if_false_next_n in
+            let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next next in
+            if Node.equal if_true_next_n if_false_next_true_next_n then
+              let exp = BinOp (LOr, e, e2, intType) in
+              Some ([
+                  (* e is true, or e is false and e2 is true. *)
                   (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_append if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
                   (Test (exp, false), if_false_next_false_next_n, cartesian_append if_false_next_ps if_false_next_false_next_ps)
                 ], consumed)
-              else
-                None
-            | _ -> None
-          end
+            else
+              None
+          else
+            None
       end
     | _ -> None
   and collapse blocked n =
+    (* Return the reconstructed edges and all consumed nodes, including n. *)
     let rec extend consumed edges =
       (* Block the starting node and all nodes absorbed by previous merges. *)
-      match merge (NodeSet.union consumed blocked) n edges with
+      match try_merge (NodeSet.union consumed blocked) n edges with
       | Some (next, consumed') -> extend (NodeSet.union consumed' consumed) next
       | None -> edges, consumed
     in
     extend (NodeSet.singleton n) (Arg.next n)
 
   let next_opt n = match collapse NodeSet.empty n with
-    | _, consumed when NodeSet.is_singleton consumed -> Arg.next_opt n (* no nodes were merged into the starting node *)
+    (* A singleton contains only n: no nodes were merged into the starting node. *)
+    | _, consumed when NodeSet.is_singleton consumed -> Arg.next_opt n
     | next, _ -> Some next
   let next n = fst (collapse NodeSet.empty n)
 end
