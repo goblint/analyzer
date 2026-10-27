@@ -303,12 +303,11 @@ struct
   let () =
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
-  let rec next_opt' alt_targets n edges = match n with
+  let rec next_opt' blocked n edges = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next edges in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
-      (* TODO: need to handle longer loops? *)
       let loc = Node.location n in
       let and_next =
         match if_true_next_n with
@@ -316,9 +315,9 @@ struct
         | Statement {sid=sid2; skind=If _; _} when
             sid <> sid2
             && CilType.Location.equal loc (Node.location if_true_next_n)
-            && not (List.exists (Node.equal if_true_next_n) alt_targets) ->
+            && not (List.exists (Node.equal if_true_next_n) blocked) ->
           (* get e2 from edge because recursive next returns it there *)
-          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next_until (if_false_next_n :: alt_targets) if_true_next_n) in
+          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next_until (n :: if_false_next_n :: blocked) if_true_next_n) in
           if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
             Some [
@@ -338,9 +337,9 @@ struct
             | Statement {sid=sid2; skind=If _; _} when
                 sid <> sid2
                 && CilType.Location.equal loc (Node.location if_false_next_n)
-                && not (List.exists (Node.equal if_false_next_n) alt_targets) ->
+                && not (List.exists (Node.equal if_false_next_n) blocked) ->
               (* get e2 from edge because recursive next returns it there *)
-              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next_until (if_true_next_n :: alt_targets) if_false_next_n) in
+              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next_until (n :: if_true_next_n :: blocked) if_false_next_n) in
               if Node.equal if_true_next_n if_false_next_true_next_n then
                 let exp = BinOp (LOr, e, e2, intType) in
                 Some [
@@ -354,16 +353,16 @@ struct
       end in
       begin match merged with
         | Some edges ->
-          begin match next_opt' alt_targets n edges with
+          begin match next_opt' blocked n edges with
             | Some _ as next -> next
             | None -> Some edges
           end
         | None -> None
       end
     | _ -> None
-  and next_until alt_targets n =
+  and next_until blocked n =
     let edges = Arg.next n in
-    match next_opt' alt_targets n edges with
+    match next_opt' blocked n edges with
     | Some next -> next
     | None -> edges
 
