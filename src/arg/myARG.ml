@@ -304,17 +304,14 @@ struct
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
   let rec merge blocked n edges = match n with
-    | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
+    | Statement {skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next edges in
-      (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
-      (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       let loc = Node.location n in
       let and_next =
         match if_true_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If _; _} when
-            sid <> sid2
-            && CilType.Location.equal loc (Node.location if_true_next_n)
+        | Statement {skind=If _; _} when
+            CilType.Location.equal loc (Node.location if_true_next_n)
             && not (List.exists (Node.equal if_true_next_n) blocked) ->
           let next, consumed = collapse (if_false_next_n :: blocked) if_true_next_n in
           (* get e2 from edge because recursive next returns it there *)
@@ -335,9 +332,8 @@ struct
           (* A failed && join can still be a ||, so try it independently. *)
           begin match if_false_next_n with
             (* || *)
-            | Statement {sid=sid2; skind=If _; _} when
-                sid <> sid2
-                && CilType.Location.equal loc (Node.location if_false_next_n)
+            | Statement {skind=If _; _} when
+                CilType.Location.equal loc (Node.location if_false_next_n)
                 && not (List.exists (Node.equal if_false_next_n) blocked) ->
               let next, consumed = collapse (if_true_next_n :: blocked) if_false_next_n in
               (* get e2 from edge because recursive next returns it there *)
