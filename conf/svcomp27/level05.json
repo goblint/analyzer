@@ -46,6 +46,9 @@
       "memLeak",
       "threadflag"
     ],
+    "context": {
+      "gas_value": 30
+    },
     "base": {
       "arrays": {
         "domain": "unroll",
@@ -80,8 +83,8 @@
       "narrow-globs": {
         "enabled": true
       },
-      "widen_gas": 60,
-      "side_widen_gas": 60
+      "widen_gas": 3,
+      "side_widen_gas": 3
     }
   }
 }
