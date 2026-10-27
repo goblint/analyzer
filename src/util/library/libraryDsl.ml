@@ -114,15 +114,17 @@ let drop (_name: string) accesses = { empty_drop_desc with accesses; }
 let drop' accesses = { empty_drop_desc with accesses; }
 
 
-let r = Access { kind = Read; deep = false; }
-let r_deep = Access { kind = Read; deep = true; }
-let w = Access { kind = Write; deep = false; }
-let w_deep = Access { kind = Write; deep = true; }
-let f = Access { kind = Free; deep = false; }
-let f_deep = Access { kind = Free; deep = true; }
-let s = Access { kind = Spawn; deep = false; }
-let s_deep = Access { kind = Spawn; deep = true; }
-let c = Access { kind = Spawn; deep = false; } (* TODO: Sound, but very imprecise hack for calls to function pointers given as arguments. *)
-let c_deep = Access { kind = Spawn; deep = true; }
+let r = Access { kind = Read; deep = false; atomic = false; }
+let r_deep = Access { kind = Read; deep = true; atomic = false; }
+let r_atomic = Access { kind = Read; deep = false; atomic = true; }
+let w = Access { kind = Write; deep = false; atomic = false; }
+let w_deep = Access { kind = Write; deep = true; atomic = false; }
+let w_atomic = Access { kind = Write; deep = false; atomic = true; }
+let f = Access { kind = Free; deep = false; atomic = false; }
+let f_deep = Access { kind = Free; deep = true; atomic = false; }
+let s = Access { kind = Spawn; deep = false; atomic = false; }
+let s_deep = Access { kind = Spawn; deep = true; atomic = false; }
+let c = Access { kind = Spawn; deep = false; atomic = false; } (* TODO: Sound, but very imprecise hack for calls to function pointers given as arguments. *)
+let c_deep = Access { kind = Spawn; deep = true; atomic = false; }
 
 let if_ p access = If (p, access)

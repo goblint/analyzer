@@ -196,9 +196,6 @@ struct
 
   module NH = BatHashtbl.Make (Node)
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
-  module FMap = BatHashtbl.Make (CilType.Fundec)
-  module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
-  type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
 
   (* TODO: fix location hack *)
   module LH = BatHashtbl.Make (CilType.Location)
