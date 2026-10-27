@@ -132,6 +132,21 @@ struct
   let hs_map f s = if HS.is_bot s
     then s
     else HS.map (SS.map f) s
+
+  (** Whether two field values may describe the same concrete value, so that structs containing them may overlap.
+      Bottom counts as overlapping, because it stands for not yet initialized contents (e.g., of arrays) rather than for no value. *)
+  let values_overlap (a: value) (b: value) =
+    let meet_may_be_non_bot () =
+      match Val.meet a b with
+      | meet -> not (Val.is_bot_value meet)
+      | exception Lattice.Uncomparable -> true (* raised for unions with different active fields, which may still overlap *)
+    in
+    Val.is_bot_value a || Val.is_bot_value b || meet_may_be_non_bot ()
+
+  (** Whether the structs [ssx] and [ssy] may overlap, i.e., the values of all their fields may overlap. *)
+  let maps_overlap (ssx: SS.t) (ssy: SS.t) =
+    let fields = SS.keys ssx in
+    List.for_all (fun field -> values_overlap (SS.get ssx field) (SS.get ssy field)) fields
 end
 
 module Sets (Val: Arg) =
@@ -168,13 +183,6 @@ struct
     That's why we take a more involved approach and only discard those variants
     that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
-    let values_overlap (a: value) (b: value) =
-      Val.is_bot_value a || Val.is_bot_value b || not (Val.is_bot_value (Val.meet a b))
-    in
-    let maps_overlap ssx ssy =
-      let fields = SS.keys ssx in
-      List.for_all (fun field -> values_overlap (SS.get ssx field) (SS.get ssy field)) fields
-    in
     let x_list = HS.elements x in
     let y_list = HS.elements y in
     (* TODO: GobList.cartesian_filter_map? or just Seq? *)
@@ -308,7 +316,7 @@ struct
             let h_key = SS.get h key in
             let variant_overlaps ss =
               let v = SS.get ss key in
-              Val.leq h_key v || Val.leq v h_key || not (Val.is_bot_value (Val.meet h_key v))
+              Val.leq h_key v || Val.leq v h_key || values_overlap h_key v
             in
             let (overlapping, rem_uniq) = List.partition variant_overlaps unique in
             let joined = List.fold_left (fun el acc -> f el acc) h overlapping in
@@ -361,13 +369,6 @@ struct
     that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
     begin
-      let fields_overlap a b =
-        Val.is_bot_value a || Val.is_bot_value b || not (Val.is_bot_value (Val.meet a b))
-      in
-      let maps_overlap ssx ssy =
-        let fields = SS.keys ssx in
-        List.for_all (fun field -> fields_overlap (SS.get ssx field) (SS.get ssy field)) fields
-      in
       let ((sx, kx), (sy, ky)) = (x, y) in
       let x_list = HS.elements sx in
       let y_list = HS.elements sy in
@@ -426,7 +427,7 @@ struct
             let h_key = SS.get h key in
             let (overlapping, rem_uniq) = List.partition (fun ss ->
                 let ss_key = SS.get ss key in
-                Val.leq h_key ss_key || Val.leq ss_key h_key || not (Val.is_bot_value (Val.meet h_key ss_key))
+                Val.leq h_key ss_key || Val.leq ss_key h_key || values_overlap h_key ss_key
               ) unique in
             let joined = List.fold_left (fun el acc ->
                 let res = join_f acc el in
