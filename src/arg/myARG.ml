@@ -316,14 +316,15 @@ struct
             sid <> sid2
             && CilType.Location.equal loc (Node.location if_true_next_n)
             && not (List.exists (Node.equal if_true_next_n) blocked) ->
+          let next, consumed = next_until (n :: if_false_next_n :: blocked) if_true_next_n in
           (* get e2 from edge because recursive next returns it there *)
-          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next_until (n :: if_false_next_n :: blocked) if_true_next_n) in
+          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next next in
           if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
-            Some [
+            Some ([
               (Test (exp, true), if_true_next_true_next_n, cartesian_append if_true_next_ps if_true_next_true_next_ps);
               (Test (exp, false), if_true_next_false_next_n, if_false_next_ps @ cartesian_append if_true_next_ps if_true_next_false_next_ps) (* concat two different path families to same false node *)
-            ]
+            ], consumed)
           else
             None
         | _ -> None
@@ -338,24 +339,26 @@ struct
                 sid <> sid2
                 && CilType.Location.equal loc (Node.location if_false_next_n)
                 && not (List.exists (Node.equal if_false_next_n) blocked) ->
+              let next, consumed = next_until (n :: if_true_next_n :: blocked) if_false_next_n in
               (* get e2 from edge because recursive next returns it there *)
-              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next_until (n :: if_true_next_n :: blocked) if_false_next_n) in
+              let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next next in
               if Node.equal if_true_next_n if_false_next_true_next_n then
                 let exp = BinOp (LOr, e, e2, intType) in
-                Some [
+                Some ([
                   (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_append if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
                   (Test (exp, false), if_false_next_false_next_n, cartesian_append if_false_next_ps if_false_next_false_next_ps)
-                ]
+                ], consumed)
               else
                 None
             | _ -> None
           end
       end in
       begin match merged with
-        | Some edges ->
-          begin match next_opt' blocked n edges with
-            | Some _ as next -> next
-            | None -> Some edges
+        | Some (edges, consumed) ->
+          (* Keep nodes absorbed by this merge blocked during subsequent merges. *)
+          begin match next_opt' (consumed @ blocked) n edges with
+            | Some (edges, consumed') -> Some (edges, consumed @ consumed')
+            | None -> Some (edges, consumed)
           end
         | None -> None
       end
@@ -363,13 +366,13 @@ struct
   and next_until blocked n =
     let edges = Arg.next n in
     match next_opt' blocked n edges with
-    | Some next -> next
-    | None -> edges
+    | Some (next, consumed) -> next, n :: consumed
+    | None -> edges, [n]
 
   let next_opt n = match next_opt' [] n (Arg.next n) with
-    | Some _ as next_opt -> next_opt
+    | Some (next, _) -> Some next
     | None -> Arg.next_opt n
-  let next n = next_until [] n
+  let next n = fst (next_until [] n)
 end
 
 module UnCilTernaryIntra (Arg: SIntraOpt): SIntraOpt =
