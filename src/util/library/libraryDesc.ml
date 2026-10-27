@@ -104,7 +104,7 @@ struct
       both read and written to, and no ~kind: filter was specified). *)
   let find (accs: t) ?kind ?deep ?atomic (args: Cil.exp list): Cil.exp list =
     accs args
-    |> List.filter (fun ((a, _): (Access.t * _)) ->
+    |> List.filter (fun ((a: Access.t), _) ->
         (kind = None || a.kind = Option.get kind) &&
         (deep = None || a.deep = Option.get deep) &&
         (atomic = None || a.atomic = Option.get atomic))
