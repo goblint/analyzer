@@ -303,7 +303,7 @@ struct
   let () =
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
-  let rec next_opt' blocked n edges = match n with
+  let rec merge blocked n edges = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next edges in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
@@ -316,7 +316,7 @@ struct
             sid <> sid2
             && CilType.Location.equal loc (Node.location if_true_next_n)
             && not (List.exists (Node.equal if_true_next_n) blocked) ->
-          let next, consumed = next_until (n :: if_false_next_n :: blocked) if_true_next_n in
+          let next, consumed = collapse (if_false_next_n :: blocked) if_true_next_n in
           (* get e2 from edge because recursive next returns it there *)
           let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next next in
           if Node.equal if_false_next_n if_true_next_false_next_n then
@@ -329,7 +329,7 @@ struct
             None
         | _ -> None
       in
-      let merged = begin match and_next with
+      begin match and_next with
         | Some _ as next -> next
         | None ->
           (* A failed && join can still be a ||, so try it independently. *)
@@ -339,7 +339,7 @@ struct
                 sid <> sid2
                 && CilType.Location.equal loc (Node.location if_false_next_n)
                 && not (List.exists (Node.equal if_false_next_n) blocked) ->
-              let next, consumed = next_until (n :: if_true_next_n :: blocked) if_false_next_n in
+              let next, consumed = collapse (if_true_next_n :: blocked) if_false_next_n in
               (* get e2 from edge because recursive next returns it there *)
               let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next next in
               if Node.equal if_true_next_n if_false_next_true_next_n then
@@ -352,27 +352,21 @@ struct
                 None
             | _ -> None
           end
-      end in
-      begin match merged with
-        | Some (edges, consumed) ->
-          (* Keep nodes absorbed by this merge blocked during subsequent merges. *)
-          begin match next_opt' (consumed @ blocked) n edges with
-            | Some (edges, consumed') -> Some (edges, consumed @ consumed')
-            | None -> Some (edges, consumed)
-          end
-        | None -> None
       end
     | _ -> None
-  and next_until blocked n =
-    let edges = Arg.next n in
-    match next_opt' blocked n edges with
-    | Some (next, consumed) -> next, n :: consumed
-    | None -> edges, [n]
+  and collapse blocked n =
+    let rec extend consumed edges =
+      (* Block the starting node and all nodes absorbed by previous merges. *)
+      match merge (consumed @ blocked) n edges with
+      | Some (next, consumed') -> extend (consumed' @ consumed) next
+      | None -> edges, consumed
+    in
+    extend [n] (Arg.next n)
 
-  let next_opt n = match next_opt' [] n (Arg.next n) with
-    | Some (next, _) -> Some next
-    | None -> Arg.next_opt n
-  let next n = fst (next_until [] n)
+  let next_opt n = match collapse [] n with
+    | _, [_] -> Arg.next_opt n (* no nodes were merged into the starting node *)
+    | next, _ -> Some next
+  let next n = fst (collapse [] n)
 end
 
 module UnCilTernaryIntra (Arg: SIntraOpt): SIntraOpt =
