@@ -32,12 +32,21 @@ struct
             if B.cardinal s' >= 2 then (
               (* instead of returning quadratically many pairwise equalities from a cluster,
                  output linear number of equalities with just one expression *)
-              let lhs = B.choose s' in (* choose arbitrary expression for lhs *)
-              let rhss = B.remove lhs s' in (* and exclude it from rhs-s (no point in reflexive equality) *)
-              let i = B.fold (fun rhs a ->
-                  let eq = BinOp (Eq, lhs, rhs, intType) in
-                  Invariant.(a && of_exp eq)
-                ) rhss (Invariant.top ())
+              let s'_const, s'_nonconst = B.partition (function Const _ -> true | _ -> false) s' in
+              let i =
+                match B.choose s'_const with
+                | rhs -> (* if the cluster contains a constant, use it as rhs (more intuitive and get deduplicated with IntDomain invariants) *)
+                  B.fold (fun lhs a ->
+                      let eq = BinOp (Eq, lhs, rhs, intType) in
+                      Invariant.(a && of_exp eq)
+                    ) s'_nonconst (Invariant.top ()) (* and output an equality with every non-constant lhs (no equalities between two constants) *)
+                | exception Not_found -> (* if the cluster contains no constants *)
+                  let lhs = B.choose s' in (* choose arbitrary (non-constant) expression for lhs *)
+                  let rhss = B.remove lhs s' in (* and exclude it from rhs-s (no point in reflexive equality) *)
+                  B.fold (fun rhs a ->
+                      let eq = BinOp (Eq, lhs, rhs, intType) in
+                      Invariant.(a && of_exp eq)
+                    ) rhss (Invariant.top ())
               in
               Invariant.(a && i)
             )
