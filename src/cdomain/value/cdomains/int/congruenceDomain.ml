@@ -221,9 +221,8 @@ struct
          not (n =: Z.one) && is_prime' (Z.of_int 2)
        in *)
     match x, y with
-    | None, None -> None
     | None, _
-    | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | _, None -> bot_of ik
     | Some (c, m), Some (c', m') when Cil.isSigned ik || c <: Z.zero || c' <: Z.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
       let (_, max_ik) = range ik in
@@ -266,9 +265,7 @@ struct
       c1 *: c2, Z.gcd (c1 *: m2) (Z.gcd (m1 *: c2) (m1 *: m2))
     in
     match x, y with
-    | None, None -> bot ()
-    | None, _ | _, None ->
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | Some (c1, m1), Some (c2, m2) when no_ov ->
       Some (no_ov_case (c1, m1) (c2, m2))
     | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
@@ -293,9 +290,8 @@ struct
       c1 +: c2, Z.gcd m1 m2
     in
     match (x, y) with
-    | None, None -> bot ()
-    | None, _ | _, None ->
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, None
+    | None, _ | _, None -> bot_of ik
     | Some a, Some b when no_ov ->
       normalize ik (Some (no_ov_case a b))
     | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
@@ -318,10 +314,8 @@ struct
       c1 -: c2, Z.gcd m1 m2
     in
     match (x, y) with
-    | None, None -> bot ()
     | None, _
-    | _, None ->
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | _, None -> bot_of ik
     | Some a, Some b when no_ov ->
       normalize ik (Some (no_ov_case a b))
     | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero ->
@@ -360,8 +354,7 @@ struct
       'Abstract Interpretation and Abstract Domains' written by Stefan Bygde.
       see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | Some (c, m), Some (c', m') ->
       if m =: Z.zero && m' =: Z.zero then Some (f c c', Z.zero)
       else top ()
@@ -369,8 +362,7 @@ struct
   let logor ik x y = bit2 Z.logor ik x y
 
   let logand ik x y =  match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | Some (c, m), Some (c', m') ->
       if m =: Z.zero && m' =: Z.zero then
         (* both arguments constant *)
@@ -386,8 +378,7 @@ struct
 
   let rem ik x y =
     match x, y with
-    | None, None -> bot()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | Some (c1, m1), Some(c2, m2) ->
       if m2 =: Z.zero then
         if (c2 |: m1) && (c1 %: c2 =: Z.zero || m1 =: Z.zero || not (Cil.isSigned ik)) then
@@ -403,8 +394,7 @@ struct
 
   let div ?(no_ov=false) ik x y =
     match x,y with
-    | None, None -> bot ()
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | _, x when leq zero x -> top ()
     | Some(c1, m1), Some(c2, m2) when not no_ov && m2 =: Z.zero && c2 =: Z.neg Z.one -> top ()
     | Some(c1, m1), Some(c2, m2) when m1 =: Z.zero && m2 =: Z.zero -> Some (c1 /: c2, Z.zero)
@@ -428,8 +418,7 @@ struct
     | x, y -> if meet ik x y <> None then None else Some false
 
   let comparison ik op x y = match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | Some (c1, m1), Some (c2, m2) ->
       if m1 =: Z.zero && m2 =: Z.zero then
         Some (op c1 c2)

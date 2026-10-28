@@ -42,7 +42,7 @@ module ConstrSys = struct
     | "x" -> Some (fun loc _ _ glob gside -> glob "g")
     | "y" -> Some (fun loc _ _ glob gside -> (ignore (loc "x"); Int.of_int (Z.of_int64 8L)))
     | "z" -> Some (fun loc _ _ glob gside -> (ignore (loc "y"); loc "y"))
-    | "w" -> Some (fun loc _ _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
+    | "w" -> Some (fun loc _ _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); Int.add (loc "w") (Int.of_int (Z.of_int64 1L))))
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()
@@ -68,7 +68,7 @@ let test1 _ =
   assert_equal ~printer:id "42" (Int.show (LH.find sol "x"));
   assert_equal ~printer:id "8"  (Int.show (LH.find sol "y"));
   assert_equal ~printer:id "8"  (Int.show (LH.find sol "z"));
-  assert_equal ~printer:id "Unknown int([-63,63])" (Int.show (LH.find sol "w"))
+  assert_equal ~printer:id "Error int" (Int.show (LH.find sol "w"))
 
 let test () =
   "solverTest" >::: [

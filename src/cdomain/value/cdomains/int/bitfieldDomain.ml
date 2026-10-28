@@ -421,15 +421,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     if GoblintCil.isSigned ik && BArith.has_only_neg_values ik b then (top_of ik, no_ov) else do_shift ()
 
   let shift_right ik a b = match is_bot a, is_bot b with
-    | true, true -> bot_of ik, {underflow=false; overflow=false}
-    | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s >> %s" (show a) (show b)))
+    | true,_ | _,true -> bot_of ik, {underflow=false; overflow=false}
     | _ ->
       top_on_undefined_shift ik a b @@ fun () ->
       (norm ik (BArith.shift_right ik a b), {underflow=false; overflow=false})
 
   let shift_left ik a b = match is_bot a, is_bot b with
-    | true, true -> bot_of ik, {underflow=false; overflow=false}
-    | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s << %s" (show a) (show b)))
+    | true,_ | _,true -> bot_of ik, {underflow=false; overflow=false}
     | _ ->
       top_on_undefined_shift ~is_shift_left:true ik a b @@ fun () ->
       let max_shift = if Z.fits_int (BArith.max ik b) then Z.to_int (BArith.max ik b) else Int.max_int in
