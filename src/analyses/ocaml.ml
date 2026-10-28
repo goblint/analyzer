@@ -54,25 +54,25 @@ struct
       match registered with
       | `Bot -> (match mode with
           | "CAMLparam0" -> (accounted, `Lifted1 (VarinfoSet.empty ()), first)
-          | "CAMLparam" -> failwith "CAMLlocal used without CAMLparam"
+          | "CAMLparam" -> M.error ~category:CStub "CAMLlocal used without CAMLparam"; (accounted, `Top, first)
           | "Begin_roots" -> (accounted, `Lifted2 [vs], first)
           | "" -> (accounted, `Lifted3 vs, first)
           | _ -> failwith "Undefined mode")
       | `Lifted1 r -> (match mode with
           | "CAMLparam0" -> (accounted, registered, first) (* TODO: Does using CAMLparam0 twice cause an error? *)
           | "CAMLparam" -> (accounted, `Lifted1 (VarinfoSet.union vs r), first)
-          | "Begin_roots" -> M.warn "Begin_roots used with CAMLparam0"; (accounted, `Lifted2 [vs; r], first)
+          | "Begin_roots" -> M.warn ~category:CStub "Begin_roots used with CAMLparam0"; (accounted, `Lifted2 [vs; r], first)
           | "" -> (accounted, `Lifted1 (VarinfoSet.union vs r), first)
           | _ -> failwith "Undefined mode")
       | `Lifted2 (r::rs) -> (match mode with
-          | "CAMLparam0" -> failwith "CAMLparam used with Begin_roots"
-          | "CAMLparam" -> failwith "CAMLlocal used with Begin_roots"
+          | "CAMLparam0" -> M.error ~category:CStub "CAMLparam used with Begin_roots"; (accounted, `Top, first)
+          | "CAMLparam" -> M.error ~category:CStub "CAMLlocal used with Begin_roots"; (accounted, `Top, first)
           | "Begin_roots" -> (accounted, `Lifted2 (vs::r::rs), first)
           | "" -> (accounted, `Lifted2 ((VarinfoSet.union vs r)::rs), first) (* TODO: When an untracked variable is added this way, the next End_roots will remove it together with what is needed. *)
           | _ -> failwith "Undefined mode")
       | `Lifted3 r -> (match mode with
           | "CAMLparam0" -> (accounted, `Lifted1 r, first)
-          | "CAMLparam" -> failwith "CAMLlocal used without CAMLparam"
+          | "CAMLparam" -> M.error ~category:CStub "CAMLlocal used without CAMLparam"; (accounted, `Top, first)
           | "Begin_roots" -> (accounted, `Lifted2 [vs; r], first)
           | "" -> (accounted, `Lifted3 (VarinfoSet.union vs r), first)
           | _ -> failwith "Undefined mode")
@@ -105,15 +105,15 @@ struct
     (* End_roots actually removes blocks until it has removed one named caml_roots_block, but the analysis warns if a block of another kind is added to the caml_roots_block. *)
     let pop_r (accounted, registered, first) =
       match registered with
-      | `Bot -> failwith "Roots ended with nothing registered"
-      | `Lifted1 r -> failwith "Roots ended on a simple set"
+      | `Bot -> M.error ~category:CStub "Roots ended with nothing registered"; (accounted, `Top, first)
+      | `Lifted1 r -> M.error ~category:CStub "Roots ended on a simple set"; (accounted, `Top, first)
       | `Lifted2 r ->
         (match r with
-         | [] -> failwith "Too many roots ended"
+         | [] -> M.error ~category:CStub "Too many roots ended"; (accounted, `Top, first)
          | _::rs::[] when not (VarinfoSet.exists (fun v -> is_value_type (Cil.typeOf (Cil.Lval (Cil.var v)))) rs) -> (accounted, `Lifted3 rs, first)
          | _::[] -> (accounted, `Bot, first)
          | _::rs -> (accounted, `Lifted2 rs, first))
-      | `Lifted3 r -> failwith "Roots ended without values registered"
+      | `Lifted3 r -> M.error ~category:CStub "Roots ended without values registered"; (accounted, `Top, first)
       | _ -> (accounted, registered, first) (* TODO: Choose one representation when modifying the top value *)
 
     (* Removes variables registered in the current scope. *)
@@ -183,7 +183,7 @@ struct
   and lval_accounted_for state = function
     | (Var v, _) ->
       (* Checks whether variable v is accounted for *) (*false*)
-      if D.mem_a v state then true else (M.warn "Value %a might be garbage collected" CilType.Varinfo.pretty v; false)
+      if D.mem_a v state then true else (M.warn ~category:CStub "Value %a might be garbage collected" CilType.Varinfo.pretty v; false)
     | (Mem e, NoOffset) -> exp_accounted_for state e (* TODO: Is it allowed to assume the mem is safe without an offset? *)
     | _ ->
       (* The Gemara asks: is using an offset safe for the expression? The Gemara answers: by default, no. We assume our language has no pointers *)
@@ -216,7 +216,7 @@ struct
     if Cil.isPointerType rval_type || D.is_value_type rval_type then
       if exp_accounted_for state rval then
         D.add_a v state
-      else (M.info "%s" warning; D.remove_a v state)
+      else (M.info ~category:CStub "%s" warning; D.remove_a v state)
       (* If an untracked variable is assigned to another, it is already in R, so R cannot be empty. *)
     else D.add_a v (D.add_r_v v "" state)
 
@@ -252,13 +252,13 @@ struct
     (* Warns if values or pointers are still registered. *)
     List.iter (fun v -> if D.mem_r v state then
                   (if D.is_value_type (Cil.typeOf (Cil.Lval (Cil.var v)))
-                   then M.warn "Value %a registered at return" CilType.Varinfo.pretty v
+                   then M.warn ~category:CStub "Value %a registered at return" CilType.Varinfo.pretty v
                    else
                    if Cil.isPointerType (Cil.typeOf (Cil.Lval (Cil.var v)))
                    (* Bot and Lifted3 never need CAMLreturn if only pointers are present. *)
                    then match state with
                      | (_, `Bot, _) | (_, `Lifted3 _, _) -> ()
-                     | _ -> M.warn "Pointer %a registered at return" CilType.Varinfo.pretty v))
+                     | _ -> M.warn ~category:CStub "Pointer %a registered at return" CilType.Varinfo.pretty v))
       (f.sformals @ f.slocals);
     (* After the warning, they need to be counted as deregistered to not upset the stack structure of the outer function. *)
     let state = D.after_drop (f.sformals @ f.slocals) state in
@@ -289,7 +289,7 @@ struct
           if exp_accounted_for st rval then
             if exp_registered st rval then D.add_a v (D.add_r_v v "" st)
             else D.add_a v (D.remove_r v st)
-          else (M.info "Entering function with possibly deleted argument"; D.remove_a v st)
+          else (M.info ~category:CStub "Entering function with possibly deleted argument"; D.remove_a v st)
         else D.add_a v (D.add_r_v v "" st))
         caller_state f.sformals args in
     (* All locals are accounted for at their declaration. Untracked locals are also counted as registered. *)
@@ -337,15 +337,15 @@ struct
       List.fold_left (fun state param -> match param with
           | AddrOf (Var v, _) -> (match man.ask (Queries.EvalInt (Cil.Lval (Cil.var v))) with
               | `Bot -> ()
-              | `Lifted x -> if IntDomain.IntDomTuple.equal_to Z.zero x <> `Neq then M.warn "Null pointer registered"
-              | `Top -> M.warn "Null pointer possibly registered"
+              | `Lifted x -> if IntDomain.IntDomTuple.equal_to Z.zero x <> `Neq then M.warn ~category:CStub "Null pointer registered"
+              | `Top -> M.warn ~category:CStub "Null pointer possibly registered"
             );
             D.add_r_v v "CAMLparam" state
           | _ -> state
         ) caller_state params
     | OCamlAlloc size_exp ->
       (* Garbage collection may trigger here and overwrite unregistered variables. *)
-      M.debug "Garbage collection triggers";
+      M.debug ~category:CStub "Garbage collection triggers";
       (match lval with
        | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
        | _ -> D.after_gc caller_state
@@ -360,8 +360,8 @@ struct
         (List.fold_left (fun block param -> match param with
              | AddrOf (Var v, _) -> (match man.ask (Queries.EvalInt (Cil.Lval (Cil.var v))) with
                  | `Bot -> ()
-                 | `Lifted x -> if IntDomain.IntDomTuple.equal_to Z.zero x <> `Neq then M.warn "Null pointer registered"
-                 | `Top -> M.warn "Null pointer possibly registered"
+                 | `Lifted x -> if IntDomain.IntDomTuple.equal_to Z.zero x <> `Neq then M.warn ~category:CStub "Null pointer registered"
+                 | `Top -> M.warn ~category:CStub "Null pointer possibly registered"
                ); VarinfoSet.add v block
              | _ -> block
            ) (VarinfoSet.empty ()) params)

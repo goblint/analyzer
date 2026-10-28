@@ -28,3 +28,14 @@ char *caml_secure_getenv(char const *var)
 {
   return secure_getenv(var);
 }
+
+static unsigned char afl_area_initial[1 << 16];
+unsigned char* caml_afl_area_ptr = afl_area_initial;
+
+CAMLprim value caml_reset_afl_instrumentation(value full)
+{
+  if (full != Val_int(0)) {
+    memset(caml_afl_area_ptr, 0, sizeof(afl_area_initial));
+  }
+  return Val_unit;
+}

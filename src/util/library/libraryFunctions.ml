@@ -1272,6 +1272,9 @@ let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("caml_process_pending_actions_exn", special [] @@ OCamlAlloc (GoblintCil.integer 1));
     ("caml_gc_message", unknown (drop "code" [] :: drop "msg" [] :: VarArgs (drop' [])));
     ("caml_modify", unknown [drop "field" [w]; drop "value" []]);
+    ("caml_fatal_error", unknown [drop "msg" [r]]);
+    ("caml_debuginfo_extract", unknown [drop "slot" [r]]);
+    ("caml_debuginfo_next", unknown [drop "dbg" [r]]);
   ]
 [@@coverage off]
 

@@ -91,3 +91,11 @@ CAMLprim value pointer_to_val2(int* n, value v)
   End_roots();
   return Val_int(*n); // NOWARN
 }
+
+CAMLprim value param_begin(value v1, value v2)
+{
+  Begin_roots1(v2);
+  CAMLparam1(v1);
+  End_roots();
+  CAMLreturn(v1);
+}

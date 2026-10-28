@@ -2410,6 +2410,12 @@
           "type": "boolean",
           "default": true
         },
+        "cstub": {
+          "title": "warn.cstub",
+          "description": "C stub warnings",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
