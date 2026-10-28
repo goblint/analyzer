@@ -6,9 +6,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
-# https://zenodo.org/records/23473531
-RUN wget -O witch.zip https://zenodo.org/api/records/23473531/files/witch.zip/content \
-    && echo 'e48aa809ff08ca8088d781974d462ac695fd1ed19396a8472913302d0807d9d0  witch.zip' | sha256sum -c - \
+# https://zenodo.org/records/23703689
+RUN wget -O witch.zip https://zenodo.org/api/records/23703689/files/witch.zip/content \
+    && echo 'f1586d994773a285f9855848eca24c77  witch.zip' | md5sum -c - \
     && unzip -q witch.zip \
     && rm witch.zip \
     && test -x witch/bin/symbiotic
