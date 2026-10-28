@@ -109,10 +109,15 @@ struct
   type t = Man.mt A.t
 
   let bound_texpr d texpr1 =
-    let bounds = A.bound_texpr Man.mgr d texpr1 in
-    let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
-    let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
-    (min, max)
+    if A.is_bottom Man.mgr d then
+      None
+    else
+      let bounds = A.bound_texpr Man.mgr d texpr1 in
+      let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
+      let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
+      match min, max with
+      | Some min, Some max when Z.gt min max -> None
+      | min, max -> Some (min, max)
 end
 
 (** Pure environment and transfer functions. *)

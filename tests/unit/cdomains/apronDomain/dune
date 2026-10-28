@@ -1,0 +1,3 @@
+; Prevent the conditionally selected test implementations from also being
+; included directly by the parent directory's unqualified subdirectories.
+(include_subdirs no)
