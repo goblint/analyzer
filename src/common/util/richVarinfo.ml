@@ -30,35 +30,44 @@ sig
   val describe_varinfo: varinfo -> t -> string
 end
 
+(* The maps are filled during solving, which may run on several domains, hence lock-free hashtables. *)
+module Htbl = Saturn.Htbl
+
 module Make (X: G) =
 struct
   (* Mapping from X.t to varinfo *)
-  module XH = Hashtbl.Make (X)
-
   type t = X.t
-  type marshal = varinfo XH.t
+  type marshal = (X.t * varinfo) list
 
-  let size = 113
-  let xh = ref (XH.create size)
+  let create_xh () = Htbl.create ~hashed_type:(module X) ()
+  let xh = ref (create_xh ())
 
-  let store x vi =
-    XH.replace !xh x vi
-
-  let to_varinfo_helper store_f x =
-    try
-      XH.find !xh x
-    with Not_found ->
+  (** Returns the varinfo for [x], creating it if necessary.
+      [before_publish] is called with the new varinfo before other domains can find it in [xh].
+      If several domains create a varinfo for [x] at the same time, all of them return the one that was published first. *)
+  let to_varinfo_helper before_publish x =
+    match Htbl.find_opt !xh x with
+    | Some vi -> vi
+    | None ->
       let vi = create_var (X.name_varinfo x) (X.typ x) in
-      store_f x vi;
-      vi
+      before_publish x vi;
+      if Htbl.try_add !xh x vi then
+        vi
+      else
+        Htbl.find_exn !xh x
 
   let to_varinfo x =
-    to_varinfo_helper store x
+    to_varinfo_helper (fun _ _ -> ()) x
 
-  let marshal () = !xh
+  let bindings () = List.of_seq (Htbl.to_seq !xh)
 
-  let unmarshal = Option.iter ((:=) xh)
-  let bindings () = List.of_seq (XH.to_seq !xh)
+  let marshal = bindings
+
+  let unmarshal = Option.iter (fun loaded ->
+      let h = create_xh () in
+      List.iter (fun (x, vi) -> ignore (Htbl.try_add h x vi)) loaded;
+      xh := h
+    )
 end
 
 (* module to maintain bidirectional mappings between some type t and varinfo.
@@ -105,34 +114,38 @@ struct
   struct
     module M = Make(X)
     (* Mapping from varinfo to X.t *)
-    module VH = Hashtbl.Make (CilType.Varinfo)
     type t = M.t
-    type marshal = M.marshal * t VH.t
-    let vh = ref (VH.create 113)
+    type marshal = M.marshal * (varinfo * t) list
+    let create_vh () = Htbl.create ~hashed_type:(module CilType.Varinfo) ()
+    let vh = ref (create_vh ())
 
     let to_varinfo x =
-      let store_f x vi =
-        M.store x vi;
-        VH.replace !vh vi x
+      (* Add to vh before the varinfo becomes visible in xh: whoever gets the varinfo from xh must find it in vh,
+         otherwise from_varinfo/mem_varinfo wrongly say that it does not belong to this map (e.g. not a heap variable).
+         varinfos are compared by vid, which create_var derives from name and type, so racing creations agree on the key. *)
+      let add_to_vh x vi =
+        ignore (Htbl.try_add !vh vi x)
       in
-      M.to_varinfo_helper store_f x
+      M.to_varinfo_helper add_to_vh x
 
     let from_varinfo vi =
-      VH.find_opt !vh vi
+      Htbl.find_opt !vh vi
 
     let mem_varinfo v =
-      VH.mem !vh v
+      Htbl.mem !vh v
 
     let describe_varinfo v x =
       X.describe_varinfo v x
 
     let marshal () =
-      M.marshal (), !vh
+      M.marshal (), List.of_seq (Htbl.to_seq !vh)
 
     let unmarshal = function
       | Some (xh_loaded, vh_loaded) ->
         M.unmarshal (Some xh_loaded);
-        vh := vh_loaded
+        let h = create_vh () in
+        List.iter (fun (vi, x) -> ignore (Htbl.try_add h vi x)) vh_loaded;
+        vh := h
       | None -> ()
 
     let bindings = M.bindings

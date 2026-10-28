@@ -13,6 +13,7 @@
    goblint_tracing
    goblint_backtrace
    goblint-cil
+   saturn
    goblint_parallel
    fpath
    yojson
