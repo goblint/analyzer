@@ -1461,10 +1461,7 @@ module MayBeEqual = struct
     T.aux_term_of_varinfo (ReturnAux typ)
 
   let ask_may_point_to (ask: Queries.ask) exp =
-    try
-      ask.f (MayPointTo exp)
-    with IntDomain.ArithmeticOnIntegerBot _ ->
-      AD.top ()
+    ask.f (MayPointTo exp)
 
   (** Ask MayPointTo not only for the term `term`, but also
       for all terms that are in the same equivalence class as `term`. Then meet the result.
@@ -1494,10 +1491,8 @@ module MayBeEqual = struct
         with T.UnsupportedCilExpression _ ->
           AD.top()
       in
-      try
         AD.meet res next_query
-      with IntDomain.ArithmeticOnIntegerBot _ ->
-        res
+
     in
 
     if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %a"
@@ -1513,19 +1508,9 @@ module MayBeEqual = struct
     | exp2 ->
       let mpt1 = addresses in
       let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
-      let res =
-        try
-          not (AD.is_bot (AD.meet mpt1 mpt2))
-        with
-          IntDomain.ArithmeticOnIntegerBot _ -> true
-      in
+      let res = not (AD.is_bot (AD.meet mpt1 mpt2)) in
       if M.tracing then begin
-        let meet =
-          try
-            AD.meet mpt1 mpt2
-          with IntDomain.ArithmeticOnIntegerBot _ ->
-            AD.bot ()
-        in
+        let meet = AD.meet mpt1 mpt2 in
         M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %a; exp2: %a; res: %a; \nmeet: %a; result: %B"
           AD.pretty mpt1 T.pretty t2 d_plainexp exp2 AD.pretty mpt2 AD.pretty meet res;
       end;

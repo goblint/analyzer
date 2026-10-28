@@ -58,7 +58,6 @@ module Analysis: SimplifiedSpec = struct
       | _ ->
         top_of_exp e
     with
-    | IntDomain.ArithmeticOnIntegerBot _
     | IntDomain.IncompatibleIKinds _
     | Cilfacade.TypeOfError _ ->
       top_of_exp e
