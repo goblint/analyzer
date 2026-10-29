@@ -307,6 +307,26 @@ let test_interval_narrow_upper_bound _ =
   assert_interval finite (Intv.narrow finite (Intv.top ())) ;
   assert_interval finite (Intv.narrow (Intv.top ()) finite)
 
+let test_expression_bounds_empty_vs_unbounded _ =
+  let state, x, y, z, _, _, y_dim, z_dim =
+    make_state_with_relation (Var.of_string "pentagon_y") (Var.of_string "pentagon_z")
+  in
+  let bound expr = D.Bounds.bound_texpr state (Texpr1.of_expr state.env expr) in
+  let difference a b = Texpr1.Binop (Texpr1.Sub, Texpr1.Var a, Texpr1.Var b, Texpr1.Int, Texpr1.Near) in
+  assert_equal (Some (None, None)) (bound (Texpr1.Var x));
+  assert_equal (Some (None, Some Z.minus_one)) (bound (difference y z));
+  assert_equal (Some (Some Z.one, None)) (bound (difference z y));
+  let data = Option.get state.d in
+  state.d <- Some {data with boxes =
+                               data.boxes
+                               |> Boxes.set_value y_dim (Intv.create 2 2)
+                               |> Boxes.set_value z_dim (Intv.create 2 2)};
+  assert_equal (Some (Some (Z.of_int 2), Some (Z.of_int 2))) (bound (Texpr1.Var y));
+  assert_equal None (bound (difference y z));
+  assert_equal None (bound (difference z y));
+  state.d <- None;
+  assert_equal None (bound (Texpr1.Var x))
+
 let tests =
   "pentagon-domain" >::: [
     "assignment-removes-outgoing-relation" >:: (fun _ ->
@@ -331,4 +351,5 @@ let tests =
     "diseq-assertion-with-equal-singletons-is-bottom" >:: test_diseq_assertion_with_equal_singletons_is_bottom;
     "subs-widen-is-upper-bound" >:: test_subs_widen_is_upper_bound;
     "interval-narrow-upper-bound" >:: test_interval_narrow_upper_bound;
+    "expression-bounds-empty-vs-unbounded" >:: test_expression_bounds_empty_vs_unbounded;
   ]

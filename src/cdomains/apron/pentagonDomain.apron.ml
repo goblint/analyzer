@@ -336,21 +336,23 @@ struct
 
   let bound_texpr t texpr =
     match t.d with
-    | None -> None, None
+    | None -> None
     | Some d ->
       let texpr = Texpr1.to_expr texpr in
-      match simplified_monomials_from_texp t.env texpr with
-      | None -> 
-        Intv.to_z_opt_intv (eval_texpr_to_intv t texpr)
-      | Some monoms ->
-        let constant, _ = snd monoms in
-        let numeric_intv = eval_monoms_to_intv d.boxes monoms in
-        match fst monoms with
-        | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
-          Intv.to_z_opt_intv (bound_difference_by_subs d.subs x1 x2 constant numeric_intv)
-        | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
-          Intv.to_z_opt_intv (bound_difference_by_subs d.subs x2 x1 constant numeric_intv)
-        | _ -> Intv.to_z_opt_intv numeric_intv
+      let bounds =
+        match simplified_monomials_from_texp t.env texpr with
+        | None -> eval_texpr_to_intv t texpr
+        | Some monoms ->
+          let constant, _ = snd monoms in
+          let numeric_intv = eval_monoms_to_intv d.boxes monoms in
+          match fst monoms with
+          | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
+            bound_difference_by_subs d.subs x1 x2 constant numeric_intv
+          | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
+            bound_difference_by_subs d.subs x2 x1 constant numeric_intv
+          | _ -> numeric_intv
+      in
+      if Intv.is_bot bounds then None else Some (Intv.to_z_opt_intv bounds)
 
 
   (* let bound_texpr d texpr1 = timing_wrap "bound_texpr" (bound_texpr d) texpr1 *)
