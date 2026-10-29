@@ -383,6 +383,35 @@ let linear_disjunct_redundant _ =
   let expected = Matrix.init_with_vec (Vector.of_list [int 0; int 1; int 0; int (-4)]) in
   normalize_and_assert (Matrix.linear_disjunct m1 m2) expected
 
+let linear_disjunct_common_difference _ =
+  (* x = y = 0 and x + w = y + w = 0 both imply x - y = 0. *)
+  let m1 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0];
+     [int 0; int 1; int 0; int 0]] in
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 1; int 0];
+     [int 0; int 1; int 1; int 0]] in
+  let expected = Matrix.init_with_vec (Vector.of_list [int 1; int (-1); int 0; int 0]) in
+  assert_equal expected (Matrix.linear_disjunct m1 m2);
+  assert_equal expected (Matrix.linear_disjunct m2 m1)
+
+let linear_disjunct_skips_empty_columns _ =
+  let width = 81 in
+  let matrix rows =
+    List.fold_left (fun m entries -> Matrix.append_row m (Vector.of_sparse_list width entries)) (Matrix.empty ()) rows
+  in
+  let m1 = matrix
+      [[(3, int 1); (80, int 2)];
+       [(40, int 1); (80, int 3)]] in
+  let m2 = matrix
+      [[(3, int 1); (79, int 1); (80, int 2)];
+       [(40, int 1); (79, int 1); (80, int 3)]] in
+  let expected = Matrix.init_with_vec (Vector.of_sparse_list width [(3, int 1); (40, int (-1)); (80, int (-1))]) in
+  assert_equal expected (Matrix.linear_disjunct m1 m2);
+  assert_equal expected (Matrix.linear_disjunct m2 m1);
+  let no_constant = matrix [[(3, int 1)]; [(40, int 1)]] in
+  assert_equal no_constant (Matrix.linear_disjunct no_constant no_constant)
+
 let test () =
   "SparseMatrixImplementationTest-Apron"
   >::: [
@@ -413,4 +442,6 @@ let test () =
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
     "get column when matrix in rref" >:: get_col_upper_triangular;
     "linear_disjunct of [y=-4] and [x-z=-5;y=-4] is [y=-4]" >:: linear_disjunct_redundant;
+    "linear_disjunct keeps a common difference with one-sided coefficients" >:: linear_disjunct_common_difference;
+    "linear_disjunct skips long runs of empty columns" >:: linear_disjunct_skips_empty_columns;
   ]
