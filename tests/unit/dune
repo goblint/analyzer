@@ -12,6 +12,9 @@
     (select subPolyhedraDomainTest.ml from
         (apron apron.polkaMPQ -> subPolyhedraDomainTest.apron.ml)
         (-> subPolyhedraDomainTest.no-apron.ml)
+    (select apronDomainTest.ml from
+        (apron -> apronDomainTest.apron.ml)
+        (-> apronDomainTest.no-apron.ml)
     )
   )
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
@@ -29,3 +32,4 @@
 ; A dune file with "include_subdirs no" is located in cdomains/affineEqualityDomain to avoid a dependency cycle
 (copy_files# cdomains/affineEqualityDomain/sparseImplementation/*.ml)
 (copy_files# cdomains/subPolyhedraDomain/*.ml)
+(copy_files# cdomains/apronDomain/*.ml)
