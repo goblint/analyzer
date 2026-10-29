@@ -12,6 +12,7 @@
     (select subPolyhedraDomainTest.ml from
         (apron apron.polkaMPQ -> subPolyhedraDomainTest.apron.ml)
         (-> subPolyhedraDomainTest.no-apron.ml)
+    )
     (select apronDomainTest.ml from
         (apron -> apronDomainTest.apron.ml)
         (-> apronDomainTest.no-apron.ml)

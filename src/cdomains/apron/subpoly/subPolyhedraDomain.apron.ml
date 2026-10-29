@@ -175,25 +175,28 @@ struct
 
   let bound_texpr (t: t) texpr =
     match t.d with
-    | None -> (None, None)
+    | None -> None
     | Some d ->
       match get_coeff_vec t (Texpr1.to_expr texpr) with
-      | None -> (None, None)
+      | None -> Some (None, None)
       | Some v ->
         let sz = size t in
         match reduce ~size:sz d with
-        | None -> (None, None)
+        | None -> None
         | Some refined ->
           let iv = P.eval_vec ~size:sz d refined v in
           let l, u = RationalInterval.bounds iv in
-          (Option.map (fun q -> Z.cdiv (Q.num q) (Q.den q)) l,
-           Option.map (fun q -> Z.fdiv (Q.num q) (Q.den q)) u)
+          let min = Option.map (fun q -> Z.cdiv (Q.num q) (Q.den q)) l in
+          let max = Option.map (fun q -> Z.fdiv (Q.num q) (Q.den q)) u in
+          match min, max with
+          | Some min, Some max when Z.gt min max -> None
+          | min, max -> Some (min, max)
 
   let bound_texpr d texpr1 =
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
+       | Some (Some min, Some max) -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res

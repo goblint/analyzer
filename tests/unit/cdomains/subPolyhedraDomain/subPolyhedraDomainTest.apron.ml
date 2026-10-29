@@ -312,7 +312,10 @@ let bounds_oracle =
        if D.is_bot_env t then true
        else begin
          let texpr1 = Apron.Texpr1.of_expr (D.env t) (texpr_of q) in
-         let (lo, hi) = D.Bounds.bound_texpr t texpr1 in
+         let (lo, hi) = match D.Bounds.bound_texpr t texpr1 with
+           | Some bounds -> bounds
+           | None -> Test.fail_reportf "empty bounds for a concrete value@.state: %s" (D.show t)
+         in
          let v = eval_linexp q sigma in
          let vz = Q.num v in (* sigma is integral, so v is too *)
          let ok =
@@ -406,25 +409,30 @@ let diff_violation (t: D.t) p (queries: linexp list) : string option =
   else
     List.find_map (fun e ->
         let texpr1 = Apron.Texpr1.of_expr (D.env t) (texpr_of e) in
-        let (lo, hi) = D.Bounds.bound_texpr t texpr1 in
         let itv = Apron.Abstract1.bound_texpr poly_man p (poly_texpr1 e) in
         let plo = q_of_scalar itv.Apron.Interval.inf in
         let phi = q_of_scalar itv.Apron.Interval.sup in
-        let lo_ok = match lo with
-          | None -> true
-          | Some l -> (match plo with Some pl -> Z.leq l (q_ceil pl) | None -> false)
-        in
-        let hi_ok = match hi with
-          | None -> true
-          | Some u -> (match phi with Some pu -> Z.leq (q_floor pu) u | None -> false)
-        in
-        if lo_ok && hi_ok then None
-        else
-          let str f = function None -> "inf" | Some b -> f b in
-          Some (Printf.sprintf "%s: subpoly bounds [%s, %s] tighter than polyhedra [%s, %s]"
-                  (show_linexp e)
-                  (str Z.to_string lo) (str Z.to_string hi)
-                  (str Q.to_string plo) (str Q.to_string phi))
+        match plo, phi with
+        | Some pl, Some pu when Z.gt (q_ceil pl) (q_floor pu) -> None (* empty integer projection *)
+        | _ ->
+          match D.Bounds.bound_texpr t texpr1 with
+          | None -> Some (Printf.sprintf "%s: subpoly has empty bounds but polyhedra has integer values" (show_linexp e))
+          | Some (lo, hi) ->
+            let lo_ok = match lo with
+              | None -> true
+              | Some l -> (match plo with Some pl -> Z.leq l (q_ceil pl) | None -> false)
+            in
+            let hi_ok = match hi with
+              | None -> true
+              | Some u -> (match phi with Some pu -> Z.leq (q_floor pu) u | None -> false)
+            in
+            if lo_ok && hi_ok then None
+            else
+              let str f = function None -> "inf" | Some b -> f b in
+              Some (Printf.sprintf "%s: subpoly bounds [%s, %s] tighter than polyhedra [%s, %s]"
+                      (show_linexp e)
+                      (str Z.to_string lo) (str Z.to_string hi)
+                      (str Q.to_string plo) (str Q.to_string phi))
       ) queries
 
 (* same shape as gen_op, minus WidenWith *)
@@ -725,7 +733,7 @@ let assignment_interval_tests =
   let expect_bounds t e lower upper =
     assert_equal [] (D.check_invariants t);
     let expr = Apron.Texpr1.of_expr (D.env t) (texpr_of e) in
-    let expected = (Option.map Z.of_int lower, Option.map Z.of_int upper) in
+    let expected = Some (Option.map Z.of_int lower, Option.map Z.of_int upper) in
     assert_equal ~msg:(D.show t) expected (D.Bounds.bound_texpr t expr)
   in
   let slack_count t = P.VarMap.cardinal (Option.get t.VM.d).P.infos in
@@ -811,7 +819,7 @@ let singleton_join_tests =
     assert_bool "join contains the right operand" (D.leq b joined);
     assert_bool "join is commutative" (L.equal joined (D.join b a));
     let expr = Apron.Texpr1.of_expr (D.env joined) (texpr_of relation) in
-    assert_equal ~msg:(D.show joined) (Some Z.zero, Some Z.zero)
+    assert_equal ~msg:(D.show joined) (Some (Some Z.zero, Some Z.zero))
       (D.Bounds.bound_texpr joined expr)
   in
   [
@@ -843,7 +851,7 @@ let saved_inequality_tests =
   let expect_bounds t e lower upper =
     assert_equal [] (D.check_invariants t);
     let expr = Apron.Texpr1.of_expr (D.env t) (texpr_of e) in
-    assert_equal ~msg:(D.show t) (Option.map Z.of_int lower, Option.map Z.of_int upper)
+    assert_equal ~msg:(D.show t) (Some (Option.map Z.of_int lower, Option.map Z.of_int upper))
       (D.Bounds.bound_texpr t expr)
   in
   [
@@ -894,7 +902,7 @@ let speculative_query_tests =
     assert_equal speculative !AnalysisState.executing_speculative_computations;
     assert_equal [] (D.check_invariants after);
     let value = Apron.Texpr1.of_expr (D.env after) (Apron.Texpr1.Var var) in
-    assert_equal ~msg:(D.show after) (Some (Z.of_int 9), Some (Z.of_int 9))
+    assert_equal ~msg:(D.show after) (Some (Some (Z.of_int 9), Some (Z.of_int 9)))
       (D.Bounds.bound_texpr after value)
   in
   [
@@ -904,12 +912,40 @@ let speculative_query_tests =
         check (fun () -> `Lifted (IntDomain.IntDomTuple.bot_of IInt)))
   ]
 
+let integer_bounds_tests =
+  let open Apron.Texpr1 in
+  let x = Var (List.hd prog_vars) in
+  let bounds t e = D.Bounds.bound_texpr t (of_expr (D.env t) e) in
+  [
+    "bottom has empty bounds" >:: (fun _ ->
+        assert_equal None (bounds D.bot_env (Cst (Apron.Coeff.s_of_int 0))));
+    "unknown bounds are not empty" >:: (fun _ ->
+        assert_equal (Some (None, None)) (bounds base x);
+        assert_equal (Some (None, None)) (bounds base (Binop (Mul, x, x, Int, Near))));
+    "integer singleton has concrete bounds" >:: (fun _ ->
+        let t = run [Guard (0, (-12, [3; 0; 0]))] in
+        assert_equal (Some (Some (Z.of_int 4), Some (Z.of_int 4))) (bounds t x));
+    "fractional singleton has empty integer bounds" >:: (fun _ ->
+        List.iter (fun rhs ->
+            let t = run [Guard (0, (-rhs, [3; 0; 0]))] in
+            assert_bool "rational state remains non-bottom" (not (D.is_bot_env t));
+            assert_equal None (bounds t x)
+          ) [13; -13]);
+    "inconsistent reduction has empty bounds" >:: (fun _ ->
+        let t = run [Guard (0, (-4, [1; 0; 0]))] in
+        let dim = Apron.Environment.dim_of_var (D.env t) (List.hd prog_vars) in
+        let d = Option.get t.VM.d in
+        let t = { t with VM.d = Some { d with P.intervals = P.VarMap.add dim (RI.of_const (Q.of_int 5)) d.P.intervals } } in
+        assert_equal None (bounds t x))
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
 
 let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
+                            @ ["integer bounds" >::: integer_bounds_tests]
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
                             @ ["singleton interval joins" >::: singleton_join_tests]
                             @ ["speculative expression queries" >::: speculative_query_tests]
