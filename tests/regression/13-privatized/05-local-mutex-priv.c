@@ -8,14 +8,14 @@ void *t_fun(void *arg) {
   int t;
   pthread_mutex_lock(&mutex1);
   t = glob1;
-  __goblint_check(t == 5); // TODO UNKNOWN
+  __goblint_check(t == 5); // UNKNOWN
   glob1 = -10;
-  __goblint_check(glob1 == -10); // TODO UNKNOWN
+  __goblint_check(glob1 == -10); // UNKNOWN
   glob1 = t;
   pthread_mutex_unlock(&mutex1);
   pthread_mutex_lock(&mutex1);
   glob1++;
-  __goblint_check(glob1 == 6); // TODO UNKNOWN
+  __goblint_check(glob1 == 6); // UNKNOWN
   glob1--;
   pthread_mutex_unlock(&mutex1);
   return NULL;
