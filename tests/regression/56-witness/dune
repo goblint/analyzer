@@ -30,5 +30,13 @@
  (deps (glob_files *.c) (glob_files ??-*.yml) (glob_files 66-ghost-alloc-lock-strip.sh)))
 
 (cram
- (applies_to 27-mine-tutorial-ex4.7 54-witness-lifter-abortUnless)
- (enabled_if %{bin-available:graph-easy}))
+ (applies_to
+  27-mine-tutorial-ex4.7
+  54-witness-lifter-abortUnless
+  80-sv-benchmarks-strlen
+  81-sv-benchmarks-strspn
+  82-sv-benchmarks-wcsrchr
+  83-sv-benchmarks-cstrnlen)
+ (enabled_if %{bin-available:graph-easy})
+ (deps
+  %{bin:cfgDot}))

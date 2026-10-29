@@ -28,3 +28,60 @@ TODO: Should not have loop invariant "last == 0" in wcsrchr.
           function: wcsrchr
         value: last == 0
         format: c_expression
+
+TODO: Do preprocessing in cfgDot.
+
+  $ cpp 82-sv-benchmarks-wcsrchr.c > 82-sv-benchmarks-wcsrchr.i
+
+  $ cfgDot 82-sv-benchmarks-wcsrchr.i
+
+  $ graph-easy --as=boxart wcsrchr.dot
+                    ┌──────────────────────────────────────────────────────┐
+                    │ wcsrchr()                                            │
+                    └──────────────────────────────────────────────────────┘
+                      │
+                      │ (body)
+                      ▼
+                    ┌──────────────────────────────────────────────────────┐
+                    │ 82-sv-benchmarks-wcsrchr.c:12:3-12:14                │
+                    │ (82-sv-benchmarks-wcsrchr.c:12:6-12:14 (synthetic))  │
+                    │ YAML loc: 82-sv-benchmarks-wcsrchr.c:12:3-12:14      │
+                    │ server: false                                        │
+                    └──────────────────────────────────────────────────────┘
+                      │
+                      │ last = (int *)0
+                      ▼
+                    ┌──────────────────────────────────────────────────────┐                                  ┌─────────────────────────────────────────────────┐                ┌─────────────────────┐
+                    │ 82-sv-benchmarks-wcsrchr.c:13:3-16:3 (synthetic)     │                                  │                                                 │                │                     │
+                    │ (82-sv-benchmarks-wcsrchr.c:13:8-13:14 (synthetic))  │                                  │ 82-sv-benchmarks-wcsrchr.c:16:3-16:14           │                │                     │
+                    │ [82-sv-benchmarks-wcsrchr.c:13:3-16:3 (synthetic)    │                                  │ (82-sv-benchmarks-wcsrchr.c:16:10-16:14)        │                │ return of wcsrchr() │
+                    │ (unknown)]                                           │                                  │ YAML loc: 82-sv-benchmarks-wcsrchr.c:16:3-16:14 │                │                     │
+                    │ YAML loop: 82-sv-benchmarks-wcsrchr.c:13:3-16:3      │  Neg(*wcs)                       │ server: true                                    │  return last   │                     │
+    ┌─────────────▶ │ server: false                                        │ ───────────────────────────────▶ │                                                 │ ─────────────▶ │                     │
+    │               └──────────────────────────────────────────────────────┘                                  └─────────────────────────────────────────────────┘                └─────────────────────┘
+    │                 │
+    │                 │ Pos(*wcs)
+    │                 ▼
+    │               ┌──────────────────────────────────────────────────────┐
+    │               │ 82-sv-benchmarks-wcsrchr.c:14:5-15:21                │
+    │               │ (82-sv-benchmarks-wcsrchr.c:14:9-14:19)              │
+    │               │ YAML loc: 82-sv-benchmarks-wcsrchr.c:14:5-15:21      │
+    │               │ server: true                                         │ ─┐
+    │               └──────────────────────────────────────────────────────┘  │
+    │                 │                                                       │
+    │ wcs = wcs + 1   │ Pos(*wcs == (int const   )wc)                         │
+    │                 ▼                                                       │
+    │               ┌──────────────────────────────────────────────────────┐  │
+    │               │ 82-sv-benchmarks-wcsrchr.c:15:7-15:21                │  │
+    │               │ (82-sv-benchmarks-wcsrchr.c:15:7-15:21)              │  │
+    │               │ YAML loc: 82-sv-benchmarks-wcsrchr.c:15:7-15:21      │  │ Neg(*wcs == (int const   )wc)
+    │               │ server: true                                         │  │
+    │               └──────────────────────────────────────────────────────┘  │
+    │                 │                                                       │
+    │                 │ last = (int *)wcs                                     │
+    │                 ▼                                                       │
+    │               ┌──────────────────────────────────────────────────────┐  │
+    │               │ 82-sv-benchmarks-wcsrchr.c:13:3-16:3 (synthetic)     │  │
+    │               │ (82-sv-benchmarks-wcsrchr.c:13:14-13:21 (synthetic)) │  │
+    └────────────── │ server: false                                        │ ◀┘
+                    └──────────────────────────────────────────────────────┘

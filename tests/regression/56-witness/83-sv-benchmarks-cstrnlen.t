@@ -34,3 +34,59 @@ TODO: Should not have loop invariant "1 <= maxlen" in cstrnlen.
           function: cstrnlen
         value: maxlen <= 2147483647UL
         format: c_expression
+
+TODO: Do preprocessing in cfgDot.
+
+  $ cpp 83-sv-benchmarks-cstrnlen.c > 83-sv-benchmarks-cstrnlen.i
+
+  $ cfgDot 83-sv-benchmarks-cstrnlen.i
+
+  $ graph-easy --as=boxart cstrnlen.dot
+                                                                                                             ┌───────────────────────────────────────────────────────┐
+                                                                                                             │ cstrnlen()                                            │
+                                                                                                             └───────────────────────────────────────────────────────┘
+                                                                                                               │
+                                                                                                               │ (body)
+                                                                                                               ▼
+                                                                                                             ┌───────────────────────────────────────────────────────┐
+                                                                                                             │ 83-sv-benchmarks-cstrnlen.c:43:2-44:3                 │
+                                                                                                             │ (83-sv-benchmarks-cstrnlen.c:43:6-43:15 (synthetic))  │
+                                                                                                             │ YAML loc: 83-sv-benchmarks-cstrnlen.c:43:2-44:3       │
+                                                                                                             │ server: false                                         │
+                                                                                                             └───────────────────────────────────────────────────────┘
+                                                                                                               │
+                                                                                                               │ cp = str
+                                                                                                               ▼
+                                  ┌──────────────────────────────────────────────────┐                       ┌───────────────────────────────────────────────────────┐
+                                  │                                                  │                       │ 83-sv-benchmarks-cstrnlen.c:43:2-44:3 (synthetic)     │
+                                  │ 83-sv-benchmarks-cstrnlen.c:46:2-46:27           │                       │ (83-sv-benchmarks-cstrnlen.c:43:15-43:43 (synthetic)) │
+                                  │ (83-sv-benchmarks-cstrnlen.c:46:9-46:27)         │                       │ [83-sv-benchmarks-cstrnlen.c:43:2-44:3 (synthetic)    │
+                                  │ YAML loc: 83-sv-benchmarks-cstrnlen.c:46:2-46:27 │                       │ (unknown)]                                            │
+                                  │ server: true                                     │  Neg(maxlen != 0UL)   │ YAML loop: 83-sv-benchmarks-cstrnlen.c:43:2-44:3      │
+    ┌───────────────────────────▶ │                                                  │ ◀──────────────────── │ server: false                                         │ ◀┐
+    │                             └──────────────────────────────────────────────────┘                       └───────────────────────────────────────────────────────┘  │
+    │                               │                                                                          │                                                        │
+    │                               │ return (size_t )(cp - str)                                               │ Pos(maxlen != 0UL)                                     │
+    │                               ▼                                                                          ▼                                                        │
+    │                             ┌──────────────────────────────────────────────────┐                       ┌───────────────────────────────────────────────────────┐  │
+    │ Neg((int const   )*cp != 0) │                                                  │                       │ 83-sv-benchmarks-cstrnlen.c:43:2-44:3 (synthetic)     │  │
+    │                             │ return of cstrnlen()                             │                       │ (83-sv-benchmarks-cstrnlen.c:43:15-43:43 (synthetic)) │  │
+    │                             │                                                  │  ┌─────────────────── │ server: false                                         │  │
+    │                             └──────────────────────────────────────────────────┘  │                    └───────────────────────────────────────────────────────┘  │
+    │                                                                                   │                      │                                                        │
+    └───────────────────────────────────────────────────────────────────────────────────┘                      │ Pos((int const   )*cp != 0)                            │ maxlen = maxlen - 1UL
+                                                                                                               ▼                                                        │
+                                                                                                             ┌───────────────────────────────────────────────────────┐  │
+                                                                                                             │ 83-sv-benchmarks-cstrnlen.c:43:2-44:3 (synthetic)     │  │
+                                                                                                             │ (83-sv-benchmarks-cstrnlen.c:43:43-43:59 (synthetic)) │  │
+                                                                                                             │ server: false                                         │  │
+                                                                                                             └───────────────────────────────────────────────────────┘  │
+                                                                                                               │                                                        │
+                                                                                                               │ cp = cp + 1                                            │
+                                                                                                               ▼                                                        │
+                                                                                                             ┌───────────────────────────────────────────────────────┐  │
+                                                                                                             │ 83-sv-benchmarks-cstrnlen.c:43:2-44:3                 │  │
+                                                                                                             │ (83-sv-benchmarks-cstrnlen.c:43:43-43:59 (synthetic)) │  │
+                                                                                                             │ YAML loc: 83-sv-benchmarks-cstrnlen.c:43:2-44:3       │  │
+                                                                                                             │ server: false                                         │ ─┘
+                                                                                                             └───────────────────────────────────────────────────────┘
