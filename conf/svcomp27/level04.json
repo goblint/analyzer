@@ -73,7 +73,8 @@
     }
   },
   "exp": {
-    "unrolling-factor": 4
+    "unrolling-factor": 4,
+    "fast_global_inits" : false
   },
   "witness": {
     "yaml": {
