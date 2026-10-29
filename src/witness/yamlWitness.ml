@@ -531,9 +531,11 @@ struct
               let fundec = Node.find_fundec n in
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                | Ok _ when Spec.D.is_bot (LHT.find lh lvar) ->
+                  Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
                 | Ok inv_exp ->
                   begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
-                    | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
+                    | `Bot -> Unconfirmed (* the state is not dead, so bottom comes from evaluating the invariant, e.g. an overflow assumed not to happen or contradicting answers of the analyses *)
                     | `Lifted true -> Confirmed
                     | `Lifted false -> Refuted
                     | `Top -> Unconfirmed
