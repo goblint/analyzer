@@ -333,7 +333,7 @@ let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
      3. LockDomain.MustLocksetRW.add_mval_rw *)
   match addr with
   | UnknownPtr -> st
-  | Addr (v, _) when ask.f (IsMultiple v) -> st
+  | Addr (v, _) when ask.f (IsMultiple v) -> st (* TODO: check for local lock? *)
   | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr _
   | NullPtr
