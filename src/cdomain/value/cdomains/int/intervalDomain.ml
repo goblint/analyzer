@@ -20,8 +20,8 @@ struct
       else
         Some (Ints_t.zero, unsigned_upper_bound)
     | _ -> Some (range ik)
-  let bot () = None
-  let bot_of ik = bot () (* TODO: improve *)
+  let bot () : t = None
+  let bot_of ik : t = bot () (* TODO: improve *)
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
@@ -359,7 +359,7 @@ struct
 
   let ne ik x y =
     match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
         Some true
@@ -369,7 +369,7 @@ struct
 
   let eq ik x y =
     match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
         Some true
@@ -379,7 +379,7 @@ struct
 
   let ge ik x y =
     match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 then Some true
       else if Ints_t.compare x2 y1 < 0 then Some false
@@ -387,7 +387,7 @@ struct
 
   let le ik x y =
     match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 <= 0 then Some true
       else if Ints_t.compare y2 x1 < 0 then Some false
@@ -395,7 +395,7 @@ struct
 
   let gt ik x y =
     match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 then Some true
       else if Ints_t.compare x2 y1 <= 0 then Some false
@@ -403,7 +403,7 @@ struct
 
   let lt ik x y =
     match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 < 0 then Some true
       else if Ints_t.compare y2 x1 <= 0 then Some false

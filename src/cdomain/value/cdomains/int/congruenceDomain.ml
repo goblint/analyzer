@@ -45,8 +45,8 @@ struct
 
   let top () = Some (Z.zero, Z.one)
   let top_of ?bitfield ik = Some (Z.zero, Z.one)
-  let bot () = None
-  let bot_of ik = bot ()
+  let bot () : t = None
+  let bot_of ik : t = bot ()
 
   let show = function ik -> match ik with
     | None -> "⟂"
@@ -418,7 +418,7 @@ struct
     | x, y -> if meet ik x y <> None then None else Some false
 
   let comparison ik op x y = match x, y with
-    | None, _ | _, None -> bot_of ik
+    | None, _ | _, None -> None
     | Some (c1, m1), Some (c2, m2) ->
       if m1 =: Z.zero && m2 =: Z.zero then
         Some (op c1 c2)

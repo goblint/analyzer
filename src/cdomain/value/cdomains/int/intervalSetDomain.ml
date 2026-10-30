@@ -45,9 +45,9 @@ struct
     in
     [top_interval]
 
-  let bot () = []
+  let bot () : t = []
 
-  let bot_of ik = bot ()
+  let bot_of ik : t = bot ()
 
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in

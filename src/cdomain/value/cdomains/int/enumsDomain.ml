@@ -16,8 +16,8 @@ module Enums : S with type int_t = Z.t = struct
 
   type int_t = Z.t
   let name () = "enums"
-  let bot () = Inc (BISet.empty ())
-  let bot_of ik = bot ()
+  let bot () : t = Inc (BISet.empty ())
+  let bot_of ik : t = bot ()
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
 
   let top_of ?bitfield ik =
