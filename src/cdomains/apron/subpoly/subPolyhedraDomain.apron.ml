@@ -1311,6 +1311,13 @@ struct
       (* Negation swaps conjunction and disjunction by De Morgan's laws. *)
       if (op = LAnd) <> negate then meet assert_l assert_r else join assert_l assert_r
     | _ ->
+      (* The comparison converter does not accept bare scalar conditions,
+         including those exposed by stripping [!]. C truth means nonzero,
+         not necessarily one; [negate] will invert this comparison as usual. *)
+      let e = match e with
+        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> e
+        | _ -> BinOp (Ne, e, Cil.integer 0, Cil.intType)
+      in
       begin match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
         | tcons1 -> meet_tcons d tcons1
         | exception Convert.Unsupported_CilExp _ -> d

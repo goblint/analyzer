@@ -1014,6 +1014,42 @@ let nonlinear_tests =
           (D.is_bot_env (guard before Apron.Tcons1.SUPEQ (sub (c 2) (mul y y)))));
   ]
 
+let scalar_guard_tests =
+  let open GoblintCil in
+  let vi = makeVarinfo false "guard_x" intType in
+  let var = D.V.local vi in
+  let x = Lval (Cil.var vi) in
+  let not_x = UnOp (LNot, x, intType) in
+  let ask : Queries.ask = { f = (fun (type a) (q: a Queries.t) : a Queries.result ->
+      Queries.Result.top q) } in
+  let state lo hi =
+    let t = D.add_vars (D.top ()) [var] in
+    let guard op n t = D.assert_constraint ask t (BinOp (op, x, integer n, intType)) false (lazy true) in
+    guard Le hi (guard Ge lo t)
+  in
+  let check t expr negate lo hi =
+    let after = D.assert_constraint ask t expr negate (lazy true) in
+    assert_equal [] (D.check_invariants after);
+    let value = Apron.Texpr1.of_expr (D.env after) (Apron.Texpr1.Var var) in
+    assert_equal ~msg:(D.show after) (Some (Some (Z.of_int lo), Some (Z.of_int hi)))
+      (D.Bounds.bound_texpr after value)
+  in
+  [
+    "negated scalar guard selects zero" >:: (fun _ -> check (state 0 1) not_x false 0 0);
+    "false branch of negated scalar selects nonzero" >:: (fun _ -> check (state 0 1) not_x true 1 1);
+    "bare scalar truth includes negative nonzero values" >:: (fun _ -> check (state (-2) 0) x false (-2) (-1));
+    "double negation selects nonzero" >:: (fun _ ->
+        check (state 0 1) (UnOp (LNot, not_x, intType)) false 1 1);
+    "scalar conjunct detects contradiction" >:: (fun _ ->
+        let expr = BinOp (LAnd, x, not_x, intType) in
+        assert_bool "x && !x is infeasible"
+          (D.is_bot_env (D.assert_constraint ask (state 0 1) expr false (lazy true))));
+    "negated scalar disjunction detects contradiction" >:: (fun _ ->
+        let expr = BinOp (LOr, x, not_x, intType) in
+        assert_bool "!(x || !x) is infeasible"
+          (D.is_bot_env (D.assert_constraint ask (state 0 1) expr true (lazy true))));
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
@@ -1025,5 +1061,6 @@ let test () =
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
                             @ ["singleton interval joins" >::: singleton_join_tests]
                             @ ["speculative expression queries" >::: speculative_query_tests]
+                            @ ["scalar guards" >::: scalar_guard_tests]
                             @ ["saved inequalities across assignments" >::: saved_inequality_tests]
                             @ QCheck_ounit.to_ounit2_test_list tests
