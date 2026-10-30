@@ -308,7 +308,7 @@ struct
   (* Try one outer merge, returning the new edges and the additional consumed nodes.
      The caller includes n and all previously consumed nodes in blocked. *)
   let rec try_merge blocked n edges = match n with
-    | Statement {skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
+    | Statement {skind=If _; _} ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next edges in
       let can_follow = function
         | Statement {skind=If _; _} as node ->
