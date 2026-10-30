@@ -123,6 +123,7 @@ end
 
 
 exception Deadcode
+(** Raised by {{!Spec} analysis} transfer functions if resulting state is unreachable. *)
 
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) =
@@ -201,44 +202,65 @@ sig
   val context: (D.t, G.t, C.t, V.t) man -> fundec -> D.t -> C.t
   val startcontext: unit -> C.t
 
+  (** @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
+
+  (** Should {e not} raise {!Deadcode}. *)
   val query : (D.t, G.t, C.t, V.t) man -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,
-      it handles program points of the form "lval = rval;" *)
+      it handles program points of the form "lval = rval;"
+
+      @raise Deadcode if resulting state is unreachable. *)
   val assign: (D.t, G.t, C.t, V.t) man -> lval -> exp -> D.t
 
   (** A transfer function used for declaring local variables.
-      By default only for variable-length arrays (VLAs). *)
+      By default only for variable-length arrays (VLAs).
+
+      @raise Deadcode if resulting state is unreachable. *)
   val vdecl : (D.t, G.t, C.t, V.t) man -> varinfo -> D.t
 
   (** A transfer function which handles conditional branching yielding the
-      truth value passed as a boolean argument *)
+      truth value passed as a boolean argument
+
+      @raise Deadcode if resulting state is unreachable. *)
   val branch: (D.t, G.t, C.t, V.t) man -> exp -> bool -> D.t
 
   (** A transfer function which handles going from the start node of a function (fundec) into
-      its function body. Meant to handle, e.g., initialization of local variables *)
+      its function body. Meant to handle, e.g., initialization of local variables
+
+      @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val body  : (D.t, G.t, C.t, V.t) man -> fundec -> D.t
 
   (** A transfer function which handles the return statement, i.e.,
-      "return exp" or "return" in the passed function (fundec) *)
+      "return exp" or "return" in the passed function (fundec)
+
+      @raise Deadcode if resulting state is unreachable. *)
   val return: (D.t, G.t, C.t, V.t) man -> exp option  -> fundec -> D.t
 
-  (** A transfer function meant to handle inline assembler program points *)
+  (** A transfer function meant to handle inline assembler program points
+
+      @raise Deadcode if resulting state is unreachable. *)
   val asm   : (D.t, G.t, C.t, V.t) man -> D.t
 
   (** A transfer function which works as the identity function, i.e., it skips and does nothing.
-      Used for empty loops. *)
+      Used for empty loops.
+
+      @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val skip  : (D.t, G.t, C.t, V.t) man -> D.t
 
   (** A transfer function which, for a call to a {e special} function f "lval = f(args)" or "f(args)",
-      computes the caller state after the function call *)
+      computes the caller state after the function call
+
+      @raise Deadcode if resulting state is unreachable. *)
   val special : (D.t, G.t, C.t, V.t) man -> lval option -> varinfo -> exp list -> D.t
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
-      will compute the caller state after the function call, given the return state of the callee *)
+      will compute the caller state after the function call, given the return state of the callee
+
+      Should {e not} raise {!Deadcode}. *)
   val enter   : (D.t, G.t, C.t, V.t) man -> lval option -> fundec -> exp list -> (D.t * D.t) list
 
   (* Combine is split into two steps: *)
@@ -246,24 +268,33 @@ sig
   (** Combine environment (global variables, mutexes, etc)
       between local state (first component from enter) and function return.
 
-      This shouldn't yet assign to the lval. *)
+      This shouldn't yet assign to the lval.
+
+      @raise Deadcode if resulting state is unreachable. *)
   val combine_env : (D.t, G.t, C.t, V.t) man -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (** Combine return value assignment
       to local state (result from combine_env) and function return.
 
-      This should only assign to the lval. *)
+      This should only assign to the lval.
+
+      @raise Deadcode if resulting state is unreachable. *)
   val combine_assign : (D.t, G.t, C.t, V.t) man -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (* Paths as sets: I know this is ugly! *)
   val paths_as_set : (D.t, G.t, C.t, V.t) man -> D.t list
 
-  (** Returns initial state for created thread. *)
+  (** Returns initial state for created thread.
+
+      Should {e not} raise {!Deadcode}. *)
   val threadenter : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> D.t list
 
-  (** Updates the local state of the creator thread using initial state of created thread. *)
+  (** Updates the local state of the creator thread using initial state of created thread.
+
+      @raise Deadcode if resulting state is unreachable (which should not be the case). *)
   val threadspawn : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) man -> D.t
 
+  (** @raise Deadcode if resulting state is unreachable. *)
   val event : (D.t, G.t, C.t, V.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
 end
 
