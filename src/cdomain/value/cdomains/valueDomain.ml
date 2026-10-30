@@ -815,6 +815,37 @@ struct
       end
     | _ -> None, None
 
+  (** Whether reading the union member [field] gives the stored [value] unchanged:
+      the member written last ([active_field]) and [field] have the same type, or are integers of the same size that differ at most in signedness, or are both pointers.
+      If the member written last is unknown, the kind of [value] is compared with the type of [field] instead. *)
+  let has_same_representation (active_field: UnionDomain.Field.t) (value: t) (field: fieldinfo) =
+    let integer_kind typ =
+      match Cil.unrollType typ with
+      | TInt (ikind, _) -> Some ikind
+      | TEnum (enuminfo, _) -> Some enuminfo.ekind
+      | _ -> None
+    in
+    let same_integer_representation ikind1 ikind2 =
+      ikind1 <> IBool && ikind2 <> IBool && Cil.bytesSizeOfInt ikind1 = Cil.bytesSizeOfInt ikind2
+    in
+    match active_field with
+    | `Lifted active when CilType.Fieldinfo.equal active field -> true
+    | `Lifted active when active.fbitfield <> field.fbitfield -> false
+    | `Lifted active ->
+      begin match integer_kind active.ftype, integer_kind field.ftype, Cil.unrollType active.ftype, Cil.unrollType field.ftype with
+        | Some active_ikind, Some ikind, _, _ -> same_integer_representation active_ikind ikind
+        | _, _, TPtr _, TPtr _ -> true
+        | _, _, active_typ, typ -> Cil.typeSig active_typ = Cil.typeSig typ
+      end
+    | `Top ->
+      begin match value, integer_kind field.ftype, Cil.unrollType field.ftype with
+        | Int _, Some ikind, _ -> GobOption.exists (same_integer_representation ikind) (get_ikind value)
+        | Address _, _, TPtr _ -> field.fbitfield = None
+        | Bot, _, _ -> true
+        | _ -> false
+      end
+    | `Bot -> true
+
   let determine_offset (ask: VDQ.t) left offset exp v =
     let rec contains_pointer exp = (* CIL offsets containing pointers is no issue here, as pointers can only occur in `Index and the domain *)
       match exp with               (* does not partition according to expressions having `Index in them *)
@@ -959,12 +990,15 @@ struct
             end
           | `Field (fld, offs) -> begin
               match x with
-              | Union (_, value) ->
+              | Union (active_field, value) ->
                 (match value, Cil.unrollType fld.ftype with
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
                  | Float _, t -> top_value t
                  | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
+                 | _ when not (has_same_representation active_field value fld) ->
+                   let l', o' = shift_one_over l o in
+                   do_eval_offset (top_value fld.ftype) offs l' o'
                  | _ ->
                    let x = cast ~kind:Internal fld.ftype value in (* TODO: proper castkind *)
                    let l', o' = shift_one_over l o in
