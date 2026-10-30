@@ -221,8 +221,7 @@ struct
          not (n =: Z.one) && is_prime' (Z.of_int 2)
        in *)
     match x, y with
-    | None, _
-    | _, None -> bot_of ik
+    | None, _ | _, None -> bot_of ik
     | Some (c, m), Some (c', m') when Cil.isSigned ik || c <: Z.zero || c' <: Z.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
       let (_, max_ik) = range ik in
@@ -290,7 +289,6 @@ struct
       c1 +: c2, Z.gcd m1 m2
     in
     match (x, y) with
-    | None, None
     | None, _ | _, None -> bot_of ik
     | Some a, Some b when no_ov ->
       normalize ik (Some (no_ov_case a b))
@@ -314,8 +312,7 @@ struct
       c1 -: c2, Z.gcd m1 m2
     in
     match (x, y) with
-    | None, _
-    | _, None -> bot_of ik
+    | None, _ | _, None -> bot_of ik
     | Some a, Some b when no_ov ->
       normalize ik (Some (no_ov_case a b))
     | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero ->

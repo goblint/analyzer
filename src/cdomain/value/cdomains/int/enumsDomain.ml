@@ -180,13 +180,11 @@ module Enums : S with type int_t = Z.t = struct
 
   let handle_bot x y f = match is_bot x, is_bot y with
     | false, false -> f ()
-    | true, _
-    | _, true -> bot ()
+    | true, _ | _, true -> bot ()
 
   let handle_bot_bool x y f = match is_bot x, is_bot y with
     | false, false -> f ()
-    | true, _
-    | _, true -> None
+    | true, _ | _, true -> None
 
   let lift1 f ikind v = norm ikind @@ match v with
     | Inc x when BISet.is_empty x -> v (* Return bottom when value is bottom *)

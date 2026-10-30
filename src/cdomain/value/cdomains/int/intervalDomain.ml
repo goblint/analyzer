@@ -180,8 +180,7 @@ struct
 
   let bit f ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, _
-    | _   , true -> bot_of ik
+    | true, _ | _   , true -> bot_of ik
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (f ik x y) |> fst with Division_by_zero -> top_of ik)
@@ -290,8 +289,7 @@ struct
 
   let shift_right ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, _
-    | _, true -> (bot_of ik, {underflow=false; overflow=false})
+    | true, _ | _, true -> (bot_of ik, {underflow=false; overflow=false})
     | _, _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik, {underflow=false; overflow=false}))
@@ -314,8 +312,7 @@ struct
 
   let shift_left ik a b =
     match is_bot a, is_bot b with
-    | true, _
-    | _   , true -> (bot_of ik, {underflow=false; overflow=false})
+    | true, _ | _   , true -> (bot_of ik, {underflow=false; overflow=false})
     | _ ->
       match a, minimal b, maximal b with
       | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
