@@ -88,7 +88,7 @@ let init_options () =
     match machine with
     | Some _ -> Cil.envMachine := machine
     | None ->
-      GobRef.wrap AnalysisState.should_warn true (fun () -> Messages.msg_final Error ~category:Unsound "Machine definition not available for selected architecture");
+      GobRef.wrap_ref AnalysisState.should_warn true (fun () -> Messages.msg_final Error ~category:Unsound "Machine definition not available for selected architecture");
       Logs.error "Machine definition not available for selected architecture, defaulting to host"
   )
 

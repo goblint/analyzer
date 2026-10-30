@@ -78,7 +78,7 @@ type overflow_op =
   | Internal
 
 let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
-  if !AnalysisState.executing_speculative_computations then
+  if Domain.DLS.get AnalysisState.executing_speculative_computations then
     (* Do not produce warnings when the operations are not actually happening in code *)
     ()
   else
