@@ -939,6 +939,81 @@ let integer_bounds_tests =
         assert_equal None (bounds t x))
   ]
 
+let nonlinear_tests =
+  let open Apron.Texpr1 in
+  let x, y, z = Var (List.nth prog_vars 0), Var (List.nth prog_vars 1), Var (List.nth prog_vars 2) in
+  let c n = Cst (Apron.Coeff.s_of_int n) in
+  let add a b = Binop (Add, a, b, Int, Near) in
+  let sub a b = Binop (Sub, a, b, Int, Near) in
+  let mul a b = Binop (Mul, a, b, Int, Near) in
+  let guard t ty e = D.meet_tcons t (Apron.Tcons1.make (of_expr (D.env t) e) ty) in
+  let bound t v lo hi = guard (guard t Apron.Tcons1.SUPEQ (sub v (c lo))) Apron.Tcons1.SUPEQ (sub (c hi) v) in
+  let expect t v lo hi =
+    assert_equal [] (D.check_invariants t);
+    assert_equal ~msg:(D.show t) (Some (Some (Z.of_int lo), Some (Z.of_int hi)))
+      (D.Bounds.bound_texpr t (of_expr (D.env t) v))
+  in
+  [
+    "nonlinear self assignment uses pre-state and clears stale slacks" >:: (fun _ ->
+        let before = bound (bound base x 2 3) y 2 4 in
+        let before = guard before Apron.Tcons1.EQ (sub (sub x z) (c 1)) in
+        let before = guard before Apron.Tcons1.SUPEQ (sub (c 2) (sub x y)) in
+        let after = D.assign_texpr before (List.hd prog_vars) (add x (mul y y)) in
+        expect after x 6 19;
+        for a = 2 to 3 do for b = 2 to 4 do
+            assert_bool "concrete assignment image is retained"
+              (mem_point after [|Q.of_int (a+b*b); Q.of_int b; Q.of_int (a-1)|])
+          done done);
+    "mixed-sign multiplication encloses every concrete product" >:: (fun _ ->
+        let before = bound (bound base y (-3) 2) z (-2) 4 in
+        let after = D.assign_texpr before (List.hd prog_vars) (mul y z) in
+        expect after x (-12) 8;
+        for b = -3 to 2 do for c = -2 to 4 do
+            assert_bool "concrete product is retained"
+              (mem_point after [|Q.of_int (b*c); Q.of_int b; Q.of_int c|])
+          done done);
+    "polynomial equality extracts an affine bound" >:: (fun _ ->
+        let before = bound base y 0 10 in
+        let polynomial = sub (sub (sub (mul (c 6) x) (mul (mul (mul (c 2) y) y) y))
+                                (mul (mul (c 3) y) y)) y in
+        let after = guard before Apron.Tcons1.EQ polynomial in
+        expect after x 0 385;
+        for b = 0 to 10 do
+          assert_bool "sum-of-squares solution is retained"
+            (mem_point after [|Q.of_int (b*(b+1)*(2*b+1)/6); Q.of_int b; Q.zero|])
+        done);
+    "negative affine coefficient reverses nonlinear inequality bound" >:: (fun _ ->
+        let before = bound base y 2 3 in
+        let after = guard before Apron.Tcons1.SUPEQ (sub (mul y y) x) in
+        assert_equal (Some (None, Some (Z.of_int 9)))
+          (D.Bounds.bound_texpr after (of_expr (D.env after) x));
+        for b = 2 to 3 do for a = -2 to b*b do
+            assert_bool "satisfying inequality point is retained"
+              (mem_point after [|Q.of_int a; Q.of_int b; Q.zero|])
+          done done);
+    "nonlinear contradiction detects bottom" >:: (fun _ ->
+        let before = bound (bound base x 20 30) y 2 3 in
+        assert_bool "x=y*y is impossible" (D.is_bot_env (guard before Apron.Tcons1.EQ (sub x (mul y y)))));
+    "unsupported division is not treated as exact rational arithmetic" >:: (fun _ ->
+        let before = bound base y 1 3 in
+        let expr = add (Binop (Div, y, c 2, Int, Zero)) (mul y y) in
+        let after = D.assign_texpr before (List.hd prog_vars) expr in
+        for b = 1 to 3 do
+          assert_bool "truncated integer division image is retained"
+            (mem_point after [|Q.of_int (b/2+b*b); Q.of_int b; Q.zero|])
+        done);
+    "unbounded nonlinear remainder imposes no finite bound" >:: (fun _ ->
+        let after = guard base Apron.Tcons1.EQ (sub x (mul y y)) in
+        assert_equal (Some (None, None)) (D.Bounds.bound_texpr after (of_expr (D.env after) x)));
+    "purely nonlinear guard does not create an empty slack" >:: (fun _ ->
+        let before = bound base y 2 3 in
+        let after = guard before Apron.Tcons1.SUPEQ (sub (mul y y) (c 2)) in
+        assert_equal [] (D.check_invariants after);
+        assert_bool "satisfiable guard" (not (D.is_bot_env after));
+        assert_bool "impossible guard"
+          (D.is_bot_env (guard before Apron.Tcons1.SUPEQ (sub (c 2) (mul y y)))));
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
@@ -946,6 +1021,7 @@ let tests =
 let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
                             @ ["integer bounds" >::: integer_bounds_tests]
+                            @ ["nonlinear polynomial fallback" >::: nonlinear_tests]
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
                             @ ["singleton interval joins" >::: singleton_join_tests]
                             @ ["speculative expression queries" >::: speculative_query_tests]

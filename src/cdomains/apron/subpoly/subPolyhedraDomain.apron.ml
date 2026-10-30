@@ -167,6 +167,69 @@ struct
     try
       Some (convert_texpr texp)
     with NotLinear -> None
+
+  (** Enclose an integer polynomial by an affine expression plus an interval
+      remainder. Nonlinear subexpressions are evaluated in the pre-state;
+      dependencies lost by interval evaluation only weaken the enclosure.
+      Other operators and floating-point arithmetic deliberately return top. *)
+  let linearize_polynomial t d refined expr =
+    let open Apron.Texpr1 in
+    let sz = size t in
+    let zero = Vector.zero_vec (sz + 1) in
+    let const q = RationalInterval.of_const q in
+    let unknown = zero, RationalInterval.top in
+    let neg (v, i) =
+      Vector.map_f_preserves_zero Mpqf.neg v, RationalInterval.scale Q.minus_one i
+    in
+    let add (v, i) (w, j) =
+      Vector.map2_f_preserves_zero (+:) v w, RationalInterval.add i j
+    in
+    let eval (v, i) = RationalInterval.add (P.eval_vec ~size:sz d refined v) i in
+    let mul i j =
+      match RationalInterval.bounds i, RationalInterval.bounds j with
+      | (Some l, Some u), _ when Q.equal l Q.zero && Q.equal u Q.zero -> const Q.zero
+      | _, (Some l, Some u) when Q.equal l Q.zero && Q.equal u Q.zero -> const Q.zero
+      | (Some l, Some u), (Some l', Some u') ->
+        let products = [Q.mul l l'; Q.mul l u'; Q.mul u l'; Q.mul u u'] in
+        let lower = List.fold_left Q.min (List.hd products) (List.tl products) in
+        let upper = List.fold_left Q.max (List.hd products) (List.tl products) in
+        RationalInterval.of_bounds ~lower:(Some lower) ~upper:(Some upper)
+      | _ -> RationalInterval.top
+    in
+    let int_vars, _ = Environment.vars t.env in
+    let rec go = function
+      | Var v when Array.exists (Var.equal v) int_vars ->
+        Vector.set_nth zero (Environment.dim_of_var t.env v) Mpqf.one, const Q.zero
+      | Cst (Coeff.Scalar s) ->
+        let q = match s with
+          | Scalar.Float f -> Mpqf.of_float f
+          | Scalar.Mpqf q -> q
+          | Scalar.Mpfrf f -> Mpfr.to_mpq f
+        in
+        let q' = P.q_of_mpqf q in
+        if Q.is_real q' && Z.equal (Q.den q') Z.one then
+          Vector.set_nth zero sz q, const Q.zero
+        else unknown
+      | Unop (Neg, e, (Int | Real), _) -> neg (go e)
+      | Binop (Add, e, f, (Int | Real), _) -> add (go e) (go f)
+      | Binop (Sub, e, f, (Int | Real), _) -> add (go e) (neg (go f))
+      | Binop (Mul, e, f, (Int | Real), _) ->
+        let ((v, i) as a), ((w, j) as b) = go e, go f in
+        let exact_constant v i =
+          if RationalInterval.equal i (const Q.zero) then to_constant_opt v else None
+        in
+        let scale c (v, i) =
+          Vector.apply_with_c_f_preserves_zero ( *:) c v,
+          (if Mpqf.equal c Mpqf.zero then const Q.zero else RationalInterval.scale (P.q_of_mpqf c) i)
+        in
+        begin match exact_constant v i, exact_constant w j with
+          | Some c, _ -> scale c b
+          | _, Some c -> scale c a
+          | _ -> zero, mul (eval a) (eval b)
+        end
+      | _ -> unknown
+    in
+    go expr
 end
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
@@ -896,8 +959,19 @@ struct
     | Some d ->
       match get_coeff_vec t texp with
       | None ->
-        (* nonlinear: havoc the assigned variable *)
-        forget_vars t [var]
+        (* Evaluate before forgetting: the destination may occur on the RHS,
+           and forgetting it can also remove/reindex dependent slacks. *)
+        begin match reduce ~size:(size t) d with
+          | None -> bot_env
+          | Some refined ->
+            let v, remainder = linearize_polynomial t d refined texp in
+            let rhs = RationalInterval.add (P.eval_vec ~size:(size t) d refined v) remainder in
+            let t = forget_vars t [var] in
+            match t.d with
+            | None -> t
+            | Some d ->
+              check_bot {t with d = Some (P.set_intv (Environment.dim_of_var t.env var) rhs d)}
+        end
       | Some v ->
         let sz = size t in
         let dim_x = Environment.dim_of_var t.env var in
@@ -1077,7 +1151,27 @@ struct
     | None -> t
     | Some d ->
       match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-      | None -> t
+      | None ->
+        begin match reduce ~size:(size t) d with
+          | None -> bot_env
+          | Some refined ->
+            let v, remainder = linearize_polynomial t d refined (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+            let terms, c = P.split_row (size t) v in
+            let allowed = RationalInterval.add_const (Q.neg (P.q_of_mpqf c))
+                (RationalInterval.scale Q.minus_one remainder) in
+            let lower, _ = RationalInterval.bounds allowed in
+            let allowed = match Tcons1.get_typ tcons with
+              | EQ -> allowed
+              | SUPEQ | SUP -> RationalInterval.of_bounds ~lower ~upper:None
+              | DISEQ | EQMOD _ -> RationalInterval.top
+            in
+            if terms = [] then
+              (match RationalInterval.meet allowed (RationalInterval.of_const Q.zero) with
+               | None -> bot_env
+               | Some _ -> t)
+            else
+              constrain_template TMeet t (vterms_of_dims t.env terms) allowed
+        end
       | Some v ->
         let sz = size t in
         let terms, c = P.split_row sz v in
