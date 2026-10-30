@@ -22,6 +22,11 @@ sig
   val linear_disjunct: t -> t -> t
   (** [linear_disjunct m1 m2] returns a matrix that contains the linear disjunct of [m1] and [m2].
       The result is in rref. If [m1] and [m2] are not linearly disjunct, an exception is raised. *)
+
+  val affine_hull: t -> t -> t
+  (** [affine_hull m1 m2] computes the intersection of the row spaces of two
+      consistent rref equality matrices. The result is in rref. This is an
+      alternative to [linear_disjunct] based on the Zassenhaus algorithm. *)
 end
 
 module type SparseMatrixFunctor =
@@ -385,6 +390,37 @@ module ListMatrix: SparseMatrixFunctor =
         in is_covered_by_helper m1 m2
 
     let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
+
+    (** The common equalities of two systems are the intersection of their
+        augmented row spaces. Reduce [(u | u)] for rows of [m1] and [(v | 0)]
+        for rows of [m2]; rows with zero left half span the intersection in
+        their right halves. *)
+    let affine_hull m1 m2 =
+      if is_empty m1 || is_empty m2 then empty ()
+      else
+        let w = num_cols m1 in
+        let dup r =
+          let es = V.to_sparse_list r in
+          V.of_sparse_list (2 * w) (es @ List.map (fun (i, c) -> (i + w, c)) es)
+        in
+        let left r = V.of_sparse_list (2 * w) (V.to_sparse_list r) in
+        let big = List.fold_left (fun m r ->
+            match rref_vec m r with
+            | Some m -> m
+            | None -> m (* unreachable for consistent operands *)
+          ) (empty ()) (List.map dup m1 @ List.map left m2)
+        in
+        List.fold_left (fun m r ->
+            match V.find_first_non_zero r with
+            | Some (p, _) when p >= w ->
+              let row = V.of_sparse_list w
+                  (List.map (fun (i, c) -> (i - w, c)) (V.to_sparse_list r))
+              in
+              (match rref_vec m row with
+               | Some m -> m
+               | None -> m (* unreachable for consistent operands *))
+            | _ -> m
+          ) (empty ()) big
 
     (** Direct implementation of https://doi.org/10.1007/BF00268497 , chapter 5.2 Calculation of Linear Disjunction
         also available at https://www-apr.lip6.fr/~mine/enseignement/mpri/attic/2014-2015/exos/karr.pdf

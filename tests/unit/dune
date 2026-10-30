@@ -2,12 +2,16 @@
 
 (test
   (name mainTest)
-  (libraries ounit2 qcheck-ounit goblint.std goblint.common goblint.lib goblint.constraint goblint.solver goblint.cdomain.value
+  (libraries ounit2 qcheck-ounit zarith goblint.std goblint.common goblint.lib goblint.constraint goblint.solver goblint.cdomain.value
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; See: https://dune.readthedocs.io/en/stable/reference/library-dependencies.html#alternative-dependencies
     (select sparseMatrixImplementationTest.ml from
         (apron -> sparseMatrixImplementationTest.apron.ml)
         (-> sparseMatrixImplementationTest.no-apron.ml)
+    )
+    (select subPolyhedraDomainTest.ml from
+        (apron apron.polkaMPQ -> subPolyhedraDomainTest.apron.ml)
+        (-> subPolyhedraDomainTest.no-apron.ml)
     )
     (select apronDomainTest.ml from
         (apron -> apronDomainTest.apron.ml)
@@ -28,4 +32,5 @@
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
 ; A dune file with "include_subdirs no" is located in cdomains/affineEqualityDomain to avoid a dependency cycle
 (copy_files# cdomains/affineEqualityDomain/sparseImplementation/*.ml)
+(copy_files# cdomains/subPolyhedraDomain/*.ml)
 (copy_files# cdomains/apronDomain/*.ml)
