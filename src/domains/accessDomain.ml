@@ -16,12 +16,7 @@ struct
   let pretty () ({var_opt; offs_opt; kind}: t) =
     dprintf "{var_opt=%a, offs_opt=%a; kind=%a}" (docOpt (CilType.Varinfo.pretty ())) var_opt (docOpt (CilType.Offset.pretty ())) offs_opt AccessKind.pretty kind
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module EventSet = SetDomain.ToppedSet (Event) (struct let topname = "All accesses" end)

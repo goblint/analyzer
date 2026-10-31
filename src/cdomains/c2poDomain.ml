@@ -15,7 +15,7 @@ module C2PODomain = struct
   let name () = "c2po"
 
   type domain = t
-  include Printable.SimplePretty (struct type t = domain let pretty = pretty end)
+  [%%functor include Printable.SimplePretty]
 
   let equal_standard x y  =
     let cc1 = x.data in

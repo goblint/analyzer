@@ -138,12 +138,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | MinusInfinity -> "[-infinity]"
     | Interval (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.show low) (Float_t.show high)
 
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   let name () = "FloatInterval"
 
@@ -1355,12 +1350,7 @@ module FloatDomTupleImpl = struct
 
   let pretty_diff () (x, y) = dprintf "%a instead of %a" pretty x pretty y
 
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   let relift a = Option.map F1.relift a
 end

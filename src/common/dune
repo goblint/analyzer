@@ -25,7 +25,8 @@
     ppx_deriving.std
     ppx_deriving_hash
     ppx_deriving_yojson
-    ppx_deriving_printable))
+    ppx_deriving_printable
+    ppx_include_functor))
  (instrumentation (backend bisect_ppx)))
 
 (documentation)

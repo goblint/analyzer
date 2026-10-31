@@ -293,12 +293,7 @@ struct
       | Unknown -> "?"
       | Star -> "*"
 
-    include Printable.SimpleShow (
-      struct
-        type nonrec t = t
-        let show = show
-      end
-      )
+    [%%functor include Printable.SimpleShow]
 
     let equal_to _ _ = `Top
     let to_int _ = None

@@ -14,10 +14,7 @@ struct
   let name () = Names.name
 
   let show x = if x then Names.true_name else Names.false_name
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
+  [%%functor include Printable.SimpleShow]
 
   let arbitrary () = QCheck.bool
 

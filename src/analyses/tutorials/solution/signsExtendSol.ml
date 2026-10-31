@@ -16,10 +16,7 @@ struct
     | Zero -> "0"
     | Pos -> "+"
 
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
+  [%%functor include Printable.SimpleShow]
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =

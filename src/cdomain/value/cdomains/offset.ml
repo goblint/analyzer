@@ -39,12 +39,7 @@ struct
       else
         dn_exp () x
 
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
+    [%%functor include Printable.SimplePretty]
 
     let equal_to _ _ = `Top (* TODO: more precise for definite indices *)
     let to_int _ = None (* TODO: more precise for definite indices *)
@@ -97,12 +92,7 @@ struct
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   include Poly
 

@@ -424,12 +424,7 @@ struct
       else
         Pretty.dprintf "%a%s" (EConj.pretty_formatted (pretty_var varM.env)) (snd arr) (to_subscript @@ fst arr)
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 

@@ -27,10 +27,7 @@ let name_varinfo = function
 
 let show = name_varinfo
 
-include Printable.SimpleShow (struct
-    type nonrec t = t
-    let show = show
-  end)
+[%%functor include Printable.SimpleShow]
 
 let describe_varinfo _ _ = ""
 

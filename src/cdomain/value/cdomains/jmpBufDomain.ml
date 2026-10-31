@@ -14,10 +14,7 @@ module BufferEntryOrTop = struct
 
   let show = function AllTargets -> "All" | Target x -> BufferEntry.show x
 
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
+  [%%functor include Printable.SimpleShow]
 end
 
 module JmpBufSet =

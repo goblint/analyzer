@@ -47,12 +47,7 @@ let v2_3_goblint = {version = V2_3; goblint = true}
 
 let show {version; goblint} = Version.show version ^ Goblint.show goblint
 
-include Printable.SimpleShow (
-  struct
-    type nonrec t = t
-    let show = show
-  end
-  )
+[%%functor include Printable.SimpleShow]
 
 (* TODO: more general parsing? *)
 let of_string = function

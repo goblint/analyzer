@@ -25,12 +25,7 @@ struct
     | UnknownPtr -> "?"
     | NullPtr    -> "NULL"
 
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   (* strings *)
   let of_string x = StrPtr (SD.of_string x)

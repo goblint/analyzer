@@ -33,10 +33,7 @@ module D = struct
       (Pred.show x.pred)
       (Ctx.show x.ctx)
 
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end) (* TODO: overrides derived to_yojson *)
+  [%%functor include Printable.SimpleShow] (* TODO: overrides derived to_yojson *)
 
   let name () = "pthread state"
 

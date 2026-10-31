@@ -911,8 +911,5 @@ struct
     {entry_type; metadata}
 
   let pp ppf x = Yaml.pp ppf (to_yaml x)
-  include Printable.SimpleFormat (struct
-      type nonrec t = t
-      let pp = pp
-    end)
+  [%%functor include Printable.SimpleFormat]
 end

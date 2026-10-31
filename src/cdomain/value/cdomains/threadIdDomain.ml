@@ -66,12 +66,7 @@ struct
       | None when GobConfig.get_bool "dbg.full-output" -> vname_loc ^ "#⊤"
       | None -> vname_loc
 
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   let threadinit v ~multiple: t = (v, None)
 

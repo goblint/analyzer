@@ -43,12 +43,7 @@ let pretty () {tid; created; must_joined} =
   let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
   Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs
 
-include Printable.SimplePretty (
-  struct
-    type nonrec t = t
-    let pretty = pretty
-  end
-  )
+[%%functor include Printable.SimplePretty]
 
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)

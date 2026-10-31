@@ -162,10 +162,7 @@ struct
       | Field f -> CilType.Fieldinfo.show f
       | Index -> "?"
 
-    include Printable.SimpleShow (struct
-        type nonrec t = t
-        let show = show
-      end)
+    [%%functor include Printable.SimpleShow]
 
     let to_offset : t -> Offset.Unit.t = function
       | Field f -> `Field (f, `NoOffset)

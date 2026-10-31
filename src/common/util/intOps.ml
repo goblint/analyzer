@@ -261,12 +261,7 @@ struct
   include Printable.StdLeaf
   include B
   let show = to_string
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = to_string
-    end
-    )
+  [%%functor include Printable.SimpleShow]
   let pred x = sub x one
   let of_bool x = if x then one else zero
   let to_bool x = x <> zero

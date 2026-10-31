@@ -171,12 +171,7 @@ struct
     | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)" name
     | `Type t -> Pretty.dprintf "(%a)" Cilfacade.pretty_typsig_like_typ t
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 (** Memory location of an access. *)
@@ -194,12 +189,7 @@ struct
     | `Type (TSComp (_, name, _)) -> Pretty.dprintf "(struct %s)%a" name Offset.Unit.pretty o
     | `Type t -> Pretty.dprintf "(%a)%a" Cilfacade.pretty_typsig_like_typ t Offset.Unit.pretty o
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 
   let of_ty (ty: acc_typ): t =
     match ty with
@@ -423,12 +413,7 @@ struct
     let atomic_pretty = if atomic then " (atomic)" else "" in
     Pretty.dprintf "%d, %a%s, %a, %a, %a" conf AccessKind.pretty kind atomic_pretty CilType.Location.pretty (Node.location node) CilType.Exp.pretty exp MCPAccess.A.pretty acc
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 
   let relift {conf; kind; atomic; node; exp; acc} =
     {conf; kind; atomic; node; exp; acc = MCPAccess.A.relift acc}

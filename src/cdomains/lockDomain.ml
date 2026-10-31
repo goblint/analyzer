@@ -60,12 +60,7 @@ struct
     else
       GoblintCil.Pretty.dprintf "read lock %a" P.pretty a
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module MvalRW = MakeRW (Mval)

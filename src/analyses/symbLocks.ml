@@ -110,12 +110,7 @@ struct
       let name () = "p-lock"
 
       let pretty = d_offset (text "*")
-      include Printable.SimplePretty (
-        struct
-          type nonrec t = t
-          let pretty = pretty
-        end
-        )
+      [%%functor include Printable.SimplePretty]
     end
     module E = Printable.Either (PLock) (ILock)
     include SetDomain.Make (E)

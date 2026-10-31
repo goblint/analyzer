@@ -172,12 +172,7 @@ module MathPrintable = struct
     | Tan (fk, exp) -> Pretty.dprintf "(%a )tan(%a)" d_fkind fk d_exp exp
     | Sqrt (fk, exp) -> Pretty.dprintf "(%a )sqrt(%a)" d_fkind fk d_exp exp
 
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module MathLifted = Lattice.FlatConf (struct

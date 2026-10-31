@@ -5,12 +5,7 @@ struct
   include Scalar
 
   let pp = print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 
   let of_z z = of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z z))
 end
@@ -20,12 +15,7 @@ struct
   include Coeff
 
   let pp = print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 
   let s_of_z z = Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z z))
 end
@@ -35,12 +25,7 @@ struct
   include Var
 
   let pp = print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 
   let equal x y = Var.compare x y = 0
 end
@@ -73,12 +58,7 @@ struct
   include Lincons1
 
   let pp = print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 
   let compare x y =
     (* TODO: implement proper total Lincons1 order *)
@@ -135,24 +115,14 @@ struct
   include Texpr1
 
   let pp = print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 
   module Expr =
   struct
     type t = expr
 
     let pp = print_expr
-    include Printable.SimpleFormat (
-      struct
-        type nonrec t = t
-        let pp = pp
-      end
-      )
+    [%%functor include Printable.SimpleFormat]
   end
 end
 
@@ -161,12 +131,7 @@ struct
   include Tcons1
 
   let pp = print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 end
 
 (** A few code elements for environment changes from functions as remove_vars etc. have been moved to sharedFunctions as they are needed in a similar way inside affineEqualityDomain.
@@ -176,12 +141,7 @@ struct
   include Environment
 
   let pp: Format.formatter -> Environment.t -> unit = Environment.print
-  include Printable.SimpleFormat (
-    struct
-      type nonrec t = t
-      let pp = pp
-    end
-    )
+  [%%functor include Printable.SimpleFormat]
 
   let compare (x: t) (y: t): int =
     (* TODO: implement total Environment order in OCaml *)

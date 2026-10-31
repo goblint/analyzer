@@ -51,12 +51,7 @@ struct
       else
         ""
     )
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   let to_yojson x = `Assoc (
       [
@@ -126,12 +121,7 @@ struct
 
   (* Output *)
   let pretty () x = d_ikind () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module Fkind: S with type t = fkind =
@@ -163,12 +153,7 @@ struct
 
   (* Output *)
   let pretty () x = d_fkind () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module Unop: S with type t = unop =
@@ -193,12 +178,7 @@ struct
 
   (* Output *)
   let pretty () x = d_unop () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module Binop: S with type t = binop =
@@ -242,12 +222,7 @@ struct
 
   (* Output *)
   let pretty () x = d_binop () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module Castkind: S with type t = castkind =
@@ -277,12 +252,7 @@ struct
 
   (* Output *)
   let pretty () x = d_castkind () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module Wstring_type: S with type t = wstring_type =
@@ -310,12 +280,7 @@ struct
     | Wchar_t -> "wchar_t"
     | Char16_t -> "char16_t"
     | Char32_t -> "char32_t"
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 end
 
 module Encoding: S with type t = encoding =
@@ -341,12 +306,7 @@ struct
   let show = function
     | No_encoding -> "no encoding"
     | Utf8 -> "utf-8"
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 end
 
 module Varinfo:
@@ -369,12 +329,7 @@ struct
 
   (* Output *)
   let show x = x.vname
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
   let pp fmt x = Format.fprintf fmt "%s" x.vname (* for deriving show *)
 end
 
@@ -394,12 +349,7 @@ struct
 
   (* Output *)
   let pretty () x = Varinfo.pretty () x.svar
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module Compinfo: S with type t = compinfo =
@@ -417,12 +367,7 @@ struct
 
   (* Output *)
   let show x = compFullName x
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 end
 
 module Fieldinfo: S with type t = fieldinfo =
@@ -445,12 +390,7 @@ struct
 
   (* Output *)
   let show x = x.fname
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 end
 
 module Enuminfo: S with type t = enuminfo =
@@ -469,12 +409,7 @@ struct
 
   (* Output *)
   let show x = x.ename
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 end
 
 module Typeinfo: S with type t = typeinfo =
@@ -493,12 +428,7 @@ struct
 
   (* Output *)
   let show x = x.tname
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 end
 
 module Stmt: S with type t = stmt =
@@ -517,12 +447,7 @@ struct
 
   (* Output *)
   let pretty () x = dn_stmt () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 module rec Typ:
@@ -559,12 +484,7 @@ struct
 
   (* Output *)
   let pretty () x = dn_type () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for deriving show *)
 end
@@ -586,12 +506,7 @@ struct
 
   (* Output *)
   let pretty () x = d_typsig () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Constant: S with type t = constant =
@@ -611,12 +526,7 @@ struct
 
   (* Output *)
   let pretty () x = d_const () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Offset: S with type t = offset =
@@ -633,12 +543,7 @@ struct
 
   (* Output *)
   let pretty () x = d_offset nil () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Lval: S with type t = lval =
@@ -665,12 +570,7 @@ struct
 
   (* Output *)
   let pretty () x = dn_lval () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Exp: S with type t = exp =
@@ -709,12 +609,7 @@ struct
 
   (* Output *)
   let pretty () x = dn_exp () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Attrparam: S with type t = attrparam =
@@ -745,12 +640,7 @@ struct
 
   (* Output *)
   let pretty () x = dn_attrparam () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Attribute: S with type t = attribute =
@@ -763,12 +653,7 @@ struct
 
   (* Output *)
   let pretty () x = dn_attr () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end
 
 and Attributes: S with type t = attributes =
@@ -781,10 +666,5 @@ struct
 
   (* Output *)
   let pretty () x = dn_attrlist () x
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
 end

@@ -88,12 +88,7 @@ struct
   let name () = "inline edge"
 
   let pretty = pretty_inline_edge
-  include Printable.SimplePretty (
-    struct
-      type nonrec t = t
-      let pretty = pretty
-    end
-    )
+  [%%functor include Printable.SimplePretty]
     (* TODO: deriving to_yojson gets overridden by SimplePretty *)
 end
 

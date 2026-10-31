@@ -16,12 +16,7 @@ struct
 
   (* Use Basetype.Variables to print with RichVarinfo. *)
   let show ((v, o): t): string = Basetype.Variables.show v ^ Offs.show o
-  include Printable.SimpleShow (
-    struct
-      type nonrec t = t
-      let show = show
-    end
-    )
+  [%%functor include Printable.SimpleShow]
 
   let add_offset (v, o) o' = (v, Offs.add_offset o o')
 

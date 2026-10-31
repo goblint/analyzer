@@ -147,12 +147,7 @@ struct
     let name () = "var"
 
     let pretty = pretty_trace
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
+    [%%functor include Printable.SimplePretty]
   end
 
   include PrecCompare.MakeHashtbl (Var) (Dom) (VH)

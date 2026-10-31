@@ -31,12 +31,7 @@ let show = function
   | Some x -> "\"" ^ x ^ "\""
   | None -> "(unknown string)"
 
-include Printable.SimpleShow (
-  struct
-    type nonrec t = t
-    let show = show
-  end
-  )
+[%%functor include Printable.SimpleShow]
 
 let of_string x =
   match get_string_domain () with

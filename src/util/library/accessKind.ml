@@ -16,9 +16,4 @@ let show: t -> string = function
   | Call -> "call"
   | Spawn -> "spawn"
 
-include Printable.SimpleShow (
-  struct
-    type nonrec t = t
-    let show = show
-  end
-  )
+[%%functor include Printable.SimpleShow]

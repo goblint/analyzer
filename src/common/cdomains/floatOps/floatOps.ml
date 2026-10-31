@@ -70,10 +70,7 @@ module CDouble = struct
   let succ = Float.succ
 
   let show = Float.to_string
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
+  [%%functor include Printable.SimpleShow]
 
   let neg = Float.neg
   let fabs = Float.abs
@@ -116,10 +113,7 @@ module CFloat = struct
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
 
   let show = Float.to_string
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
+  [%%functor include Printable.SimpleShow]
 
   let neg = Float.neg
   let fabs = Float.abs

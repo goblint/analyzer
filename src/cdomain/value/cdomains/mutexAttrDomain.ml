@@ -13,10 +13,7 @@ struct
     | NonRec -> "fast/error_checking"
     | Recursive -> "recursive"
 
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
+  [%%functor include Printable.SimpleShow]
 end
 
 include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "Uninitialized" let top_name = "Top" end) (MutexKind)
