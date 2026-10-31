@@ -1,4 +1,4 @@
-//SKIP PARAM: --enable ana.int.interval --enable sem.malloc.fail --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 1 --set ana.activated[+] useAfterFree
+//PARAM: --enable ana.int.interval --enable sem.malloc.fail --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 1 --set ana.activated[+] useAfterFree
 /*
  * Minimal, standalone MODEL of the CVE-2026-109618 Zend HashTable failure.
  * Adapted from the control-flow / initialization ordering in PHP 8.4.26:
