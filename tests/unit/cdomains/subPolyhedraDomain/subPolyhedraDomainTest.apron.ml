@@ -193,7 +193,7 @@ let mem_point (t: D.t) (sigma: Q.t array) : bool =
         | Some (info: P.info) ->
           List.fold_left (fun acc (i, c) ->
               match acc, prog_value i with
-              | Some acc, Some q -> Some (Q.add acc (Q.mul (P.q_of_mpqf c) q))
+              | Some acc, Some q -> Some (Q.add acc (Q.mul c q))
               | _ -> None
             ) (Some Q.zero) info.P.iterms
     in
@@ -202,11 +202,11 @@ let mem_point (t: D.t) (sigma: Q.t array) : bool =
       match
         List.fold_left (fun acc (i, c) ->
             match acc, dim_value i with
-            | Some acc, Some q -> Some (Q.add acc (Q.mul (P.q_of_mpqf c) q))
+            | Some acc, Some q -> Some (Q.add acc (Q.mul c q))
             | _ -> None
           ) (Some Q.zero) terms
       with
-      | Some lhs -> Q.equal lhs (P.q_of_mpqf rhs)
+      | Some lhs -> Q.equal lhs rhs
       | None -> false
     in
     let interval_ok dim iv =
@@ -393,7 +393,7 @@ and poly_run ops = List.fold_left poly_apply poly_base ops
 let q_of_scalar (s: Apron.Scalar.t) : Q.t option =
   if Apron.Scalar.is_infty s <> 0 then None
   else match s with
-    | Apron.Scalar.Mpqf f -> Some (P.q_of_mpqf f)
+    | Apron.Scalar.Mpqf f -> Some (Z_mlgmpidl.q_of_mpqf f)
     | Apron.Scalar.Float f -> Some (Q.of_float f)
     | Apron.Scalar.Mpfrf _ -> failwith "unexpected Mpfrf scalar from polkaMPQ"
 
@@ -491,7 +491,7 @@ let poly_diff =
 let explore_example5 =
   "basis exploration reduction (paper Example 5)" >:: fun _ ->
     let sz = 4 in
-    let mq = Mpqf.of_int in
+    let mq = Q.of_int in
     let row terms rhs = P.vec_of_terms sz (List.map (fun (i, c) -> (i, mq c)) terms) (mq rhs) in
     let m = P.Matrix.empty () in
     let m = Option.get (P.Matrix.rref_vec m (row [(0, 1); (2, 1); (3, 1)] 1)) in
@@ -518,7 +518,7 @@ let explore_example5 =
 
 let component_exploration_tests =
   let row size terms rhs =
-    P.vec_of_terms size (List.map (fun i -> (i, Mpqf.of_int 1)) terms) (Mpqf.of_int rhs)
+    P.vec_of_terms size (List.map (fun i -> (i, Q.one)) terms) (Q.of_int rhs)
   in
   [
     "row components ignore RHS and join transitively" >:: (fun _ ->
@@ -543,7 +543,7 @@ let component_exploration_tests =
         let size = 1000 in
         let mk_block a b c d =
           let row terms rhs =
-            P.vec_of_terms size (List.map (fun (i, c) -> (i, Mpqf.of_int c)) terms) (Mpqf.of_int rhs)
+            P.vec_of_terms size (List.map (fun (i, c) -> (i, Q.of_int c)) terms) (Q.of_int rhs)
           in
           let m = Option.get (P.Matrix.rref_vec (P.Matrix.empty ())
                                 (row [a, 1; c, 1; d, 1] 1)) in
@@ -561,7 +561,7 @@ let component_exploration_tests =
           (List.map List.length (P.connected_row_components ~size (P.rows combined)));
         let reduced = Option.get (P.explore_components ~size (state combined) map) in
         let expected = Option.get (P.explore_linear ~size (state first) map)
-                       |> P.explore_linear ~size (state second) |> Option.get in
+          |> P.explore_linear ~size (state second) |> Option.get in
         assert_bool "matches separate naive passes" (P.equal_interval_map expected reduced);
         List.iter (fun dim ->
             let want = RI.of_bounds ~lower:(Some (Q.of_int (-2)))
@@ -637,7 +637,7 @@ let normalized_slack_tests =
     let beta, info = List.hd (P.VarMap.bindings d.P.infos) in
     let terms = List.filter_map (fun (v, c) ->
         if Q.equal c Q.zero then None else Some (v, Q.to_string c)) (List.combine prog_vars coefficients) in
-    let actual = List.map (fun (i, c) -> (Apron.Environment.var_of_dim (D.env t) i, Mpqf.to_string c)) info.P.iterms in
+    let actual = List.map (fun (i, c) -> (Apron.Environment.var_of_dim (D.env t) i, Q.to_string c)) info.P.iterms in
     assert_equal terms actual;
     let expected = RI.of_bounds ~lower ~upper in
     assert_bool ("expected " ^ RI.show expected ^ ", got " ^ D.show t)
@@ -646,8 +646,8 @@ let normalized_slack_tests =
   let qs = List.map Q.of_int in
   [
     "template creation and refinement normalize scaled forms" >:: (fun _ ->
-        let template cs = List.combine prog_vars (List.map Mpqf.of_int cs)
-                          |> List.filter (fun (_, c) -> not (Mpqf.equal c Mpqf.zero)) in
+        let template cs = List.combine prog_vars (List.map Q.of_int cs)
+          |> List.filter (fun (_, c) -> not (Q.equal c Q.zero)) in
         let iv lo hi = RI.of_bounds ~lower:(Some (Q.of_int lo)) ~upper:(Some (Q.of_int hi)) in
         let t = D.constrain_template D.TMeet base (template [2; 4; 0]) (iv 4 16) in
         expect t (qs [1; 2; 0]) (Some (Q.of_int 2)) (Some (Q.of_int 8));
@@ -779,7 +779,7 @@ let assignment_interval_tests =
         expect_bounds t (0, [1; -1; 0]) (Some 2) (Some 8));
 
     "preservation reuses a transformed singleton template" >:: (fun _ ->
-        let before = D.constrain_template D.TMeet base [(List.hd prog_vars, Mpqf.one)]
+        let before = D.constrain_template D.TMeet base [(List.hd prog_vars, Q.one)]
             (RI.of_bounds ~lower:(Some Q.zero) ~upper:(Some (Q.of_int 10))) in
         let t = apply before (Assign (0, (0, [1; 1; 0]))) in
         expect_bounds t (0, [1; -1; 0]) (Some 0) (Some 10);
@@ -808,8 +808,8 @@ let assignment_interval_tests =
 let singleton_join_tests =
   let bound t cs lo hi =
     D.constrain_template D.TMeet t
-      (List.combine prog_vars (List.map Mpqf.of_int cs)
-       |> List.filter (fun (_, c) -> not (Mpqf.equal c Mpqf.zero)))
+      (List.combine prog_vars (List.map Q.of_int cs)
+       |> List.filter (fun (_, c) -> not (Q.equal c Q.zero)))
       (RI.of_bounds ~lower:(Some lo) ~upper:(Some hi))
   in
   let check a b relation =
@@ -1059,7 +1059,7 @@ let reduction_cache_tests =
           let scale c iv = incr scales; scale c iv
         end in
         let module Core = SubPolyhedraCore.SubPoly (VM.Int) (CountedInterval) in
-        let matrix rhs = Core.Matrix.init_with_vec (Core.CoeffVector.of_list [Mpqf.one; Mpqf.of_int rhs]) in
+        let matrix rhs = Core.Matrix.init_with_vec (Core.CoeffVector.of_list [Q.one; Q.of_int rhs]) in
         let fresh () = Core.make (matrix 1) Core.VarMap.empty Core.VarMap.empty in
         let state = fresh () in
         let h = Core.hash state in
@@ -1085,7 +1085,7 @@ let reduction_cache_tests =
         let good = Core.update ~affeq:(matrix 2) bad in
         assert_bool "matrix update invalidates bottom" (Option.is_some (reduce good));
         scales := 0;
-        let changed_info = Core.set_info 1 {Core.iterms = [0, Mpqf.one]} state in
+        let changed_info = Core.set_info 1 {Core.iterms = [0, Q.one]} state in
         ignore (reduce changed_info);
         assert_bool "info update gets a fresh cache" (!scales > 0);
         (* Exercise the size-key contract independently of any matrix's arity. *)
@@ -1119,6 +1119,41 @@ let reduction_cache_ops =
        let hash = D.hash t in
        check t && D.hash t = hash && check (apply t op) && check t)
 
+let rational_boundary_tests =
+  [
+    "Apron rational constants stay exact" >:: (fun _ ->
+        let huge = Q.make Z.(add (shift_left one 200) one) (Z.of_int 97) in
+        List.iter (fun q ->
+            let coeff = SubPolyhedraDomain.coeff_of_q q in
+            let expr = Apron.Texpr1.Cst coeff in
+            let vec = Option.get (VM.get_coeff_vec base expr) in
+            assert_bool "constant roundtrip" (Q.equal q (VM.Vector.nth vec (VM.size base)))
+          ) [Q.zero; Q.one; Q.minus_one; Q.of_string "-5/7"; huge]);
+    "floating Apron constants and non-finite rejection" >:: (fun _ ->
+        let check scalar expected =
+          let expr = Apron.Texpr1.Cst (Apron.Coeff.Scalar scalar) in
+          match VM.get_coeff_vec base expr, expected with
+          | Some vec, Some q -> assert_bool "exact floating value" (Q.equal q (VM.Vector.nth vec (VM.size base)))
+          | None, None -> ()
+          | _ -> assert_failure "unexpected conversion of floating scalar"
+        in
+        check (Apron.Scalar.Float 0.1) (Some (Q.of_float 0.1));
+        check (Apron.Scalar.Mpfrf (Mpfrf.of_float 0.5 Mpfr.Near)) (Some (Q.of_string "1/2"));
+        List.iter (fun f -> check (Apron.Scalar.Float f) None) [infinity; neg_infinity; nan]);
+    "fractional invariants export to Apron exactly" >:: (fun _ ->
+        let sz = VM.size base in
+        let row = P.vec_of_terms sz [0, Q.one; 1, Q.of_string "-2/3"] (Q.of_string "5/7") in
+        let d = P.make (P.Matrix.init_with_vec row) P.VarMap.empty P.VarMap.empty in
+        let state = { base with VM.d = Some d } in
+        match D.invariant state with
+        | [constraint_] ->
+          let expr = Apron.Texpr1.to_expr (Apron.Texpr1.of_linexpr (Apron.Lincons1.get_linexpr1 constraint_)) in
+          let vec = Option.get (VM.get_coeff_vec state expr) in
+          let expected = VM.Vector.set_nth row sz (Q.of_string "-5/7") in
+          assert_bool "exported equality coefficients" (VM.Vector.equal expected vec)
+        | _ -> assert_failure "expected one exported equality");
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff; reduction_cache_ops]
@@ -1126,6 +1161,7 @@ let tests =
 let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
                             @ reduction_cache_tests
+                            @ rational_boundary_tests
                             @ ["integer bounds" >::: integer_bounds_tests]
                             @ ["nonlinear polynomial fallback" >::: nonlinear_tests]
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]

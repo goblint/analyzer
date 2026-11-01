@@ -1,4 +1,11 @@
-module Mpqf = SharedFunctions.Mpqf
+(** Zarith rationals for both matrix coefficients and interval bounds. *)
+module Rational = struct
+  include Q
+  let get_num = num
+  let get_den = den
+  let hash x = Stdlib.(31 * Z.hash (den x) + Z.hash (num x))
+  let pretty () x = GoblintCil.Pretty.text (to_string x)
+end
 open Intervalsig
 
 include Batteries
@@ -27,12 +34,12 @@ end
       [affeq], and [iterms] only mentions program (non-slack) dimensions. *)
 module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (* Reuse the SparseVector and ListMatrix modules from the AffineEqualityDomain. *)
-  include RatOps.ConvenienceOps (Mpqf)
+  include RatOps.ConvenienceOps (Rational)
 
   module Vector = SparseVector.SparseVector
-  module CoeffVector = Vector(Mpqf)
+  module CoeffVector = Vector(Rational)
   module Matrix =
-    AffineEqualityDomain.AffineEqualityMatrix
+    AffineEqualityDomain.AffineEqualityMatrixWith (Rational)
       (Vector)
       (ListMatrix.ListMatrix)
 
@@ -42,7 +49,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   type affeq = Matrix.t [@@deriving eq, ord, hash] (*Our affine equality matrix.*)
   type interval_map = I.t VarMap.t [@@deriving eq, ord] (*Map from Var to Interval*)
   type info = {
-    iterms: (Var.t * Mpqf.t) list; (* sorted by Var, nonzero coefficients, program dims only *)
+    iterms: (Var.t * Rational.t) list; (* sorted by Var, nonzero coefficients, program dims only *)
   } [@@deriving eq, ord, hash]
   type info_map = info VarMap.t [@@deriving eq, ord] (*Map from slack Var to info*)
 
@@ -124,10 +131,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (* ---------------------------------------------------------------------- *)
   (* Rational helpers *)
 
-  let q_of_mpqf (x: Mpqf.t) : Q.t =
-    Q.make (Mpqf.get_num x) (Mpqf.get_den x)
-
-  let is_integral (x: Mpqf.t) = Z.equal (Mpqf.get_den x) Z.one
+  let is_integral (x: Q.t) = Z.equal (Q.den x) Z.one
 
   (* ---------------------------------------------------------------------- *)
   (* Row and vector helpers *)
@@ -138,26 +142,26 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (** Splits a vector of length [size + 1] into its term entries (index < size)
       and the entry at index [size] (RHS for matrix rows, constant for value-form
       vectors). *)
-  let split_row (size: int) (r: CoeffVector.t) : (Var.t * Mpqf.t) list * Mpqf.t =
+  let split_row (size: int) (r: CoeffVector.t) : (Var.t * Q.t) list * Q.t =
     let entries = CoeffVector.to_sparse_list r in
     let terms, last = List.partition (fun (i, _) -> i < size) entries in
     List.map (fun (i, c) -> (Var.to_t i, c)) terms,
-    (match last with [] -> Mpqf.zero | (_, c) :: _ -> c)
+    (match last with [] -> Q.zero | (_, c) :: _ -> c)
 
   (** Builds a sparse vector of length [size + 1] from term entries and the last
       entry. Terms need not be sorted; zero coefficients are dropped. Duplicate
       variables are summed up. *)
-  let vec_of_terms (size: int) (terms: (Var.t * Mpqf.t) list) (last: Mpqf.t) : CoeffVector.t =
+  let vec_of_terms (size: int) (terms: (Var.t * Q.t) list) (last: Q.t) : CoeffVector.t =
     let merged = List.fold_left (fun acc (v, c) ->
         let i = Var.to_int v in
-        VarMap.modify_def Mpqf.zero (Var.to_t i) ((+:) c) acc
+        VarMap.modify_def Q.zero (Var.to_t i) ((+:) c) acc
       ) VarMap.empty terms
     in
     let entries =
-      VarMap.fold (fun v c acc -> if c =: Mpqf.zero then acc else (Var.to_int v, c) :: acc) merged []
+      VarMap.fold (fun v c acc -> if c =: Q.zero then acc else (Var.to_int v, c) :: acc) merged []
       |> List.sort (fun (i, _) (j, _) -> Int.compare i j)
     in
-    let entries = if last =: Mpqf.zero then entries else entries @ [(size, last)] in
+    let entries = if last =: Q.zero then entries else entries @ [(size, last)] in
     CoeffVector.of_sparse_list (size + 1) entries
 
   (* ---------------------------------------------------------------------- *)
@@ -172,7 +176,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
 
   exception Bottom
 
-  let scale_iv (c: Mpqf.t) (iv: I.t) = I.scale (q_of_mpqf c) iv
+  let scale_iv (c: Q.t) (iv: I.t) = I.scale c iv
 
   let propagate ~(size: int) (t: t) : interval_map option =
     let row_data = List.map (split_row size) (rows t.affeq) in
@@ -188,8 +192,8 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
               ) (I.of_const Q.zero) terms
             in
             let cand = (* bounds deduced from other's bounds *)
-              I.scale (Q.inv (q_of_mpqf a))
-                (I.add (I.of_const (q_of_mpqf rhs)) (I.scale Q.minus_one others))
+              I.scale (Q.inv a)
+                (I.add (I.of_const rhs) (I.scale Q.minus_one others))
             in
             if I.is_top cand then (map, changed)
             else
@@ -263,7 +267,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         let step (pivoted, rest) b =
           let rec pick acc = function
             | [] -> None
-            | r :: rest when CoeffVector.nth r b <>: Mpqf.zero -> Some (r, List.rev_append acc rest)
+            | r :: rest when CoeffVector.nth r b <>: Q.zero -> Some (r, List.rev_append acc rest)
             | r :: rest -> pick (r :: acc) rest
           in
           match pick [] rest with
@@ -271,15 +275,15 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
           | Some (r0, rest) ->
             let pivot = CoeffVector.nth r0 b in
             let r0 =
-              if pivot =: Mpqf.one then r0
-              else if pivot =: Mpqf.mone then CoeffVector.map_f_preserves_zero Mpqf.neg r0
+              if pivot =: Q.one then r0
+              else if pivot =: Q.minus_one then CoeffVector.map_f_preserves_zero Q.neg r0
               else CoeffVector.apply_with_c_f_preserves_zero (/:) pivot r0
             in
             let elim r =
               let c = CoeffVector.nth r b in
-              if c =: Mpqf.zero then r
-              else if c =: Mpqf.one then CoeffVector.map2_f_preserves_zero (-:) r r0
-              else if c =: Mpqf.mone then CoeffVector.map2_f_preserves_zero (+:) r r0
+              if c =: Q.zero then r
+              else if c =: Q.one then CoeffVector.map2_f_preserves_zero (-:) r r0
+              else if c =: Q.minus_one then CoeffVector.map2_f_preserves_zero (+:) r r0
               else CoeffVector.map2_f_preserves_zero (fun x y -> x -: c *: y) r r0
             in
             ((b, r0) :: List.map (fun (b', r) -> (b', elim r)) pivoted, List.map elim rest)
@@ -295,7 +299,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
             else I.add acc (scale_iv ai (get_iv map i))
           ) (I.of_const Q.zero) terms
         in
-        let cand = I.add (I.of_const (q_of_mpqf rhs)) (I.scale Q.minus_one others) in
+        let cand = I.add (I.of_const rhs) (I.scale Q.minus_one others) in
         if I.is_top cand then map
         else
           let old = get_iv map vb in
@@ -395,7 +399,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   let eval_value_vec ~(size: int) (map: interval_map) (e: CoeffVector.t) : I.t =
     let terms, const = split_row size e in
     List.fold_left (fun acc (i, a) -> I.add acc (scale_iv a (get_iv map i)))
-      (I.of_const (q_of_mpqf const)) terms
+      (I.of_const const) terms
 
   (** Reduces a value-form vector modulo the equality rows by eliminating the
       pivot variable of every row (Gaussian reduction). The result denotes the
@@ -405,10 +409,10 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         match CoeffVector.find_first_non_zero r with
         | Some (p, pv) when p < size ->
           let c = CoeffVector.nth e p in
-          if c =: Mpqf.zero then e
+          if c =: Q.zero then e
           else
             (* zero-form of the row: sum r(i) * x_i - rhs = 0 *)
-            let zrow = CoeffVector.set_nth r size (Mpqf.neg (CoeffVector.nth r size)) in
+            let zrow = CoeffVector.set_nth r size (Q.neg (CoeffVector.nth r size)) in
             let lambda = c /: pv in
             CoeffVector.map2_f_preserves_zero (fun x y -> x -: lambda *: y) e zrow
         | _ -> e
@@ -450,7 +454,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (** Defining row of a slack: [beta = sum iterms], in RHS form
       [sum iterms - beta = 0]. *)
   let defining_row (size: int) (beta: Var.t) (info: info) : CoeffVector.t =
-    vec_of_terms size ((beta, Mpqf.mone) :: info.iterms) Mpqf.zero
+    vec_of_terms size ((beta, Q.minus_one) :: info.iterms) Q.zero
 
   (** Establishes the defining rows of all slacks of [other_infos] in [t].
       Returns [None] if this exposes an inconsistency (i.e. [t] is bottom).
@@ -476,7 +480,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         match CoeffVector.find_first_non_zero row with
         | Some (p, pv) ->
           let c = CoeffVector.nth r p in
-          if c =: Mpqf.zero then r
+          if c =: Q.zero then r
           else CoeffVector.map2_f_preserves_zero (fun x y -> x -: (c /: pv) *: y) r row
         | None -> r
       ) r (rows m)
@@ -671,7 +675,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         | None -> add "row %d is a zero row" i
         | Some (p, pv) ->
           if p >= size then add "row %d is a contradiction row" i
-          else if pv <>: Mpqf.one then add "row %d has pivot value %s, expected 1" i (Mpqf.to_string pv)
+          else if pv <>: Q.one then add "row %d has pivot value %s, expected 1" i (Q.to_string pv)
       ) pivots;
     let rec check_increasing = function
       | (i, Some (p, _)) :: (((_, Some (q, _)) :: _) as rest) ->
@@ -685,7 +689,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         match p with
         | Some (p, _) when p < size ->
           List.iteri (fun j r ->
-              if j <> i && CoeffVector.nth r p <>: Mpqf.zero then
+              if j <> i && CoeffVector.nth r p <>: Q.zero then
                 add "pivot column %d of row %d is nonzero in row %d" p i j
             ) rs
         | _ -> ()
@@ -698,7 +702,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         List.iter (fun (v, c) ->
             if Var.to_int v >= size then add "info of %s mentions out-of-range dimension %s" b (Var.string_of v);
             if is_slack v then add "info of %s mentions slack dimension %s" b (Var.string_of v);
-            if c =: Mpqf.zero then add "info of %s has a zero coefficient for %s" b (Var.string_of v)
+            if c =: Q.zero then add "info of %s has a zero coefficient for %s" b (Var.string_of v)
           ) info.iterms;
         let rec sorted = function
           | (v, _) :: (((w, _) :: _) as rest) -> Var.compare v w < 0 && sorted rest
@@ -727,7 +731,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
 
   let string_of_info (e: info) =
     e.iterms
-    |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
+    |> List.map (fun (v, c) -> Q.to_string c ^ "*" ^ Var.string_of v)
     |> String.concat " + "
 
   let string_of_infos (infos: info_map) =

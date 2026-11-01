@@ -23,8 +23,20 @@ module M = Messages
 open GobApron
 open SubPolyhedraCore
 
-module Mpqf = SharedFunctions.Mpqf
 module RationalInterval = Rationalinterval.RationalInterval
+
+(** Apron scalars are converted only at the boundary. Non-finite values cannot
+    be coefficients of the affine equality system. *)
+let q_of_scalar = function
+  | Scalar.Float f ->
+    let q = Q.of_float f in
+    if Q.is_real q then Some q else None
+  | Scalar.Mpqf q -> Some (Z_mlgmpidl.q_of_mpqf q)
+  | Scalar.Mpfrf f ->
+    if Mpfr.nan_p f || Mpfr.inf_p f then None
+    else Some (Z_mlgmpidl.q_of_mpqf (Mpfr.to_mpq f))
+
+let coeff_of_q q = Coeff.s_of_mpqf (Z_mlgmpidl.mpqf_of_q q)
 
 module VarManagement =
 struct
@@ -42,7 +54,7 @@ struct
   module Vector = P.CoeffVector
   module Matrix = P.Matrix
   include SharedFunctions.VarManagementOps (SubPolyDomain)
-  include RatOps.ConvenienceOps (Mpqf)
+  include RatOps.ConvenienceOps (Rational)
 
   let dim_add = SubPolyDomain.dim_add
 
@@ -74,35 +86,35 @@ struct
 
   (** Terms keyed by environment variables instead of dimensions; this
       representation survives environment changes. *)
-  let vterms_of_dims env (terms: (int * Mpqf.t) list) : (Var.t * Mpqf.t) list =
+  let vterms_of_dims env (terms: (int * Q.t) list) : (Var.t * Q.t) list =
     List.map (fun (d, c) -> (Environment.var_of_dim env d, c)) terms
 
   (** [dims_of_vterms]  converts a list of environment variables and coefficients into 
       dimension indices and coefficients, then sorts it by dimension index
   *)
-  let dims_of_vterms env (ts: (Var.t * Mpqf.t) list) : (int * Mpqf.t) list =
+  let dims_of_vterms env (ts: (Var.t * Q.t) list) : (int * Q.t) list =
     List.map (fun (v, c) -> (Environment.dim_of_var env v, c)) ts
     |> List.sort (fun (i, _) (j, _) -> Stdlib.compare i j)
 
-  let slack_name (vts: (Var.t * Mpqf.t) list) =
+  let slack_name (vts: (Var.t * Q.t) list) =
     let sorted = List.sort (fun (v1, _) (v2, _) -> String.compare (Var.to_string v1) (Var.to_string v2)) vts in
-    let term_str (v, c) = Mpqf.to_string c ^ "*" ^ Var.to_string v in
+    let term_str (v, c) = Q.to_string c ^ "*" ^ Var.to_string v in
     slack_prefix ^ "(" ^ String.concat "+" (List.map term_str sorted) ^ ")"
 
   (** Normalize nonzero terms in canonical variable order. Returns the terms
       and the factor applied to their value; a negative factor reverses
       interval bounds when passed to [RationalInterval.scale]. *)
-  let normalize_template (vts: (Var.t * Mpqf.t) list) =
+  let normalize_template (vts: (Var.t * Q.t) list) =
     let sorted = List.sort (fun (v1, _) (v2, _) -> String.compare (Var.to_string v1) (Var.to_string v2)) vts in
     match sorted with
-    | [] -> ([], Mpqf.one)
+    | [] -> ([], Q.one)
     | (_, p) :: _ ->
-      let factor = Mpqf.one /: p in
+      let factor = Q.one /: p in
       (List.map (fun (v, c) -> (v, c /: p)) sorted, factor)
 
   (** [eq_dterms] checks whether two lists of linear-expression terms are exactly the same *)
-  let eq_dterms (a: (int * Mpqf.t) list) (b: (int * Mpqf.t) list) =
-    try List.for_all2 (fun (i, c) (j, d) -> i = j && Mpqf.equal c d) a b
+  let eq_dterms (a: (int * Q.t) list) (b: (int * Q.t) list) =
+    try List.for_all2 (fun (i, c) (j, d) -> i = j && Q.equal c d) a b
     with Invalid_argument _ -> false
 
   (** Slack variables whose info mentions any of the given variables. *)
@@ -127,7 +139,7 @@ struct
      a vector [v] of length [size + 1] denotes [sum v(i) * x_i + v(size)]. *)
 
   let to_constant_opt v = match Vector.find_first_non_zero v with
-    | None -> Some Mpqf.zero
+    | None -> Some Q.zero
     | Some (i, value) when i = (Vector.length v) - 1 -> Some value
     | _ -> None
 
@@ -135,18 +147,17 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg v = Vector.map_f_preserves_zero Mpqf.neg v in
+    let neg v = Vector.map_f_preserves_zero Q.neg v in
     let rec convert_texpr = function
       | Cst x ->
         let of_union = function
           | Coeff.Interval _ -> raise NotLinear
-          | Coeff.Scalar (Scalar.Float x) -> Mpqf.of_float x
-          | Coeff.Scalar (Scalar.Mpqf x) -> x
-          | Coeff.Scalar (Scalar.Mpfrf x) -> Mpfr.to_mpq x
+          | Coeff.Scalar s ->
+            (match q_of_scalar s with Some q -> q | None -> raise NotLinear)
         in
         Vector.set_nth zero_vec ((Vector.length zero_vec) - 1) (of_union x)
       | Var x ->
-        Vector.set_nth zero_vec (Environment.dim_of_var t.env x) Mpqf.one
+        Vector.set_nth zero_vec (Environment.dim_of_var t.env x) Q.one
       | Unop (Neg, e, _, _) -> neg @@ convert_texpr e
       | Unop (Cast, e, _, _) -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
       | Unop (Sqrt, e, _, _) -> raise NotLinear
@@ -179,7 +190,7 @@ struct
     let const q = RationalInterval.of_const q in
     let unknown = zero, RationalInterval.top in
     let neg (v, i) =
-      Vector.map_f_preserves_zero Mpqf.neg v, RationalInterval.scale Q.minus_one i
+      Vector.map_f_preserves_zero Q.neg v, RationalInterval.scale Q.minus_one i
     in
     let add (v, i) (w, j) =
       Vector.map2_f_preserves_zero (+:) v w, RationalInterval.add i j
@@ -199,17 +210,11 @@ struct
     let int_vars, _ = Environment.vars t.env in
     let rec go = function
       | Var v when Array.exists (Var.equal v) int_vars ->
-        Vector.set_nth zero (Environment.dim_of_var t.env v) Mpqf.one, const Q.zero
+        Vector.set_nth zero (Environment.dim_of_var t.env v) Q.one, const Q.zero
       | Cst (Coeff.Scalar s) ->
-        let q = match s with
-          | Scalar.Float f -> Mpqf.of_float f
-          | Scalar.Mpqf q -> q
-          | Scalar.Mpfrf f -> Mpfr.to_mpq f
-        in
-        let q' = P.q_of_mpqf q in
-        if Q.is_real q' && Z.equal (Q.den q') Z.one then
-          Vector.set_nth zero sz q, const Q.zero
-        else unknown
+        (match q_of_scalar s with
+         | Some q when Z.equal (Q.den q) Z.one -> Vector.set_nth zero sz q, const Q.zero
+         | _ -> unknown)
       | Unop (Neg, e, (Int | Real), _) -> neg (go e)
       | Binop (Add, e, f, (Int | Real), _) -> add (go e) (go f)
       | Binop (Sub, e, f, (Int | Real), _) -> add (go e) (neg (go f))
@@ -220,7 +225,7 @@ struct
         in
         let scale c (v, i) =
           Vector.apply_with_c_f_preserves_zero ( *:) c v,
-          (if Mpqf.equal c Mpqf.zero then const Q.zero else RationalInterval.scale (P.q_of_mpqf c) i)
+          (if Q.equal c Q.zero then const Q.zero else RationalInterval.scale c i)
         in
         begin match exact_constant v i, exact_constant w j with
           | Some c, _ -> scale c b
@@ -268,7 +273,7 @@ end
 module D =
 struct
   include Printable.Std
-  include RatOps.ConvenienceOps (Mpqf)
+  include RatOps.ConvenienceOps (Rational)
   include VarManagement
 
   module Bounds = ExpressionBounds
@@ -294,13 +299,13 @@ struct
       let var_name dim = Var.to_string (Environment.var_of_dim t.env dim) in
       let sz = size t in
       let term_str (dim, c) =
-        (if Mpqf.equal c Mpqf.one then "" else if Mpqf.equal c Mpqf.mone then "-" else Mpqf.to_string c ^ "*")
+        (if Q.equal c Q.one then "" else if Q.equal c Q.minus_one then "-" else Q.to_string c ^ "*")
         ^ var_name dim
       in
       let terms_str terms = String.concat " + " (List.map term_str terms) in
       let row_str r =
         let terms, rhs = P.split_row sz r in
-        terms_str terms ^ " = " ^ Mpqf.to_string rhs
+        terms_str terms ^ " = " ^ Q.to_string rhs
       in
       let rows_str = List.map row_str (P.rows d.P.affeq) in
       let iv_str (dim, iv) = var_name dim ^ " ∈ " ^ RationalInterval.show iv in
@@ -371,7 +376,7 @@ struct
               let name = Var.to_string (Environment.var_of_dim t.env beta) in
               let expected = slack_name (vterms_of_dims t.env info.P.iterms) in
               let acc = match info.P.iterms with
-                | (_, p) :: _ when not (Mpqf.equal p Mpqf.one) ->
+                | (_, p) :: _ when not (Q.equal p Q.one) ->
                   Printf.sprintf "slack %s does not have leading coefficient 1" name :: acc
                 | _ -> acc
               in
@@ -433,12 +438,12 @@ struct
     | TMeet  (* refine: meet, bottom on empty intersection *)
     | TWiden (* widening recovery: only ever grow the existing interval *)
 
-  let constrain_template ?(create = true) (combine: template_combine) (t: t) (vts: (Var.t * Mpqf.t) list) (iv: RationalInterval.t) : t =
+  let constrain_template ?(create = true) (combine: template_combine) (t: t) (vts: (Var.t * Q.t) list) (iv: RationalInterval.t) : t =
     match t.d with
     | None -> t
     | Some d ->
       let vts, factor = normalize_template vts in
-      let iv = RationalInterval.scale (P.q_of_mpqf factor) iv in
+      let iv = RationalInterval.scale factor iv in
       let dterms = dims_of_vterms t.env vts in
       let matches = P.VarMap.filter (fun _ (info: P.info) -> eq_dterms info.P.iterms dterms) d.P.infos in (* filter those iterms that exactly match vts *)
       if not (P.VarMap.is_empty matches) then begin
@@ -485,7 +490,7 @@ struct
             let sz = size t1 in
             let beta = Environment.dim_of_var t1.env sv in
             let dterms = dims_of_vterms t1.env vts in
-            let row = P.vec_of_terms sz ((beta, Mpqf.mone) :: dterms) Mpqf.zero in
+            let row = P.vec_of_terms sz ((beta, Q.minus_one) :: dterms) Q.zero in
             match Matrix.rref_vec d1.P.affeq row with
             | None -> bot_env (* unreachable: beta is a fresh dimension *)
             | Some m ->
@@ -562,14 +567,14 @@ struct
                            beta = rhs/c + sum (-o_i/c)*x_i.
                            The slack bound therefore constrains that sum to
                            [iv - rhs/c]. *)
-                        let f_terms = List.map (fun (i, o) -> (i, Mpqf.neg o /: c)) others in
-                        let f_iv = RationalInterval.add_const (Q.neg (P.q_of_mpqf (rhs /: c))) iv in
+                        let f_terms = List.map (fun (i, o) -> (i, Q.neg o /: c)) others in
+                        let f_iv = RationalInterval.add_const (Q.neg (rhs /: c)) iv in
                         let (_, p) = List.hd f_terms in
                         (* Divide by the first coefficient to give the template
                            leading coefficient 1; interval scaling also handles
                            a negative [p] by reversing the bounds. *)
                         let t0 = List.map (fun (i, ci) -> (i, ci /: p)) f_terms in
-                        let iv0 = RationalInterval.scale (P.q_of_mpqf (Mpqf.one /: p)) f_iv in
+                        let iv0 = RationalInterval.scale (Q.one /: p) f_iv in
                         Some (vterms_of_dims env t0, iv0)
                   ) (P.rows m)
               end
@@ -741,7 +746,7 @@ struct
       let affeq = P.VarMap.fold (fun dim iv acc ->
           match acc, RationalInterval.bounds iv with
           | Some m, (Some l, Some u) when Q.equal l u ->
-            let row = P.vec_of_terms size [(dim, Mpqf.one)] (Mpqf.of_string (Q.to_string l)) in
+            let row = P.vec_of_terms size [(dim, Q.one)] l in
             Matrix.rref_vec m row
           | _ -> acc
         ) intervals (Some d.P.affeq)
@@ -792,10 +797,10 @@ struct
           | (_, p) :: _ ->
             let t0 = List.map (fun (dim, c) -> (dim, c /: p)) terms in
             let rhs0 = rhs /: p in
-            let vec = P.vec_of_terms sz t0 Mpqf.zero in
+            let vec = P.vec_of_terms sz t0 Q.zero in
             let j = P.eval_vec ~size:sz opp refined_opp vec in
             if RationalInterval.is_top j then None
-            else Some (vterms_of_dims env t0, P.q_of_mpqf rhs0, j))
+            else Some (vterms_of_dims env t0, rhs0, j))
 
   let join (a: t) (b: t) =
     if is_bot_env a then b
@@ -911,7 +916,7 @@ struct
 
   (** Moves a slack dimension with [new = factor * old + offset], scaling
       and shifting its interval and projecting the old dimension out. *)
-  let move_slack ?(factor = Mpqf.one) ?(offset = Mpqf.zero) (t: t) (old_v: Var.t) (new_v: Var.t) : t =
+  let move_slack ?(factor = Q.one) ?(offset = Q.zero) (t: t) (old_v: Var.t) (new_v: Var.t) : t =
     let t1 = add_vars t [new_v] in
     match t1.d with
     | None -> t1
@@ -919,22 +924,22 @@ struct
       let sz = size t1 in
       let d_old = Environment.dim_of_var t1.env old_v in
       let d_new = Environment.dim_of_var t1.env new_v in
-      let row = P.vec_of_terms sz [(d_new, Mpqf.one); (d_old, Mpqf.neg factor)] offset in
+      let row = P.vec_of_terms sz [(d_new, Q.one); (d_old, Q.neg factor)] offset in
       match Matrix.rref_vec d.P.affeq row with
       | None -> bot_env (* unreachable: new_v is fresh *)
       | Some m ->
         let d = P.update ~affeq:m d in
         let d = match P.VarMap.find_opt d_old d.P.intervals with
           | Some iv ->
-            let iv = RationalInterval.scale (P.q_of_mpqf factor) iv in
-            P.set_intv d_new (RationalInterval.add_const (P.q_of_mpqf offset) iv) d
+            let iv = RationalInterval.scale factor iv in
+            P.set_intv d_new (RationalInterval.add_const offset iv) d
           | None -> d
         in
         VarManagement.remove_vars { t1 with d = Some d } [old_v]
 
   (** Substitutes the inverted assignment [x := b] (value-form, invertible in
       [x]) into a slack info: [x_old = (x - sum_{i<>x} b_i x_i - b_c) / b_x]. *)
-  let subst_info (t: t) (b: Vector.t) (dim_x: int) (info: P.info) : ((Var.t * Mpqf.t) list * Mpqf.t) option =
+  let subst_info (t: t) (b: Vector.t) (dim_x: int) (info: P.info) : ((Var.t * Q.t) list * Q.t) option =
     match List.assoc_opt dim_x info.P.iterms with
     | None -> None (* info does not mention x *)
     | Some cx ->
@@ -946,12 +951,12 @@ struct
         Vector.to_sparse_list b
         |> List.filter_map (fun (i, bi) ->
             if i = dim_x || i = sz then None
-            else Some (i, Mpqf.neg (scale *: bi)))
+            else Some (i, Q.neg (scale *: bi)))
       in
       let bc = Vector.nth b sz in
       (* normalize through a vector roundtrip: merges duplicates, drops zeros, sorts *)
-      let merged, _ = P.split_row sz (P.vec_of_terms sz (base @ [(dim_x, scale)] @ subst_terms) Mpqf.zero) in
-      Some (vterms_of_dims t.env merged, Mpqf.neg (scale *: bc))
+      let merged, _ = P.split_row sz (P.vec_of_terms sz (base @ [(dim_x, scale)] @ subst_terms) Q.zero) in
+      Some (vterms_of_dims t.env merged, Q.neg (scale *: bc))
 
   let assign_texpr (t: t) var texp =
     match t.d with
@@ -980,7 +985,7 @@ struct
           | None -> (RationalInterval.top, RationalInterval.top) (* pre-state is bottom; detected below *)
           | Some refined -> (P.eval_vec ~size:sz d refined v, P.get_iv refined dim_x)
         in
-        if Vector.nth v dim_x <>: Mpqf.zero then begin
+        if Vector.nth v dim_x <>: Q.zero then begin
           (* An interval on old x becomes a relational constraint after a
              multivariable invertible assignment. Reuse slack substitution to
              express old x = sum vts + k in post-state variables. Capture names
@@ -989,9 +994,9 @@ struct
           let preserved_interval =
             if RationalInterval.is_top old_x_iv then None
             else
-              match subst_info t v dim_x { P.iterms = [(dim_x, Mpqf.one)] } with
+              match subst_info t v dim_x { P.iterms = [(dim_x, Q.one)] } with
               | Some ((_ :: _ :: _ as vts), k) ->
-                Some (vts, RationalInterval.add_const (Q.neg (P.q_of_mpqf k)) old_x_iv)
+                Some (vts, RationalInterval.add_const (Q.neg k) old_x_iv)
               | _ -> None
           in
           (* invertible assignment: substitute x in rows and slack infos *)
@@ -1045,7 +1050,7 @@ struct
                     (* old beta = sum raw_terms + k; the canonical slack is
                        factor * (old beta - k). Scale before shifting so a
                        negative leading coefficient reverses the bounds. *)
-                    let offset = Mpqf.neg (factor *: k) in
+                    let offset = Q.neg (factor *: k) in
                     let t' = move_slack ~factor ~offset t tmp_v final_v in
                     (match t'.d with
                      | None -> t'
@@ -1079,7 +1084,7 @@ struct
               let m = Matrix.remove_zero_rows @@ Matrix.reduce_col d1.P.affeq dim_x1 in
               (* x - sum b_i x_i = b_c *)
               let terms, bc = P.split_row sz1 v1 in
-              let row = P.vec_of_terms sz1 ((dim_x1, Mpqf.one) :: List.map (fun (i, c) -> (i, Mpqf.neg c)) terms) bc in
+              let row = P.vec_of_terms sz1 ((dim_x1, Q.one) :: List.map (fun (i, c) -> (i, Q.neg c)) terms) bc in
               match Matrix.rref_vec m row with
               | None -> bot_env (* unreachable: x's column was just cleared *)
               | Some m ->
@@ -1157,7 +1162,7 @@ struct
           | Some refined ->
             let v, remainder = linearize_polynomial t d refined (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
             let terms, c = P.split_row (size t) v in
-            let allowed = RationalInterval.add_const (Q.neg (P.q_of_mpqf c))
+            let allowed = RationalInterval.add_const (Q.neg c)
                 (RationalInterval.scale Q.minus_one remainder) in
             let lower, _ = RationalInterval.bounds allowed in
             let allowed = match Tcons1.get_typ tcons with
@@ -1179,10 +1184,10 @@ struct
         | _, EQMOD _ -> t
         | [], typ ->
           let violated = match typ with
-            | EQ -> c <>: Mpqf.zero
-            | SUPEQ -> c <: Mpqf.zero
-            | SUP -> c <=: Mpqf.zero
-            | DISEQ -> c =: Mpqf.zero
+            | EQ -> c <>: Q.zero
+            | SUPEQ -> c <: Q.zero
+            | SUP -> c <=: Q.zero
+            | DISEQ -> c =: Q.zero
             | EQMOD _ -> false
           in
           if violated then bot_env else t
@@ -1197,10 +1202,10 @@ struct
                 Array.mem (Environment.var_of_dim t.env i) ivars) terms) then t
             else
               let denominator = List.fold_left (fun acc (_, ci) ->
-                  Z.lcm acc (Mpqf.get_den ci)) (Mpqf.get_den c) terms in
-              let factor = Mpqf.of_string (Z.to_string (if positive then denominator else Z.neg denominator)) in
+                  Z.lcm acc (Q.den ci)) (Q.den c) terms in
+              let factor = Q.of_bigint (if positive then denominator else Z.neg denominator) in
               let open Texpr1 in
-              let expr = Binop (Mul, Cst (Coeff.Scalar (Scalar.Mpqf factor)),
+              let expr = Binop (Mul, Cst (coeff_of_q factor),
                                 to_expr (Tcons1.get_texpr1 tcons), Real, Near) in
               meet_tcons t (Tcons1.make (of_expr t.env expr) SUP)
           in
@@ -1214,14 +1219,14 @@ struct
               | _ -> t))
         | _, EQ ->
           (* sum terms = -c as an equality row *)
-          let row = Vector.set_nth v sz (Mpqf.neg c) in
+          let row = Vector.set_nth v sz (Q.neg c) in
           (match Matrix.rref_vec d.P.affeq row with
            | None -> bot_env
            | Some m ->
              let t = { t with d = Some (P.update ~affeq:m d) } in
              let (_, p) = List.hd terms in
              let t0 = List.map (fun (i, ci) -> (i, ci /: p)) terms in
-             let value = P.q_of_mpqf (Mpqf.neg c /: p) in
+             let value = Q.neg c /: p in
              let t =
                match t0 with
                | [(dim, _)] ->
@@ -1241,14 +1246,14 @@ struct
           (* sum terms >= -c (strict: > -c) *)
           let strict = typ = SUP in
           let integral = List.for_all (fun (_, ci) -> P.is_integral ci) terms && P.is_integral c in
-          let bound = if strict && integral then Mpqf.one -: c else Mpqf.neg c in
+          let bound = if strict && integral then Q.one -: c else Q.neg c in
           (* a strict constraint over non-integral coefficients is soundly
              weakened to its non-strict counterpart *)
           let (_, p) = List.hd terms in
           let t0 = List.map (fun (i, ci) -> (i, ci /: p)) terms in
-          let b0 = P.q_of_mpqf (bound /: p) in
+          let b0 = bound /: p in
           let iv =
-            if p >: Mpqf.zero then RationalInterval.of_bounds ~lower:(Some b0) ~upper:None
+            if p >: Q.zero then RationalInterval.of_bounds ~lower:(Some b0) ~upper:None
             else RationalInterval.of_bounds ~lower:None ~upper:(Some b0)
           in
           let t =
@@ -1282,7 +1287,7 @@ struct
     | texp ->
       let var_in_exp =
         match get_coeff_vec t texp with
-        | Some v -> Vector.nth v (Environment.dim_of_var t.env var) <>: Mpqf.zero
+        | Some v -> Vector.nth v (Environment.dim_of_var t.env var) <>: Q.zero
         | None -> true
       in
       if var_in_exp then
@@ -1349,8 +1354,8 @@ struct
           else begin
             let e1 = Linexpr1.make t.env in
             Linexpr1.set_list e1
-              (List.map (fun (dim, c) -> (Coeff.s_of_mpqf c, Environment.var_of_dim t.env dim)) terms)
-              (Some (Coeff.s_of_mpqf (Mpqf.neg rhs)));
+              (List.map (fun (dim, c) -> (coeff_of_q c, Environment.var_of_dim t.env dim)) terms)
+              (Some (coeff_of_q (Q.neg rhs)));
             Some (Lincons1.make e1 EQ)
           end)
 
