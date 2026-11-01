@@ -232,10 +232,17 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
           match pick [] rest with
           | None -> (pivoted, rest)
           | Some (r0, rest) ->
-            let r0 = CoeffVector.apply_with_c_f_preserves_zero (/:) (CoeffVector.nth r0 b) r0 in
+            let pivot = CoeffVector.nth r0 b in
+            let r0 =
+              if pivot =: Mpqf.one then r0
+              else if pivot =: Mpqf.mone then CoeffVector.map_f_preserves_zero Mpqf.neg r0
+              else CoeffVector.apply_with_c_f_preserves_zero (/:) pivot r0
+            in
             let elim r =
               let c = CoeffVector.nth r b in
               if c =: Mpqf.zero then r
+              else if c =: Mpqf.one then CoeffVector.map2_f_preserves_zero (-:) r r0
+              else if c =: Mpqf.mone then CoeffVector.map2_f_preserves_zero (+:) r r0
               else CoeffVector.map2_f_preserves_zero (fun x y -> x -: c *: y) r r0
             in
             ((b, r0) :: List.map (fun (b', r) -> (b', elim r)) pivoted, List.map elim rest)
