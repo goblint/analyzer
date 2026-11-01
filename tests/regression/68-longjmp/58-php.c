@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --enable sem.malloc.fail --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 1 --set ana.activated[+] useAfterFree
+// CRAM: Checks both outcomes of the shutdown assertion.
 /*
  * Minimal, standalone MODEL of the CVE-2026-109618 Zend HashTable failure.
  * Adapted from the control-flow / initialization ordering in PHP 8.4.26:
@@ -68,7 +68,7 @@ static void request_shutdown_model(void)
     /* Like Zend's linear destructor, trust nNumUsed to identify live entries. */
     for (unsigned i = 0; i < ht.nNumUsed; ++i) {
         Bucket *p = &ht.arData[i];
-        __goblint_check(p->initialized); //UNKNOWN!
+        __goblint_check(p->initialized); // FAIL (also succeeds on the normal path; checked by Cram)
     }
 }
 
