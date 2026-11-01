@@ -56,24 +56,61 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         Hashtbl.hash (Var.hash var, hash_info info, acc)
       ) m 0
 
-  type t = {
-    affeq: affeq; (*Affine Equalities stored as sparse Matrix*)
-    intervals: interval_map; (*Map of vars to intervals*)
-    infos: info_map; (*Map of slack vars to info*)
-  } [@@deriving eq, ord, hash]
+  (* Private construction prevents updates from inheriting a stale reduction.
+     Cache at most one result per state, including bottom, keyed by both inputs
+     that affect reduction. The cache is not part of the state's identity. *)
+  module State : sig
+    type t = private {
+      affeq: affeq;
+      intervals: interval_map;
+      infos: info_map;
+      mutable reduction: (int * bool * interval_map option) option;
+    }
+    val equal: t -> t -> bool
+    val compare: t -> t -> int
+    val hash: t -> int
+    val make: affeq -> interval_map -> info_map -> t
+    val cached_reduce: size:int -> explore:bool -> (unit -> interval_map option) -> t -> interval_map option
+  end = struct
+    type t = {
+      affeq: affeq;
+      intervals: interval_map;
+      infos: info_map;
+      mutable reduction: ((int * bool * interval_map option) option [@equal fun _ _ -> true] [@compare fun _ _ -> 0]);
+    } [@@deriving eq, ord]
+
+    let make affeq intervals infos = {affeq; intervals; infos; reduction = None}
+    let hash t = [%hash: affeq * interval_map * info_map] (t.affeq, t.intervals, t.infos)
+
+    let cached_reduce ~size ~explore compute t =
+      match t.reduction with
+      | Some (cached_size, cached_explore, result) when size = cached_size && explore = cached_explore -> result
+      | _ ->
+        let result = compute () in
+        t.reduction <- Some (size, explore, result);
+        result
+  end
+  include State
+
+  let update ?affeq ?intervals ?infos t =
+    let affeq = Option.default t.affeq affeq in
+    let intervals = Option.default t.intervals intervals in
+    let infos = Option.default t.infos infos in
+    if affeq == t.affeq && intervals == t.intervals && infos == t.infos then t
+    else make affeq intervals infos
 
   let copy = Fun.id
 
-  let empty () = { affeq = Matrix.empty (); intervals = VarMap.empty; infos = VarMap.empty }
+  let empty () = make (Matrix.empty ()) VarMap.empty VarMap.empty
 
   let is_empty (t: t) =
     Matrix.is_empty t.affeq && VarMap.is_empty t.intervals && VarMap.is_empty t.infos
 
   let set_info (var: Var.t) (info: info) (t : t)  =
-    {t with infos = VarMap.add var info t.infos}
+    update ~infos:(VarMap.add var info t.infos) t
 
   let set_intv (var: Var.t) (intv: I.t) (t: t) =
-    {t with intervals = VarMap.add var intv t.intervals}
+    update ~intervals:(VarMap.add var intv t.intervals) t
 
   let mem_info (var: Var.t) (t: t) =
     VarMap.mem var t.infos
@@ -334,7 +371,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   (** Reduction entry point: fixpoint interval propagation, optionally
       followed by one basis-exploration pass and a final propagation pass
       spreading the newly found bounds. Returns [None] on contradiction. *)
-  let reduce ~(size: int) ~(explore: bool) (t: t) : interval_map option =
+  let reduce_uncached ~(size: int) ~(explore: bool) (t: t) : interval_map option =
     match propagate ~size t with
     | None -> None
     | Some map ->
@@ -344,7 +381,10 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         | None -> None
         | Some map' ->
           if map' == map then Some map (* exploration refined nothing *)
-          else propagate ~size { t with intervals = map' }
+          else propagate ~size (update ~intervals:map' t)
+
+  let reduce ~size ~explore t =
+    cached_reduce ~size ~explore (fun () -> reduce_uncached ~size ~explore t) t
 
   (* ---------------------------------------------------------------------- *)
   (* Evaluation of linear expressions.
@@ -425,7 +465,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         Option.bind acc (fun t ->
             match Matrix.rref_vec t.affeq (defining_row size beta info) with
             | None -> None
-            | Some m -> Some { t with affeq = m; infos = VarMap.add beta info t.infos }
+            | Some m -> Some (update ~affeq:m ~infos:(VarMap.add beta info t.infos) t)
           )
       ) other_infos (Some t)
 
@@ -548,7 +588,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
     let new_intervals = VarMap.fold (fun beta _ acc -> VarMap.remove beta acc) dependent new_intervals in
     let new_infos = VarMap.filter (fun beta _ -> not (VarMap.mem beta dependent)) t.infos in
     let new_infos = List.fold_left (flip VarMap.remove) new_infos vars in
-    { affeq = new_affeq; intervals = new_intervals; infos = new_infos }
+    make new_affeq new_intervals new_infos
 
   (**
      [forget_var var t] forgets a single variable using [forget_vars].
@@ -581,7 +621,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
       VarMap.fold (fun var info acc -> VarMap.add (shift var) (shift_info shift info) acc) t.infos VarMap.empty in
     let new_intervals =
       VarMap.fold (fun var interval acc -> VarMap.add (shift var) interval acc) t.intervals VarMap.empty in
-    {affeq = new_affeq; infos = new_infos; intervals = new_intervals}
+    make new_affeq new_intervals new_infos
 
   (**
      [dim_remove] Apron dimension change
@@ -600,7 +640,7 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
       VarMap.fold (fun var info acc -> VarMap.add (shift var) (shift_info shift info) acc) new_t.infos VarMap.empty in
     let new_intervals =
       VarMap.fold (fun var interval acc -> VarMap.add (shift var) interval acc) new_t.intervals VarMap.empty in
-    {affeq = new_affeq; infos = new_infos; intervals = new_intervals}
+    make new_affeq new_intervals new_infos
 
   (* ---------------------------------------------------------------------- *)
   (* Structural invariant checking (for tests and debugging) *)

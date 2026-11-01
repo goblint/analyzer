@@ -346,7 +346,7 @@ struct
     | Some d ->
       match reduce ~size:(size t) d with
       | None -> bot_env
-      | Some m -> { t with d = Some { d with P.intervals = m } }
+      | Some m -> { t with d = Some (P.update ~intervals:m d) }
 
   (* ---------------------------------------------------------------------- *)
   (* Structural invariant checking *)
@@ -463,7 +463,7 @@ struct
                  it (e.g. the old operand of a widening did not contain the slack) *)
               match Matrix.rref_vec d.P.affeq (P.defining_row sz beta info) with
               | None -> raise Bot (* defining rows are semantically true, so the state is empty *)
-              | Some m -> P.set_intv beta new_iv { d with P.affeq = m }
+              | Some m -> P.set_intv beta new_iv (P.update ~affeq:m d)
             ) matches d
           in
           { t with d = Some d' }
@@ -489,7 +489,7 @@ struct
             match Matrix.rref_vec d1.P.affeq row with
             | None -> bot_env (* unreachable: beta is a fresh dimension *)
             | Some m ->
-              let d1 = { d1 with P.affeq = m } in
+              let d1 = P.update ~affeq:m d1 in
               let d1 = P.set_intv beta iv d1 in
               let d1 = P.set_info beta { P.iterms = dterms } d1 in
               { t1 with d = Some d1 }
@@ -719,7 +719,7 @@ struct
           | None -> bot_env
           | Some ivs ->
             let infos = P.VarMap.union (fun _ x _ -> Some x) sa.P.infos sb.P.infos in
-            check_bot { d = Some { P.affeq = m; P.intervals = ivs; P.infos = infos }; env = sup_env }
+            check_bot { d = Some (P.make m ivs infos); env = sup_env }
 
   let meet a b =
     let res = meet a b in
@@ -746,7 +746,7 @@ struct
           | _ -> acc
         ) intervals (Some d.P.affeq)
       in
-      Option.map (fun affeq -> { d with P.affeq = affeq; P.intervals = intervals }) affeq
+      Option.map (fun affeq -> P.update ~affeq ~intervals d) affeq
 
   let leq (a: t) (b: t) =
     if is_bot_env a then true
@@ -821,7 +821,7 @@ struct
             in
             let intervals = P.join_intervals ra rb in
             let infos = P.VarMap.union (fun _ x _ -> Some x) sa.P.infos sb.P.infos in
-            let res = { d = Some { P.affeq = joined_m; P.intervals = intervals; P.infos = infos }; env = sup_env } in
+            let res = { d = Some (P.make joined_m intervals infos); env = sup_env } in
             (* recovery of dropped equalities *)
             let recs =
               recovery_candidates sup_env sz sa sb rb joined_m
@@ -869,7 +869,7 @@ struct
               in
               let intervals = P.widen_intervals ?thresholds:(ResettableLazy.force widening_thresholds) da.P.intervals rb in
               let infos = P.VarMap.union (fun _ x _ -> Some x) da.P.infos sb.P.infos in
-              let res = { d = Some { P.affeq = widened_m; P.intervals = intervals; P.infos = infos }; env = sup_env } in
+              let res = { d = Some (P.make widened_m intervals infos); env = sup_env } in
               (* recovery of equalities dropped from the old state, with interval widening *)
               let recs = recovery_candidates sup_env sz da sb rb widened_m in
               let res = List.fold_left (fun res (vts, c, j) ->
@@ -890,7 +890,7 @@ struct
     else
       let a_env = a.env in
       let (sup_env, _, da, db) = saturated_pair a b in
-      let narrowed = { da with P.intervals = P.narrow_intervals da.P.intervals db.P.intervals } in
+      let narrowed = P.update ~intervals:(P.narrow_intervals da.P.intervals db.P.intervals) da in
       let res = { d = Some narrowed; env = sup_env } in
       (* project back onto a's dimensions: the narrowed state keeps a's rows *)
       let extra = List.filter (fun v -> not (Environment.mem_var a_env v)) (Environment.ivars_only sup_env) in
@@ -923,7 +923,7 @@ struct
       match Matrix.rref_vec d.P.affeq row with
       | None -> bot_env (* unreachable: new_v is fresh *)
       | Some m ->
-        let d = { d with P.affeq = m } in
+        let d = P.update ~affeq:m d in
         let d = match P.VarMap.find_opt d_old d.P.intervals with
           | Some iv ->
             let iv = RationalInterval.scale (P.q_of_mpqf factor) iv in
@@ -1006,9 +1006,9 @@ struct
           match Matrix.normalize (recalc_entries d.P.affeq a_j0) with
           | None -> bot_env
           | Some m ->
-            let d = { d with P.affeq = m } in
+            let d = P.update ~affeq:m d in
             let d =
-              if RationalInterval.is_top rhs_iv then { d with P.intervals = P.VarMap.remove dim_x d.P.intervals }
+              if RationalInterval.is_top rhs_iv then P.update ~intervals:(P.VarMap.remove dim_x d.P.intervals) d
               else P.set_intv dim_x rhs_iv d
             in
             let t = { t with d = Some d } in
@@ -1083,9 +1083,9 @@ struct
               match Matrix.rref_vec m row with
               | None -> bot_env (* unreachable: x's column was just cleared *)
               | Some m ->
-                let d1 = { d1 with P.affeq = m } in
+                let d1 = P.update ~affeq:m d1 in
                 let d1 =
-                  if RationalInterval.is_top rhs_iv then { d1 with P.intervals = P.VarMap.remove dim_x1 d1.P.intervals }
+                  if RationalInterval.is_top rhs_iv then P.update ~intervals:(P.VarMap.remove dim_x1 d1.P.intervals) d1
                   else P.set_intv dim_x1 rhs_iv d1
                 in
                 { t1 with d = Some d1 }
@@ -1218,7 +1218,7 @@ struct
           (match Matrix.rref_vec d.P.affeq row with
            | None -> bot_env
            | Some m ->
-             let t = { t with d = Some { d with P.affeq = m } } in
+             let t = { t with d = Some (P.update ~affeq:m d) } in
              let (_, p) = List.hd terms in
              let t0 = List.map (fun (i, ci) -> (i, ci /: p)) terms in
              let value = P.q_of_mpqf (Mpqf.neg c /: p) in

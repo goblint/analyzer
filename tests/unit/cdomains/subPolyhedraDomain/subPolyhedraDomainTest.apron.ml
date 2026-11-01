@@ -295,7 +295,7 @@ let explore_soundness =
            Test.fail_reportf "exploration made a state containing a concrete point bottom@.point: [%s]@.state: %s"
              (point ()) (D.show t)
          | Some ivs ->
-           let t' = { t with VM.d = Some { d with P.intervals = ivs } } in
+           let t' = { t with VM.d = Some (P.update ~intervals:ivs d) } in
            if mem_point t' sigma then true
            else
              Test.fail_reportf "concrete point escaped after basis exploration@.point: [%s]@.state: %s"
@@ -499,7 +499,7 @@ let explore_example5 =
     let iv lo hi = RI.of_bounds ~lower:(Some lo) ~upper:(Some hi) in
     let iv_int lo hi = iv (Q.of_int lo) (Q.of_int hi) in
     let ivs = P.VarMap.add 0 (iv_int 0 2) (P.VarMap.add 1 (iv_int 0 3) P.VarMap.empty) in
-    let st = { P.affeq = m; P.intervals = ivs; P.infos = P.VarMap.empty } in
+    let st = P.make m ivs P.VarMap.empty in
     let plain = Option.get (P.reduce ~size:sz ~explore:false st) in
     assert_bool "propagation alone should not bound v2" (RI.is_top (P.get_iv plain 2));
     assert_bool "propagation alone should not bound v3" (RI.is_top (P.get_iv plain 3));
@@ -556,7 +556,7 @@ let component_exploration_tests =
         let iv lo hi = RI.of_bounds ~lower:(Some (Q.of_int lo)) ~upper:(Some (Q.of_int hi)) in
         let map = List.fold_left (fun map (i, v) -> P.VarMap.add i v map) P.VarMap.empty
             [0, iv 0 2; 4, iv 0 3; 1, iv 0 2; 5, iv 0 3; 999, iv 7 7] in
-        let state m = { P.affeq = m; P.intervals = map; P.infos = P.VarMap.empty } in
+        let state m = P.make m map P.VarMap.empty in
         assert_equal [2; 2]
           (List.map List.length (P.connected_row_components ~size (P.rows combined)));
         let reduced = Option.get (P.explore_components ~size (state combined) map) in
@@ -774,7 +774,7 @@ let assignment_interval_tests =
         (* Keep x's bound only implicitly, through x=z and z's interval. *)
         let dim_x = Apron.Environment.dim_of_var (D.env before) (List.hd prog_vars) in
         let d = Option.get before.VM.d in
-        let before = { before with VM.d = Some { d with P.intervals = P.VarMap.remove dim_x d.P.intervals } } in
+        let before = { before with VM.d = Some (P.update ~intervals:(P.VarMap.remove dim_x d.P.intervals) d) } in
         let t = apply before (Assign (0, (0, [1; 1; 0]))) in
         expect_bounds t (0, [1; -1; 0]) (Some 2) (Some 8));
 
@@ -935,7 +935,7 @@ let integer_bounds_tests =
         let t = run [Guard (0, (-4, [1; 0; 0]))] in
         let dim = Apron.Environment.dim_of_var (D.env t) (List.hd prog_vars) in
         let d = Option.get t.VM.d in
-        let t = { t with VM.d = Some { d with P.intervals = P.VarMap.add dim (RI.of_const (Q.of_int 5)) d.P.intervals } } in
+        let t = { t with VM.d = Some (P.set_intv dim (RI.of_const (Q.of_int 5)) d) } in
         assert_equal None (bounds t x))
   ]
 
@@ -1050,12 +1050,82 @@ let scalar_guard_tests =
           (D.is_bot_env (D.assert_constraint ask (state 0 1) expr true (lazy true))));
   ]
 
+let reduction_cache_tests =
+  [
+    "reduction caching and invalidation" >:: (fun _ ->
+        let scales = ref 0 in
+        let module CountedInterval = struct
+          include RI
+          let scale c iv = incr scales; scale c iv
+        end in
+        let module Core = SubPolyhedraCore.SubPoly (VM.Int) (CountedInterval) in
+        let matrix rhs = Core.Matrix.init_with_vec (Core.CoeffVector.of_list [Mpqf.one; Mpqf.of_int rhs]) in
+        let fresh () = Core.make (matrix 1) Core.VarMap.empty Core.VarMap.empty in
+        let state = fresh () in
+        let h = Core.hash state in
+        let reduce = Core.reduce ~size:1 ~explore:true in
+        let result = reduce state in
+        assert_bool "first reduction does work" (!scales > 0);
+        assert_bool "x is one" (RI.equal (Core.get_iv (Option.get result) 0) (RI.of_const Q.one));
+        scales := 0;
+        assert_bool "cached result is reused" (result == reduce state);
+        assert_equal 0 !scales;
+        let same = fresh () in
+        assert_bool "cache does not affect equality" (Core.equal state same);
+        assert_equal 0 (Core.compare state same);
+        assert_equal h (Core.hash state);
+        assert_equal h (Core.hash same);
+        ignore (Core.reduce ~size:1 ~explore:false state);
+        assert_bool "changing exploration invalidates the cache" (!scales > 0);
+        let bad = Core.set_intv 0 (RI.of_const (Q.of_int 2)) state in
+        assert_bool "interval update is reduced again" (Option.is_none (reduce bad));
+        scales := 0;
+        assert_bool "bottom is cached too" (Option.is_none (reduce bad));
+        assert_equal 0 !scales;
+        let good = Core.update ~affeq:(matrix 2) bad in
+        assert_bool "matrix update invalidates bottom" (Option.is_some (reduce good));
+        scales := 0;
+        let changed_info = Core.set_info 1 {Core.iterms = [0, Mpqf.one]} state in
+        ignore (reduce changed_info);
+        assert_bool "info update gets a fresh cache" (!scales > 0);
+        (* Exercise the size-key contract independently of any matrix's arity. *)
+        let calls = ref 0 in
+        let empty = Core.empty () in
+        let compute () = incr calls; Some Core.VarMap.empty in
+        ignore (Core.cached_reduce ~size:1 ~explore:true compute empty);
+        ignore (Core.cached_reduce ~size:2 ~explore:true compute empty);
+        ignore (Core.cached_reduce ~size:2 ~explore:true compute empty);
+        assert_equal 2 !calls);
+  ]
+
+let reduction_cache_ops =
+  test ~count:200 "cached reductions agree with fresh reductions after operations"
+    (make Gen.(pair gen_state gen_op))
+    (fun (t, op) ->
+       let check state =
+         match state.VM.d with
+         | None -> true
+         | Some d ->
+           List.for_all (fun explore ->
+               let size = VM.size state in
+               let cached = P.reduce ~size ~explore d in
+               let fresh = P.reduce_uncached ~size ~explore d in
+               match cached, fresh with
+               | None, None -> true
+               | Some a, Some b -> P.VarMap.equal RI.equal a b
+               | _ -> false
+             ) [false; true; true]
+       in
+       let hash = D.hash t in
+       check t && D.hash t = hash && check (apply t op) && check t)
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
-  @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff]
+  @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff; reduction_cache_ops]
 
 let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
+                            @ reduction_cache_tests
                             @ ["integer bounds" >::: integer_bounds_tests]
                             @ ["nonlinear polynomial fallback" >::: nonlinear_tests]
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]
