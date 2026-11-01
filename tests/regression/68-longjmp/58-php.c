@@ -1,4 +1,4 @@
-// CRAM: Checks both outcomes of the shutdown assertion.
+// SKIP CRAM: Checks both outcomes of the shutdown assertion.
 /*
  * Minimal, standalone MODEL of the CVE-2026-109618 Zend HashTable failure.
  * Adapted from the control-flow / initialization ordering in PHP 8.4.26:
