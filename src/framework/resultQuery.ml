@@ -97,8 +97,7 @@ struct
   let nh: Spec.D.t Lazy.t NH.t Lazy.t = lazy (
     let states = NH.create 113 in
     LHT.iter (fun (n, _) d ->
-        let ds = d :: (try NH.find states n with Not_found -> []) in
-        NH.replace states n ds
+        NH.modify_def [] n (List.cons d) states
       ) lh;
     NH.map (fun _ ds -> lazy (List.fold_left Spec.D.join (Spec.D.bot ()) ds)) states
   )
