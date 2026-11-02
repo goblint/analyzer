@@ -76,7 +76,9 @@ sig
 
   val gh: EQSys.G.t GHT.t
   val lh: Spec.D.t LHT.t
-  val nh: Spec.D.t NH.t Lazy.t
+  (** Node index whose context joins are evaluated and memoized independently. *)
+  val nh: Spec.D.t Lazy.t NH.t Lazy.t
+  val local_node: Node.t -> Spec.D.t
 
   val ask_local: EQSys.LVar.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
   val ask_local_node: Node.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
@@ -89,14 +91,39 @@ struct
   include SpecSysSol
   open SpecSys
 
-  let nh: Spec.D.t NH.t Lazy.t = lazy (
+  (* Build the node index on first use, but defer joining each node's
+     contexts until that node is queried. This avoids expensive joins
+     for nodes which witness generation never visits. *)
+  let nh: Spec.D.t Lazy.t NH.t Lazy.t = lazy (
+    let states = NH.create 113 in
     let nh = NH.create 113 in
     LHT.iter (fun (n, _) d ->
-        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
-        NH.replace nh n d'
+        (* Accumulate context states in reverse iteration order.
+           Each replacement below captures the current list; the final entry
+           for a node therefore contains all of that node's context states. *)
+        let ds = d :: (try NH.find states n with Not_found -> []) in
+        NH.replace states n ds;
+        NH.replace nh n (lazy (
+            (* Join states in the order that hash-table traversal encounters them.
+               Collecting states first avoids a nested lazy chain per context. *)
+            match List.rev ds with
+            | first :: rest ->
+              (* Restore iteration order and preserve the original left-associated
+                 joins. Folding a list avoids a nested chain of lazy computations
+                 whose depth would grow with the number of contexts. *)
+              List.fold_left Spec.D.join first rest
+            | [] -> assert false
+          ))
       ) lh;
     nh
   )
+
+  (* Compute a node's joined state on demand and cache it through Lazy.
+     Nodes absent from the solution retain the previous bottom fallback. *)
+  let local_node node =
+    match NH.find_opt (Lazy.force nh) node with
+    | Some local -> Lazy.force local
+    | None -> Spec.D.bot ()
 
   module Query = Query (SpecSys)
 
@@ -109,7 +136,7 @@ struct
   let ask_local_node node ?local q =
     let local = match local with
       | Some local -> local
-      | None -> try NH.find (Lazy.force nh) node with Not_found -> Spec.D.bot ()
+      | None -> local_node node
     in
     Query.ask_local_node gh node local q
   let ask_global q = Query.ask_global gh q

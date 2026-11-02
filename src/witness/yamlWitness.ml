@@ -258,7 +258,7 @@ struct
           if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 let inv = List.fold_left (fun acc n ->
-                    let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                    let local = R.local_node n in
                     let lvals = local_lvals n local in
                     Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                   ) (Invariant.bot ()) ns
@@ -290,7 +290,7 @@ struct
             LH.fold (fun loc ns acc ->
                 if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
                   let inv = List.fold_left (fun acc n ->
-                      let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                      let local = R.local_node n in
                       Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                     ) (Invariant.bot ()) ns
                   in
