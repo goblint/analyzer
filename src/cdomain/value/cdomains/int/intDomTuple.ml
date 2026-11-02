@@ -353,14 +353,11 @@ module IntDomTupleImpl = struct
     if norefine then r else refine ik r
 
   let map2bool ik (r: BoolDomain.FlatBool.t poly2_pr) x y =
-    (* TODO: string-based hack copied from to_bool... contradictions go to top! *)
-    let r = {f2p = fun m x y -> match r.f2p m x y with
-        | `Lifted b -> Some b
-        | `Bot | `Top -> None}
-    in
-    match same string_of_bool (map2p r x y) with
-    | Some b -> `Lifted b
-    | None -> `Top
+    if is_bot x || is_bot y then
+      `Bot
+    else
+      (* Components describe the same integers, so intersect their results. *)
+      map2p r x y |> to_list |> List.fold_left BoolDomain.FlatBool.meet `Top
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
