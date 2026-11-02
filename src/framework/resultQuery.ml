@@ -66,7 +66,7 @@ struct
 end
 
 
-module NH = Hashtbl.Make (Node)
+module NH = BatHashtbl.Make (Node)
 
 module type SpecSysSol2 =
 sig
@@ -100,9 +100,7 @@ struct
         let ds = d :: (try NH.find states n with Not_found -> []) in
         NH.replace states n ds
       ) lh;
-    NH.to_seq states
-    |> Seq.map (fun (n, ds) -> n, lazy (List.fold_left Spec.D.join (Spec.D.bot ()) ds))
-    |> NH.of_seq
+    NH.map (fun _ ds -> lazy (List.fold_left Spec.D.join (Spec.D.bot ()) ds)) states
   )
 
   (* Compute a node's joined state on demand and cache it through Lazy.

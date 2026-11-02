@@ -233,8 +233,8 @@
           line: 10
           column: 7
           function: main
-        value: ((((k == 3 || k == 2) || k == 1) || k == 0) || (5 <= k && k <= 99)) ||
-          k == 4
+        value: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
+          k == 0
         format: c_expression
     - invariant:
         type: location_invariant
@@ -261,8 +261,8 @@
           line: 11
           column: 5
           function: main
-        value: ((((j == 1 || j == 4) || j == 2) || (5 <= j && j <= 9)) || j == 0) ||
-          j == 3
+        value: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j &&
+          j <= 9)
         format: c_expression
     - invariant:
         type: location_invariant
@@ -326,8 +326,8 @@
           line: 8
           column: 3
           function: main
-        value: ((((k == 100 && (j == 2 || (5 <= j && j <= 10))) || (j == 0 && k == 0))
-          || (j == 3 && k == 100)) || (j == 1 && k == 100)) || (j == 4 && k == 100)
+        value: ((k == 100 && (((j == 2 || (5 <= j && j <= 10)) || j == 1) || j == 4))
+          || (j == 0 && k == 0)) || (j == 3 && k == 100)
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -345,10 +345,10 @@
           line: 9
           column: 5
           function: main
-        value: ((((((((((j == 2 && k == 100) || (j == 0 && k == 3)) || ((5 <= j && j
-          <= 9) && k == 100)) || (j == 0 && k == 2)) || (j == 0 && k == 1)) || (j ==
-          0 && k == 0)) || (j == 3 && k == 100)) || (j == 1 && k == 100)) || (j == 4
-          && k == 100)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)
+        value: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
+          4)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)) || (j == 0
+          && k == 3)) || (j == 0 && k == 2)) || (j == 0 && k == 1)) || (j == 0 && k
+          == 0)) || (j == 3 && k == 100)
         format: c_expression
     - invariant:
         type: loop_invariant
