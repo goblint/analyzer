@@ -1154,6 +1154,41 @@ let rational_boundary_tests =
         | _ -> assert_failure "expected one exported equality");
   ]
 
+let pivot_cache_tests =
+  [
+    "pivot cache reuses equal rows but not interval refinements" >:: (fun _ ->
+        let rows () = [P.vec_of_terms 4 [0, Q.one; 2, Q.one; 3, Q.one] Q.one;
+                       P.vec_of_terms 4 [1, Q.one; 2, Q.one; 3, Q.minus_one] Q.zero] in
+        let map n = P.VarMap.empty
+                    |> P.VarMap.add 2 (RI.of_const (Q.of_int n))
+                    |> P.VarMap.add 3 (RI.of_const Q.zero) in
+        P.PivotCache.clear ();
+        let first = P.explore_linear_rows ~size:4 (rows ()) (map 0) in
+        let entry = Option.get (P.PivotCache.find ~size:4 ~rows:(rows ()) ~num_bases:4) in
+        let pivoted = Option.get entry.bases.(0) in
+        let warm = P.explore_linear_rows ~size:4 (rows ()) (map 2) in
+        assert_bool "pivoted rows reused" (pivoted == Option.get entry.bases.(0));
+        assert_bool "current interval map is used"
+          (not (P.VarMap.equal RI.equal (Option.get first) (Option.get warm)));
+        let reordered = Option.get (P.PivotCache.find ~size:4 ~rows:(List.rev (rows ())) ~num_bases:4) in
+        let resized = Option.get (P.PivotCache.find ~size:5 ~rows:(rows ()) ~num_bases:4) in
+        assert_bool "row order belongs to cache key" (entry != reordered);
+        assert_bool "dimension size belongs to cache key" (entry != resized);
+        P.PivotCache.clear ();
+        let cold = P.explore_linear_rows ~size:4 (rows ()) (map 2) in
+        assert_bool "warm and cold refinement agree" (P.VarMap.equal RI.equal (Option.get warm) (Option.get cold));
+        for size = 4 to P.PivotCache.max_entries + 8 do
+          ignore (P.PivotCache.find ~size ~rows:(rows ()) ~num_bases:4)
+        done;
+        assert_bool "entry limit" (P.PivotCache.Keys.length P.PivotCache.entries <= P.PivotCache.max_entries);
+        assert_bool "storage budget" (!(P.PivotCache.retained) <= P.PivotCache.max_bytes);
+        assert_bool "oversized plans bypass the cache"
+          (Option.is_none (P.PivotCache.find ~size:1000 ~rows:(rows ()) ~num_bases:P.PivotCache.max_bytes));
+        let evicted = P.explore_linear_rows ~size:4 (rows ()) (map 2) in
+        assert_bool "eviction preserves refinement" (P.VarMap.equal RI.equal (Option.get cold) (Option.get evicted));
+        P.PivotCache.clear ());
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff; reduction_cache_ops]
@@ -1162,6 +1197,7 @@ let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
                             @ reduction_cache_tests
                             @ rational_boundary_tests
+                            @ pivot_cache_tests
                             @ ["integer bounds" >::: integer_bounds_tests]
                             @ ["nonlinear polynomial fallback" >::: nonlinear_tests]
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]

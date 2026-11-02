@@ -176,6 +176,86 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
 
   exception Bottom
 
+  (** Equality-only work shared across reductions with different interval maps.
+      Keys retain row order and dimension size; each slot corresponds to one
+      cyclic basis. Eviction affects performance only, never exploration order. *)
+  module PivotCache = struct
+    module Keys = Hashtbl.Make (struct
+        type t = int * CoeffVector.t list
+        let equal (size, rows) (size', rows') =
+          size = size' && (rows == rows' || Stdlib.List.equal CoeffVector.equal rows rows')
+        let hash (size, rows) = List.fold_left (fun h r -> Hashtbl.hash (h, CoeffVector.hash r)) size rows
+      end)
+
+    type entry = {
+      bases: (int * CoeffVector.t) list option array;
+      mutable bytes: int;
+      mutable used: int;
+    }
+
+    let entries = Keys.create 17
+    let retained = ref 0
+    let clock = ref 0
+    let max_bytes = 16 * 1024 * 1024
+    let max_entries = 64
+
+    (* Conservatively charge list/vector/rational storage, including large Zs.
+       Shared rows and coefficients can be charged more than once. *)
+    let row_bytes r =
+      List.fold_left (fun acc (_, q) ->
+          acc + 128 + (Z.numbits (Q.num q) + Z.numbits (Q.den q)) / 8
+        ) 64 (CoeffVector.to_sparse_list r)
+
+    let clear () = Keys.clear entries; retained := 0; clock := 0
+
+    let rec make_room protected bytes =
+      if !retained + bytes <= max_bytes && (Option.is_some protected || Keys.length entries < max_entries) then true
+      else
+        let oldest = Keys.fold (fun key entry acc ->
+            if (match protected with Some e -> e == entry | None -> false) then acc
+            else match acc with
+              | None -> Some (key, entry)
+              | Some (_, previous) when entry.used < previous.used -> Some (key, entry)
+              | _ -> acc
+          ) entries None in
+        match oldest with
+        | None -> false
+        | Some (key, entry) ->
+          Keys.remove entries key;
+          retained := !retained - entry.bytes;
+          make_room protected bytes
+
+    let find ~size ~rows ~num_bases =
+      incr clock;
+      let key = size, rows in
+      match Keys.find_opt entries key with
+      | Some entry -> entry.used <- !clock; Some entry
+      | None ->
+        let bytes = 128 + 8 * num_bases + List.fold_left (fun n r -> n + row_bytes r) 0 rows in
+        if bytes > max_bytes || not (make_room None bytes) then None
+        else
+          let entry = {bases = Array.make num_bases None; bytes; used = !clock} in
+          Keys.add entries key entry;
+          retained := !retained + bytes;
+          Some entry
+
+    let get entry index compute =
+      match entry with
+      | None -> compute ()
+      | Some entry ->
+        match entry.bases.(index) with
+        | Some rows -> rows
+        | None ->
+          let rows = compute () in
+          let bytes = List.fold_left (fun n (_, r) -> n + 48 + row_bytes r) 0 rows in
+          if bytes <= max_bytes - entry.bytes && make_room (Some entry) bytes then begin
+            entry.bases.(index) <- Some rows;
+            entry.bytes <- entry.bytes + bytes;
+            retained := !retained + bytes
+          end;
+          rows
+  end
+
   let scale_iv (c: Q.t) (iv: I.t) = I.scale c iv
 
   let propagate ~(size: int) (t: t) : interval_map option =
@@ -259,6 +339,8 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
         |> Array.of_list
       in
       let n = Array.length cand in
+      let num_bases = if n <= m then 1 else n in
+      let cache = if m < 2 then None else PivotCache.find ~size ~rows:rs ~num_bases in
       (* Gauss-Jordan elimination pivoting on the [basis] columns, in order;
          returns the pivoted rows keyed by their pivot column. A basis column
          that is linearly dependent on the earlier ones finds no pivot row and
@@ -309,9 +391,9 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
       in
       let explore map i0 =
         let basis = List.init (min m n) (fun k -> cand.((i0 + k) mod n)) in
-        List.fold_left refine map (pivot_on basis)
+        let pivoted = PivotCache.get cache i0 (fun () -> pivot_on basis) in
+        List.fold_left refine map pivoted
       in
-      let num_bases = if n <= m then 1 else n in
       try Some (List.fold_left explore map (List.init num_bases Fun.id))
       with Bottom -> None
     end
