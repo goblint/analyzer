@@ -1154,6 +1154,30 @@ let rational_boundary_tests =
         | _ -> assert_failure "expected one exported equality");
   ]
 
+let recovery_deduplication_tests =
+  [
+    "recovery deduplication preserves bounds and first occurrence" >:: (fun _ ->
+        let x, y = List.nth prog_vars 0, List.nth prog_vars 1 in
+        let interval l u = RI.of_bounds ~lower:(Some (Q.of_int l)) ~upper:(Some (Q.of_int u)) in
+        let a = [x, Q.one; y, Q.of_int 2], Q.zero, interval 0 4 in
+        let negative = [y, Q.of_int (-4); x, Q.of_int (-2)], Q.zero, interval (-8) 0 in
+        let other = [x, Q.one; y, Q.minus_one], Q.zero, interval (-2) 2 in
+        let tighter = [x, Q.one; y, Q.of_int 2], Q.zero, interval 0 3 in
+        let candidates = [a; other; negative; tighter; a] in
+        let expected = D.deduplicate_recovery_candidates [a; other; tighter] in
+        let actual = D.deduplicate_recovery_candidates candidates in
+        assert_equal 3 (List.length actual);
+        assert_bool "first occurrence order and distinct bounds retained"
+          (List.for_all2 (fun (xs, i) (ys, j) ->
+               RI.equal i j && List.for_all2 (fun (x, a) (y, b) -> Apron.Var.compare x y = 0 && Q.equal a b) xs ys
+             ) expected actual);
+        let raw = List.fold_left (fun t (vts, c, j) ->
+            D.constrain_template D.TMeet t vts (RI.join j (RI.of_const c))) base candidates in
+        let deduplicated = List.fold_left (fun t (vts, iv) ->
+            D.constrain_template D.TMeet t vts iv) base actual in
+        assert_bool "same resulting domain representation" (D.equal raw deduplicated));
+  ]
+
 let pivot_cache_tests =
   [
     "pivot cache reuses equal rows but not interval refinements" >:: (fun _ ->
@@ -1197,6 +1221,7 @@ let test () =
   "subPolyhedraDomain" >::: explore_example5 :: component_exploration_tests @ constant_free_slack_tests @ normalized_slack_tests @ disequality_tests
                             @ reduction_cache_tests
                             @ rational_boundary_tests
+                            @ recovery_deduplication_tests
                             @ pivot_cache_tests
                             @ ["integer bounds" >::: integer_bounds_tests]
                             @ ["nonlinear polynomial fallback" >::: nonlinear_tests]

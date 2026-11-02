@@ -802,6 +802,30 @@ struct
             if RationalInterval.is_top j then None
             else Some (vterms_of_dims env t0, rhs0, j))
 
+  module RecoveryConstraintSet = Set.Make (struct
+      type t = (Var.t * Q.t) list * RationalInterval.t
+      let compare (xs, i) (ys, j) =
+        let cmp = Stdlib.List.compare (fun (x, a) (y, b) ->
+            let cmp = Var.compare x y in
+            if cmp <> 0 then cmp else Q.compare a b) xs ys in
+        if cmp <> 0 then cmp else RationalInterval.compare i j
+    end)
+
+  (** Repeated augmented rows can recover the same constraint. Keep its first
+      occurrence, including across operands, without merging different bounds. *)
+  let deduplicate_recovery_candidates candidates =
+    let seen = ref RecoveryConstraintSet.empty in
+    List.filter_map (fun (vts, c, j) ->
+        let vts, factor = normalize_template vts in
+        let iv = RationalInterval.scale factor (RationalInterval.join j (RationalInterval.of_const c)) in
+        let constraint_ = vts, iv in
+        if RecoveryConstraintSet.mem constraint_ !seen then None
+        else begin
+          seen := RecoveryConstraintSet.add constraint_ !seen;
+          Some constraint_
+        end
+      ) candidates
+
   let join (a: t) (b: t) =
     if is_bot_env a then b
     else if is_bot_env b then a
@@ -829,11 +853,11 @@ struct
             let res = { d = Some (P.make joined_m intervals infos); env = sup_env } in
             (* recovery of dropped equalities *)
             let recs =
-              recovery_candidates sup_env sz sa sb rb joined_m
-              @ recovery_candidates sup_env sz sb sa ra joined_m
+              (recovery_candidates sup_env sz sa sb rb joined_m
+               @ recovery_candidates sup_env sz sb sa ra joined_m)
+              |> deduplicate_recovery_candidates
             in
-            let res = List.fold_left (fun res (vts, c, j) ->
-                let iv = RationalInterval.join j (RationalInterval.of_const c) in
+            let res = List.fold_left (fun res (vts, iv) ->
                 constrain_template TMeet res vts iv
               ) res recs
             in
