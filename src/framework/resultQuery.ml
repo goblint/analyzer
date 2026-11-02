@@ -96,26 +96,17 @@ struct
      for nodes which witness generation never visits. *)
   let nh: Spec.D.t Lazy.t NH.t Lazy.t = lazy (
     let states = NH.create 113 in
-    let nh = NH.create 113 in
     LHT.iter (fun (n, _) d ->
-        (* Accumulate context states in reverse iteration order.
-           Each replacement below captures the current list; the final entry
-           for a node therefore contains all of that node's context states. *)
         let ds = d :: (try NH.find states n with Not_found -> []) in
-        NH.replace states n ds;
-        NH.replace nh n (lazy (
-            (* Join states in the order that hash-table traversal encounters them.
-               Collecting states first avoids a nested lazy chain per context. *)
-            match List.rev ds with
-            | first :: rest ->
-              (* Restore iteration order and preserve the original left-associated
-                 joins. Folding a list avoids a nested chain of lazy computations
-                 whose depth would grow with the number of contexts. *)
-              List.fold_left Spec.D.join first rest
-            | [] -> assert false
-          ))
+        NH.replace states n ds
       ) lh;
-    nh
+    NH.to_seq states
+    |> Seq.map (fun (n, ds) -> n, lazy (
+        match ds with
+        | first :: rest -> List.fold_left Spec.D.join first rest
+        | [] -> assert false
+      ))
+    |> NH.of_seq
   )
 
   (* Compute a node's joined state on demand and cache it through Lazy.
