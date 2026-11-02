@@ -258,7 +258,7 @@ struct
           if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 let inv = List.fold_left (fun acc n ->
-                    let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                    let local = R.local_node n in
                     let lvals = local_lvals n local in
                     Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                   ) (Invariant.bot ()) ns
@@ -290,7 +290,7 @@ struct
             LH.fold (fun loc ns acc ->
                 if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
                   let inv = List.fold_left (fun acc n ->
-                      let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                      let local = R.local_node n in
                       Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                     ) (Invariant.bot ()) ns
                   in
@@ -487,6 +487,7 @@ struct
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
+  module FundecH = GobHashtbl.Make (CilType.Fundec)
 
   let validate () =
     let location_locator = Locator.create () in
@@ -526,11 +527,16 @@ struct
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
+          (* do parse_cil at most once per function *)
+          let memo = FundecH.create 1 in (* loc should just be in one function *)
+          let parse_cil fundec =
+            InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs
+          in
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let fundec = Node.find_fundec n in
 
-              let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+              let result: VR.result = match FundecH.find_or_add_default_delayed ~default:parse_cil memo fundec with
                 | Ok inv_exp ->
                   begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
@@ -683,4 +689,6 @@ struct
       Ok Unknown
     | _ ->
       Ok True
+
+  let validate = Timing.wrap "yaml witness validate" validate
 end

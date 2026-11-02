@@ -650,8 +650,8 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__atomic_load_n", unknown [drop "ptr" [r_atomic]; drop "memorder" []]);
     ("__atomic_load", unknown [drop "ptr" [r_atomic]; drop "ret" [w]; drop "memorder" []]);
     ("__atomic_clear", unknown [drop "ptr" [w_atomic]; drop "memorder" []]);
-    ("__atomic_exchange_n", unknown [drop "ptr" [w_atomic]; drop "val" []; drop "memorder" []]);
-    ("__atomic_exchange", unknown [drop "ptr" [w_atomic]; drop "val" [r; w]; drop "memorder" []]);
+    ("__atomic_exchange_n", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_exchange", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" [r]; drop "ret" [w]; drop "memorder" []]);
     ("__atomic_compare_exchange_n", unknown [drop "ptr" [r_atomic; w_atomic]; drop "expected" [r; w]; drop "desired" []; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
     ("__atomic_compare_exchange", unknown [drop "ptr" [r_atomic; w_atomic]; drop "expected" [r; w]; drop "desired" [r]; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
     ("__atomic_add_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
