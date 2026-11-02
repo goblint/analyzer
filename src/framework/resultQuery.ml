@@ -101,11 +101,7 @@ struct
         NH.replace states n ds
       ) lh;
     NH.to_seq states
-    |> Seq.map (fun (n, ds) -> n, lazy (
-        match ds with
-        | first :: rest -> List.fold_left Spec.D.join first rest
-        | [] -> assert false
-      ))
+    |> Seq.map (fun (n, ds) -> n, lazy (List.fold_left Spec.D.join (Spec.D.bot ()) ds))
     |> NH.of_seq
   )
 
