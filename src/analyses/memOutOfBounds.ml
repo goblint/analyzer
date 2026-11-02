@@ -38,7 +38,13 @@ struct
   let offs_lt_zero offs = ID.lt offs (IndexDomain.of_int Z.zero)
 
   let check_offset_bounds (ptr_size: SizeDomain.t) (offs: IndexDomain.t) =
-    let ptr_size_le_offs = SizeDomain.le ptr_size (SizeDomain.of_index offs) in
+    let offs_as_size = SizeDomain.of_index offs in
+    let ptr_size_le_offs =
+      if SizeDomain.is_bot offs_as_size then (* happens if offs is definitely negative *)
+        Some false (* then definitely before the end *)
+      else
+        SizeDomain.le ptr_size offs_as_size
+    in
     offs_lt_zero offs, ptr_size_le_offs
 
   let rec exp_contains_a_ptr (exp:exp) =
