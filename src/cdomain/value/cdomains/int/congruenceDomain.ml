@@ -407,15 +407,17 @@ struct
     res
 
   let ne ik (x: t) (y: t) = match x, y with
+    | None, _ | _, None -> `Bot
     | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> `Lifted (not (c1 =: c2))
     | x, y -> if meet ik x y = None then `Lifted true else `Top
 
   let eq ik (x: t) (y: t) = match x, y with
+    | None, _ | _, None -> `Bot
     | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> `Lifted (c1 =: c2)
     | x, y -> if meet ik x y <> None then `Top else `Lifted false
 
   let comparison ik op x y = match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (c1, m1), Some (c2, m2) ->
       if m1 =: Z.zero && m2 =: Z.zero then
         `Lifted (op c1 c2)

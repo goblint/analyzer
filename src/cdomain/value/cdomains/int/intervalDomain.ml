@@ -356,7 +356,7 @@ struct
 
   let ne ik x y =
     match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
         `Lifted true
@@ -366,7 +366,7 @@ struct
 
   let eq ik x y =
     match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
         `Lifted true
@@ -376,7 +376,7 @@ struct
 
   let ge ik x y =
     match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 then `Lifted true
       else if Ints_t.compare x2 y1 < 0 then `Lifted false
@@ -384,7 +384,7 @@ struct
 
   let le ik x y =
     match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 <= 0 then `Lifted true
       else if Ints_t.compare y2 x1 < 0 then `Lifted false
@@ -392,7 +392,7 @@ struct
 
   let gt ik x y =
     match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 then `Lifted true
       else if Ints_t.compare x2 y1 <= 0 then `Lifted false
@@ -400,7 +400,7 @@ struct
 
   let lt ik x y =
     match x, y with
-    | None, _ | _, None -> `Top
+    | None, _ | _, None -> `Bot
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 < 0 then `Lifted true
       else if Ints_t.compare y2 x1 <= 0 then `Lifted false

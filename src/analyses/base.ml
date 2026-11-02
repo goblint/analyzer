@@ -173,7 +173,8 @@ struct
   let id_binary_pred result_ik f x y =
     match f x y with
     | `Lifted b -> ID.of_bool result_ik b
-    | `Top | `Bot -> ID.of_interval result_ik (Z.zero, Z.one)
+    | `Top -> ID.of_interval result_ik (Z.zero, Z.one)
+    | `Bot -> ID.bot_of result_ik
 
   let id_unary_log = function
     | Some b -> ID.of_bool IInt b

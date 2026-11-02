@@ -260,7 +260,7 @@ struct
 
   let lt ik x y =
     match x, y with
-    | [], _ | _, [] -> `Top
+    | [], _ | _, [] -> `Bot
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
@@ -273,7 +273,7 @@ struct
 
   let le ik x y =
     match x, y with
-    | [], _ | _, [] -> `Top
+    | [], _ | _, [] -> `Bot
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
@@ -289,6 +289,7 @@ struct
   let ge ik x y = not_bool @@ lt ik x y
 
   let eq ik x y = match x, y with
+    | [], _ | _, [] -> `Bot
     | (a, b)::[], (c, d)::[] when a =. b && c =. d && a =. c ->
       `Lifted true
     | _ ->

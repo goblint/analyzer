@@ -101,7 +101,8 @@ module Analysis: SimplifiedSpec = struct
       in
       begin match cmp with
         | `Lifted b -> I.of_bool ik b
-        | `Top | `Bot  -> I.top_of ik
+        | `Top -> I.top_of ik
+        | `Bot -> I.bot_of ik
       end
     | LAnd | LOr ->
       begin match I.to_bool v1, I.to_bool v2 with

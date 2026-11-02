@@ -705,8 +705,8 @@ struct
     | _ -> `Top
   let lift2_bool f x y = match x,y with
     | `Lifted x, `Lifted y ->
-      (try f x y with Unknown -> `Top | Error -> `Top)
-    | `Bot, `Bot -> `Top
+      (try f x y with Unknown -> `Top | Error -> `Bot)
+    | `Bot, _ | _, `Bot -> `Bot
     | _ -> `Top
 
   let neg  = lift1 Base.neg
@@ -774,7 +774,7 @@ struct
     | _ -> `Top
   let lift2_bool f x y = match x,y with
     | `Lifted x, `Lifted y -> f x y
-    | `Bot, `Bot -> `Top
+    | `Bot, _ | _, `Bot -> `Bot
     | _ -> `Top
 
   let neg  = lift1 Base.neg

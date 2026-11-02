@@ -27,7 +27,9 @@ sig
   (** Integer remainder: [x % y] *)
 
 
-  (** {b Comparison operators} *)
+  (** {b Comparison operators}
+      Return [`Bot] if either operand is bottom, [`Lifted b] for a known
+      result, and [`Top] if the result is unknown. *)
 
   val lt: t -> t -> BoolDomain.FlatBool.t
   (** Less than: [x < y] *)
@@ -93,7 +95,9 @@ sig
   (** Integer remainder: [x % y] *)
 
 
-  (** {b Comparison operators} *)
+  (** {b Comparison operators}
+      Return [`Bot] if either operand is bottom, [`Lifted b] for a known
+      result, and [`Top] if the result is unknown. *)
 
   val lt: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Less than: [x < y] *)

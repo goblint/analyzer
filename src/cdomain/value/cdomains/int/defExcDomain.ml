@@ -411,7 +411,7 @@ struct
     | `Excluded (s,r), `Definite x -> if S.mem x s then `Lifted false else `Top
     (* The good case: *)
     | `Definite x, `Definite y -> `Lifted (x = y)
-    | `Bot, _ | _, `Bot -> `Top
+    | `Bot, _ | _, `Bot -> `Bot
 
   (* The inequality check: *)
   let ne ik x y = match x,y with
@@ -423,7 +423,7 @@ struct
     | `Excluded (s,r), `Definite x -> if S.mem x s then `Lifted true else `Top
     (* The good case: *)
     | `Definite x, `Definite y -> `Lifted (x <> y)
-    | `Bot, _ | _, `Bot -> `Top
+    | `Bot, _ | _, `Bot -> `Bot
 
   let neg ?no_ov ik (x :t) = norm ik @@ lift1 Z.neg ik x
   let add ?no_ov ik x y = norm ik @@ lift2_inj Z.add ik x y
@@ -442,7 +442,7 @@ struct
 
   (* Comparison handling copied from Enums. *)
   let handle_bot x y f = match x, y with
-    | `Bot, _ | _, `Bot -> `Top
+    | `Bot, _ | _, `Bot -> `Bot
     | _, _ -> f ()
 
   let lt ik x y =
