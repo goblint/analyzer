@@ -404,26 +404,26 @@ struct
   (* The equality check: *)
   let eq ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> None
+    | `Excluded _, `Excluded _ -> `Top
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then Some false else None
-    | `Excluded (s,r), `Definite x -> if S.mem x s then Some false else None
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then `Lifted false else `Top
+    | `Excluded (s,r), `Definite x -> if S.mem x s then `Lifted false else `Top
     (* The good case: *)
-    | `Definite x, `Definite y -> Some (x = y)
-    | `Bot, _ | _, `Bot -> None
+    | `Definite x, `Definite y -> `Lifted (x = y)
+    | `Bot, _ | _, `Bot -> `Bot
 
   (* The inequality check: *)
   let ne ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> None
+    | `Excluded _, `Excluded _ -> `Top
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then Some true else None
-    | `Excluded (s,r), `Definite x -> if S.mem x s then Some true else None
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then `Lifted true else `Top
+    | `Excluded (s,r), `Definite x -> if S.mem x s then `Lifted true else `Top
     (* The good case: *)
-    | `Definite x, `Definite y -> Some (x <> y)
-    | `Bot, _ | _, `Bot -> None
+    | `Definite x, `Definite y -> `Lifted (x <> y)
+    | `Bot, _ | _, `Bot -> `Bot
 
   let neg ?no_ov ik (x :t) = norm ik @@ lift1 Z.neg ik x
   let add ?no_ov ik x y = norm ik @@ lift2_inj Z.add ik x y
@@ -442,24 +442,24 @@ struct
 
   (* Comparison handling copied from Enums. *)
   let handle_bot x y f = match x, y with
-    | `Bot, _ | _, `Bot -> None
+    | `Bot, _ | _, `Bot -> `Bot
     | _, _ -> f ()
 
   let lt ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> Some true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> Some false
-        | _, _, _, _ -> None)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> `Lifted true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> `Lifted false
+        | _, _, _, _ -> `Top)
 
   let gt ik x y = lt ik y x
 
   let le ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> Some true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> Some false
-        | _, _, _, _ -> None)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> `Lifted true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> `Lifted false
+        | _, _, _, _ -> `Top)
 
   let ge ik x y = le ik y x
 

@@ -150,11 +150,12 @@ module GStoreWideningAnalysis: SimplifiedSpec = struct
         | Ge -> I.ge v1 v2
         | Eq -> I.eq v1 v2
         | Ne -> I.ne v1 v2
-        | _ -> None
+        | _ -> `Top
       in
       begin match cmp with
-        | Some b -> I.of_bool ik b
-        | None -> I.top_of ik
+        | `Lifted b -> I.of_bool ik b
+        | `Top -> I.top_of ik
+        | `Bot -> I.bot_of ik
       end
     | LAnd | LOr ->
       begin match I.to_bool v1, I.to_bool v2 with

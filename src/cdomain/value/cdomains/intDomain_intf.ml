@@ -27,24 +27,26 @@ sig
   (** Integer remainder: [x % y] *)
 
 
-  (** {b Comparison operators} *)
+  (** {b Comparison operators}
+      Return [`Bot] if either operand is bottom, [`Lifted b] for a known
+      result, and [`Top] if the result is unknown. *)
 
-  val lt: t -> t -> bool option
+  val lt: t -> t -> BoolDomain.FlatBool.t
   (** Less than: [x < y] *)
 
-  val gt: t -> t -> bool option
+  val gt: t -> t -> BoolDomain.FlatBool.t
   (** Greater than: [x > y] *)
 
-  val le: t -> t -> bool option
+  val le: t -> t -> BoolDomain.FlatBool.t
   (** Less than or equal: [x <= y] *)
 
-  val ge: t -> t -> bool option
+  val ge: t -> t -> BoolDomain.FlatBool.t
   (** Greater than or equal: [x >= y] *)
 
-  val eq: t -> t -> bool option
+  val eq: t -> t -> BoolDomain.FlatBool.t
   (** Equal to: [x == y] *)
 
-  val ne: t -> t -> bool option
+  val ne: t -> t -> BoolDomain.FlatBool.t
   (** Not equal to: [x != y] *)
 
 
@@ -93,24 +95,26 @@ sig
   (** Integer remainder: [x % y] *)
 
 
-  (** {b Comparison operators} *)
+  (** {b Comparison operators}
+      Return [`Bot] if either operand is bottom, [`Lifted b] for a known
+      result, and [`Top] if the result is unknown. *)
 
-  val lt: Cil.ikind -> t -> t -> bool option
+  val lt: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Less than: [x < y] *)
 
-  val gt: Cil.ikind -> t -> t -> bool option
+  val gt: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Greater than: [x > y] *)
 
-  val le: Cil.ikind -> t -> t -> bool option
+  val le: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Less than or equal: [x <= y] *)
 
-  val ge: Cil.ikind -> t -> t -> bool option
+  val ge: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Greater than or equal: [x >= y] *)
 
-  val eq: Cil.ikind -> t -> t -> bool option
+  val eq: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Equal to: [x == y] *)
 
-  val ne: Cil.ikind -> t -> t -> bool option
+  val ne: Cil.ikind -> t -> t -> BoolDomain.FlatBool.t
   (** Not equal to: [x != y] *)
 
 
