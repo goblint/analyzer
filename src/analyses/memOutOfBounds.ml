@@ -162,12 +162,11 @@ struct
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
             begin match check_offset_bounds es casted_offs with
-              | Some true, _
-              | _, Some true ->
+              | `Lifted true, _ | _, `Lifted true ->
                 (set_mem_safety_flag InvalidDeref;
                  M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" SizeDomain.pretty es ID.pretty casted_offs);
                 Checks.error Checks.Category.InvalidMemoryAccess "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" SizeDomain.pretty es ID.pretty casted_offs
-              | Some false, Some false ->
+              | `Lifted false, `Lifted false ->
                 Checks.safe Checks.Category.InvalidMemoryAccess
               | _ ->
                 (set_mem_safety_flag InvalidDeref;
@@ -198,12 +197,11 @@ struct
     | ps, ao ->
       let casted_ao = IndexDomain.lift ao in
       match check_offset_bounds ps casted_ao with
-      | Some true, _
-      | _, Some true ->
+      | `Lifted true, _ | _, `Lifted true ->
         set_mem_safety_flag InvalidDeref;
         M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" SizeDomain.pretty ps ID.pretty casted_ao;
         Checks.error Checks.Category.InvalidMemoryAccess "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" SizeDomain.pretty ps ID.pretty casted_ao
-      | Some false, Some false ->
+      | `Lifted false, `Lifted false ->
         Checks.safe Checks.Category.InvalidMemoryAccess
       | _ ->
         set_mem_safety_flag InvalidDeref;
@@ -268,13 +266,13 @@ struct
         SizeDomain.lt ds (SizeDomain.add casted_en (SizeDomain.of_index casted_ao))
       in
       match dest_size_lt_count with
-      | Some true ->
+      | `Lifted true ->
         set_mem_safety_flag InvalidDeref;
         M.error ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en;
         Checks.error Checks.Category.InvalidMemoryAccess "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en
-      | Some false ->
+      | `Lifted false ->
         Checks.safe Checks.Category.InvalidMemoryAccess
-      | None ->
+      | `Bot | `Top ->
         set_mem_safety_flag InvalidDeref;
         M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en fun_name;
         Checks.warn Checks.Category.InvalidMemoryAccess "Could not compare size of dest (%a) with address offset (%a) count (%a) in function %s. Memory out-of-bounds access may occur" SizeDomain.pretty ds ID.pretty casted_ao SizeDomain.pretty casted_en fun_name

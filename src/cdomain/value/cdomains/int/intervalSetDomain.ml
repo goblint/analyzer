@@ -237,7 +237,7 @@ struct
   let zero = [IArith.zero]
   let one = [IArith.one]
 
-  let not_bool = Option.map not
+  let not_bool = BoolDomain.FlatBool.neg
 
   let to_bool = function
     | [(l,u)] when l =. Ints_t.zero && u =. Ints_t.zero -> Some false
@@ -260,29 +260,29 @@ struct
 
   let lt ik x y =
     match x, y with
-    | [], _ | _, [] -> None
+    | [], _ | _, [] -> `Top
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <. min_y then
-        Some true
+        `Lifted true
       else if min_x >=. max_y then
-        Some false
+        `Lifted false
       else
-        None
+        `Top
 
   let le ik x y =
     match x, y with
-    | [], _ | _, [] -> None
+    | [], _ | _, [] -> `Top
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <=. min_y then
-        Some true
+        `Lifted true
       else if min_x >. max_y then
-        Some false
+        `Lifted false
       else
-        None
+        `Top
 
   let gt ik x y = not_bool @@ le ik x y
 
@@ -290,12 +290,12 @@ struct
 
   let eq ik x y = match x, y with
     | (a, b)::[], (c, d)::[] when a =. b && c =. d && a =. c ->
-      Some true
+      `Lifted true
     | _ ->
       if is_bot (meet ik x y) then
-        Some false
+        `Lifted false
       else
-        None
+        `Top
 
   let ne ik x y = not_bool @@ eq ik x y
   let interval_to_int i = Interval.to_int (Some i)

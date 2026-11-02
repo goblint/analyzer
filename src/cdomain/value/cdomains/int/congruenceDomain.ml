@@ -407,49 +407,47 @@ struct
     res
 
   let ne ik (x: t) (y: t) = match x, y with
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> Some (not (c1 =: c2))
-    | x, y -> if meet ik x y = None then Some true else None
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> `Lifted (not (c1 =: c2))
+    | x, y -> if meet ik x y = None then `Lifted true else `Top
 
   let eq ik (x: t) (y: t) = match x, y with
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> Some (c1 =: c2)
-    | x, y -> if meet ik x y <> None then None else Some false
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> `Lifted (c1 =: c2)
+    | x, y -> if meet ik x y <> None then `Top else `Lifted false
 
   let comparison ik op x y = match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (c1, m1), Some (c2, m2) ->
       if m1 =: Z.zero && m2 =: Z.zero then
-        Some (op c1 c2)
+        `Lifted (op c1 c2)
       else
-        None
+        `Top
 
   let ge ik x y = comparison ik (>=:) x y
 
-  let pretty_bool_option = Pretty.docOpt (Pretty.dprintf "%B")
-
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a" pretty x pretty y BoolDomain.FlatBool.pretty res;
     res
 
   let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a" pretty x pretty y BoolDomain.FlatBool.pretty res;
     res
 
   let gt ik x y = comparison ik (>:) x y
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a" pretty x pretty y BoolDomain.FlatBool.pretty res;
     res
 
   let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a" pretty x pretty y BoolDomain.FlatBool.pretty res;
     res
 
   let invariant_ikind e ik x =

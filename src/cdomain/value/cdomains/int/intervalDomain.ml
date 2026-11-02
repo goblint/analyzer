@@ -356,55 +356,55 @@ struct
 
   let ne ik x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        Some true
+        `Lifted true
       else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
-        Some false
-      else None
+        `Lifted false
+      else `Top
 
   let eq ik x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
-        Some true
+        `Lifted true
       else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        Some false
-      else None
+        `Lifted false
+      else `Top
 
   let ge ik x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 <= 0 then Some true
-      else if Ints_t.compare x2 y1 < 0 then Some false
-      else None
+      if Ints_t.compare y2 x1 <= 0 then `Lifted true
+      else if Ints_t.compare x2 y1 < 0 then `Lifted false
+      else `Top
 
   let le ik x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 <= 0 then Some true
-      else if Ints_t.compare y2 x1 < 0 then Some false
-      else None
+      if Ints_t.compare x2 y1 <= 0 then `Lifted true
+      else if Ints_t.compare y2 x1 < 0 then `Lifted false
+      else `Top
 
   let gt ik x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 < 0 then Some true
-      else if Ints_t.compare x2 y1 <= 0 then Some false
-      else None
+      if Ints_t.compare y2 x1 < 0 then `Lifted true
+      else if Ints_t.compare x2 y1 <= 0 then `Lifted false
+      else `Top
 
   let lt ik x y =
     match x, y with
-    | None, _ | _, None -> None
+    | None, _ | _, None -> `Top
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 < 0 then Some true
-      else if Ints_t.compare y2 x1 <= 0 then Some false
-      else None
+      if Ints_t.compare x2 y1 < 0 then `Lifted true
+      else if Ints_t.compare y2 x1 <= 0 then `Lifted false
+      else `Top
 
   let invariant_ikind e ik = function
     | Some (x1, x2) ->

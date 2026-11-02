@@ -74,9 +74,18 @@ struct
   let narrow = (||)
 end
 
-module FlatBool: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
-  Lattice.FlatConf (struct
+module FlatBool: sig
+  include Lattice.S with type t = [`Bot | `Lifted of bool | `Top]
+  val neg: t -> t
+end =
+struct
+  include Lattice.FlatConf (struct
     include Printable.DefaultConf
     let top_name = "?"
     let bot_name = "-"
   end) (Bool)
+
+  let neg = function
+    | `Lifted b -> `Lifted (not b)
+    | (`Bot | `Top) as x -> x
+end

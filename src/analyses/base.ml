@@ -172,8 +172,8 @@ struct
 
   let id_binary_pred result_ik f x y =
     match f x y with
-    | Some b -> ID.of_bool result_ik b
-    | None -> ID.of_interval result_ik (Z.zero, Z.one)
+    | `Lifted b -> ID.of_bool result_ik b
+    | `Top | `Bot -> ID.of_interval result_ik (Z.zero, Z.one)
 
   let id_unary_log = function
     | Some b -> ID.of_bool IInt b
@@ -231,9 +231,9 @@ struct
       let ik = ID.ikind y in
       let zero = ID.of_int ik Z.zero in
       match ID.ge y zero, ID.lt y zero with
-      | Some true, _ ->
+      | `Lifted true, _ ->
         Checks.safe Checks.Category.InvalidShift
-      | _, Some true ->
+      | _, `Lifted true ->
         M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by negative amount is undefined behavior" dir;
         Checks.error Checks.Category.InvalidShift "Shift-%s by negative amount is undefined behavior" dir
       | _ ->
@@ -2396,7 +2396,7 @@ struct
         | ds, `Lifted n ->
           let casted_n = SizeDomain.lift n in
           let ds_eq_n = SizeDomain.eq ds casted_n in
-          Option.default false ds_eq_n
+          ds_eq_n = `Lifted true
         | _ -> false
       in
       let dest_a, dest_typ = addr_type_of_exp dst in

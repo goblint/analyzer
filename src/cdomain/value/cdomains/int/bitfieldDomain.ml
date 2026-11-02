@@ -570,31 +570,31 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let eq ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 && Z.compare (BArith.min ik x) (BArith.max ik y) >= 0 then
-      Some true
+      `Lifted true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) > 0 || Z.compare (BArith.max ik x) (BArith.min ik y) < 0 then
-      Some false
+      `Lifted false
     else
-      None
+      `Top
 
-  let ne ik x y = Option.map not (eq ik x y)
+  let ne ik x y = BoolDomain.FlatBool.neg (eq ik x y)
 
   let le ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 then
-      Some true
+      `Lifted true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) > 0 then
-      Some false
+      `Lifted false
     else
-      None
+      `Top
 
   let ge ik x y = le ik y x
 
   let lt ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) < 0 then
-      Some true
+      `Lifted true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) >= 0 then
-      Some false
+      `Lifted false
     else
-      None
+      `Top
 
   let gt ik x y = lt ik y x
 

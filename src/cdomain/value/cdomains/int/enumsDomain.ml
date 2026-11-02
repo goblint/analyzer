@@ -184,7 +184,7 @@ module Enums : S with type int_t = Z.t = struct
 
   let handle_bot_bool x y f = match is_bot x, is_bot y with
     | false, false -> f ()
-    | true, _ | _, true -> None
+    | true, _ | _, true -> `Top
 
   let lift1 f ikind v = norm ikind @@ match v with
     | Inc x when BISet.is_empty x -> v (* Return bottom when value is bottom *)
@@ -382,33 +382,33 @@ module Enums : S with type int_t = Z.t = struct
   let lt ik x y =
     handle_bot_bool x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> Some true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> Some false
-        | _, _, _, _ -> None)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> `Lifted true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> `Lifted false
+        | _, _, _, _ -> `Top)
 
   let gt ik x y = lt ik y x
 
   let le ik x y =
     handle_bot_bool x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> Some true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> Some false
-        | _, _, _, _ -> None)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> `Lifted true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> `Lifted false
+        | _, _, _, _ -> `Top)
 
   let ge ik x y = le ik y x
 
   let eq ik x y =
     handle_bot_bool x y (fun () ->
         match x, y with
-        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> Some (Z.equal (BISet.choose xs) (BISet.choose ys))
+        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> `Lifted (Z.equal (BISet.choose xs) (BISet.choose ys))
         | _, _ ->
           if is_bot (meet ik x y) then
             (* If the meet is empty, there is no chance that concrete values are equal *)
-            Some false
+            `Lifted false
           else
-            None)
+            `Top)
 
-  let ne ik x y = Option.map not (eq ik x y)
+  let ne ik x y = BoolDomain.FlatBool.neg (eq ik x y)
 
   let invariant_ikind e ik x =
     match x with

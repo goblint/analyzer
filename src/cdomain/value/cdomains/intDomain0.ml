@@ -622,12 +622,12 @@ struct
   let mul  = Ints_t.mul
   let div  = Ints_t.div
   let rem  = Ints_t.rem
-  let lt n1 n2 = Some (n1 <  n2)
-  let gt n1 n2 = Some (n1 >  n2)
-  let le n1 n2 = Some (n1 <= n2)
-  let ge n1 n2 = Some (n1 >= n2)
-  let eq n1 n2 = Some (n1 =  n2)
-  let ne n1 n2 = Some (n1 <> n2)
+  let lt n1 n2 = `Lifted (n1 <  n2)
+  let gt n1 n2 = `Lifted (n1 >  n2)
+  let le n1 n2 = `Lifted (n1 <= n2)
+  let ge n1 n2 = `Lifted (n1 >= n2)
+  let eq n1 n2 = `Lifted (n1 =  n2)
+  let ne n1 n2 = `Lifted (n1 <> n2)
   let lognot = Ints_t.lognot
   let logand = Ints_t.logand
   let logor  = Ints_t.logor
@@ -705,9 +705,9 @@ struct
     | _ -> `Top
   let lift2_bool f x y = match x,y with
     | `Lifted x, `Lifted y ->
-      (try f x y with Unknown -> None | Error -> None)
-    | `Bot, `Bot -> None
-    | _ -> None
+      (try f x y with Unknown -> `Top | Error -> `Top)
+    | `Bot, `Bot -> `Top
+    | _ -> `Top
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -774,8 +774,8 @@ struct
     | _ -> `Top
   let lift2_bool f x y = match x,y with
     | `Lifted x, `Lifted y -> f x y
-    | `Bot, `Bot -> None
-    | _ -> None
+    | `Bot, `Bot -> `Top
+    | _ -> `Top
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add

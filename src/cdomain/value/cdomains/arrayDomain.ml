@@ -822,21 +822,21 @@ let array_oob_check (x, l) (e, v) =
     let idx_after_start = Idx.ge v (Idx.of_int Z.zero) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)
     match idx_after_start, idx_before_end with
-    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+    | `Lifted true, `Lifted true -> (* Certainly in bounds on both sides.*)
       Checks.safe Checks.Category.InvalidMemoryAccess
-    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+    | `Lifted true, `Lifted false -> (* The following matching differentiates the must and may cases*)
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
       M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end";
       Checks.error Checks.Category.InvalidMemoryAccess "Invalid array access: Must access past end"
-    | Some true, None ->
+    | `Lifted true, (`Bot | `Top) ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
       M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end";
       Checks.warn Checks.Category.InvalidMemoryAccess "Invalid array access: May access past end"
-    | Some false, Some true ->
+    | `Lifted false, `Lifted true ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
       M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start";
       Checks.error Checks.Category.InvalidMemoryAccess "Invalid array access: Must access before start"
-    | None, Some true ->
+    | (`Bot | `Top), `Lifted true ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
       M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start";
       Checks.warn Checks.Category.InvalidMemoryAccess "Invalid array access: May access before start"
