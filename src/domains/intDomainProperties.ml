@@ -91,9 +91,8 @@ struct
   let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
 
   let lift2bool f x y =
-    match GobList.cartesian_map f (elements x) (elements y) with
-    | [] -> `Top (* TODO: strange: bot is top, but that's already how ID.to_bool behaves *)
-    | xs -> BatList.reduce BoolDomain.FlatBool.join xs
+    GobList.cartesian_map f (elements x) (elements y)
+    |> List.fold_left BoolDomain.FlatBool.join `Bot
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -143,12 +142,12 @@ struct
           (Batteries.uncurry af (BatTuple.Tuple2.mapn AF.abstract a))
       )
 
-  let valid_lt = make_valid2_bool ~name:"lt" ~cond:none_bot CD.lt AD.lt
-  let valid_gt = make_valid2_bool ~name:"gt" ~cond:none_bot CD.gt AD.gt
-  let valid_le = make_valid2_bool ~name:"le" ~cond:none_bot CD.le AD.le
-  let valid_ge = make_valid2_bool ~name:"ge" ~cond:none_bot CD.ge AD.ge
-  let valid_eq = make_valid2_bool ~name:"eq" ~cond:none_bot CD.eq AD.eq
-  let valid_ne = make_valid2_bool ~name:"ne" ~cond:none_bot CD.ne AD.ne
+  let valid_lt = make_valid2_bool ~name:"lt" CD.lt AD.lt
+  let valid_gt = make_valid2_bool ~name:"gt" CD.gt AD.gt
+  let valid_le = make_valid2_bool ~name:"le" CD.le AD.le
+  let valid_ge = make_valid2_bool ~name:"ge" CD.ge AD.ge
+  let valid_eq = make_valid2_bool ~name:"eq" CD.eq AD.eq
+  let valid_ne = make_valid2_bool ~name:"ne" CD.ne AD.ne
 
   let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
   let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
