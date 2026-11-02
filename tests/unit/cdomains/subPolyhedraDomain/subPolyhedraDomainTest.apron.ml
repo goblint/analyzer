@@ -1213,6 +1213,63 @@ let pivot_cache_tests =
         P.PivotCache.clear ());
   ]
 
+let propagation_sum_tests =
+  [
+    "prefix-suffix propagation matches sequential reference" >:: (fun _ ->
+        (* Original quadratic algorithm: an independent oracle for update order,
+           unbounded endpoints, negative coefficients, and early bottom. *)
+        let reference ~size d =
+          let rows = List.map (P.split_row size) (P.rows d.P.affeq) in
+          let refine_row (map, changed) (terms, rhs) =
+            List.fold_left (fun (map, changed) (j, a) ->
+                let others = List.fold_left (fun acc (i, ai) ->
+                    if i = j then acc else RI.add acc (RI.scale ai (P.get_iv map i))
+                  ) (RI.of_const Q.zero) terms in
+                let cand = RI.scale (Q.inv a) (RI.add (RI.of_const rhs) (RI.scale Q.minus_one others)) in
+                if RI.is_top cand then map, changed
+                else
+                  let old = P.get_iv map j in
+                  match RI.meet old cand with
+                  | None -> raise P.Bottom
+                  | Some value ->
+                    if RI.equal old value then map, changed
+                    else P.VarMap.add j value map, true
+              ) (map, changed) terms
+          in
+          let rec loop map k =
+            if k = 0 then map else
+              let map, changed = List.fold_left refine_row (map, false) rows in
+              if changed then loop map (k - 1) else map
+          in
+          try Some (loop d.P.intervals (max 2 (min 20 (List.length rows + 1)))) with P.Bottom -> None
+        in
+        let random = Random.State.make [|731; 19|] in
+        let integer n = Random.State.int random n in
+        for trial = 0 to 299 do
+          let size = 3 + integer 6 in
+          let point = Array.init size (fun _ -> Q.of_int (integer 7 - 3)) in
+          let matrix = ref (P.Matrix.empty ()) in
+          for _ = 0 to integer (size - 1) do
+            let terms = List.init size (fun i -> i, Q.make (Z.of_int (integer 7 - 3)) (Z.of_int (1 + integer 4))) in
+            let rhs = List.fold_left (fun sum (i, a) -> Q.add sum (Q.mul a point.(i))) Q.zero terms in
+            matrix := Option.get (P.Matrix.rref_vec !matrix (P.vec_of_terms size terms rhs))
+          done;
+          let intervals = List.init size Fun.id |> List.fold_left (fun map i ->
+              let lo = Q.of_int (integer 9 - 6) in
+              let hi = Q.add lo (Q.of_int (integer 8)) in
+              let lower = if integer 3 = 0 then None else Some lo in
+              let upper = if integer 3 = 0 then None else Some hi in
+              P.VarMap.add i (RI.of_bounds ~lower ~upper) map) P.VarMap.empty in
+          let d = P.make !matrix intervals P.VarMap.empty in
+          let expected = reference ~size d and actual = P.propagate ~size d in
+          assert_bool (Printf.sprintf "trial %d" trial)
+            (match expected, actual with
+             | None, None -> true
+             | Some a, Some b -> P.VarMap.equal RI.equal a b
+             | _ -> false)
+        done);
+  ]
+
 let tests =
   E.tests @ Le.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
   @ [invariants_state; invariants_ops; widen_chain; soundness_oracle; explore_soundness; bounds_oracle; poly_diff; reduction_cache_ops]
@@ -1223,6 +1280,7 @@ let test () =
                             @ rational_boundary_tests
                             @ recovery_deduplication_tests
                             @ pivot_cache_tests
+                            @ propagation_sum_tests
                             @ ["integer bounds" >::: integer_bounds_tests]
                             @ ["nonlinear polynomial fallback" >::: nonlinear_tests]
                             @ ["invertible assignment intervals" >::: assignment_interval_tests]

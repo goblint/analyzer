@@ -259,31 +259,62 @@ module SubPoly (Var : Var) (I : IntervalSig with type bound = Q.t) = struct
   let scale_iv (c: Q.t) (iv: I.t) = I.scale c iv
 
   let propagate ~(size: int) (t: t) : interval_map option =
-    let row_data = List.map (split_row size) (rows t.affeq) in
-    let refine_row (map, changed) (terms, rhs) = (* use (terms,rhs) to mutually refine occuring variables with their bounds *)
-      match terms with
-      | [] -> (map, changed) (* constant rows cannot occur in a consistent rref matrix *)
-      | _ ->
-        List.fold_left (fun (map, changed) (j, a) ->
-            (* x_j = (rhs - sum_{i<>j} a_i * x_i) / a *)
+    let row_data = List.map (fun row ->
+        let terms, rhs = split_row size row in
+        let indexed = match terms with _ :: _ :: _ :: _ -> Some (Array.of_list terms) | _ -> None in
+        terms, rhs, indexed
+      ) (rows t.affeq) in
+    let refine_row (map, changed) (terms, rhs, indexed) =
+      let refine (map, changed) (j, a) others =
+        (* x_j = (rhs - sum_{i<>j} a_i * x_i) / a *)
+        let cand = I.scale (Q.inv a)
+            (I.add (I.of_const rhs) (I.scale Q.minus_one others)) in
+        if I.is_top cand then (map, changed)
+        else
+          let old = get_iv map j in
+          match I.meet old cand with
+          | None -> raise Bottom
+          | Some res ->
+            if I.equal res old then (map, changed)
+            else (VarMap.add j res map, true)
+      in
+      match indexed with
+      | None ->
+        (* Tiny rows do not need an auxiliary array. *)
+        List.fold_left (fun state (j, a) ->
+            let map, _ = state in
             let others = List.fold_left (fun acc (i, ai) ->
-                if Var.equal i j then acc
-                else I.add acc (scale_iv ai (get_iv map i))
-              ) (I.of_const Q.zero) terms
-            in
-            let cand = (* bounds deduced from other's bounds *)
-              I.scale (Q.inv a)
-                (I.add (I.of_const rhs) (I.scale Q.minus_one others))
-            in
-            if I.is_top cand then (map, changed)
-            else
-              let old = get_iv map j in
-              match I.meet old cand with (* compare candidate bounds to old bounds *)
-              | None -> raise Bottom
-              | Some res ->
-                if I.equal res old then (map, changed)
-                else (VarMap.add j res map, true) (* update if better *)
+                if Var.equal i j then acc else I.add acc (scale_iv ai (get_iv map i))
+              ) (I.of_const Q.zero) terms in
+            refine state (j, a) others
           ) (map, changed) terms
+      | Some terms ->
+        let n = Array.length terms in
+        let suffix = Array.make n (I.of_const Q.zero) in
+        for k = n - 1 downto 1 do
+          let i, a = terms.(k) in
+          let term = scale_iv a (get_iv map i) in
+          suffix.(k) <- if k = n - 1 then term else I.add term suffix.(k + 1)
+        done;
+        (* Later variables still have their entry bounds; earlier ones use
+           their newly refined bounds. Never subtract intervals from a total:
+           that loses precision and cannot cancel unbounded endpoints. *)
+        let rec loop k prefix state =
+          let others =
+            if k = 0 then suffix.(1)
+            else if k = n - 1 then prefix
+            else I.add prefix suffix.(k + 1)
+          in
+          let state = refine state terms.(k) others in
+          if k = n - 1 then state
+          else
+            let map, _ = state in
+            let i, a = terms.(k) in
+            let term = scale_iv a (get_iv map i) in
+            let prefix = if k = 0 then term else I.add prefix term in
+            loop (k + 1) prefix state
+        in
+        loop 0 (I.of_const Q.zero) (map, changed)
     in
     let rec go map k = (* repeatedly propagate interval bounds through equality rows *)
       if k <= 0 then map
