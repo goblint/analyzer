@@ -592,6 +592,10 @@ struct
 
             assert_shift_left ik (`I [0]) top (`I [0]);
 
+            let negative_counts = `B (of_list GoblintCil.IInt (List.map of_int [-2; -1])) in
+            assert_shift_left ik (`I [1]) (`B (I.of_int GoblintCil.IInt (of_int (-1)))) (`B (I.top_of ik));
+            assert_shift_left ik (`I [1]) negative_counts (`B (I.top_of ik));
+
             if isSigned ik
             then (
               assert_shift_left ik (`I [1]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
@@ -625,6 +629,10 @@ struct
             assert_shift_right ik bot bot bot;
 
             assert_shift_right ik (`I [0]) top (`I [0]);
+
+            let negative_counts = `B (of_list GoblintCil.IInt (List.map of_int [-2; -1])) in
+            assert_shift_right ik (`I [1]) (`B (I.of_int GoblintCil.IInt (of_int (-1)))) (`B (I.top_of ik));
+            assert_shift_right ik (`I [1]) negative_counts (`B (I.top_of ik));
 
             if isSigned ik
             then (
