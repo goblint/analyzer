@@ -547,7 +547,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let res =
         if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then
           (let tmp = o1 /: o2 in (!:tmp, tmp))
-        else if BArith.is_const (z2, o2) && BArith.is_power_of_two o2 then
+          (* Arithmetic right shift rounds negative dividends down, whereas C division
+             truncates toward zero. Division by one is exact for either sign. *)
+        else if BArith.is_const (z2, o2) && BArith.is_power_of_two o2
+                && (o2 =: Ints_t.one || not (BArith.has_neg_values ik (z1, o1))) then
           let exp = Z.trailing_zeros (Ints_t.to_bigint o2) in
           (z1 >>: exp, o1 >>: exp)
         else
@@ -562,7 +565,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     if o2 = Ints_t.zero then top_of ik else
     if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then
       let tmp = o1 %: o2 in (!:tmp, tmp)
-    else if BArith.is_const (z2, o2) && BArith.is_power_of_two o2 then
+      (* Low-bit masking gives a nonnegative remainder, but C remainder follows
+         the dividend's sign. Remainder modulo one is zero for either sign. *)
+    else if BArith.is_const (z2, o2) && BArith.is_power_of_two o2
+            && (o2 =: Ints_t.one || not (BArith.has_neg_values ik (z1, o1))) then
       let mask = Ints_t.sub o2 Ints_t.one in
       let newz = Ints_t.logor z1 (Ints_t.lognot mask) in
       let newo = Ints_t.logand o1 mask in
