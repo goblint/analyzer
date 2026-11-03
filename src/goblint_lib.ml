@@ -75,6 +75,7 @@ module Options = Options
 module Base = Base
 module RelationAnalysis = RelationAnalysis
 module ApronAnalysis = ApronAnalysis
+module SubPolyhedraAnalysis = SubPolyhedraAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
@@ -284,6 +285,10 @@ module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+module Intervalsig = Intervalsig
+module Rationalinterval = Rationalinterval
+module SubPolyhedraCore = SubPolyhedraCore
+module SubPolyhedraDomain = SubPolyhedraDomain
 
 (** {5 2-Pointer Logic}
 

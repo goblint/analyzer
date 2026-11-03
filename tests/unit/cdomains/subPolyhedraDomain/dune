@@ -1,0 +1,2 @@
+; Keep the alternative source files out of the unqualified unit-test directory.
+(include_subdirs no)
