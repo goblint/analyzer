@@ -27,7 +27,7 @@ typedef struct {
 } Bucket;
 
 typedef struct {
-    Bucket arData[1];
+    Bucket arData[10];
     unsigned nNumUsed;
     unsigned nNumOfElements;
 } HashTable;
@@ -52,6 +52,11 @@ static char *zend_string_init_model(const char *s)
 
 static void zend_hash_str_add_model(const char *str, int value)
 {
+    if (ht.nNumUsed >= sizeof(ht.arData) / sizeof(ht.arData[0])) {
+        puts("PHP in reality resizes the table now");
+        exit(EXIT_FAILURE);
+    }
+
     /* PHP's missing raw-string-key insertion publishes the bucket first. */
     unsigned idx = ht.nNumUsed++;
     ht.nNumOfElements++;
