@@ -4,12 +4,17 @@ module CopyOfHashTable = Hashtbl.Make(struct
     type t = stmt
     (* Identity by physical equality. *)
     let equal = (==)
-    (* Hash only labels and skind (statement itself) because they should remain unchanged between now
-       and lookup after analysis.
-       CFG construction modifies sid, succs, preds and fallthrough, which are empty here.*)
-    let hash (s: stmt) = Hashtbl.hash (s.skind, s.labels)
+    (* Only index statements after CFG numbering. Rebuild after any SID changes. *)
+    let hash (s: stmt) = Hashtbl.hash s.sid
   end)
 let copyof = CopyOfHashTable.create 113
+
+let reset_copyof () =
+  CopyOfHashTable.clear copyof
+
+let rebuild_copyof relationships =
+  CopyOfHashTable.clear copyof;
+  List.iter (fun (copy, original) -> CopyOfHashTable.replace copyof copy original) relationships
 
 let find_copyof = CopyOfHashTable.find_opt copyof
 

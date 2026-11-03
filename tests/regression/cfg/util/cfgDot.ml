@@ -26,14 +26,15 @@ let main () =
   CilCfg0.end_basic_blocks ast;
   Cilfacade.current_file := ast;
   (* Part of CilCfg.createCFG *)
-  GoblintCil.iterGlobals ast (function
+  let relationships = GoblintCil.foldGlobals ast (fun relationships -> function
       | GFun (fd, _) ->
-        if !unroll > 0 then
-          LoopUnrolling.unroll_loops fd (-1);
+        let copies = if !unroll > 0 then LoopUnrolling.unroll_loops fd (-1) else [] in
         GoblintCil.prepareCFG fd;
-        GoblintCil.computeCFGInfo fd true
-      | _ -> ()
-    );
+        GoblintCil.computeCFGInfo fd true;
+        List.rev_append copies relationships
+      | _ -> relationships
+    ) [] in
+  LoopUnrolling.rebuild_copyof relationships;
   let (module Cfg) = CfgTools.compute_cfg ast in
   let module FileCfg =
   struct
