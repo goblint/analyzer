@@ -418,7 +418,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
        | _ -> no_ov
       )
     else
-    if GoblintCil.isSigned ik && BArith.has_only_neg_values ik b then (top_of ik, no_ov) else do_shift ()
+      (* The shift count may be signed even when the left operand is unsigned. *)
+    if BArith.has_only_neg_values ik b then (top_of ik, no_ov) else do_shift ()
 
   let shift_right ik a b = match is_bot a, is_bot b with
     | true, true -> bot_of ik, {underflow=false; overflow=false}
