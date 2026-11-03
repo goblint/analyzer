@@ -16,6 +16,14 @@ let rebuild_copyof relationships =
   CopyOfHashTable.clear copyof;
   List.iter (fun (copy, original) -> CopyOfHashTable.replace copyof copy original) relationships
 
+(* Read the current index without modifying it. Incremental updates translate
+   these endpoints before changing IDs or replacing statements; the resulting
+   references observe their final IDs when the index is rebuilt. *)
+let copy_relationships () =
+  CopyOfHashTable.fold (fun copy original acc ->
+      (copy, original) :: acc
+    ) copyof []
+
 let find_copyof = CopyOfHashTable.find_opt copyof
 
 let rec find_original s =
