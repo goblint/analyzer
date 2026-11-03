@@ -424,7 +424,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
            z >= 0  → leading z bits are 0 → leading value bits cannot be zero
            o < 0   → leading o bits are 1 → leading value bits can be one
          so z >= 0 && o < 0 represents definitely negative values:
-         *)
+      *)
       let z, o = b in
       if not (z <: Ints_t.zero) && o <: Ints_t.zero then (top_of ik, no_ov) else do_shift ()
 
