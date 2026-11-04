@@ -126,7 +126,8 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let concretize bf = List.map Ints_t.to_int (concretize bf)
 
-  let bit_width_of ik = snd @@ Size.bits ik
+  (* Shift-count limits use the full representation width, including the sign bit. *)
+  let bit_width_of ik = Size.bit ik
 
   let constrain_to_bit_width_of ik (z,o) =
     let mask = bitmask_up_to (Int.succ @@ Z.log2up @@ Z.of_int @@ bit_width_of ik) in

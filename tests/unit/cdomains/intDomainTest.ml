@@ -612,8 +612,9 @@ struct
             ) else (
               (* See C11 N2310 at 6.5.7 *)
               assert_shift_left ~ov_info:no_ov ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
-              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) (`I [0]);
-              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) (`I [0]);
+              (* Counts at or beyond the representation width are undefined. *)
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) (`B (I.top_of ik));
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) (`B (I.top_of ik));
             )
 
           ) ik_lst
@@ -643,7 +644,7 @@ struct
 
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
-              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) top;
 
               assert_shift_right ~ov_info:no_ov ik ~rev_cond:true (`I [min_of ik]) (`I [under_precision ik]) top;
               assert_shift_right ~ov_info:no_ov ik ~rev_cond:true (`I [min_of ik]) (`I [precision ik]) top;
@@ -651,8 +652,9 @@ struct
             ) else (
               (* See C11 N2310 at 6.5.7 *)
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
-              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
-              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+              (* Counts at or beyond the representation width are undefined. *)
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`B (I.top_of ik));
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`B (I.top_of ik));
             )
 
           ) ik_lst
