@@ -165,7 +165,22 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let has_neg_values ik b = Z.compare (min ik b) Z.zero < 0
 
+  (** Whether all represented values are negative when interpreted using [ik].
+      The kind determines signedness and the position of the sign bit, via [max].
+      As with [max], the bitfield is assumed to be valid for that kind. *)
   let has_only_neg_values ik b = Z.compare (max ik b) Z.zero < 0
+
+  (** Whether the infinite sign extension encodes definitely negative values.
+      Unlike [has_only_neg_values], this takes no kind: it assumes a valid,
+      correctly sign-extended bitfield and inspects its leading bits instead of
+      interpreting a finite-width sign bit. Leading zeros in [z] disallow zero
+      value bits, while leading ones in [o] allow one value bits. Unknown leading
+      bits (including top) therefore do not satisfy this predicate.
+      For valid, sign-extended signed bitfields, the two predicates agree.
+      This variant is useful for shift counts, whose kind need not match the
+      left operand's kind and is not available in the shift interface. *)
+  let has_only_neg_values' (z, o) =
+    not (z <: Ints_t.zero) && o <: Ints_t.zero
 
   let exceeds_bit_width_of ik b = Z.compare (min ik b) (Z.of_int @@ bit_width_of ik) > 0
 
@@ -409,7 +424,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let top_on_undefined_shift ?(is_shift_left=false) ik a b do_shift =
     let no_ov = {underflow=false; overflow=false} in
-    if BArith.exceeds_bit_width_of GoblintCil.ILongLong b || BArith.equals_bit_width_of GoblintCil.ILongLong b then
+    if BArith.exceeds_bit_width_of ik b || BArith.equals_bit_width_of ik b then
       (top_of ik,
        match is_shift_left, GoblintCil.isSigned ik && BArith.has_neg_values ik a with
        | true, false -> {underflow=false; overflow=true}
@@ -418,15 +433,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
        | _ -> no_ov
       )
     else
-      (* The shift count may be signed even when the left operand is unsigned.
-         Inspecting its sign extension: negative counts have leading known ones (o), 
-         whereas top has leading unknown bits. We check:
-           z >= 0  → leading z bits are 0 → leading value bits cannot be zero
-           o < 0   → leading o bits are 1 → leading value bits can be one
-         so z >= 0 && o < 0 represents definitely negative values:
-      *)
-      let z, o = b in
-      if not (z <: Ints_t.zero) && o <: Ints_t.zero then (top_of ik, no_ov) else do_shift ()
+    if BArith.has_only_neg_values' b then (top_of ik, no_ov) else do_shift ()
 
   let shift_right ik a b = match is_bot a, is_bot b with
     | true, true -> bot_of ik, {underflow=false; overflow=false}
