@@ -437,10 +437,10 @@ struct
     let interval_div x y =
       let (neg, pos) = IArith.div x y in
       let r = List.filter_map Fun.id [neg; pos] in
-      if leq (of_int ik Ints_t.zero |> fst) [y] then
+      if leq (of_int ik Ints_t.zero |> fst) [y] && GobConfig.get_string "sem.int.div-by-zero" = "assume_top" then
         top_of ik @ r (* keep r because they might overflow, but top doesn't *)
       else
-        r (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
+        r (* If sem.int.div-by-zero is assume_top, then should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
     in
     binary_op_concat_with_norm interval_div ik x y
 
@@ -452,6 +452,7 @@ struct
         let (xl, xu) = x in let (yl, yu) = y in
         let pos x = if x <. Ints_t.zero then Ints_t.neg x else x in
         let b = (Ints_t.max (pos yl) (pos yu)) -. Ints_t.one in
+        (* TODO: handle sem.int.div-by-zero option *)
         let range = if xl >=. Ints_t.zero then (Ints_t.zero, Ints_t.min xu b) else (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
         meet ik (bit Ints_t.rem ik (x, y)) [range]
     in

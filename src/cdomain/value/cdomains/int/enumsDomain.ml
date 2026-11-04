@@ -202,7 +202,7 @@ module Enums : S with type int_t = Z.t = struct
         | _,_ -> top_of ikind)
 
   let lift2 f ikind a b =
-    try lift2 f ikind a b with Division_by_zero -> top_of ikind
+    try lift2 f ikind a b with Division_by_zero -> if GobConfig.get_string "sem.int.div-by-zero" = "assume_none" then bot () else top_of ikind
 
   let neg ?no_ov = lift1 Z.neg
   let add ?no_ov ikind a b =
@@ -221,8 +221,8 @@ module Enums : S with type int_t = Z.t = struct
 
   let div ?no_ov ikind a b = match a, b with
     | x,Inc one when BISet.is_singleton one && BISet.choose one = Z.one -> x
-    | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> top_of ikind
-    | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = Z.zero -> a
+    | _,Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> if GobConfig.get_string "sem.int.div-by-zero" = "assume_none" then bot () else top_of ikind
+    | Inc zero,_ when BISet.is_singleton zero && BISet.choose zero = Z.zero -> a (* TODO: handle sem.int.div-by-zero option *)
     | x,y -> lift2 Z.div ikind x y
 
   let rem = lift2 Z.rem
