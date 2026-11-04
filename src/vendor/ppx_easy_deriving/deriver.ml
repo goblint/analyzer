@@ -62,23 +62,26 @@ struct
       td
       (Arg.typ ~loc ct)
 
-  let generate_impl ~ctxt (_rec_flag, type_declarations) =
+  let generate_impl ~ctxt (rec_flag, type_declarations) =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+    Ast_helper.with_default_loc loc @@ fun () -> (* ppx_easy_deriving shouldn't be using default_loc, but some of the Ppx_deriving API calls might *)
     let vbs = List.map (fun td ->
         let quoter = Expansion_helpers.Quoter.create () in
         let expr = expr_declaration ~loc ~quoter td in
-        let expr = Expansion_helpers.Quoter.sanitize quoter expr in
         let expr = Ppx_deriving.poly_fun_of_type_decl td expr in
+        (* TODO: eta-expansion *)
+        let expr = Expansion_helpers.Quoter.sanitize quoter expr in
         let ct = typ ~loc td in
         let pat = ppat_var ~loc {loc; txt = Expansion_helpers.mangle_type_decl (Prefix Arg.name) td} in
         let pat = ppat_constraint ~loc pat ct in
         Ast_helper.Vb.mk ~loc ~attrs:[Ppx_deriving.attr_warning [%expr "-39"]] pat expr
       ) type_declarations
     in
-    [Ast_helper.Str.value ~loc Recursive vbs]
+    [Ast_helper.Str.value ~loc (really_recursive rec_flag type_declarations) vbs]
 
   let generate_intf ~ctxt (_rec_flag, type_declarations) =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+    Ast_helper.with_default_loc loc @@ fun () -> (* ppx_easy_deriving shouldn't be using default_loc, but some of the Ppx_deriving API calls might *)
     List.map (fun td ->
         let ct = typ ~loc td in
         let val_ = Ast_helper.Val.mk ~loc {loc; txt = Expansion_helpers.mangle_type_decl (Prefix Arg.name) td} ct in
