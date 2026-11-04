@@ -28,3 +28,21 @@
         function: main
       value: (long long )f + 2147483648LL >= (long long )e
       format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 94-weird.c
+        line: 11
+        column: 3
+        function: main
+      value: e == 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 94-weird.c
+        line: 11
+        column: 3
+        function: main
+      value: f == 0
+      format: c_expression
