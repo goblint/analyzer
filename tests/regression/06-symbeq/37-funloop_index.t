@@ -23,6 +23,6 @@
     live: 18
     dead: 0
     total lines: 18
-  [Warning][Unknown] unlocking mutex (cache[def_exc:Unknown int([-31,31])].refs_mutex) which may not be held (37-funloop_index.c:16:3-16:43)
+  [Warning][Unknown] unlocking mutex (cache[def_exc:Unknown int([-31,7])].refs_mutex) which may not be held (37-funloop_index.c:16:3-16:43)
   [Info][Assumption] Mutexes are non-recursive by default (37-funloop_index.c:28:5-28:50)
   [Info][Assumption] Mutexes are non-recursive by default
