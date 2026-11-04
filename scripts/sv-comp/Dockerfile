@@ -7,8 +7,8 @@ RUN apt-get update \
 
 WORKDIR /opt
 # https://zenodo.org/records/23703689
-RUN wget -O witch.zip https://zenodo.org/api/records/23703689/files/witch.zip/content \
-    && echo 'f1586d994773a285f9855848eca24c77  witch.zip' | md5sum -c - \
+RUN wget -O witch.zip https://zenodo.org/api/records/23943030/files/witch.zip/content \
+    && echo '6868210f605d9752f1d54551888f27d1  witch.zip' | md5sum -c - \
     && unzip -q witch.zip \
     && rm witch.zip \
     && test -x witch/bin/symbiotic
