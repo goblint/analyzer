@@ -15,7 +15,7 @@ struct
   let name () = "taintPartialContexts"
   module D = AD
 
-  (* Add Lval or any Lval which it may point to to the set *)
+  (* Add Lval or any Lval which it may point to the set *)
   let taint_lval man (lval:lval) : D.t =
     D.union (man.ask (Queries.MayPointTo (AddrOf lval))) man.local
 
@@ -61,14 +61,14 @@ struct
       | None -> man.local
     in
     let desc = LibraryFunctions.find f in
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false arglist in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true arglist in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-              mkAddrOf (Var vi, NoOffset) :: acc
+              mkAddrOf (Cil.var vi) :: acc
             (* TODO: what about GVarDecl? (see "base.ml -> special_unknown_invalidate")*)
             | _ -> acc
           ) deep_addrs

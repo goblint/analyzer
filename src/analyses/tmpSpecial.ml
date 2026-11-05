@@ -48,7 +48,7 @@ struct
     let desc = LibraryFunctions.find f in
 
     (* remove entrys, dependent on lvals that were possibly written by the special function *)
-    let write_args = LibraryDesc.Accesses.find_kind desc.accs Write arglist in
+    let write_args = LibraryDesc.Accesses.find desc.accs ~kind:Write arglist in
     (* TODO similar to symbLocks->Spec->special: why doesn't invalidate involve any reachable for deep write? *)
     let d = List.fold_left (fun d e -> invalidate ask e d) d write_args in
 

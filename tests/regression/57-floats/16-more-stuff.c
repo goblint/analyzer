@@ -1,6 +1,7 @@
 // PARAM: --enable ana.float.interval
 // Taken from CBMC's regression test suite
 // (http://svn.cprover.org/svn/cbmc/trunk/regression/cbmc/).
+#include <stdlib.h>
 #include <math.h>
 #include <goblint.h>
 

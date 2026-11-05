@@ -2,6 +2,8 @@
 // Like 80-nondet-struct-ptr.c, but somewhat simplified to not use structs and malloc etc
 #include<pthread.h>
 #include<stdlib.h>
+#include <goblint.h>
+
 struct a {
   int b;
 };

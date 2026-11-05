@@ -11,7 +11,7 @@ authors: # same authors as in .zenodo.json and dune-project
     orcid: "https://orcid.org/0000-0003-4553-1350"
   - given-names: Michael
     family-names: Schwarz
-    affiliation: "Technische Universität München"
+    affiliation: "National University of Singapore"
     orcid: "https://orcid.org/0000-0002-9828-0308"
   - given-names: Julian
     family-names: Erhard
@@ -25,6 +25,14 @@ authors: # same authors as in .zenodo.json and dune-project
     family-names: Holter
     affiliation: "University of Tartu"
     orcid: "https://orcid.org/0009-0008-3725-4131"
+  - given-names: Michael
+    family-names: Petter
+    affiliation: "Technische Universität München"
+    orcid: "https://orcid.org/0009-0009-7868-651X"
+  - given-names: Ali Rasim
+    family-names: Kocal
+    affiliation: "Technische Universität München"
+    orcid: "https://orcid.org/0009-0004-9019-0852"
   - given-names: Ralf
     family-names: Vogler
     affiliation: "Technische Universität München"

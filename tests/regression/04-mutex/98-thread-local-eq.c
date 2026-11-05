@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
+#include <goblint.h>
 
 __thread int myglobal;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -10,7 +11,7 @@ void *t_fun(void *arg) {
   int top;
   int* ptr = (int*) arg;
 
-  if(top) { 
+  if(top) {
     ptr = &myglobal;
   }
 

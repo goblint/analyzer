@@ -20,7 +20,7 @@ int main(void) {
 
   create_threads(t);
 
-  assert_racefree(*g2); // UNKNOWN
+  assert_racefree(*g2); // UNKNOWN!
 
   join_threads(t);
   return 0;

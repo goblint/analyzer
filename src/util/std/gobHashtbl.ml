@@ -13,7 +13,7 @@ struct
     match find_option ht key with
     | Some value -> value
     | None ->
-      let value = default () in
+      let value = default key in
       replace ht key value;
       value
 end

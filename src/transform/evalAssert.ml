@@ -44,7 +44,7 @@ struct
       let is_lock exp args =
         match exp with
         | Lval(Var v,_) when LibraryFunctions.is_special v ->
-          Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo v) @@ fun () ->
+          let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo v) in
           let desc = LibraryFunctions.find v in
           (match desc.special args with
            | Lock _ -> true
@@ -60,8 +60,8 @@ struct
         let context = {Invariant.default_context with lvals} in
         match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
-          let es = WitnessUtil.InvariantExp.process_exp e in
-          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe e)]) es in
+          let es = Invariant.Exp.process e in
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe (Invariant.Exp.to_cil e))]) es in
           if surroundByAtomic then
             let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
             let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in

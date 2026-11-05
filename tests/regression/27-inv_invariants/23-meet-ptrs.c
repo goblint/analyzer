@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <goblint.h>
 
 int more_intricate() {
    int arr[20];

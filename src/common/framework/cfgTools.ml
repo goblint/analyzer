@@ -205,6 +205,7 @@ let createCFG (file: file) =
           end
 
         | Instr _
+        | Asm _
         | If _
         | Return _ ->
           stmt, visited_stmts
@@ -280,11 +281,16 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
+          | Asm {template; outputs; inputs; loc; _} ->
+            let edge = (loc, ASM (template, outputs, inputs)) in
+            List.iter (fun (succ, skippedStatements) ->
+                addEdge ~skippedStatements (Statement stmt) edge (Statement succ)
+              ) (real_succs ())
+
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
               | Set (lval,exp,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Assign (lval, exp)
               | Call (lval,func,args,loc,eloc) -> Cilfacade.eloc_fallback ~eloc ~loc, Proc (lval,func,args)
-              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
             let edges = List.map edge_of_instr instrs in
@@ -600,12 +606,11 @@ let fprint_hash_dot cfg  =
     let extraNodeStyles node = []
   end
   in
-  let out = open_out "cfg.dot" in
+  let@ out = Out_channel.with_open_text "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
   let ppf = Format.formatter_of_out_channel out in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
-  Format.pp_print_flush ppf ();
-  close_out out
+  Format.pp_print_flush ppf ()
 
 
 let getCFG (file: file) : cfg * cfg * _ =
@@ -664,19 +669,34 @@ let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        let out = open_out (Fpath.to_string fname) in
+        let@ out = Out_channel.with_open_text (Fpath.to_string fname) in
         let ppf = Format.formatter_of_out_channel out in
         fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
         Format.pp_print_flush ppf ();
-        close_out out
       | _ -> ()
     )
 
+module LocationEdge =
+struct
+  type t = CilType.Location.t * Edge.t [@@deriving eq, hash]
+end
+
+module LocationEdgeH = Hashtbl.Make (LocationEdge)
 
 let getGlobalInits (file: file) : edges  =
-  (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
-  let inits = Hashtbl.create 13 in
-  let fast_global_inits = get_bool "exp.fast_global_inits" in
+  let fast_global_inits = get_bool "exp.fast_global_inits" in (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
+  let inits = ref [] in
+  let fast_inits = LocationEdgeH.create 13 in
+  let add_init init =
+    if not fast_global_inits then
+      inits := init :: !inits
+    else if not (LocationEdgeH.mem fast_inits init) then (
+      (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
+         Instead, we get one assign for each distinct value in the array *)
+      LocationEdgeH.replace fast_inits init ();
+      inits := init :: !inits
+    )
+  in
   let rec doInit lval loc init is_zero =
     let initoffs offs init typ lval =
       doInit (addOffsetLval offs lval) loc init is_zero;
@@ -691,12 +711,10 @@ let getGlobalInits (file: file) : edges  =
     match init with
     | SingleInit exp ->
       let assign lval = (loc, Assign (lval, exp)) in
-      (* This is an optimization so that we don't get n*m assigns for an array a[n][m].
-         Instead, we get one assign for each distinct value in the array *)
       if not fast_global_inits then
-        Hashtbl.add inits (assign lval) ()
-      else if not (Hashtbl.mem inits (assign (any_index lval))) then
-        Hashtbl.add inits (assign (any_index lval)) ()
+        add_init (assign lval)
+      else
+        add_init (assign (any_index lval))
     | CompoundInit (typ, lst) ->
       let ntyp = match Cil.unrollType typ, lst with
         | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)
@@ -717,8 +735,8 @@ let getGlobalInits (file: file) : edges  =
   in
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
-  (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (Hashtbl.to_seq_keys inits |> List.of_seq)
+  (* Reverse inits, so they run in declaration order and can refer to earlier initialized globals. *)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: List.rev !inits
 
 
 let numGlobals file =

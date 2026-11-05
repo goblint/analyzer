@@ -57,6 +57,9 @@ int main(void) {
     r = fun(x,x);
     printInt(r,r,r); //WARN
 
+    r = benign(x);
+    printInt(r,r,r); //NOWARN
+
     // Another example of the analysis benefitting from base
     r = y==5 ? fun(8,x) : fun(y,x);
     printInt(r,r,r); //NOWARN

@@ -41,6 +41,10 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
+let int_of_coeff ?scalewith ?round (coeff: Coeff.union_5) =
+  match coeff with
+  | Scalar scalar -> int_of_scalar ?scalewith ?round scalar
+  | Interval _ -> None
 
 module type ConvertArg =
 sig
@@ -69,7 +73,7 @@ type unsupported_cilExp =
 module type ConvBounds =
 sig
   type t
-  val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
+  val bound_texpr: t -> Texpr1.t -> (Z.t option * Z.t option) option
 end
 
 (** Conversion from CIL expressions to Apron.
@@ -103,11 +107,12 @@ struct
         let (type_min, type_max) = IntDomain.Size.range ik in
         let texpr1 = Texpr1.of_expr env expr in
         match Bounds.bound_texpr d texpr1 with
-        | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 ->
+        | Some (Some min, Some max) when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 ->
           ()
-        | min_opt, max_opt ->
+        | Some (min_opt, max_opt) ->
           if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
           raise (Unsupported_CilExp Overflow)
+        | None -> ()
       )
 
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
@@ -153,10 +158,10 @@ struct
                   outside of the apron-related expression conversion.
               *)
               let simplify e =
-                GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
+                let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
-                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Internal ikind simp in (* TODO: proper castkind *)
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
@@ -170,18 +175,20 @@ struct
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
               | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-              | CastE (t, e) when Cil.isIntegralType t ->
+              | CastE (_, t, e) when Cil.isIntegralType t ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
                   | exception Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
                     let t_ik = Cilfacade.get_ikind t in
                     (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
-                    let const,res = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
+                    let const,res =
+                      let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
                       (* try to evaluate e by EvalInt Query *)
                       let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
                       (* convert response to a constant *)
-                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
+                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Internal t_ik res, res (* TODO: proper castkind *)
+                    in
                     match const with
                     | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)
@@ -269,28 +276,28 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
+  let int_of_coeff_warn ~scalewith coeff =
+    match int_of_coeff ~scalewith coeff with
+    | Some i -> i
+    | None ->
+      M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty coeff;
+      raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
-  let coeff_to_const ~scalewith (c:Coeff.union_5) =
-    match c with
-    | Scalar c ->
-      (match int_of_scalar ?scalewith c with
-       | Some i ->
-         let ci,truncation = truncateCilint ILongLong i in
-         if truncation = NoTruncation then
-           if Z.compare i Z.zero >= 0 then
-             false, Const (CInt(i,ILongLong,None))
-           else
-             (* attempt to negate if that does not cause an overflow *)
-             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-             if truncation = NoTruncation then
-               true, Const (CInt((Z.neg i),ILongLong,None))
-             else
-               false, Const (CInt(i,ILongLong,None))
-         else
-           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
-       | None -> raise Unsupported_Linexpr1)
-    | _ -> raise Unsupported_Linexpr1
+  let cil_exp_of_int i =
+    let ci,truncation = truncateCilint ILongLong i in
+    if truncation = NoTruncation then
+      if Z.compare i Z.zero >= 0 then
+        false, Const (CInt(i,ILongLong,None))
+      else
+        (* attempt to negate if that does not cause an overflow *)
+        let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+        if truncation = NoTruncation then
+          true, Const (CInt((Z.neg i),ILongLong,None))
+        else
+          false, Const (CInt(i,ILongLong,None))
+    else
+      raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
@@ -304,10 +311,17 @@ struct
         | _ ->
           vinfo
       in
-      let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let flip, coeff = coeff_to_const ~scalewith c in
-      let prod = BinOp(Mult, coeff, var, longlong) in
-      flip, prod
+      let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+      let i = int_of_coeff_warn ~scalewith c in
+      if Z.equal i Z.one then
+        false, var
+      else if Z.equal i Z.minus_one then
+        true, var
+      else (
+        let flip, coeff = cil_exp_of_int i in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        flip, prod
+      )
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
@@ -316,8 +330,14 @@ struct
       raise Unsupported_Linexpr1
 
   (** Returned booleans indicates whether returned expressions should be negated. *)
-  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
+  let cil_exp_of_linexpr1 ~scalewith (linexpr1:Linexpr1.t) =
+    let terms =
+      let c = Linexpr1.get_cst linexpr1 in
+      if Coeff.is_zero c then
+        ref []
+      else
+        ref [cil_exp_of_int (int_of_coeff_warn ~scalewith c)]
+    in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
         terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
@@ -377,7 +397,7 @@ struct
         | DISEQ -> Ne
         | EQMOD _ -> raise Unsupported_Linexpr1
       in
-      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[]))) (* constFold removes multiplication by factor 1 *)
+      Some (BinOp(binop, lhs, rhs, TInt(IInt,[])))
     with
       Unsupported_Linexpr1 -> None
 end
@@ -524,7 +544,7 @@ sig
 
   val meet_tcons: Queries.ask -> t -> Tcons1.t -> exp -> bool Lazy.t -> t
   val assert_constraint: Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
-  val eval_interval : Queries.ask -> t -> Texpr1.t -> Z.t option * Z.t option
+  val eval_interval : Queries.ask -> t -> Texpr1.t -> (Z.t option * Z.t option) option
 end
 
 module Tracked = RelationCil.Tracked
@@ -536,24 +556,17 @@ struct
   module Tracked = Tracked
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
-  let rec exp_is_constraint = function
-    (* constraint *)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_constraint e1 && exp_is_constraint e2
-    | UnOp (LNot,e,_) -> exp_is_constraint e
-    (* expression *)
-    | _ -> false
-
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
   let assert_inv ask d e negate no_ov =
     let e' =
-      if exp_is_constraint e then
+      if Cilfacade.exp_is_boolean e then
         e
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
+        (* TODO: do this per non-constraint subexpression *)
     in
     assert_constraint ask d e' negate no_ov
 
@@ -571,7 +584,7 @@ struct
     | texpr1 ->
       eval_interval ask d texpr1
     | exception Convert.Unsupported_CilExp _ ->
-      (None, None)
+      Some (None, None)
 
   (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int ask d e no_ov =
@@ -581,18 +594,19 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (exp_is_constraint e);
-      if exp_is_constraint e then
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (Cilfacade.exp_is_boolean e);
+      if Cilfacade.exp_is_boolean e then
         match check_assert ask d e no_ov with
         | `True -> ID.of_bool ik true
         | `False -> ID.of_bool ik false
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr ask d e no_ov with
-        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
-        | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
-        | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
-        | (None, None) -> ID.top_of ik
+        | Some (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
+        | Some (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
+        | Some (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
+        | Some (None, None) -> ID.top_of ik
+        | None -> ID.bot_of ik
 
 end
 
@@ -609,4 +623,6 @@ module Mpqf = struct
 
   let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
   let hash x = 31 * (Z.hash (get_den x)) + Z.hash (get_num x)
+
+  let pretty () x = GoblintCil.Pretty.text (to_string x)
 end

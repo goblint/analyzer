@@ -1,0 +1,6 @@
+(include_subdirs no)
+
+(test
+  (name goblint_ocamlgraph_test)
+  (libraries ounit2 qcheck-ounit goblint.ocamlgraph)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash)))

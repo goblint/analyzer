@@ -24,20 +24,25 @@ struct
   let fi_zero = FI.of_const 0.
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
-  let itb_true = IT.of_int IBool Z.one
-  let itb_false = IT.of_int IBool Z.zero
-  let itb_unknown = IT.of_interval IBool (Z.zero, Z.one)
 
   let assert_equal v1 v2 =
     assert_equal ~cmp:FI.equal ~printer:FI.show v1 v2
 
-  let itb_xor v1 v2 = (**returns true, if both IntDomainTuple bool results are either unknown or different *)
-    ((IT.equal v1 itb_unknown) && (IT.equal v2 itb_unknown)) || ((IT.equal v1 itb_true) && (IT.equal v2 itb_false)) || ((IT.equal v1 itb_false) && (IT.equal v2 itb_true))
+  let itb_xor v1 v2 = (**returns true, if both bool results are either unknown or different *)
+    match v1, v2 with
+    | None, None
+    | Some true, Some false
+    | Some false, Some true -> true
+    | _, _ -> false
 
   (**interval tests *)
   let test_FI_nan _ =
     assert_equal (FI.top ()) (FI.of_const Float.nan)
 
+  let test_FI_nan_unequal_to_itself _ =
+    let nan = FI.nan () in
+    OUnit2.assert_equal (Some false) (FI.eq nan nan);
+    OUnit2.assert_equal (Some true) (FI.ne nan nan)
 
   let test_FI_add_specific _ =
     let (+) = FI.add in
@@ -286,6 +291,12 @@ struct
     QCheck.Test.make ~name:"test_FI_eq_xor_ne" (QCheck.pair (FI.arbitrary ()) (FI.arbitrary ())) (fun (arg1, arg2) ->
         itb_xor (FI.eq arg1 arg2) (FI.ne arg1 arg2))
 
+  let test_FI_nan_unequal_to_all =
+    QCheck.Test.make ~name:"test_FI_nan_unequal_to_all" (FI.arbitrary ()) (fun arg ->
+        let nan = FI.nan () in
+        FI.eq nan arg = Some false && FI.eq arg nan = Some false &&
+        FI.ne nan arg = Some true && FI.ne arg nan = Some true)
+
   let test_FI_add =
     QCheck.Test.make ~name:"test_FI_add" (QCheck.pair QCheck.float QCheck.float) (fun (arg1, arg2) ->
         let result = FI.add (FI.of_const arg1) (FI.of_const arg2) in
@@ -314,6 +325,7 @@ struct
 
   let test () = [
     "test_FI_nan" >:: test_FI_nan;
+    "test_FI_nan_unequal_to_itself" >:: test_FI_nan_unequal_to_itself;
     "test_FI_add_specific" >:: test_FI_add_specific;
     "test_FI_sub_specific" >:: test_FI_sub_specific;
     "test_FI_mul_specific" >:: test_FI_mul_specific;
@@ -337,6 +349,7 @@ struct
       test_FI_lt_xor_ge;
       test_FI_gt_xor_le;
       test_FI_eq_xor_ne;
+      test_FI_nan_unequal_to_all;
       test_FI_add;
       test_FI_sub;
       test_FI_mul;

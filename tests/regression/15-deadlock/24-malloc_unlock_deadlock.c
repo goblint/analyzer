@@ -1,5 +1,6 @@
 // PARAM: --set ana.activated[+] deadlock
 #include <pthread.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 int g1, g2;

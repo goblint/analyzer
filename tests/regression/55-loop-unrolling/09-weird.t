@@ -17,6 +17,7 @@
     j = 0;
     i = 0;
     {
+    __loop_condition___0: /* CIL Label */ 
     if (! (i < 50)) {
       goto loop_end;
     }
@@ -25,6 +26,7 @@
     j = 8;
     i ++;
     loop_continue_0: /* CIL Label */ ;
+    __loop_condition___1: /* CIL Label */ 
     if (! (i < 50)) {
       goto loop_end;
     }
@@ -36,6 +38,7 @@
     {
     while (1) {
       while_continue: /* CIL Label */ ;
+      __loop_condition: /* CIL Label */ 
       if (! (i < 50)) {
         goto while_break;
       }

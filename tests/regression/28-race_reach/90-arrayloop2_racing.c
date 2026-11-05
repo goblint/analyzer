@@ -53,7 +53,7 @@ void *t1_fun(void *arg) {
     pos = (struct s *)((char *)p - (size_t)(& ((struct s *)0)->list));
 
     while (& pos->list != & c.slot[j]) {
-      access_or_assert_racefree(pos->datum); // UNKNOWN
+      access_or_assert_racefree(pos->datum); // UNKNOWN!
       q = pos->list.next;
       pos = (struct s *)((char *)q - (size_t)(& ((struct s *)0)->list));
     }
@@ -77,7 +77,7 @@ void *t2_fun(void *arg) {
     pos = (struct s *)((char *)p - (size_t)(& ((struct s *)0)->list));
 
     while (& pos->list != & c.slot[j]) {
-      access_or_assert_racefree(pos->datum); // UNKNOWN
+      access_or_assert_racefree(pos->datum); // UNKNOWN!
       q = pos->list.next;
       pos = (struct s *)((char *)q - (size_t)(& ((struct s *)0)->list));
     }

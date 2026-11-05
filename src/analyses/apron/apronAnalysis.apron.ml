@@ -8,8 +8,6 @@ let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module Man = (val ApronDomain.get_manager ()) in
     let module AD = ApronDomain.D2 (Man) in
-    let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in
-    let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): RelationDomain.RD) else (module AD)) in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
@@ -25,7 +23,7 @@ let get_spec (): (module MCPSpec) =
 
 let after_config () =
   let module Spec = (val get_spec ()) in
-  MCP.register_analysis (module Spec : MCPSpec);
+  MCP.register_analysis ~usesApron:true (module Spec : MCPSpec);
   GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
 
 let _ =

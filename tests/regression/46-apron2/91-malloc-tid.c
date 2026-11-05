@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag  --set ana.relation.privatization mutex-meet-tid --set ana.apron.domain interval --set sem.int.signed_overflow assume_none
 // Checks that assinging to malloc'ed memory does not cause both branches to be dead
+#include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
 void nop(void* arg) {

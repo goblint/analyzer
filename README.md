@@ -17,7 +17,7 @@ Both for using an up-to-date version of Goblint or developing it, the best way i
 For benchmarking Goblint, please follow the [Benchmarking guide on Read the Docs](https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/).
 
 ### Linux
-1. Install [opam](https://opam.ocaml.org/doc/Install.html).
+1. Install [opam](https://opam.ocaml.org/doc/Install.html) 2.2 or newer.
 2. Make sure the following are installed: `git`, `patch`, `m4`, `autoconf`, `libgmp-dev`, `libmpfr-dev` and `pkg-config`.
 3. Run `make setup` to install OCaml and dependencies via opam.
 4. Run `make` to build Goblint itself.

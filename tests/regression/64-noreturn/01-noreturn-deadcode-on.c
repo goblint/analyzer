@@ -1,8 +1,9 @@
 //PARAM: --enable sem.noreturn.dead_code
 // test that (calls of) functions marked noreturn are detected as dead
+#include <stdlib.h>
 #include <stdnoreturn.h>
 #include <stdio.h>
-
+#include <goblint.h>
 
 noreturn void does_not_return() {
   abort();

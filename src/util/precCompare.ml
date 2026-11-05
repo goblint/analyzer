@@ -95,10 +95,8 @@ struct
   open Util
 
   let load filename =
-    let f = open_in_bin filename in
-    let dump: dump = Marshal.from_channel f in
+    let dump: dump = In_channel.with_open_bin filename Stdlib.Marshal.from_channel in
     let dump: result = {name = dump.name; results = unmarshal dump.marshalled } in
-    close_in_noerr f;
     dump
 
   module CompareDump = MakeHashtbl (Key) (Dom) (RH)

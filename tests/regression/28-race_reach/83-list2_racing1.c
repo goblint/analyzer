@@ -46,7 +46,7 @@ void *t1_fun(void *arg) {
 void *t2_fun(void *arg) {
   struct s *p = take(A);
   pthread_mutex_lock(&A_mutex);
-  access_or_assert_racefree(p->datum); // UNKNOWN
+  access_or_assert_racefree(p->datum); // UNKNOWN!
   pthread_mutex_unlock(&A_mutex);
   return NULL;
 }
@@ -54,7 +54,7 @@ void *t2_fun(void *arg) {
 void *t3_fun(void *arg) {
   struct s *p = take(A);
   pthread_mutex_lock(&B_mutex);
-  access_or_assert_racefree(p->datum); // UNKNOWN
+  access_or_assert_racefree(p->datum); // UNKNOWN!
   pthread_mutex_unlock(&B_mutex);
   return NULL;
 }

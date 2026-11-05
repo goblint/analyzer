@@ -119,7 +119,7 @@ struct
     assert_bool "for_all broken" (M.for_all fun1 !map)
 
 
-  let test_map2 _ =
+  let test_nonidempotent_inter _ =
     let map1 = ref (get_empty ()) in
     let map2 = ref (get_empty ()) in
     let values1 = ["1","a";"2","b";"3","c";"4","d"] in
@@ -128,11 +128,11 @@ struct
     let fun2 v1 v2 a = v2^a in
     map1 := M.add_list values1 !map1;
     map2 := M.add_list values2 !map2;
-    ignore (M.map2 fun1 !map1 !map2);
-    assert_equal "111" (M.fold fun2 (M.map2 fun1 !map2 !map1) "")
+    ignore (M.nonidempotent_inter fun1 !map1 !map2);
+    assert_equal "111" (M.fold fun2 (M.nonidempotent_inter fun1 !map2 !map1) "")
 
 
-  let test_long_map2 _ =
+  let test_nonidempotent_union _ =
     let map1 = ref (get_empty ()) in
     let map2 = ref (get_empty ()) in
     let values1 = ["1","a";"2","b";"3","c";"4","d"] in
@@ -141,8 +141,8 @@ struct
     let fun2 v1 v2 a = v2^a in
     map1 := M.add_list values1 !map1;
     map2 := M.add_list values2 !map2;
-    ignore (M.long_map2 fun1 !map1 !map2);
-    assert_equal "1111" (M.fold fun2 (M.long_map2 fun1 !map2 !map1) "")
+    ignore (M.nonidempotent_union fun1 !map1 !map2);
+    assert_equal "1111" (M.fold fun2 (M.nonidempotent_union fun1 !map2 !map1) "")
 
 
   let test () =
@@ -155,8 +155,8 @@ struct
       "test_add_list_set"    >:: test_add_list_set;
       "test_add_list_fun"    >:: test_add_list_fun;
       "test_for_all"         >:: test_for_all;
-      "test_map2"            >:: test_map2;
-      "test_long_map2"       >:: test_long_map2;
+      "test_nonidempotent_inter" >:: test_nonidempotent_inter;
+      "test_nonidempotent_union" >:: test_nonidempotent_union;
     ]
 
 end

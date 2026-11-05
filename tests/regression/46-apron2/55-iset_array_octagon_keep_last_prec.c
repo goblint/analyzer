@@ -1,4 +1,5 @@
 // SKIP PARAM: --enable ana.int.interval_set --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated[+] apron --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
+#include <stdlib.h>
 #include <goblint.h>
 
 void main(void) __attribute__((goblint_precision("no-interval")));

@@ -9,7 +9,7 @@ sig
   val div : t -> t -> t
   val neg : t -> t
   val abs : t -> t
-  val to_string:  t -> string
+  val pretty: unit -> t -> GoblintCil.Pretty.doc
   val of_int: int -> t
   val zero: t
   val one: t

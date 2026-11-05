@@ -2,6 +2,8 @@
 #include<stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <goblint.h>
+
 int main() {
     int64_t data;
     if (data > (-0x7fffffffffffffff - 1))

@@ -1,11 +1,11 @@
-  $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set witness.yaml.entry-types '["location_invariant"]' --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --enable witness.yaml.enabled --disable witness.invariant.other --disable witness.invariant.loop-head 96-witness-mm-escape2.c --set witness.yaml.path 96-witness-mm-escape2.yml
+  $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set witness.yaml.invariant-types '["location_invariant"]' --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --enable witness.yaml.enabled --disable witness.invariant.other --disable witness.invariant.loop-head 96-witness-mm-escape2.c --set witness.yaml.path 96-witness-mm-escape2.yml
   [Info][Witness] witness generation summary:
     location invariants: 4
     loop invariants: 0
     flow-insensitive invariants: 0
-    total generation entries: 4
+    total generation entries: 1
 
-  $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set witness.yaml.entry-types '["location_invariant"]' --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 96-witness-mm-escape2.yml 96-witness-mm-escape2.c
+  $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set witness.yaml.invariant-types '["location_invariant"]' --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 96-witness-mm-escape2.yml 96-witness-mm-escape2.c
   [Info][Witness] witness validation summary:
     confirmed: 4
     unconfirmed: 0

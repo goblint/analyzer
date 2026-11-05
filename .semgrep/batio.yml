@@ -1,0 +1,6 @@
+rules:
+  - id: batio-to_input_channel
+    pattern: BatIO.to_input_channel
+    message: don't use (leaks two file descriptors)
+    languages: [ocaml]
+    severity: ERROR

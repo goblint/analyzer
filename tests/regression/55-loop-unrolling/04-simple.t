@@ -16,30 +16,35 @@
     {
     i = 0;
     {
+    __loop_condition___0: /* CIL Label */ 
     if (! (i < 5)) {
       goto loop_end;
     }
     a[i] = i;
     i ++;
     loop_continue_0: /* CIL Label */ ;
+    __loop_condition___1: /* CIL Label */ 
     if (! (i < 5)) {
       goto loop_end;
     }
     a[i] = i;
     i ++;
     loop_continue_1: /* CIL Label */ ;
+    __loop_condition___2: /* CIL Label */ 
     if (! (i < 5)) {
       goto loop_end;
     }
     a[i] = i;
     i ++;
     loop_continue_2: /* CIL Label */ ;
+    __loop_condition___3: /* CIL Label */ 
     if (! (i < 5)) {
       goto loop_end;
     }
     a[i] = i;
     i ++;
     loop_continue_3: /* CIL Label */ ;
+    __loop_condition___4: /* CIL Label */ 
     if (! (i < 5)) {
       goto loop_end;
     }
@@ -49,6 +54,7 @@
     {
     while (1) {
       while_continue: /* CIL Label */ ;
+      __loop_condition: /* CIL Label */ 
       if (! (i < 5)) {
         goto while_break;
       }

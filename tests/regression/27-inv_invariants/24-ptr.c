@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval
+#include <goblint.h>
 
 int two = 2;
 int three = 3;

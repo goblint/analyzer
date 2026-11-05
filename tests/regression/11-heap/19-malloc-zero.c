@@ -1,4 +1,5 @@
-// PARAM: --set sem.malloc.zero either --set ana.activated[+] memOutOfBounds 
+// PARAM: --set sem.malloc.zero either --set ana.activated[+] memOutOfBounds
+#include <stdlib.h>
 #include<pthread.h>
 #include<goblint.h>
 

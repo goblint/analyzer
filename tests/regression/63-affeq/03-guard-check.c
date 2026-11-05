@@ -1,4 +1,6 @@
 //SKIP PARAM:  --set ana.activated[+] affeq --set ana.relation.privatization top --set sem.int.signed_overflow assume_none
+#include <goblint.h>
+
 void main(void) {
 
     int i = 0;

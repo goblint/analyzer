@@ -2,7 +2,7 @@
 // contains deep integer expressions that shouldn't cause extremely exponential slowdown
 // when evaluated by base's eval_rv and EvalInt jointly
 // runs (as unknown) under 0.1s
-
+#include <stdlib.h>
 #include <goblint.h>
 void assume_abort_if_not(int cond) {
   if(!cond) {abort();}

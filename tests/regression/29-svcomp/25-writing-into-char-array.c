@@ -1,5 +1,7 @@
 // NOCHECK
 #include<stdio.h>
+#include <string.h>
+
 struct __anonstruct_mbox_t_232 {
    int one;
    int two;

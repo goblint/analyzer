@@ -51,8 +51,8 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     type t = A.t array array [@@deriving eq, ord, hash]
 
-    let show x =
-      Array.fold_left (^) "" (Array.map (fun v -> V.show @@ V.of_array v) x)
+    let pretty =
+      GoblintCil.Pretty.(docArray ~sep:nil (fun _ x -> V.pretty () (V.of_array x))) (* TODO: avoid of_array *)
 
     let empty () =
       Array.make_matrix 0 0 A.zero
@@ -181,7 +181,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
-    (* This does NOT have the same semantics as map2i_with. While map2i_with can deal with m and v having different lenghts, map2i will raise Invalid_argument in that case*)
+    (* This does NOT have the same semantics as map2i_with. While map2i_with can deal with m and v having different lengths, map2i will raise Invalid_argument in that case*)
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
       let range_array = Array.init (V.length v) Fun.id in

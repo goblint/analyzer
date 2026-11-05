@@ -3,6 +3,8 @@
 // Thus worth having even if it can be answered by base alone
 
 #include <stdio.h>
+#include <goblint.h>
+
 int main() {
 
   unsigned short int allbits = -1;

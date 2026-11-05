@@ -56,8 +56,6 @@ module Base =
 
     module UpdateRule = UpdateRule(EqS0) (HM) (VS)
 
-    let exists_key f hm = HM.exists (fun k _ -> f k) hm
-
     let assert_can_receive_side x =
       if Hooks.system x <> None then (
         failwith ("side-effect to unknown w/ rhs: " ^ GobPretty.sprint S.Var.pretty_trace x);
@@ -279,6 +277,9 @@ module Base =
 
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
+
+      (* dep is only needed for some incremental pruning. *)
+      let collect_dep = GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" in
       let dep = data.dep in
       let weak_dep = data.weak_dep in
 
@@ -303,7 +304,8 @@ module Base =
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-        HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
+        if collect_dep then
+          HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
 
@@ -369,7 +371,8 @@ module Base =
               d
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
-              HM.replace dep x VS.empty;
+              if collect_dep then
+                HM.replace dep x VS.empty;
               eq_wrapper x (fun side -> eq x (eval l x) side (demand l x))
           in
           HM.remove called x;
@@ -382,7 +385,7 @@ module Base =
             if not wp then eqd
             else if term then
               match phase with
-              | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+              | Widen -> S.Dom.widen old eqd
               | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
               | Narrow ->
                 (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
@@ -478,7 +481,7 @@ module Base =
 
         let widen a b =
           if M.tracing then M.traceli "sol2" "side widen %a %a" S.Dom.pretty a S.Dom.pretty b;
-          let r = S.Dom.widen a (S.Dom.join a b) in
+          let r = S.Dom.widen a b in
           if M.tracing then M.traceu "sol2" "-> %a" S.Dom.pretty r;
           r
         in
@@ -500,7 +503,7 @@ module Base =
              if not (VS.mem x old_sides) then add_sides y x;
            | None -> ());
 
-          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
+          (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen else S.Dom.join) old d); *)
           HM.replace rho y tmp;
           let destabilized_vs: bool option = if WPS.record_destabilized_vs then (
               destabilize y;

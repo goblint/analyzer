@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <goblint.h>
 
 struct list

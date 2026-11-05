@@ -35,13 +35,24 @@ let var_may_be_shadowed scope vi =
   List.exists local_may_shadow scope.sformals || List.exists local_may_shadow scope.slocals
 
 let var_is_in_scope scope vi =
+  let var_nested () =
+    not (GobConfig.get_bool "witness.invariant.all-locals") && hasAttribute "goblint_cil_nested" vi.vattr
+  in
   match Cilfacade.find_scope_fundec vi with
   | None ->
-    vi.vstorage <> Static && (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+    (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+    (vi.vstorage <> Static ||
+     match Cilfacade.findAttribute "goblint_cil_pulledup" vi.vattr with
+     | Some [AStr static_fun_name] ->
+       static_fun_name = scope.svar.vname &&
+       not (var_nested ())
+     | Some _ -> failwith "InvariantCil.var_is_in_scope: invalid goblint_cil_pulledup attribute parameters"
+     | None -> true (* normal static global *)
+    ) &&
     not (var_may_be_shadowed scope vi)
   | Some fd ->
     CilType.Fundec.equal fd scope &&
-    (GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr)) &&
+    not (var_nested ()) &&
     not (var_may_be_shadowed scope vi) (* TODO: could distinguish non-nested and nested? *)
 
 class exp_is_in_scope_visitor (scope: fundec) (acc: bool ref) = object
@@ -89,6 +100,38 @@ let exp_contains_tmp e =
   let visitor = new exp_contains_tmp_visitor acc in
   ignore (visitCilExpr visitor e);
   !acc
+
+
+let fieldinfo_is_anon (fi: fieldinfo) =
+  String.starts_with ~prefix:"__annonCompField" fi.fname (* TODO: what if CIL-ed program explicitly has this? *)
+
+let rec offset_contains_anon_comp_offset = function
+  | NoOffset -> false
+  | Index (e, offs') -> offset_contains_anon_comp_offset offs' (* does not check e!, done by visitor *)
+  | Field (fi, offs') -> fieldinfo_is_anon fi || offset_contains_anon_comp_offset offs'
+
+class exp_contains_anon_comp_offset_visitor = object
+  inherit nopCilVisitor
+  method! voffs (offs: offset) =
+    if offset_contains_anon_comp_offset offs then
+      raise Stdlib.Exit
+    else
+      DoChildren (* recurse to Index offset expressions! *)
+end
+let exp_contains_anon_comp_offset =
+  let visitor = new exp_contains_anon_comp_offset_visitor in
+  fun e ->
+    match visitCilExpr visitor e with
+    | _ -> false
+    | exception Stdlib.Exit -> true
+
+
+let var_is_suitable ?scope v =
+  not (var_is_tmp v) && GobOption.for_all (fun scope -> var_is_in_scope scope v) scope
+
+let exp_is_suitable ?scope e =
+  not (exp_contains_tmp e || exp_contains_anon_comp_offset e) && GobOption.for_all (fun scope -> exp_is_in_scope scope e) scope
+
 
 class exp_contains_anon_type_visitor = object
   inherit nopCilVisitor

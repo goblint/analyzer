@@ -1,0 +1,15 @@
+# Portfolio Configuration Sequence
+# paths are relative to analyzer base directory
+#
+# minimalist run, basically only constants/def_exc, but with context gas
+--conf conf/svcomp26/common.json --conf conf/svcomp26/validate.json --conf conf/svcomp26/level00.json --set ana.activated[+] unassume
+# standard run based on svcomp 25 settings, but with context gas
+--conf conf/svcomp26/common.json --conf conf/svcomp26/validate.json --conf conf/svcomp26/level01.json --set ana.activated[+] unassume
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron
+--conf conf/svcomp26/common.json --conf conf/svcomp26/validate.json --conf conf/svcomp26/level02.json --set ana.activated[+] unassume
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron, branchset-sensitive
+--conf conf/svcomp26/common.json --conf conf/svcomp26/validate.json --conf conf/svcomp26/level03.json --set ana.activated[+] unassume
+# base-pathsensitive run
+--conf conf/svcomp26/common.json --conf conf/svcomp26/validate.json --conf conf/svcomp26/level04-validate.json --set ana.activated[+] unassume
+# polyhedra analysis
+--conf conf/svcomp26/common.json --conf conf/svcomp26/validate.json --conf conf/svcomp26/level05.json --set ana.activated[+] unassume

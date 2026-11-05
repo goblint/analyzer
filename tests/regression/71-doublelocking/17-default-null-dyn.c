@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType'
+// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType' --disable warn.assumption
+// Disabled assumptions for NOWARN (no null pointer error) below
 #define _GNU_SOURCE
 #include<pthread.h>
 #include<stdio.h>

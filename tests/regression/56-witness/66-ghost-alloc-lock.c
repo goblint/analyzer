@@ -1,7 +1,7 @@
 // PARAM: --set ana.activated[+] mutexGhosts --set ana.malloc.unique_address_count 1
+#include <stdlib.h>
 #include <pthread.h>
 #include <goblint.h>
-
 int g1, g2;
 pthread_mutex_t *m1;
 pthread_mutex_t *m2;

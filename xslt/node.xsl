@@ -101,6 +101,27 @@
     </xsl:choose>
   </xsl:template>
 
+  <xsl:template match="context">
+    <xsl:choose>
+      <xsl:when test="analysis//value">
+        <div class="toggle off">
+          <span>context:</span>
+          <div>
+            <xsl:apply-templates select="analysis" />
+          </div>
+        </div>
+      </xsl:when>
+      <xsl:otherwise>
+        <div class="nontoggle">
+          <span>context:</span>
+          <span>
+            <xsl:apply-templates select="analysis" />
+          </span>
+        </div>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
   <xsl:template match="call">
     <a target="_top" class="node-wrap">
         <xsl:attribute name="href">../frame.html?file=<xsl:value-of select="@file"/>&amp;fun=<xsl:value-of select="@fun"/>&amp;node=<xsl:value-of select="@id" /></xsl:attribute>
@@ -111,13 +132,7 @@
         @<xsl:value-of select="@file" />:<xsl:value-of select="@line" />:<xsl:value-of select="@column" />-<xsl:value-of select="@endLine" />:<xsl:value-of select="@endColumn" /> (synthetic: <xsl:value-of select="@synthetic" />)
       </div>
     </a>
-    <div class="toggle off">
-      <span>context:</span>
-      <div>
-        <xsl:apply-templates select="context" />
-      </div>
-    </div>
-    <xsl:apply-templates select="path" />
+    <xsl:apply-templates select="path|context" />
   </xsl:template>
 
 

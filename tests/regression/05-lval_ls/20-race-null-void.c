@@ -1,5 +1,7 @@
 #include <pthread.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <goblint.h>
 
 void *t_fun(void *arg) {
   void **top;

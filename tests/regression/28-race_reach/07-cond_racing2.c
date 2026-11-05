@@ -22,7 +22,7 @@ int main() {
   if (i) pthread_mutex_lock(&mutex1);
 
   printf("Now we do the work..\n");
-  if (i+1) assert_racefree(global); // UNKNOWN
+  if (i+1) assert_racefree(global); // UNKNOWN!
 
   printf("Work is completed...");
   if (i) pthread_mutex_unlock(&mutex1);

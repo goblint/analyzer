@@ -19,6 +19,7 @@ module type CFloatType = sig
   val of_float: round_mode -> float -> t
   val to_float: t -> float
   val to_big_int: t -> Z.t
+  (** Integral part of a finite value, i.e., the value truncated toward zero. *)
 
   val is_finite: t -> bool
   val pred: t -> t
@@ -28,7 +29,8 @@ module type CFloatType = sig
   val hash: t -> int
   val compare: t -> t -> int
   val to_yojson: t -> Yojson.Safe.t
-  val to_string: t -> string
+  val show: t -> string
+  val pretty: unit -> t -> GoblintCil.Pretty.doc
 
 
   val neg: t -> t

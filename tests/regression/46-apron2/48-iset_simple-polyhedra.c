@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval_set --set ana.apron.domain polyhedra
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf, adapted
+#include <stdlib.h>
 #include <goblint.h>
 
 void main(void) {

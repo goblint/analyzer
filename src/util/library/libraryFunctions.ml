@@ -17,7 +17,7 @@ let intmax_t = lazy (
 )
 
 let stripOuterBoolCast = function
-  | CastE (TInt (IBool, _), e) -> e
+  | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
   | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
   | e -> e
 
@@ -166,12 +166,34 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("atoll", unknown [drop "nptr" [r]]);
     ("setlocale", unknown [drop "category" []; drop "locale" [r]]);
     ("clock", unknown []);
+    (* TODO: this function is actually not atomic despite operating on atomic types! *)
+    ("atomic_init", unknown [drop "obj" [w]; drop "desired" []]);
+    (* No need for r_atomic/w_atomic here: these functions operate on values of
+       atomic types, for which we consider all accesses to be atomic already *)
     ("atomic_flag_clear", unknown [drop "obj" [w]]);
     ("atomic_flag_clear_explicit", unknown [drop "obj" [w]; drop "order" []]);
     ("atomic_flag_test_and_set", unknown [drop "obj" [r; w]]);
     ("atomic_flag_test_and_set_explicit", unknown [drop "obj" [r; w]; drop "order" []]);
     ("atomic_load", unknown [drop "obj" [r]]);
+    ("atomic_load_explicit", unknown [drop "obj" [r]; drop "order" []]);
     ("atomic_store", unknown [drop "obj" [w]; drop "desired" []]);
+    ("atomic_store_explicit", unknown [drop "obj" [w]; drop "desired" []; drop "order" []]);
+    ("atomic_exchange", unknown [drop "obj" [r; w]; drop "desired" []]);
+    ("atomic_exchange_explicit", unknown [drop "obj" [r; w]; drop "desired" []; drop "order" []]);
+    ("atomic_compare_exchange_strong", unknown [drop "obj" [r; w]; drop "expected" [r; w]; drop "desired" []]);
+    ("atomic_compare_exchange_strong_explicit", unknown [drop "obj" [r; w]; drop "expected" [r; w]; drop "desired" []; drop "order" []]);
+    ("atomic_compare_exchange_weak", unknown [drop "obj" [r; w]; drop "expected" [r; w]; drop "desired" []]);
+    ("atomic_compare_exchange_weak_explicit", unknown [drop "obj" [r; w]; drop "expected" [r; w]; drop "desired" []; drop "order" []]);
+    ("atomic_fetch_add", unknown [drop "obj" [r; w]; drop "arg" []]);
+    ("atomic_fetch_add_explicit", unknown [drop "obj" [r; w]; drop "arg" []; drop "order" []]);
+    ("atomic_fetch_sub", unknown [drop "obj" [r; w]; drop "arg" []]);
+    ("atomic_fetch_sub_explicit", unknown [drop "obj" [r; w]; drop "arg" []; drop "order" []]);
+    ("atomic_fetch_or", unknown [drop "obj" [r; w]; drop "arg" []]);
+    ("atomic_fetch_or_explicit", unknown [drop "obj" [r; w]; drop "arg" []; drop "order" []]);
+    ("atomic_fetch_xor", unknown [drop "obj" [r; w]; drop "arg" []]);
+    ("atomic_fetch_xor_explicit", unknown [drop "obj" [r; w]; drop "arg" []; drop "order" []]);
+    ("atomic_fetch_and", unknown [drop "obj" [r; w]; drop "arg" []]);
+    ("atomic_fetch_and_explicit", unknown [drop "obj" [r; w]; drop "arg" []; drop "order" []]);
     ("_Exit", special [drop "status" []] @@ Abort);
     ("strcoll", unknown [drop "lhs" [r]; drop "rhs" [r]]);
     ("wscanf", unknown (drop "fmt" [r] :: VarArgs (drop' [w])));
@@ -354,7 +376,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pclose", unknown [drop "stream" [w; f]]);
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
+    ("__inet_pton_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
+    ("__inet_ntop_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
     ("gethostent", unknown ~attrs:[ThreadUnsafe] []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
@@ -461,6 +489,18 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
     ("__getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
     ("getwdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
+    ("execlp", unknown (drop "file" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
+    ("gai_strerror", unknown [drop "errcode" []]);
+    ("getegid", unknown []);
+    ("getgroups", unknown [drop "size" []; drop "list" [w]]);
+    ("initgroups", unknown [drop "user" [r]; drop "group" []]);
+    ("mknod", unknown [drop "pathname" [r]; drop "mode" []; drop "dev" []]);
+    ("openat", unknown (drop "dirfd" [] :: drop "pathname" [r] :: drop "flags" [] :: VarArgs (drop "mode" [])));
+    ("seteuid", unknown [drop "uid" []]);
+    ("setgid", unknown [drop "gid" []]);
+    ("setuid", unknown [drop "uid" []]);
+    ("socketpair", unknown [drop "domain" []; drop "type" []; drop "protocol" []; drop "sv" [w]]);
+    ("tcgetpgrp", unknown [drop "fd" []]);
   ]
 [@@coverage off]
 
@@ -605,30 +645,46 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_popcount", unknown [drop "x" []]);
     ("__builtin_popcountl", unknown [drop "x" []]);
     ("__builtin_popcountll", unknown [drop "x" []]);
-    ("__atomic_store_n", unknown [drop "ptr" [w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_store", unknown [drop "ptr" [w]; drop "val" [r]; drop "memorder" []]);
-    ("__atomic_load_n", unknown [drop "ptr" [r]; drop "memorder" []]);
-    ("__atomic_load", unknown [drop "ptr" [r]; drop "ret" [w]; drop "memorder" []]);
-    ("__atomic_clear", unknown [drop "ptr" [w]; drop "memorder" []]);
-    ("__atomic_compare_exchange_n", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" []; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
-    ("__atomic_compare_exchange", unknown [drop "ptr" [r; w]; drop "expected" [r; w]; drop "desired" [r]; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
-    ("__atomic_add_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_sub_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_and_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_xor_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_or_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_nand_fetch", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_fetch_add", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_fetch_sub", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_fetch_and", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_fetch_xor", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_fetch_or", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_fetch_nand", unknown [drop "ptr" [r; w]; drop "val" []; drop "memorder" []]);
-    ("__atomic_test_and_set", unknown [drop "ptr" [r; w]; drop "memorder" []]);
+    ("__atomic_store_n", unknown [drop "ptr" [w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_store", unknown [drop "ptr" [w_atomic]; drop "val" [r]; drop "memorder" []]);
+    ("__atomic_load_n", unknown [drop "ptr" [r_atomic]; drop "memorder" []]);
+    ("__atomic_load", unknown [drop "ptr" [r_atomic]; drop "ret" [w]; drop "memorder" []]);
+    ("__atomic_clear", unknown [drop "ptr" [w_atomic]; drop "memorder" []]);
+    ("__atomic_exchange_n", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_exchange", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" [r]; drop "ret" [w]; drop "memorder" []]);
+    ("__atomic_compare_exchange_n", unknown [drop "ptr" [r_atomic; w_atomic]; drop "expected" [r; w]; drop "desired" []; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_compare_exchange", unknown [drop "ptr" [r_atomic; w_atomic]; drop "expected" [r; w]; drop "desired" [r]; drop "weak" []; drop "success_memorder" []; drop "failure_memorder" []]);
+    ("__atomic_add_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_sub_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_and_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_xor_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_or_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_nand_fetch", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_add", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_sub", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_and", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_xor", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_or", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_fetch_nand", unknown [drop "ptr" [r_atomic; w_atomic]; drop "val" []; drop "memorder" []]);
+    ("__atomic_test_and_set", unknown [drop "ptr" [r_atomic; w_atomic]; drop "memorder" []]);
     ("__atomic_thread_fence", unknown [drop "memorder" []]);
-    ("__sync_bool_compare_and_swap", unknown [drop "ptr" [r; w]; drop "oldval" []; drop "newval" []]);
-    ("__sync_fetch_and_add", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
-    ("__sync_fetch_and_sub", unknown (drop "ptr" [r; w] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_bool_compare_and_swap", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "oldval" [] :: drop "newval" [] :: VarArgs (drop' [])));
+    ("__sync_val_compare_and_swap", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "oldval" [] :: drop "newval" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_add", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_sub", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_or", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_and", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_xor", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_fetch_and_nand", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_add_and_fetch", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_sub_and_fetch", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_or_and_fetch", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_and_and_fetch", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_xor_and_fetch", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_nand_and_fetch", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_synchronize", unknown (VarArgs (drop' [])));
+    ("__sync_lock_test_and_set", unknown (drop "ptr" [r_atomic; w_atomic] :: drop "value" [] :: VarArgs (drop' [])));
+    ("__sync_lock_release", unknown (drop "ptr" [r_atomic; w_atomic] :: VarArgs (drop' [])));
     ("__builtin_va_copy", unknown [drop "dest" [w]; drop "src" [r]]);
     ("alloca", special [__ "size" []] @@ fun size -> Alloca size);
     ("__builtin_alloca", special [__ "size" []] @@ fun size -> Alloca size);
@@ -715,6 +771,17 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svc_register", unknown [drop "xprt" [r_deep; w_deep]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r; w; c]; drop "protocol" []]);
     ("svc_run", unknown []); (* TODO: make new special kind "NoReturn" for this: the following node will be dead (like Abort), but the program doesn't exit (so it shouldn't be Abort) *)
     (* RPC library end *)
+    ("getgrouplist", unknown [drop "user" [r]; drop "group" []; drop "groups" [w]; drop "ngroups" [r; w]]);
+    ("innetgr", unknown [drop "netgroup" [r]; drop "host" [r]; drop "user" [r]; drop "domain" [r]]);
+    ("lchmod", unknown [drop "path" [r]; drop "mode" []]);
+    ("lseek64", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
+    ("lutimes", unknown [drop "filename" [r]; drop "times" [r]]);
+    ("mallinfo2", unknown []);
+    ("strlcat", unknown [drop "dst" [r; w]; drop "src" [r]; drop "dstsize" []]);
+    ("strlcpy", unknown [drop "dst" [w]; drop "src" [r]; drop "dstsize" []]);
+    ("chroot", unknown [drop "path" [r]]);
+    ("getpass", unknown ~attrs:[ThreadUnsafe] [drop "prompt" [r]]);
+    ("setgroups", unknown [drop "size" []; drop "list" [r]]);
   ]
 [@@coverage off]
 
@@ -760,6 +827,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fxstat", unknown [drop "ver" []; drop "fildes" []; drop "stat_buf" [w]]);
     ("__ctype_b_loc", unknown []);
     ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
+    ("fallocate", unknown [drop "fd" []; drop "mode" []; drop "offset" []; drop "len" []]);
+    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
 [@@coverage off]
 
@@ -829,7 +898,6 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
     ("usb_submit_urb", unknown [drop "urb" [r_deep; w_deep; c_deep]; drop "mem_flags" []]); (* old comment: first argument is written to but according to specification must not be read from anymore *)
     ("dev_driver_string", unknown [drop "dev" [r_deep]]);
-    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
     ("idr_pre_get", unknown [drop "idp" [r_deep]; drop "gfp_mask" []]);
     ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
     ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r; c]]);
@@ -1105,6 +1173,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+    ("__VERIFIER_nondet_memory", unknown [drop "mem" [w]; drop "size" []]); (* instead of using reference implementation from SV-COMP rules in sv-comp.c, this avoids supertop warnings *)
     ("__VERIFIER_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
     ("reach_error", special [] @@ Abort); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
   ]
@@ -1309,11 +1378,11 @@ let is_safe_uncalled fn_name =
 
 let unknown_desc f ~nowarn : LibraryDesc.t =
   let accs args : (LibraryDesc.Access.t * 'a list) list = [
-    ({ kind = Read; deep = true; }, if GobConfig.get_bool "sem.unknown_function.read.args" then args else []);
-    ({ kind = Write; deep = true; }, if GobConfig.get_bool "sem.unknown_function.invalidate.args" then args else []);
-    ({ kind = Free; deep = true; }, []); (* TODO: why no option? *)
-    ({ kind = Call; deep = true; }, if get_bool "sem.unknown_function.call" then args else []);
-    ({ kind = Spawn; deep = true; }, if get_bool "sem.unknown_function.spawn" then args else []);
+    ({ kind = Read; deep = true; atomic = false; }, if GobConfig.get_bool "sem.unknown_function.read.args" then args else []);
+    ({ kind = Write; deep = true; atomic = false; }, if GobConfig.get_bool "sem.unknown_function.invalidate.args" then args else []);
+    ({ kind = Free; deep = true; atomic = false; }, []); (* TODO: why no option? *)
+    ({ kind = Call; deep = true; atomic = false; }, if get_bool "sem.unknown_function.call" then args else []);
+    ({ kind = Spawn; deep = true; atomic = false; }, if get_bool "sem.unknown_function.spawn" then args else []);
   ]
   in
   let attrs: LibraryDesc.attr list =

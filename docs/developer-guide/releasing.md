@@ -41,10 +41,10 @@
     1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     2. Extract distribution archive.
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
-    4. Update opam-repository from git: `opam-2.1 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.1 update`.
+    4. Update opam-repository from git: `opam-2.2 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.2 update`.
     5. Navigate to distribution archive inside Docker container: `cd /goblint`.
-    6. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
-    7. Activate opam environment: `eval $(opam env)`.
+    6. Install and test package from distribution archive: `opam-2.2 install --with-test .`.
+    7. Activate opam environment: `eval $(opam-2.2 env)`.
     8. Check version: `goblint --version`.
     9. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
     10. Exit Docker container.
@@ -71,51 +71,24 @@
 
 ### Before all preruns
 
-1. Make sure you are running the same Ubuntu version as will be used for SV-COMP.
+1. Update Ubuntu version used for SV-COMP in `scripts/sv-comp/Dockerfile`.
 2. Create conf file for SV-COMP year.
-3. Make sure this repository is checked out into a directory called `goblint`, not the default `analyzer`.
+3. Update SV-COMP year in `Makefile`, `scripts/sv-comp/archive.sh`, `scripts/sv-comp/smoketest.sh` and `scripts/sv-comp/Dockerfile`.
 
-    This is required such that the created archive would have everything in a single directory called `goblint`.
-
-4. Update SV-COMP year in `scripts/sv-comp/archive.sh`.
-
-    This includes: git tag name, git tag message and zipped conf file.
-
-5. Open MR with conf file name to the [bench-defs](https://gitlab.com/sosy-lab/sv-comp/bench-defs) repository.
+    This includes: git tag name, git tag message, zipped conf file and [SV-COMP container image tag](https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image).
 
 ### For each prerun
 
-1. Update opam pins:
+1. Make sure you have a clean git repository.
+2. Delete git tag from previous prerun (if exists): `git tag -d svcompXY`.
+3. Create archive: `make sv-comp`.
 
-    1. Make sure you have the same `goblint-cil` version pinned as `goblint.opam` specifies.
-    2. Unpin `zarith.1.12-gob0`, because Gobview compatibility is not required.
-
-2. Make sure you have nothing valuable that would be deleted by `make clean`.
-3. Delete git tag from previous prerun: `git tag -d svcompXY`.
-4. Create archive: `./scripts/sv-comp/archive.sh`.
-
+    This locally creates the `svcompXY` git tag, which should _not_ be pushed until after all preruns (see below).
+    This also smoke tests (with `scripts/sv-comp/smoketest.sh`) the archive on clean Ubuntu (with required packages) and competition Ubuntu.
     The resulting archive is `scripts/sv-comp/goblint.zip`.
 
-5. Check unextracted archive in latest SV-COMP container image: <https://gitlab.com/sosy-lab/benchmarking/competition-scripts/#container-image>.
-
-    Inside Docker:
-
-    1. Check version: `./goblint --version`.
-    2. Mount some sv-benchmarks and properties, e.g. as `/tool-test`, and run Goblint on them manually.
-
-    This ensures that the environment and the archive have all the correct system libraries.
-
-6. Create (or add new version) Zenodo artifact and upload the archive.
-
-7. Open MR with Zenodo version DOI to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
-
-<!-- 7. Check pushed archive via CoveriTeam-Remote: <https://gitlab.com/sosy-lab/software/coveriteam/-/blob/main/doc/competition-help.md>.
-
-1. Clone coveriteam repository.
-2. Locally modify `actors/goblint.yml` archive location to the raw URL of the pushed archive.
-3. Run Goblint on some sv-benchmarks and properties via CoveriTeam.
-
-This ensures that Goblint runs on SoSy-Lab servers. -->
+4. Create (or add new version) Zenodo artifact and upload the archive.
+5. Open MR with Zenodo version DOI and updated conf file name to the [fm-tools](https://gitlab.com/sosy-lab/benchmarking/fm-tools) repository.
 
 ### After all preruns
 

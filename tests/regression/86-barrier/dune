@@ -1,0 +1,3 @@
+(cram
+ (enabled_if (<> %{system} macosx))
+ (deps (glob_files *.c)))

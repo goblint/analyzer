@@ -1,6 +1,8 @@
 rules:
-  - id: let-unit-in
-    pattern: let () = $E in ...
-    message: use ; instead (and, if needed, add surrounding parentheses to preserve precedence)
-    languages: [ocaml]
-    severity: WARNING
+  []
+  # TODO: disabled because semgrep cannot distinguish from let@ which is fine (https://github.com/semgrep/semgrep/issues/11432)
+  # - id: let-unit-in
+  #   pattern: let () = $E in ...
+  #   message: use ; instead (and, if needed, add surrounding parentheses to preserve precedence)
+  #   languages: [ocaml]
+  #   severity: WARNING

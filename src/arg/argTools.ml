@@ -137,19 +137,6 @@ struct
       | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
       | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
       | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
-
-    (* TODO: less hacky way (without ask_indices) to move node *)
-    let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
-    let move_opt (n, c, i) to_n =
-      match ask_indices (to_n, c) with
-      | [] -> None
-      | [to_i] ->
-        let to_node = (to_n, c, to_i) in
-        BatOption.filter is_live (Some to_node)
-      | _ :: _ :: _ ->
-        failwith "Node.move_opt: ambiguous moved index"
-    let equal_node_context (n1, c1, i1) (n2, c2, i2) =
-      EQSys.LVar.equal (n1, c1) (n2, c2)
   end
 
   module NHT = BatHashtbl.Make (Node)

@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
 // This was problematic earlier where we were unsound with lin2vareq
 // Thus worth having even if it can be answered by base alone
-
+#include <goblint.h>
 #include <stdio.h>
 int main() {
 

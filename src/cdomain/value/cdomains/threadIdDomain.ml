@@ -111,6 +111,7 @@ struct
     include Printable.Liszt (Base)
     (* Prefix is stored in reversed order (main is last) since prepending is more efficient. *)
     let name () = "prefix"
+    let pretty = Pretty.d_list ", " Base.pretty (* without surrounding [] (added below) *)
   end
   module S =
   struct
@@ -122,9 +123,9 @@ struct
   let pretty () (p, s) =
     let p = List.rev p in (* show in "unreversed" order *)
     if S.is_empty s then
-      P.pretty () p (* hide empty set *)
+      Pretty.dprintf "[%a]" P.pretty p (* hide empty set *)
     else
-      Pretty.dprintf "%a, %a" P.pretty p S.pretty s
+      Pretty.dprintf "[%a, %a]" P.pretty p S.pretty s
 
   let show x = GobPretty.sprint pretty x
 

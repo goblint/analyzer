@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 int main()
 {
   while (1);

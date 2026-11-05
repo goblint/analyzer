@@ -18,7 +18,7 @@ int main(void) {
   int i = 0;
   pthread_create(&id, NULL, t_fun, (void *) &i);
   pthread_mutex_lock(&mutex2);
-  assert_racefree(i); // UNKNOWN
+  assert_racefree(i); // UNKNOWN!
   pthread_mutex_unlock(&mutex2);
   pthread_join(id, NULL);
   return 0;

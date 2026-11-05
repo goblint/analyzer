@@ -1,5 +1,5 @@
-// SKIP
 #include <pthread.h>
+#include <unistd.h>
 #include <goblint.h>
 
 int* gptr;

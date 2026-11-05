@@ -1,6 +1,8 @@
 // NOCHECK
 #include <pthread.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #define err_abort(code,text) do { \
     fprintf (stderr, "%s at \"%s\":%d: %s\n", \

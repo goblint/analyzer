@@ -1,6 +1,6 @@
 (** Domains for [setjmp] and [longjmp] analyses, and [setjmp] buffers. *)
 
-module BufferEntry = Printable.ProdSimple(Node)(ControlSpecC)
+module BufferEntry = Printable.Prod (Node)(ControlSpecC)
 
 module BufferEntryOrTop = struct
   include Printable.Std
@@ -61,7 +61,7 @@ end
 
 module ActiveLongjmps =
 struct
-  include Lattice.ProdSimple(JmpBufSet)(NodeSet)
+  include Lattice.Prod (JmpBufSet)(NodeSet)
 end
 
 module LocallyModifiedMap =

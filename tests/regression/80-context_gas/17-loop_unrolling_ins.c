@@ -2,6 +2,7 @@
 // Note: 11 function calls are analyzed context-sensitively
 // -> tracked parameter in domain enables one additional context-sensitively analyzed call
 #include <stdio.h>
+#include <goblint.h>
 
 int f(int i)
 {

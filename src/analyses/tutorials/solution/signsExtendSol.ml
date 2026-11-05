@@ -1,0 +1,101 @@
+(** Simple intraprocedural integer signs analysis template ([signs]).
+
+    @see <https://goblint.readthedocs.io/en/latest/developer-guide/firstanalysis/> *)
+
+open GoblintCil
+open SimplifiedAnalysis
+
+module Signs =
+struct
+  include Printable.StdLeaf
+
+  type t = Neg | Zero | Pos [@@deriving eq, ord, hash, to_yojson]
+  let name () = "signs"
+  let show x = match x with
+    | Neg -> "-"
+    | Zero -> "0"
+    | Pos -> "+"
+
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
+
+  (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
+  let of_int i =
+    if Z.compare i Z.zero < 0 then Neg
+    else if Z.compare i Z.zero > 0 then Pos
+    else Zero
+
+  let lt x y = match x, y with
+    | Neg, Pos | Neg, Zero | Zero, Pos -> true (* TODO: Maybe something missing? *)
+    | _ -> false
+
+  let elems = [Neg; Zero; Pos] (* For FiniteSet *)
+end
+
+(* Now we turn this into a lattice by adding Top and Bottom elements.
+ * We then lift the above operations to the lattice. *)
+module SL =
+struct
+  (* include SetDomain.Make (Signs) *)
+  include SetDomain.FiniteSet (Signs)
+  let of_int i = singleton (Signs.of_int i)
+
+  let lt x y =
+    for_all (fun x -> for_all (fun y -> Signs.lt x y) y) x
+end
+
+module Spec : SimplifiedSpec =
+struct
+  include SimplifiedAnalysis.DefaultSpec
+
+  let name = "signsExtendSol"
+  module V = Printable.Unit
+  module G = Lattice.Unit
+
+  (* Map of integers variables to our signs lattice. *)
+  module D = MapDomain.MapBot (Basetype.Variables) (SL)
+  module C = D
+
+  let startstate = D.bot ()
+  let startcontext = D.bot ()
+
+  (* This should now evaluate expressions. *)
+  let eval (d: D.t) (exp: exp): SL.t = match exp with
+    | Const (CInt (i, _, _)) -> SL.of_int i (* TODO: Fix me! *)
+    | UnOp (Neg, Const (CInt (i, _, _)), _) -> SL.of_int (Z.neg i) (* TODO: Fix me! *)
+    | Lval (Var x, NoOffset) -> D.find x d
+    | _ -> SL.top ()
+
+
+  (* Transfer functions: we only implement assignments here.
+   * You can leave this code alone... *)
+  let assign man d (lval:lval) (rval:exp) : D.t =
+    match lval with
+    | (Var x, NoOffset) when not x.vaddrof -> D.add x (eval d rval) d
+    | _ -> D.top ()
+
+
+  (* Here we return true if we are absolutely certain that an assertion holds! *)
+  let assert_holds (d: D.t) (e:exp) = match e with
+    | BinOp (Lt, e1, e2, _) -> SL.lt (eval d e1) (eval d e2)
+    | _ -> false
+
+  (* We should now provide this information to Goblint. Assertions are integer expressions,
+   * so we implement here a response to EvalInt queries.
+   * You should definitely leave this alone... *)
+  let query man state (type a) (q: a Queries.t): a Queries.result =
+    let open Queries in
+    match q with
+    | EvalInt e when assert_holds state e ->
+      let ik = Cilfacade.get_ikind_exp e in
+      ID.of_bool ik true
+    | _ -> Result.top q
+
+  let context man ((state: D.t), _) f callee_state = state
+  let threadenter man state f args = state
+end
+
+let _ =
+  MCPRegistry.registered_simplified_analysis (module Spec : SimplifiedSpec)

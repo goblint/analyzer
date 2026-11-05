@@ -2,6 +2,9 @@
 #include <pthread.h>
 #include <goblint.h>
 
+void __VERIFIER_atomic_begin();
+void __VERIFIER_atomic_end();
+
 int myglobal = 5;
 
 // atomic by function name prefix
