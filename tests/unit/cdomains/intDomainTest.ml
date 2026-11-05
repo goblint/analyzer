@@ -488,6 +488,7 @@ struct
   let precision ik = snd @@ IntDomain.Size.bits ik
   let over_precision ik = Int.succ @@ precision ik
   let under_precision ik = Int.pred @@ precision ik
+  let representation_width ik = if GoblintCil.isSigned ik then over_precision ik else precision ik
 
   let assert_shift ?(rev_cond=false) ?(expected_ov_info=None) shift ik a b expected =
     let module I = I_ in
@@ -527,7 +528,7 @@ struct
     let open QCheck2.Gen in
     map (List.sort_uniq Int.compare) (list_size size_gen gen)
 
-  let test_shift ik name c_op a_op =
+  let test_shift ~is_left ik name c_op a_op =
     let shift_test_printer (a,b) = Printf.sprintf "a: [%s] b: [%s]"
         (String.concat ", " (List.map string_of_int a))
         (String.concat ", " (List.map string_of_int b))
@@ -541,7 +542,19 @@ struct
     let b_gen ik =
       gen_sized_set (1 -- (Z.log2up @@ Z.of_int @@ precision ik)) (0 -- under_precision ik) (* only shifts that are smaller than precision *)
     in
-    let test_case_gen = Gen.pair (a_gen ik) (b_gen ik)
+    (* C11 (N1570) 6.5.7p3 requires integer promotions and counts in [0, width).
+       These domain tests supply ik directly, without performing promotions.
+       Only compare concrete arithmetic on C11-defined executions: p4 requires
+       nonnegative signed left operands and representable left-shift results;
+       p5 makes right shifts of negative signed operands implementation-defined. *)
+    let test_case_gen =
+      Gen.bind (b_gen ik) (fun b ->
+          if GoblintCil.isSigned ik then
+            let max_count = if is_left then List.fold_left Int.max 0 b else 0 in
+            let max_value = Z.to_int (Z.shift_right (snd (IntDomain.Size.range ik)) max_count) in
+            Gen.map (fun a -> a, b) (gen_sized_set (1 -- precision ik) (0 -- max_value))
+          else
+            Gen.map (fun a -> a, b) (a_gen ik))
     in
     Test.make ~name:name ~print:shift_test_printer
       test_case_gen
@@ -551,11 +564,11 @@ struct
          I.leq expected_subset result
       )
 
-  let test_shift_left = List.fold_left (fun acc ik -> test_shift ik
+  let test_shift_left = List.fold_left (fun acc ik -> test_shift ~is_left:true ik
                                            (Printf.sprintf "test_shift_left_ik_%s" (CilType.Ikind.show ik)) Int.shift_left I.shift_left :: acc
                                        ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
-  let test_shift_right = List.fold_left (fun acc ik -> test_shift ik
+  let test_shift_right = List.fold_left (fun acc ik -> test_shift ~is_left:false ik
                                             (Printf.sprintf "test_shift_right_ik_%s" (CilType.Ikind.show ik)) Int.shift_right I.shift_right :: acc
                                         ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
@@ -590,7 +603,19 @@ struct
         List.iter (fun ik ->
             assert_shift_left ik bot bot bot;
 
-            assert_shift_left ik (`I [0]) top (`I [0]);
+            (* C11 (N1570) 6.5.7p3: negative counts and counts >= the promoted
+               left operand's width are undefined, even for a zero left operand.
+               Returning top for any possible UB is our conservative policy
+               (C11 3.4.3 imposes no requirements on undefined behavior). *)
+            assert_shift_left ik (`I [0]) top (`B (I.top_of ik));
+
+            let negative_counts = `B (of_list GoblintCil.IInt (List.map of_int [-2; -1])) in
+            assert_shift_left ik (`I [1]) (`B (I.of_int GoblintCil.IInt (of_int (-1)))) (`B (I.top_of ik));
+            assert_shift_left ik (`I [1]) negative_counts (`B (I.top_of ik));
+            let mixed_counts = `B (of_list GoblintCil.IInt (List.map of_int [-1; 1])) in
+            assert_shift_left ik (`I [0]) mixed_counts (`B (I.top_of ik));
+            let boundary_counts = `B (of_list GoblintCil.IInt (List.map of_int [0; representation_width ik])) in
+            assert_shift_left ik (`I [0]) boundary_counts (`B (I.top_of ik));
 
             if isSigned ik
             then (
@@ -602,14 +627,19 @@ struct
               assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) top;
               assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) top;
 
-              assert_shift_left ~ov_info:no_ov ik (`I [-1]) (`I [under_precision ik]) (`I [highest_bit_set ~is_neg:true ik]);
-              assert_shift_left ~ov_info:no_ov ik (`I [-1]) (`I [precision ik]) (`I [Z.to_int @@ IntDomain.Size.cast ik @@ Z.shift_left Z.one (precision ik)]);
+              (* C11 (N1570) 6.5.7p4: negative signed left operands are undefined,
+                 even without overflow and even for a zero count. *)
+              assert_shift_left ~ov_info:no_ov ik (`I [-1]) (`I [under_precision ik]) top;
+              assert_shift_left ~ov_info:no_ov ik (`I [-1]) (`I [precision ik]) top;
+              assert_shift_left ~ov_info:no_ov ik (`I [-1; 1]) (`I [0]) top;
               assert_shift_left ~ov_info:ov_underflow ik (`I [-1]) (`I [over_precision ik]) top;
             ) else (
-              (* See C11 N2310 at 6.5.7 *)
+              (* C11 (N1570) 6.5.7p4: unsigned left shifts use modular arithmetic. *)
               assert_shift_left ~ov_info:no_ov ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
-              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) (`I [0]);
-              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) (`I [0]);
+              (* C11 6.5.7p3 still requires a count below the full width;
+                 p4's modular arithmetic does not make these counts valid. *)
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) (`B (I.top_of ik));
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) (`B (I.top_of ik));
             )
 
           ) ik_lst
@@ -624,27 +654,39 @@ struct
         List.iter (fun ik ->
             assert_shift_right ik bot bot bot;
 
-            assert_shift_right ik (`I [0]) top (`I [0]);
+            (* C11 (N1570) 6.5.7p3 applies to right shifts too: possible negative
+               or oversized counts conservatively give top, even when shifting zero. *)
+            assert_shift_right ik (`I [0]) top (`B (I.top_of ik));
+
+            let negative_counts = `B (of_list GoblintCil.IInt (List.map of_int [-2; -1])) in
+            assert_shift_right ik (`I [1]) (`B (I.of_int GoblintCil.IInt (of_int (-1)))) (`B (I.top_of ik));
+            assert_shift_right ik (`I [1]) negative_counts (`B (I.top_of ik));
+            let mixed_counts = `B (of_list GoblintCil.IInt (List.map of_int [-1; 1])) in
+            assert_shift_right ik (`I [0]) mixed_counts (`B (I.top_of ik));
+            let boundary_counts = `B (of_list GoblintCil.IInt (List.map of_int [0; representation_width ik])) in
+            assert_shift_right ik (`I [0]) boundary_counts (`B (I.top_of ik));
 
             if isSigned ik
             then (
-              assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top; (* the sign bit shouldn't be set with right shifts if its unset *)
+              assert_shift_right ik (`I [max_of ik]) top top; (* The count may be invalid. *)
 
               assert_shift_right ik (`I [2]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
               assert_shift_right ik (`I [min_of ik]) top top; (* implementation-defined sign-bit handling *)
 
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
-              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+              (* C11 6.5.7p3: for signed ik, over_precision is the full width. *)
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) top;
 
               assert_shift_right ~ov_info:no_ov ik ~rev_cond:true (`I [min_of ik]) (`I [under_precision ik]) top;
               assert_shift_right ~ov_info:no_ov ik ~rev_cond:true (`I [min_of ik]) (`I [precision ik]) top;
               assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [over_precision ik]) top;
             ) else (
-              (* See C11 N2310 at 6.5.7 *)
+              (* C11 (N1570) 6.5.7p5: unsigned right shift divides by 2^count. *)
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
-              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
-              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+              (* C11 6.5.7p3: counts at or beyond the full width are undefined. *)
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`B (I.top_of ik));
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`B (I.top_of ik));
             )
 
           ) ik_lst
