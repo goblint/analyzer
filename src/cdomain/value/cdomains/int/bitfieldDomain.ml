@@ -164,7 +164,23 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero)
 
+  (** Whether any represented value is negative when interpreted using [ik].
+      The kind determines signedness and the position of the sign bit, via [min].
+      As with [min], the bitfield is assumed to be valid for that kind. *)
   let has_neg_values ik b = Z.compare (min ik b) Z.zero < 0
+
+  (** Whether the infinite sign extension permits negative values.
+      Unlike [has_neg_values], this takes no kind: it assumes a valid,
+      correctly sign-extended (or zero-extended unsigned) bitfield and inspects
+      its leading bits instead of interpreting a finite-width sign bit.
+      Leading ones in [o] allow negative values, whether those bits are known
+      ones or unknown. Thus top satisfies this predicate, unlike
+      [has_only_neg_values']. Correctly zero-extended unsigned values do not.
+      The two [has_neg_values] variants agree when [ik] matches the kind used
+      to extend the bitfield. This variant is useful for shift counts, whose
+      kind need not match the left operand's kind and is unavailable in the
+      shift interface. Bottom must be handled separately. *)
+  let has_neg_values' (_, o) = o <: Ints_t.zero
 
   (** Whether all represented values are negative when interpreted using [ik].
       The kind determines signedness and the position of the sign bit, via [max].
@@ -183,9 +199,10 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let has_only_neg_values' (z, o) =
     not (z <: Ints_t.zero) && o <: Ints_t.zero
 
-  let exceeds_bit_width_of ik b = Z.compare (min ik b) (Z.of_int @@ bit_width_of ik) > 0
-
-  let equals_bit_width_of ik b = Z.compare (min ik b) (Z.of_int @@ bit_width_of ik) = 0
+  (** For a count with no negative possibilities, [o] is its maximum.
+      [ik] belongs to the left operand, not the count. *)
+  let may_exceed_shift_count ik (_, o) =
+    Z.compare (Ints_t.to_bigint o) (Z.of_int (bit_width_of ik)) >= 0
 end
 
 module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
@@ -425,7 +442,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let top_on_undefined_shift ?(is_shift_left=false) ik a b do_shift =
     let no_ov = {underflow=false; overflow=false} in
-    if BArith.exceeds_bit_width_of ik b || BArith.equals_bit_width_of ik b then
+    if BArith.has_neg_values' b then
+      (top_of ik, no_ov)
+    else if BArith.may_exceed_shift_count ik b then
       (top_of ik,
        match is_shift_left, GoblintCil.isSigned ik && BArith.has_neg_values ik a with
        | true, false -> {underflow=false; overflow=true}
@@ -434,7 +453,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
        | _ -> no_ov
       )
     else
-    if BArith.has_only_neg_values' b then (top_of ik, no_ov) else do_shift ()
+      do_shift ()
 
   let shift_right ik a b = match is_bot a, is_bot b with
     | true, true -> bot_of ik, {underflow=false; overflow=false}
@@ -448,13 +467,22 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s << %s" (show a) (show b)))
     | _ ->
       top_on_undefined_shift ~is_shift_left:true ik a b @@ fun () ->
-      let max_shift = if Z.fits_int (BArith.max ik b) then Z.to_int (BArith.max ik b) else Int.max_int in
+      (* The count guard establishes 0 <= count < Size.bit ik, independently
+         of the count's kind. Its one-mask is therefore its maximum. *)
+      let max_shift = Ints_t.to_int (snd b) in
       let (min_ik, max_ik) = Size.range ik in
-      let min_res = if max_shift < 0 then Z.pred min_ik else Z.shift_left (BArith.min ik a) max_shift in
-      let max_res = if max_shift < 0 then Z.succ max_ik else Z.shift_left (BArith.max ik a) max_shift in
+      let min_res = Z.shift_left (BArith.min ik a) max_shift in
+      let max_res = Z.shift_left (BArith.max ik a) max_shift in
       let underflow = Z.compare min_res min_ik < 0 in
       let overflow = Z.compare max_ik max_res < 0 in
-      (norm ~ov:(underflow || overflow) ik (BArith.shift_left ik a b), {underflow=underflow; overflow=overflow})
+      (* C11 6.5.7p4: a negative signed left operand is undefined even when
+         the mathematical result fits. Preserve numerical overflow information;
+         these flags do not describe all forms of undefined behavior. *)
+      let result =
+        if GoblintCil.isSigned ik && (BArith.has_neg_values ik a || overflow) then top_of ik
+        else norm ~ov:(underflow || overflow) ik (BArith.shift_left ik a b)
+      in
+      (result, {underflow=underflow; overflow=overflow})
 
   (* Arith *)
 
