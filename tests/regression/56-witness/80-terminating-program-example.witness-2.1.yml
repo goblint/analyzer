@@ -1,0 +1,32 @@
+# This file is part of sv-witnesses repository: https://github.com/sosy-lab/sv-witnesses
+#
+# SPDX-FileCopyrightText: 2023 Dirk Beyer <https://www.sosy-lab.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+- entry_type: "invariant_set"
+  metadata:
+    format_version: "2.1"
+    uuid: "49dcf1a5-60cf-3a62-8025-e7489b69b1dd"
+    creation_time: "2025-11-19T14:24:18+01:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.1-1300-g2b080b54e5"
+    task:
+      input_files:
+      - "terminating-program-example.c"
+      input_file_hashes:
+        "terminating-program-example.c": "6e15b951aa41ca57be7a387c0c7db4e8aac5bf5cb4ad0226ae822fa59fb80505"
+      specification: ""
+      data_model: "LP64"
+      language: "C"
+  content:
+  - invariant:
+      type: "loop_transition_invariant"
+      location:
+        file_name: "terminating-program-example.c"
+        line: 15
+        column: 5
+        function: "main"
+      value: "\\at(i, AnyPrev) > i"
+      format: "ext_c_expression"
