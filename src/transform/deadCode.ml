@@ -175,7 +175,7 @@ module RemoveDeadCode : Transform.S = struct
        the main function(s). Dead functions and globals are removed, since there is no
        chain of syntactic references to them from the main function(s). *)
     let open GoblintCil.RmUnused in
-    let@ () = GobRef.wrap keepUnused false in
+    let@ () = GobRef.wrap_ref keepUnused false in
     removeUnused
       ~isRoot:(function
           | GFun (fd, _) -> List.mem fd.svar.vname (get_string_list "mainfun")
