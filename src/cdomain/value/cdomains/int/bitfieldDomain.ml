@@ -548,7 +548,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then
           (let tmp = o1 /: o2 in (!:tmp, tmp))
           (* Arithmetic right shift rounds negative dividends down, whereas C division
-             truncates toward zero. Division by one is exact for either sign. *)
+             truncates toward zero. Division by one is exact for either sign.
+             [is_const (z2, o2)] ensures every bit is known, so z2 = ~o2
+             and o2 is the exact divisor. Thus [o2 =: Ints_t.one] below means
+             exactly one; without [is_const], o2 = 1 could also represent {0, 1}.
+             Together the guards permit an exact power-of-two divisor only when
+             it is one or the dividend cannot be negative. *)
         else if BArith.is_const (z2, o2) && BArith.is_power_of_two o2
                 && (o2 =: Ints_t.one || not (BArith.has_neg_values ik (z1, o1))) then
           let exp = Z.trailing_zeros (Ints_t.to_bigint o2) in
@@ -566,7 +571,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then
       let tmp = o1 %: o2 in (!:tmp, tmp)
       (* Low-bit masking gives a nonnegative remainder, but C remainder follows
-         the dividend's sign. Remainder modulo one is zero for either sign. *)
+         the dividend's sign. Remainder modulo one is zero for either sign.
+         As in [div], [is_const (z2, o2)] makes o2 the exact divisor, so the
+         comparison with one is a singleton test, not just a one-mask test. *)
     else if BArith.is_const (z2, o2) && BArith.is_power_of_two o2
             && (o2 =: Ints_t.one || not (BArith.has_neg_values ik (z1, o1))) then
       let mask = Ints_t.sub o2 Ints_t.one in
