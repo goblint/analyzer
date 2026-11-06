@@ -307,25 +307,13 @@ struct
     Logs.debug "r5: %a" RD.pretty r5;
     let scope = Node.find_fundec man.node in
     let e_inv = Fun.id in (* TODO: handle globals? *)
-    let vis = object
-      inherit nopCilVisitor
-
-      method! vvrbl (vi: varinfo) =
-        match TransitionInvariant.ExtVarMap.from_varinfo vi with
-        | None -> SkipChildren
-        | Some (AnyPrev vi') -> ChangeTo vi'
-    end
-    in
     let inv =
       RD.invariant r5
       |> List.to_seq
       |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
-          |> Option.filter (fun exp ->
-              let exp = visitCilExpr vis exp in
-              not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp
-            )
+          |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
         )
       |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
     in
