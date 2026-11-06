@@ -567,51 +567,54 @@ struct
       (* invalidate lval if present *)
       Option.map_default (invalidate_one ask man st') st' r
 
-  let query_invariant man context =
+  let invariant_state man context =
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
+
+    let ask = Analyses.ask_of_man man in
+
+    if ThreadFlag.has_ever_been_multi ask then (
+      let priv_vars =
+        if keep_global then
+          Priv.invariant_vars ask man.global man.local
+        else
+          [] (* avoid pointless queries *)
+      in
+      let (rel, e_inv, v_ins_inv) = read_globals_to_locals_inv ask man.global man.local priv_vars in
+      (* filter variables *)
+      let var_filter v = match RV.find_metadata v with
+        | Some (Local v) ->
+          if VH.mem v_ins_inv v then
+            keep_global
+          else if ThreadEscape.has_escaped ask v then
+            (* Escaped local variables should be read in via their v#in# variables, this apron var may refer to stale values only *)
+            (* and is not a sound description of the C variable. *)
+            false
+          else
+            keep_local
+        | _ -> false
+      in
+      let rel = RD.keep_filter rel var_filter in
+      (rel, e_inv)
+    )
+    else (
+      (* filter variables *)
+      let var_filter v = match RV.find_metadata v with
+        | Some (Global _) -> keep_global
+        | Some (Local _) -> keep_local
+        | _ -> false
+      in
+      let apr = RD.keep_filter man.local.rel var_filter in
+      (apr, Fun.id)
+    )
+
+  let query_invariant man context =
     let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
     let exact = GobConfig.get_bool "witness.invariant.exact" in
 
-    let ask = Analyses.ask_of_man man in
     let scope = Node.find_fundec man.node in
 
-    let (apr, e_inv) =
-      if ThreadFlag.has_ever_been_multi ask then (
-        let priv_vars =
-          if keep_global then
-            Priv.invariant_vars ask man.global man.local
-          else
-            [] (* avoid pointless queries *)
-        in
-        let (rel, e_inv, v_ins_inv) = read_globals_to_locals_inv ask man.global man.local priv_vars in
-        (* filter variables *)
-        let var_filter v = match RV.find_metadata v with
-          | Some (Local v) ->
-            if VH.mem v_ins_inv v then
-              keep_global
-            else if ThreadEscape.has_escaped ask v then
-              (* Escaped local variables should be read in via their v#in# variables, this apron var may refer to stale values only *)
-              (* and is not a sound description of the C variable. *)
-              false
-            else
-              keep_local
-          | _ -> false
-        in
-        let rel = RD.keep_filter rel var_filter in
-        (rel, e_inv)
-      )
-      else (
-        (* filter variables *)
-        let var_filter v = match RV.find_metadata v with
-          | Some (Global _) -> keep_global
-          | Some (Local _) -> keep_local
-          | _ -> false
-        in
-        let apr = RD.keep_filter man.local.rel var_filter in
-        (apr, Fun.id)
-      )
-    in
+    let (apr, e_inv) = invariant_state man context in
     RD.invariant apr
     |> List.to_seq
     |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
