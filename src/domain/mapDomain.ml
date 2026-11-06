@@ -234,9 +234,9 @@ struct
       )
 end
 
-module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
+module AdaptPatriciaMap (M: PatriciaTree.MAP): MapS with type key = M.key and type 'a t = 'a M.t =
 struct
-  include PatriciaTree.MakeMap (K)
+  include M
 
   (* The following intentionally do not use [(fun _ -> f)] to avoid extra closure allocations and applications from partial application. *)
   (* TODO: Benchmark this theory. *)
@@ -254,9 +254,13 @@ struct
   let choose = unsigned_min_binding
 end
 
+module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
+  AdaptPatriciaMap (PatriciaTree.MakeMap (K))
+
 module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
   type key = Domain.t and
-  type value = Range.t =
+type value = Range.t and
+type t = Range.t M.t =
 struct
   include Printable.Std
   include M
@@ -497,7 +501,8 @@ end
 
 module GenMapBot (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
-  type value = Range.t =
+type value = Range.t and
+type t = Range.t M.t =
 struct
   include GenPMap (Domain) (M) (Range)
 
@@ -539,6 +544,53 @@ end
 
 module MapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (StdMap (Domain)) (Range)
 module PatriciaMapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
+
+(** Cache the binding-hash sum on persistent subtrees, so new map versions can
+    reuse hashes of unchanged subtrees. Hashes are lazy to avoid hashing
+    intermediate maps which are never used as hash keys. *)
+module SubtreeHashCachedPatriciaMapBot (Domain: Printable.S) (Range: Lattice.S) : S with
+  type key = Domain.t and type value = Range.t =
+struct
+  module Key = struct include Domain let to_int = tag end
+  module Node =
+  struct
+    type 'key key = Domain.t
+    type ('key, 'map) value = ('key, 'map) PatriciaTree.snd
+    type 'map view =
+      | Empty : 'map view
+      | Branch : {prefix: PatriciaTree.intkey; branching_bit: PatriciaTree.mask;
+                  tree0: 'map t; tree1: 'map t} -> 'map view
+      | Leaf : {key: 'key key; value: ('key, 'map) value} -> 'map view
+    and 'map t = TEmpty | TNode of {view: 'map view; mutable cached_hash: int option}
+
+    let view = function TEmpty -> Empty | TNode n -> n.view
+    let empty = TEmpty
+    let is_empty = function TEmpty -> true | _ -> false
+    let leaf key value = TNode {view = Leaf {key; value}; cached_hash = None}
+    let branch ~prefix ~branching_bit ~tree0 ~tree1 =
+      if is_empty tree0 then tree1
+      else if is_empty tree1 then tree0
+      else TNode {view = Branch {prefix; branching_bit; tree0; tree1}; cached_hash = None}
+
+    (* Only Range.t maps escape this functor, and this is the only hash function
+       used with these nodes. Keys and values must have stable hashes, as for
+       the existing whole-map HashCached wrapper. *)
+    let rec hash : Range.t t -> int = function
+      | TEmpty -> 0
+      | TNode {cached_hash = Some h; _} -> h
+      | TNode n ->
+        let h = match n.view with
+          | Empty -> 0
+          | Leaf {key; value = PatriciaTree.Snd value} -> Domain.hash key * Range.hash value
+          | Branch {tree0; tree1; _} -> hash tree0 + hash tree1
+        in
+        n.cached_hash <- Some h;
+        h
+  end
+  module Tree = PatriciaTree.MakeCustomMap (Key) (struct type 'a t = 'a end) (Node)
+  include GenMapBot (Domain) (AdaptPatriciaMap (Tree)) (Range)
+  let hash = Node.hash
+end
 
 module GenMapTop (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
