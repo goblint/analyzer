@@ -303,14 +303,6 @@ struct
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-      let vinfo =
-        match V.find_metadata v with
-        | Some (Arg v') ->
-          {v' with vname = ("\\at(" ^ v'.vname ^ ", AnyPrev)")} (* with i - i' > 0 *)
-          (* {v' with vname = ("\\at(" ^ v'.vname ^ ", LastPrev)")} (* with i - i' - 1 = 0 *) *)
-        | _ ->
-          vinfo
-      in
       let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let i = int_of_coeff_warn ~scalewith c in
       if Z.equal i Z.one then
