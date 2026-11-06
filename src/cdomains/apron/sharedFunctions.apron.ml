@@ -534,7 +534,6 @@ sig
 
   val env: t -> Environment.t
 
-  val meet_tcons: Queries.ask -> t -> Tcons1.t -> exp -> t
   val assert_constraint: Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_interval : Queries.ask -> t -> Texpr1.t -> (Z.t option * Z.t option) option
 end
