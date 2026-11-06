@@ -42,3 +42,23 @@
           function: main
         value: (long long )i >= (long long )\at(i, AnyPrev) + 1LL
         format: ext_c_expression
+
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 6
+    dead: 0
+    total lines: 6
+  [Success][Witness] invariant confirmed: 1U <= i (01-simple-loop-terminating.c:8:3)
+  [Success][Witness] invariant confirmed: i <= 11U (01-simple-loop-terminating.c:8:3)
+  [Warning][Witness] invariant unconfirmed: (long long )i >= (long long )\at(i, AnyPrev) + 1LL (01-simple-loop-terminating.c:8:3)
+  [Info][Witness] witness validation summary:
+    confirmed: 2
+    unconfirmed: 1
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 3
