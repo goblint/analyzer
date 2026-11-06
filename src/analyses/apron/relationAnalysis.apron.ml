@@ -630,32 +630,35 @@ struct
     |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let transition_state ask apr =
-    let r1 = apr in
-    let r1vars = RD.vars r1 in
-    let r1vars' = List.map (fun var ->
+    let vars = RD.vars apr in
+    let anyprev_vars = List.map (fun var ->
         match RV.find_metadata var with
         | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
         | Some (Global x) -> RV.global (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
         | _ -> assert false (* should be filtered out by invariant_state *)
-      ) r1vars
+      ) vars
     in
-    let r2 = RD.add_vars r1 r1vars' in
-    let r2' = RD.assign_var_parallel' r2 r1vars' r1vars in
-    let r3 = RD.keep_vars r2' r1vars' in
-    let r4 = RD.unify r1 r3 in
-    let r5 =
+    let anyprev_apr = (* apr, but all vars have been replaced with corresponding AnyPrev vars while maintaining their relations *)
+      let apr' = RD.add_vars apr anyprev_vars in
+      let apr' = RD.assign_var_parallel' apr' anyprev_vars vars in
+      RD.keep_vars apr' anyprev_vars
+    in
+    let unified_apr = RD.unify apr anyprev_apr in (* unified state without relations between original and AnyPrev vars *)
+    let transition_apr = (* unified state with relations between original and AnyPrev vars via termination loop counters *)
       List.fold_left (fun acc var ->
           match RV.to_cil_varinfo var with
           | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
-            let vi' = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
-            let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var {vi' with vglob = vi.vglob})) (Lval (Cil.var vi)) in (* RichVarinfo-s are all global, so make local if vi is local for assert_inv check to pass *)
+            assert (not vi.vglob); (* loop counters should all be local *)
+            let anyprev_vi = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
+            let anyprev_vi' = {anyprev_vi with vglob = false} in (* RichVarinfo-s are all global, so make local for assert_inv check to pass *)
+            let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var anyprev_vi')) (Lval (Cil.var vi)) in
             let acc' = RD.assert_inv ask acc exp false (lazy false) in
-            RD.remove_vars acc' [RV.local vi; RV.local vi']
+            RD.remove_vars acc' [RV.local vi; RV.local anyprev_vi] (* project out loop counters *)
           | _ ->
             acc
-        ) r4 r1vars
+        ) unified_apr vars
     in
-    r5
+    transition_apr
 
   let query_invariant_transition man =
     let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
