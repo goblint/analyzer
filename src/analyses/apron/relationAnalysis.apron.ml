@@ -281,7 +281,7 @@ struct
     let r1vars = RD.vars r1 in
     let r1vars' = List.map (fun var ->
         match RV.find_metadata var with
-        | Some (Local x) -> RV.arg x
+        | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
         | _ -> assert false
       ) r1vars
     in
@@ -298,10 +298,11 @@ struct
           | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
             let open Apron in
             let env = RD.env acc in
-            let tcons1 = Tcons1.make Texpr1.(binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) Lincons1.SUP in (* with AnyPrev *)
-            (* let tcons1 = Tcons1.make Texpr1.(binop Sub (binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) (cst env (Coeff.s_of_int 1)) Int Zero) Lincons1.EQ in (* with LastPrev *) *)
+            let vi' = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
+            let tcons1 = Tcons1.make Texpr1.(binop Sub (var env (RV.local vi)) (var env (RV.local vi')) Int Zero) Lincons1.SUP in (* with AnyPrev *)
+            (* let tcons1 = Tcons1.make Texpr1.(binop Sub (binop Sub (var env (RV.local vi)) (var env (RV.local vi')) Int Zero) (cst env (Coeff.s_of_int 1)) Int Zero) Lincons1.EQ in (* with LastPrev *) *)
             let acc' = RD.meet_tcons ask acc tcons1 MyCFG.unknown_exp (lazy false) in
-            RD.remove_vars acc' [RV.local vi; RV.arg vi]
+            RD.remove_vars acc' [RV.local vi; RV.local vi']
           | _ ->
             acc
         ) r4 r1vars
@@ -309,13 +310,25 @@ struct
     Logs.debug "r5: %a" RD.pretty r5;
     let scope = Node.find_fundec man.node in
     let e_inv = Fun.id in (* TODO: handle globals? *)
+    let vis = object
+      inherit nopCilVisitor
+
+      method! vvrbl (vi: varinfo) =
+        match TransitionInvariant.ExtVarMap.from_varinfo vi with
+        | None -> SkipChildren
+        | Some (AnyPrev vi') -> ChangeTo vi'
+    end
+    in
     let inv =
       RD.invariant r5
       |> List.to_seq
       |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
+          |> Option.filter (fun exp ->
+              let exp = visitCilExpr vis exp in
+              not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp
+            )
         )
       |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
     in
