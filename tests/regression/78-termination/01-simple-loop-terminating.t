@@ -52,10 +52,10 @@
     total lines: 6
   [Success][Witness] invariant confirmed: 1U <= i (01-simple-loop-terminating.c:8:3)
   [Success][Witness] invariant confirmed: i <= 11U (01-simple-loop-terminating.c:8:3)
-  [Warning][Witness] invariant unconfirmed: (long long )i >= (long long )\at(i, AnyPrev) + 1LL (01-simple-loop-terminating.c:8:3)
+  [Success][Witness] invariant confirmed: (long long )i >= (long long )\at(i, AnyPrev) + 1LL (01-simple-loop-terminating.c:8:3)
   [Info][Witness] witness validation summary:
-    confirmed: 2
-    unconfirmed: 1
+    confirmed: 3
+    unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0

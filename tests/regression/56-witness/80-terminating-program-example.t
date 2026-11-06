@@ -81,10 +81,10 @@
   [Success][Witness] invariant confirmed: i <= 5 (80-terminating-program-example.c:15:5)
   [Success][Witness] invariant confirmed: j <= 3 (80-terminating-program-example.c:15:5)
   [Success][Witness] invariant confirmed: (long long )j + (long long )i == 6LL (80-terminating-program-example.c:15:5)
-  [Warning][Witness] invariant unconfirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (80-terminating-program-example.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (80-terminating-program-example.c:15:5)
   [Info][Witness] witness validation summary:
-    confirmed: 5
-    unconfirmed: 1
+    confirmed: 6
+    unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
@@ -98,10 +98,10 @@
     live: 7
     dead: 0
     total lines: 7
-  [Warning][Witness] invariant unconfirmed: \at(i, AnyPrev) > i (80-terminating-program-example.c:15:5)
+  [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (80-terminating-program-example.c:15:5)
   [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 1
+    confirmed: 1
+    unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0

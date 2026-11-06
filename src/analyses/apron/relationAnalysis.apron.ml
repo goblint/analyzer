@@ -724,6 +724,7 @@ struct
       if M.tracing then M.traceu "evalint" "relation query %a -> %a" d_exp e ID.pretty r;
       r
     | EvalTransitionInt e ->
+      let e = Cilfacade.stripOuterBoolCast e in (* For normal EvalInt these are stripped by base *)
       if M.tracing then M.traceli "evaltransitionint" "relation query %a (%a)" d_exp e d_plainexp e;
       if M.tracing then M.trace "evaltransitionint" "relation st: %a" D.pretty man.local;
       let r = eval_transition_int e (no_overflow (Analyses.ask_of_man man) e) in
