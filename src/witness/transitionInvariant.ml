@@ -53,6 +53,8 @@ let exp_is_suitable ?scope e =
 
 module InvariantParser (Base: module type of WitnessUtil.InvariantParser) =
 struct
+  open GobResult.Syntax
+
   let parse_cabs inv =
     let regexp = Str.regexp {|\\at(\([a-z]+\), *AnyPrev)|} in
     let vars' = ref [] in
@@ -62,9 +64,17 @@ struct
         Printf.sprintf "__at_%s_AnyPrev__" m
       ) inv
     in
-    let open GobResult.Syntax in
     let+ inv_cabs = Base.parse_cabs inv' in
     (inv_cabs, vars')
+
+  let var_fix_visitor = object
+    inherit nopCilVisitor
+
+    method! vvrbl (vi: varinfo) =
+      match ExtVarMap.from_varinfo vi with
+      | None -> SkipChildren
+      | Some v -> ChangeTo (ExtVarMap.to_varinfo v)
+  end
 
   let parse_cil inv_parser ?check ~fundec ~loc (inv_cabs, vars') =
     let locals' =
@@ -78,5 +88,6 @@ struct
         fundec with slocals = locals' @ fundec.slocals
       }
     in
-    Base.parse_cil inv_parser ?check ~fundec:fundec' ~loc inv_cabs
+    let+ e = Base.parse_cil inv_parser ?check ~fundec:fundec' ~loc inv_cabs in
+    visitCilExpr var_fix_visitor e (* replace varinfos with renamed vname with unrenamed ExtVars varinfos *)
 end
