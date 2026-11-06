@@ -34,6 +34,7 @@ Vojdani succeeds on all.
     location invariants: 7
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -123,6 +124,7 @@ Protection does not succeed on check in main.
     location invariants: 10
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -239,6 +241,7 @@ Protection-read succeeds on all.
     location invariants: 7
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 1

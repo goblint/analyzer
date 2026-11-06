@@ -231,6 +231,7 @@ struct
     let cnt_loop_invariant = ref 0 in
     let cnt_location_invariant = ref 0 in
     let cnt_flow_insensitive_invariant = ref 0 in
+    let cnt_loop_transition_invariant = ref 0 in
 
     let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
 
@@ -349,7 +350,7 @@ struct
                         (* add_invariant_vars inv; *) (* TODO: ? *)
                         let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_transition_invariant ~location ~invariant in
-                        incr cnt_loop_invariant; (* TODO: separate counter? *)
+                        incr cnt_loop_transition_invariant;
                         invariant :: acc
                       ) acc invs
                   | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -456,6 +457,7 @@ struct
       (Pretty.dprintf "location invariants: %d" !cnt_location_invariant, None);
       (Pretty.dprintf "loop invariants: %d" !cnt_loop_invariant, None);
       (Pretty.dprintf "flow-insensitive invariants: %d" !cnt_flow_insensitive_invariant, None);
+      (Pretty.dprintf "loop transition invariants: %d" !cnt_loop_transition_invariant, None);
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 

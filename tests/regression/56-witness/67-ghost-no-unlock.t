@@ -8,6 +8,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 2
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1

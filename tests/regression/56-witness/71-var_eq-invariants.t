@@ -7,6 +7,7 @@
     location invariants: 3
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
 With 4 equal variables, there should be just 3 var_eq invariants, not 6.

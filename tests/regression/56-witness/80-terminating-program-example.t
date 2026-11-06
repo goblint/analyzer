@@ -9,8 +9,9 @@ TODO: Should not outout Apron overflow warning about term variable? ID is probab
   [Warning][Analyzer] Invariant Apron: cannot convert to cil var in overflow preserving manner: term15_5_id0#658
   [Info][Witness] witness generation summary:
     location invariants: 0
-    loop invariants: 6
+    loop invariants: 5
     flow-insensitive invariants: 0
+    loop transition invariants: 1
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
