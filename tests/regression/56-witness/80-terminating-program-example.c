@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: 2023 Dirk Beyer <https://www.sosy-lab.org>
 //
 // SPDX-License-Identifier: Apache-2.0
-
+// CRAM
 typedef enum {false, true} bool;
 
 extern int __VERIFIER_nondet_int(void);
