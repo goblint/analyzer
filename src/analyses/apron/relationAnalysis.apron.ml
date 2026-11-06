@@ -677,6 +677,7 @@ struct
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
+          |> Option.filter TransitionInvariant.exp_has_transition (* exclude invariants entirely on normal variables (duplicating normal invariants) or entirely on AnyPrev variables (also redundant) *)
           |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
         )
         else
