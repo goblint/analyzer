@@ -532,6 +532,7 @@ struct
   module LvarS = Locator.ES
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
+  module TransitionInvariantParser = TransitionInvariant.InvariantParser (InvariantParser)
   module VR = ValidationResult
   module FundecH = GobHashtbl.Make (CilType.Fundec)
 
@@ -621,35 +622,12 @@ struct
       let validate_lvars_transition_invariant ~loc ~lvars inv =
         let msgLoc: M.Location.t = CilLocation loc in
 
-        let regexp = Str.regexp {|\\at(\([a-z]+\), *AnyPrev)|} in
-        let vars' = ref [] in
-        let inv' = Str.global_substitute regexp (fun m ->
-            let m = Str.matched_group 1 m in
-            vars' := m :: !vars';
-            Printf.sprintf "__at_%s_AnyPrev__" m
-          ) inv
-        in
-        Logs.info "inv': %s" inv';
-        let inv = inv' in
-
-        match InvariantParser.parse_cabs inv with
+        match TransitionInvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
           (* do parse_cil at most once per function *)
           let memo = FundecH.create 1 in (* loc should just be in one function *)
           let parse_cil fundec =
-            let locals' =
-              List.map (fun var' ->
-                  match List.find (fun local -> local.vname = var') fundec.slocals with
-                  | local -> {local with vname = Printf.sprintf "__at_%s_AnyPrev__" var'}
-                  | exception Not_found -> failwith "TODO"
-                ) !vars'
-            in
-            let fundec' = {
-                fundec with slocals = locals' @ fundec.slocals
-              }
-            in
-            (* don't check because intentional conflict *)
-            InvariantParser.parse_cil inv_parser ~check:false ~fundec:fundec' ~loc inv_cabs
+            TransitionInvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs
           in
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->

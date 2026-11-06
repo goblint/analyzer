@@ -50,3 +50,34 @@ let exp_is_suitable ?scope e =
   let e = visitCilExpr var_replace_with_original_visitor e in (* replace extended vars with originals, so scope check passes (RichVarinfo-s are all global) *)
   not (exp_contains_tmp e || exp_contains_anon_comp_offset e) && GobOption.for_all (fun scope -> exp_is_in_scope scope e) scope
 
+
+module InvariantParser (Base: module type of WitnessUtil.InvariantParser) =
+struct
+  let parse_cabs inv =
+    let regexp = Str.regexp {|\\at(\([a-z]+\), *AnyPrev)|} in
+    let vars' = ref [] in
+    let inv' = Str.global_substitute regexp (fun m ->
+        let m = Str.matched_group 1 m in
+        vars' := m :: !vars';
+        Printf.sprintf "__at_%s_AnyPrev__" m
+      ) inv
+    in
+    let open GobResult.Syntax in
+    let+ inv_cabs = Base.parse_cabs inv' in
+    (inv_cabs, vars')
+
+  let parse_cil inv_parser ?check ~fundec ~loc (inv_cabs, vars') =
+    let locals' =
+      List.map (fun var' ->
+          match List.find (fun local -> local.vname = var') fundec.slocals with
+          | local -> {local with vname = Printf.sprintf "__at_%s_AnyPrev__" var'}
+          | exception Not_found -> failwith "TODO"
+        ) !vars'
+    in
+    let fundec' = {
+        fundec with slocals = locals' @ fundec.slocals
+      }
+    in
+    (* don't check because intentional conflict *)
+    Base.parse_cil inv_parser ~check:false ~fundec:fundec' ~loc inv_cabs
+end
