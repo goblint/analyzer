@@ -298,8 +298,8 @@ struct
           | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
             let open Apron in
             let env = RD.env acc in
-            (* let tcons1 = Tcons1.make Texpr1.(binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) Lincons1.SUP in (* with AnyPrev *) *)
-            let tcons1 = Tcons1.make Texpr1.(binop Sub (binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) (cst env (Coeff.s_of_int 1)) Int Zero) Lincons1.EQ in (* with LastPrev *)
+            let tcons1 = Tcons1.make Texpr1.(binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) Lincons1.SUP in (* with AnyPrev *)
+            (* let tcons1 = Tcons1.make Texpr1.(binop Sub (binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) (cst env (Coeff.s_of_int 1)) Int Zero) Lincons1.EQ in (* with LastPrev *) *)
             let acc' = RD.meet_tcons ask acc tcons1 MyCFG.unknown_exp (lazy false) in
             RD.remove_vars acc' [RV.local vi; RV.arg vi]
           | _ ->

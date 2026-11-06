@@ -41,6 +41,6 @@ TODO: Should not outout Apron overflow warning about term variable? ID is probab
           line: 8
           column: 3
           function: main
-        value: (long long )\at(i, LastPrev) + 1LL == (long long )i && (long long )i
-          >= 2LL
+        value: (long long )\at(i, AnyPrev) >= 1LL && (long long )i >= (long long )\at(i,
+          AnyPrev) + 1LL
         format: ext_c_expression
