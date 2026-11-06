@@ -217,7 +217,7 @@ sig
   val mem_var : t -> Var.t -> bool
   val assign_var_parallel' :
     t -> Var.t list -> Var.t list -> t
-  val meet_tcons : Queries.ask -> t -> Tcons1.t -> exp -> bool Lazy.t -> t
+  val meet_tcons : Queries.ask -> t -> Tcons1.t -> exp -> t
   val to_lincons_array : t -> Lincons1.earray
   val of_lincons_array : Lincons1.earray -> t
 
@@ -396,7 +396,7 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
-  let meet_tcons _ d tcons1 e _ =
+  let meet_tcons _ d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
@@ -541,7 +541,7 @@ struct
           if M.tracing then M.trace "apron" "assert_constraint %a %a" d_exp e Tcons1.pretty tcons1;
           if M.tracing then M.trace "apron" "assert_constraint st: %a" D.pretty d;
           if M.tracing then M.trace "apron" "assert_constraint tcons1: %a" Tcons1.pretty tcons1;
-          let r = meet_tcons ask d tcons1 e () in
+          let r = meet_tcons ask d tcons1 e in
           if M.tracing then M.trace "apron" "assert_constraint r: %a" D.pretty r;
           r
         | exception Convert.Unsupported_CilExp reason ->

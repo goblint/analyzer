@@ -129,7 +129,7 @@ sig
   val unmarshal: marshal -> t
   val mem_var: t -> var -> bool
   val env: t -> Environment.t
-  val meet_tcons: Queries.ask -> t -> Tcons1.t -> exp -> bool Lazy.t -> t
+  val meet_tcons: Queries.ask -> t -> Tcons1.t -> exp -> t
   val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : Queries.ask -> t -> exp -> bool Lazy.t -> Queries.ID.t
 end
