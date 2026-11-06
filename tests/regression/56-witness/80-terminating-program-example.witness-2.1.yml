@@ -14,9 +14,9 @@
       version: "4.1-1300-g2b080b54e5"
     task:
       input_files:
-      - "terminating-program-example.c"
+      - "80-terminating-program-example.c"
       input_file_hashes:
-        "terminating-program-example.c": "6e15b951aa41ca57be7a387c0c7db4e8aac5bf5cb4ad0226ae822fa59fb80505"
+        "80-terminating-program-example.c": "6e15b951aa41ca57be7a387c0c7db4e8aac5bf5cb4ad0226ae822fa59fb80505"
       specification: ""
       data_model: "LP64"
       language: "C"
@@ -24,7 +24,7 @@
   - invariant:
       type: "loop_transition_invariant"
       location:
-        file_name: "terminating-program-example.c"
+        file_name: "80-terminating-program-example.c"
         line: 15
         column: 5
         function: "main"

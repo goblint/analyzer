@@ -1,16 +1,15 @@
-TODO: Should not outout Apron overflow warning about term variable? ID is probably not stable.
-
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
     total lines: 6
-  [Warning][Analyzer] Invariant Apron: cannot convert to cil var in overflow preserving manner: term8_3_id0#1129
+  [Warning][Analyzer] Invariant Apron: cannot convert to cil var in overflow preserving manner: $TERM
   [Info][Witness] witness generation summary:
     location invariants: 0
-    loop invariants: 3
+    loop invariants: 2
     flow-insensitive invariants: 0
+    loop transition invariants: 1
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -41,6 +40,5 @@ TODO: Should not outout Apron overflow warning about term variable? ID is probab
           line: 8
           column: 3
           function: main
-        value: (long long )\at(i, LastPrev) + 1LL == (long long )i && (long long )i
-          >= 2LL
+        value: (long long )i >= (long long )\at(i, AnyPrev) + 1LL
         format: ext_c_expression
