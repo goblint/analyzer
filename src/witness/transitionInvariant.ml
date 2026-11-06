@@ -70,7 +70,7 @@ struct
     let locals' =
       List.map (fun var' ->
           match List.find (fun local -> local.vname = var') fundec.slocals with
-          | local -> {local with vname = Printf.sprintf "__at_%s_AnyPrev__" var'}
+          | local -> {(ExtVarMap.to_varinfo (AnyPrev local)) with vname = Printf.sprintf "__at_%s_AnyPrev__" var'}
           | exception Not_found -> failwith "TODO"
         ) !vars'
     in
@@ -78,6 +78,5 @@ struct
         fundec with slocals = locals' @ fundec.slocals
       }
     in
-    (* don't check because intentional conflict *)
-    Base.parse_cil inv_parser ~check:false ~fundec:fundec' ~loc inv_cabs
+    Base.parse_cil inv_parser ?check ~fundec:fundec' ~loc inv_cabs
 end

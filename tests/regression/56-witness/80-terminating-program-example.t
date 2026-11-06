@@ -98,11 +98,11 @@
     live: 7
     dead: 0
     total lines: 7
-  [Error][Witness] invariant refuted: \at(i, AnyPrev) > i (80-terminating-program-example.c:15:5)
+  [Warning][Witness] invariant unconfirmed: \at(i, AnyPrev) > i (80-terminating-program-example.c:15:5)
   [Info][Witness] witness validation summary:
     confirmed: 0
-    unconfirmed: 0
-    refuted: 1
+    unconfirmed: 1
+    refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0
