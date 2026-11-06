@@ -51,13 +51,13 @@ let exp_is_suitable ?scope e =
   not (exp_contains_tmp e || exp_contains_anon_comp_offset e) && GobOption.for_all (fun scope -> exp_is_in_scope scope e) scope
 
 
-let var_replace_with_local_visitor = object
+let extvar_localize_visitor = object
   inherit nopCilVisitor
 
   method! vvrbl (vi: varinfo) =
     match ExtVarMap.from_varinfo vi with
     | None -> SkipChildren
-    | Some (AnyPrev vi') -> ChangeTo {vi with vglob = vi'.vglob}
+    | Some (AnyPrev vi') -> ChangeTo {vi with vglob = vi'.vglob} (* still ExtVar but with original locality *)
 end
 
 

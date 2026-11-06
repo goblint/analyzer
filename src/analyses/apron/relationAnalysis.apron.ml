@@ -706,7 +706,7 @@ struct
         (fun rel' e' -> RD.eval_int ask rel' e' no_ov)
     in
     let eval_transition_int e no_ov =
-      let e = visitCilExpr TransitionInvariant.var_replace_with_local_visitor e in
+      let e = visitCilExpr TransitionInvariant.extvar_localize_visitor e in (* RichVarinfo-s are global by default, but make AnyPrev-s of locals local for Apron expression conversion *)
       let esimple = replace_deref_exps man.ask e in
       read_from_globals_wrapper
         ask
