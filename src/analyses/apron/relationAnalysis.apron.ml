@@ -705,12 +705,14 @@ struct
         (fun rel' e' -> RD.eval_int (Analyses.ask_of_man man) rel' e' no_ov)
     in
     let eval_transition_int e no_ov =
+      let e = visitCilExpr TransitionInvariant.var_replace_with_local_visitor e in
       let esimple = replace_deref_exps man.ask e in
       read_from_globals_wrapper
         (Analyses.ask_of_man man)
         man.global st esimple
         (fun rel' e' ->
           let rel' = transition_state (Analyses.ask_of_man man) rel' in
+          if M.tracing then M.trace "evaltransitionint" "relation transition rel': %a" RD.pretty rel';
           RD.eval_int (Analyses.ask_of_man man) rel' e' no_ov
         )
     in
