@@ -81,14 +81,14 @@
   [Success][Witness] invariant confirmed: i <= 5 (80-terminating-program-example.c:15:5)
   [Success][Witness] invariant confirmed: j <= 3 (80-terminating-program-example.c:15:5)
   [Success][Witness] invariant confirmed: (long long )j + (long long )i == 6LL (80-terminating-program-example.c:15:5)
-  [Warning][Witness] cannot validate invariant of type loop_transition_invariant
+  [Success][Witness] invariant confirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (80-terminating-program-example.c:15:5)
   [Info][Witness] witness validation summary:
-    confirmed: 5
+    confirmed: 6
     unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
-    unsupported: 1
+    unsupported: 0
     disabled: 0
     total validation entries: 6
 
@@ -98,13 +98,13 @@
     live: 7
     dead: 0
     total lines: 7
-  [Warning][Witness] cannot validate invariant of type loop_transition_invariant
+  [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (80-terminating-program-example.c:15:5)
   [Info][Witness] witness validation summary:
-    confirmed: 0
+    confirmed: 1
     unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
-    unsupported: 1
+    unsupported: 0
     disabled: 0
     total validation entries: 1

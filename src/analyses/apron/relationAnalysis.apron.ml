@@ -696,20 +696,40 @@ struct
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
+    let ask = Analyses.ask_of_man man in
     let st = man.local in
     let eval_int e no_ov =
       let esimple = replace_deref_exps man.ask e in
       read_from_globals_wrapper
-        (Analyses.ask_of_man man)
+        ask
         man.global st esimple
-        (fun rel' e' -> RD.eval_int (Analyses.ask_of_man man) rel' e' no_ov)
+        (fun rel' e' -> RD.eval_int ask rel' e' no_ov)
+    in
+    let eval_transition_int e no_ov =
+      let e = visitCilExpr TransitionInvariant.extvar_localize_visitor e in (* RichVarinfo-s are global by default, but make AnyPrev-s of locals local for Apron expression conversion *)
+      let esimple = replace_deref_exps man.ask e in
+      read_from_globals_wrapper
+        ask
+        man.global st esimple
+        (fun rel' e' ->
+          let rel' = transition_state ask rel' in
+          if M.tracing then M.trace "evaltransitionint" "relation transition rel': %a" RD.pretty rel';
+          RD.eval_int ask rel' e' no_ov
+        )
     in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a" D.pretty man.local;
-      let r = eval_int e (no_overflow (Analyses.ask_of_man man) e) in
+      let r = eval_int e (no_overflow ask e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a" d_exp e ID.pretty r;
+      r
+    | EvalTransitionInt e ->
+      let e = Cilfacade.stripOuterBoolCast e in (* For normal EvalInt these are stripped by base *)
+      if M.tracing then M.traceli "evaltransitionint" "relation query %a (%a)" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evaltransitionint" "relation st: %a" D.pretty man.local;
+      let r = eval_transition_int e (no_overflow ask e) in
+      if M.tracing then M.traceu "evaltransitionint" "relation query %a -> %a" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
