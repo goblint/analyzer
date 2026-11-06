@@ -35,16 +35,15 @@ struct
   let size_of_type_in_bytes typ =
     SizeDomain.of_int (Z.of_int (Cilfacade.bytesSizeOf typ))
 
-  let offs_lt_zero offs =
-    try ID.lt offs (IndexDomain.of_int Z.zero)
-    with IntDomain.ArithmeticOnIntegerBot _ -> None
+  let offs_lt_zero offs = ID.lt offs (IndexDomain.of_int Z.zero)
 
   let check_offset_bounds (ptr_size: SizeDomain.t) (offs: IndexDomain.t) =
+    let offs_as_size = SizeDomain.of_index offs in
     let ptr_size_le_offs =
-      try
-        SizeDomain.le ptr_size (SizeDomain.of_index offs)
-      with IntDomain.ArithmeticOnIntegerBot _ -> (* happens if offs is definitely negative *)
+      if SizeDomain.is_bot offs_as_size then (* happens if offs is definitely negative *)
         Some false (* then definitely before the end *)
+      else
+        SizeDomain.le ptr_size offs_as_size
     in
     offs_lt_zero offs, ptr_size_le_offs
 
@@ -99,8 +98,7 @@ struct
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           begin
             let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-            try SizeDomain.mul item_typ_size_in_bytes arr_len
-            with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
+            SizeDomain.mul item_typ_size_in_bytes arr_len
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
@@ -267,10 +265,7 @@ struct
       let casted_ao = IndexDomain.lift addr_offs in
       let dest_size_lt_count =
         let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-        try
-          SizeDomain.lt ds (SizeDomain.add casted_en (SizeDomain.of_index casted_ao))
-        with IntDomain.ArithmeticOnIntegerBot _ -> (* happens if add is definitely negative *)
-          Some false (* then definitely before the end *)
+        SizeDomain.lt ds (SizeDomain.add casted_en (SizeDomain.of_index casted_ao))
       in
       match dest_size_lt_count with
       | Some true ->

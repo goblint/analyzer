@@ -421,8 +421,6 @@ sig
 
   module BISet: SetDomain.S with type elt = Z.t
 
-  exception ArithmeticOnIntegerBot of string
-
   exception Unknown
   (** An exception that can be raised when the result of a computation is unknown.
     * This is caught by lifted domains and will be replaced by top. *)

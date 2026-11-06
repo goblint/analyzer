@@ -12,8 +12,6 @@ let (|?) = Batteries.(|?)
 exception IncompatibleIKinds of string
 exception Unknown
 exception Error
-exception ArithmeticOnIntegerBot of string
-
 
 
 

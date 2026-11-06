@@ -383,10 +383,7 @@ struct
       (* The good case: *)
       | `Definite x, `Definite y ->
         (try `Definite (f x y) with | Division_by_zero -> top_overflow ())
-      | `Bot, `Bot -> `Bot
-      | _ ->
-        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+      | `Bot, _ | _, `Bot -> `Bot)
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
@@ -402,10 +399,7 @@ struct
     | `Excluded (s,r), `Definite x -> def_exc (Batteries.flip f) x s r
     (* The good case: *)
     | `Definite x, `Definite y -> `Definite (f x y)
-    | `Bot, `Bot -> `Bot
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | `Bot, _ | _, `Bot -> `Bot
 
   (* The equality check: *)
   let eq ik x y = match x,y with
@@ -417,10 +411,7 @@ struct
     | `Excluded (s,r), `Definite x -> if S.mem x s then Some false else None
     (* The good case: *)
     | `Definite x, `Definite y -> Some (x = y)
-    | `Bot, `Bot -> None
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | `Bot, _ | _, `Bot -> None
 
   (* The inequality check: *)
   let ne ik x y = match x,y with
@@ -432,10 +423,7 @@ struct
     | `Excluded (s,r), `Definite x -> if S.mem x s then Some true else None
     (* The good case: *)
     | `Definite x, `Definite y -> Some (x <> y)
-    | `Bot, `Bot -> None
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | `Bot, _ | _, `Bot -> None
 
   let neg ?no_ov ik (x :t) = norm ik @@ lift1 Z.neg ik x
   let add ?no_ov ik x y = norm ik @@ lift2_inj Z.add ik x y
@@ -454,9 +442,7 @@ struct
 
   (* Comparison handling copied from Enums. *)
   let handle_bot x y f = match x, y with
-    | `Bot, `Bot -> None
-    | `Bot, _
-    | _, `Bot -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | `Bot, _ | _, `Bot -> None
     | _, _ -> f ()
 
   let lt ik x y =
@@ -516,10 +502,7 @@ struct
       (* The good case: *)
       | `Definite x, `Definite y ->
         (try `Definite (Z.logand x y) with | Division_by_zero -> top_of ik)
-      | `Bot, `Bot -> `Bot
-      | _ ->
-        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+      | `Bot, _ | _, `Bot -> `Bot)
 
   let logor ik x y = norm ik (match x,y with
       | `Excluded (_, ((r1, r2) as r)), `Definite i
@@ -533,10 +516,7 @@ struct
       | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
       | `Definite x, `Definite y ->
         (try `Definite (Z.logor x y) with | Division_by_zero -> top_of ik)
-      | `Bot, `Bot -> `Bot
-      | _ ->
-        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+      | `Bot, _ | _, `Bot -> `Bot)
 
   let logxor ik x y = norm ik (match x,y with
       | `Definite i, `Excluded (_, (r1, r2))
@@ -556,10 +536,7 @@ struct
       (* The good case: *)
       | `Definite x, `Definite y ->
         (try `Definite (Z.logxor x y) with | Division_by_zero -> top_of ik)
-      | `Bot, `Bot -> `Bot
-      | _ ->
-        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
+      | `Bot, _ | _, `Bot -> `Bot)
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)
