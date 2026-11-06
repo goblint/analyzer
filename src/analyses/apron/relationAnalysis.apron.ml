@@ -636,7 +636,6 @@ struct
         | _ -> false
       )
     in
-    Logs.debug "r1: %a" RD.pretty r1;
     let r1vars = RD.vars r1 in
     let r1vars' = List.map (fun var ->
         match RV.find_metadata var with
@@ -647,9 +646,6 @@ struct
     let r2 = RD.add_vars r1 r1vars' in
     let r2' = RD.assign_var_parallel' r2 r1vars' r1vars in
     let r3 = RD.keep_vars r2' r1vars' in
-    Logs.debug "r3: %a" RD.pretty r3;
-    (* let r3' = RD.assr3 in *)
-    (* Logs.debug "r3': %a" RD.pretty r3'; *)
     let r4 = RD.unify r1 r3 in
     let r5 =
       List.fold_left (fun acc var ->
@@ -663,7 +659,6 @@ struct
             acc
         ) r4 r1vars
     in
-    Logs.debug "r5: %a" RD.pretty r5;
     r5
 
   let query_invariant_transition man =
@@ -675,24 +670,20 @@ struct
 
     let (apr, e_inv) = invariant_state man context in
     let apr' = transition_state ask apr in
-    let inv =
-      RD.invariant apr'
-      |> List.to_seq
-      |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
-          (* filter one-vars and exact *)
-          (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
-          if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
-            RD.cil_exp_of_lincons1 lincons1
-            |> Option.map e_inv
-            |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
-          )
-          else
-            None
+    RD.invariant apr'
+    |> List.to_seq
+    |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+        (* filter one-vars and exact *)
+        (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
+        if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
+          RD.cil_exp_of_lincons1 lincons1
+          |> Option.map e_inv
+          |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
         )
-      |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
-    in
-    Logs.debug "inv: %a" Invariant.pretty inv;
-    inv
+        else
+          None
+      )
+    |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query_invariant_global man g =
     if GobConfig.get_bool "ana.relation.invariant.global" && man.ask (GhostVarAvailable Multithreaded) then (
