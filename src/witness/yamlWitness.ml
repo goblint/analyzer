@@ -344,10 +344,9 @@ struct
                     let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                     let location_function = fundec.svar.vname in
                     let location = Entry.location ~location:loc ~location_function in
-                    (* let invs = WitnessUtil.InvariantExp.process_exp inv in *)
-                    let invs = [inv] in (* TODO: not processing because original_name replacement removes \at names *)
+                    let invs = Invariant.Exp.process inv in
                     List.fold_left (fun acc inv ->
-                        (* add_invariant_vars inv; *) (* TODO: ? *)
+                        add_invariant_vars inv;
                         let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_transition_invariant ~location ~invariant in
                         incr cnt_loop_transition_invariant;
