@@ -1,12 +1,10 @@
-TODO: Should not outout Apron overflow warning about term variable? ID is probably not stable.
-
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
     total lines: 6
-  [Warning][Analyzer] Invariant Apron: cannot convert to cil var in overflow preserving manner: term8_3_id0#1129
+  [Warning][Analyzer] Invariant Apron: cannot convert to cil var in overflow preserving manner: $TERM
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 2
