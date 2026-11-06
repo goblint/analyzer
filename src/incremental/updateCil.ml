@@ -7,8 +7,37 @@ open MyCFG
 
 include UpdateCil0
 
+module SidMap = Map.Make (Int)
+
+(* These are exactly the function bodies reused by reset_globals/reset_fun.
+   Pair statements in the same order as reset_fun, before any SID changes. *)
+let collect_replacements unchanged =
+  List.fold_left (fun replacements (glob: unchanged_global) ->
+      match glob.current.def, glob.old.def with
+      | Some (Fun current), Some (Fun old) ->
+        List.fold_left2 (fun replacements s retained ->
+            SidMap.add s.sid (s, retained) replacements
+          ) replacements current.sallstmts old.sallstmts
+      | _ -> replacements
+    ) SidMap.empty unchanged
+
 let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change_info) =
   UpdateCil0.init (); (* reset for server mode *)
+  let copy_relationships =
+    match LoopUnrolling0.copy_relationships () with
+    | [] -> [] (* No replacement map is needed when nothing was unrolled. *)
+    | relationships ->
+      let replacements = collect_replacements changes.unchanged in
+      let translate s =
+        match SidMap.find_opt s.sid replacements with
+        (* Guard against detached statements sharing a numbered statement's SID. *)
+        | Some (source, retained) when source == s -> retained
+        | _ -> s
+      in
+      List.map (fun (copy, original) -> (translate copy, translate original)) relationships
+  in
+  (* The old index must not be queried during the following mutations. Its
+     replacement is built from copy_relationships once all IDs are final. *)
 
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
@@ -131,4 +160,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
   while !sid_max > Cil.new_sid () do
     ()
   done;
+  (* Index the already translated provenance using final IDs. This
+     also rebuilds entries for changed/added functions which were only renumbered. *)
+  LoopUnrolling0.rebuild_copyof copy_relationships;
   {max_sid = !sid_max; max_vid = !vid_max}
