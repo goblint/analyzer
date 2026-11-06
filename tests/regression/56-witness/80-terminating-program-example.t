@@ -68,9 +68,9 @@ TODO: Should not outout Apron overflow warning about term variable? ID is probab
           line: 15
           column: 5
           function: main
-        value: ((5LL >= (long long )\at(i, AnyPrev) && (long long )\at(j, AnyPrev) +
-          (long long )\at(i, AnyPrev) == 6LL) && (long long )\at(i, AnyPrev) >= (long
-          long )i + 1LL) && (long long )j + (long long )i == 6LL
+        value: ((long long )\at(j, AnyPrev) + (long long )\at(i, AnyPrev) == 6LL &&
+          (long long )\at(i, AnyPrev) >= (long long )i + 1LL) && (long long )j + (long
+          long )i == 6LL
         format: ext_c_expression
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c

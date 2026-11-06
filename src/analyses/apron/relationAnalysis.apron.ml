@@ -269,6 +269,9 @@ struct
     r
 
   let query_invariant_transition man =
+    let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+    let exact = GobConfig.get_bool "witness.invariant.exact" in
+
     let st = man.local in
     let ask = Analyses.ask_of_man man in
     let r1 = RD.keep_filter st.rel (fun var ->
@@ -311,9 +314,15 @@ struct
       RD.invariant r5
       |> List.to_seq
       |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
-          RD.cil_exp_of_lincons1 lincons1
-          |> Option.map e_inv
-          |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
+          (* filter one-vars and exact *)
+          (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
+          if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
+            RD.cil_exp_of_lincons1 lincons1
+            |> Option.map e_inv
+            |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
+          )
+          else
+            None
         )
       |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
     in
