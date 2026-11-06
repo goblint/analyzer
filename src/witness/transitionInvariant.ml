@@ -65,7 +65,7 @@ module InvariantParser (Base: module type of WitnessUtil.InvariantParser) =
 struct
   open GobResult.Syntax
 
-  let anyprev_regexp = Str.regexp {|\\at(\([a-z]+\), *AnyPrev)|} (* TODO: insert regex for C variable names *)
+  let anyprev_regexp = Str.regexp {|\\at( *\([A-Za-z_][A-Za-z0-9_]*\) *, *AnyPrev *)|}
   let anyprev_vname var = Printf.sprintf "__at_%s_AnyPrev__" var
 
   module StringSet = Set.Make (String)
