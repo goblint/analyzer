@@ -629,15 +629,7 @@ struct
       )
     |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
-  let query_invariant_transition man =
-    let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
-    let exact = GobConfig.get_bool "witness.invariant.exact" in
-
-    let ask = Analyses.ask_of_man man in
-    let scope = Node.find_fundec man.node in
-
-    let (apr, e_inv) = invariant_state man context in
-
+  let transition_state ask apr =
     let r1 = RD.keep_filter apr (fun var ->
         match RV.find_metadata var with
         | Some (Local _) -> true
@@ -672,8 +664,19 @@ struct
         ) r4 r1vars
     in
     Logs.debug "r5: %a" RD.pretty r5;
+    r5
+
+  let query_invariant_transition man =
+    let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+    let exact = GobConfig.get_bool "witness.invariant.exact" in
+
+    let ask = Analyses.ask_of_man man in
+    let scope = Node.find_fundec man.node in
+
+    let (apr, e_inv) = invariant_state man context in
+    let apr' = transition_state ask apr in
     let inv =
-      RD.invariant r5
+      RD.invariant apr'
       |> List.to_seq
       |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
           (* filter one-vars and exact *)
