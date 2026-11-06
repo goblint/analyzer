@@ -296,12 +296,9 @@ struct
       List.fold_left (fun acc var ->
           match RV.to_cil_varinfo var with
           | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
-            let open Apron in
-            let env = RD.env acc in
             let vi' = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
-            let tcons1 = Tcons1.make Texpr1.(binop Sub (var env (RV.local vi)) (var env (RV.local vi')) Int Zero) Lincons1.SUP in (* with AnyPrev *)
-            (* let tcons1 = Tcons1.make Texpr1.(binop Sub (binop Sub (var env (RV.local vi)) (var env (RV.local vi')) Int Zero) (cst env (Coeff.s_of_int 1)) Int Zero) Lincons1.EQ in (* with LastPrev *) *)
-            let acc' = RD.meet_tcons ask acc tcons1 MyCFG.unknown_exp in
+            let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var {vi' with vglob = vi.vglob})) (Lval (Cil.var vi)) in (* RichVarinfo-s are all global, so make local if vi is local for assert_inv check to pass *)
+            let acc' = RD.assert_inv ask acc exp false (lazy false) in
             RD.remove_vars acc' [RV.local vi; RV.local vi']
           | _ ->
             acc
