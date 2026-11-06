@@ -630,17 +630,13 @@ struct
     |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let transition_state ask apr =
-    let r1 = RD.keep_filter apr (fun var ->
-        match RV.find_metadata var with
-        | Some (Local _) -> true
-        | _ -> false
-      )
-    in
+    let r1 = apr in
     let r1vars = RD.vars r1 in
     let r1vars' = List.map (fun var ->
         match RV.find_metadata var with
         | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
-        | _ -> assert false
+        | Some (Global x) -> RV.global (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
+        | _ -> assert false (* should be filtered out by invariant_state *)
       ) r1vars
     in
     let r2 = RD.add_vars r1 r1vars' in
