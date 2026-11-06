@@ -633,9 +633,12 @@ struct
     let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
     let exact = GobConfig.get_bool "witness.invariant.exact" in
 
-    let st = man.local in
     let ask = Analyses.ask_of_man man in
-    let r1 = RD.keep_filter st.rel (fun var ->
+    let scope = Node.find_fundec man.node in
+
+    let (apr, e_inv) = invariant_state man context in
+
+    let r1 = RD.keep_filter apr (fun var ->
         match RV.find_metadata var with
         | Some (Local _) -> true
         | _ -> false
@@ -669,8 +672,6 @@ struct
         ) r4 r1vars
     in
     Logs.debug "r5: %a" RD.pretty r5;
-    let scope = Node.find_fundec man.node in
-    let e_inv = Fun.id in (* TODO: handle globals? *)
     let inv =
       RD.invariant r5
       |> List.to_seq
