@@ -635,7 +635,7 @@ struct
 
               let result: VR.result = match FundecH.find_or_add_default_delayed ~default:parse_cil memo fundec with
                 | Ok inv_exp ->
-                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
+                  begin match Queries.eval_transition_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
                     | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
                     | `Lifted true -> Confirmed
                     | `Lifted false -> Refuted

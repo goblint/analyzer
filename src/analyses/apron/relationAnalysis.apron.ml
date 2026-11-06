@@ -704,12 +704,28 @@ struct
         man.global st esimple
         (fun rel' e' -> RD.eval_int (Analyses.ask_of_man man) rel' e' no_ov)
     in
+    let eval_transition_int e no_ov =
+      let esimple = replace_deref_exps man.ask e in
+      read_from_globals_wrapper
+        (Analyses.ask_of_man man)
+        man.global st esimple
+        (fun rel' e' ->
+          let rel' = transition_state (Analyses.ask_of_man man) rel' in
+          RD.eval_int (Analyses.ask_of_man man) rel' e' no_ov
+        )
+    in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a" D.pretty man.local;
       let r = eval_int e (no_overflow (Analyses.ask_of_man man) e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a" d_exp e ID.pretty r;
+      r
+    | EvalTransitionInt e ->
+      if M.tracing then M.traceli "evaltransitionint" "relation query %a (%a)" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evaltransitionint" "relation st: %a" D.pretty man.local;
+      let r = eval_transition_int e (no_overflow (Analyses.ask_of_man man) e) in
+      if M.tracing then M.traceu "evaltransitionint" "relation query %a -> %a" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
