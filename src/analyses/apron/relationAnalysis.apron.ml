@@ -268,67 +268,6 @@ struct
     if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
     r
 
-  let query_invariant_transition man =
-    let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
-    let exact = GobConfig.get_bool "witness.invariant.exact" in
-
-    let st = man.local in
-    let ask = Analyses.ask_of_man man in
-    let r1 = RD.keep_filter st.rel (fun var ->
-        match RV.find_metadata var with
-        | Some (Local _) -> true
-        | _ -> false
-      )
-    in
-    Logs.debug "r1: %a" RD.pretty r1;
-    let r1vars = RD.vars r1 in
-    let r1vars' = List.map (fun var ->
-        match RV.find_metadata var with
-        | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
-        | _ -> assert false
-      ) r1vars
-    in
-    let r2 = RD.add_vars r1 r1vars' in
-    let r2' = RD.assign_var_parallel' r2 r1vars' r1vars in
-    let r3 = RD.keep_vars r2' r1vars' in
-    Logs.debug "r3: %a" RD.pretty r3;
-    (* let r3' = RD.assr3 in *)
-    (* Logs.debug "r3': %a" RD.pretty r3'; *)
-    let r4 = RD.unify r1 r3 in
-    let r5 =
-      List.fold_left (fun acc var ->
-          match RV.to_cil_varinfo var with
-          | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
-            let vi' = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
-            let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var {vi' with vglob = vi.vglob})) (Lval (Cil.var vi)) in (* RichVarinfo-s are all global, so make local if vi is local for assert_inv check to pass *)
-            let acc' = RD.assert_inv ask acc exp false (lazy false) in
-            RD.remove_vars acc' [RV.local vi; RV.local vi']
-          | _ ->
-            acc
-        ) r4 r1vars
-    in
-    Logs.debug "r5: %a" RD.pretty r5;
-    let scope = Node.find_fundec man.node in
-    let e_inv = Fun.id in (* TODO: handle globals? *)
-    let inv =
-      RD.invariant r5
-      |> List.to_seq
-      |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
-          (* filter one-vars and exact *)
-          (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
-          if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
-            RD.cil_exp_of_lincons1 lincons1
-            |> Option.map e_inv
-            |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
-          )
-          else
-            None
-        )
-      |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
-    in
-    Logs.debug "inv: %a" Invariant.pretty inv;
-    inv
-
   let branch man e b =
     let st = man.local in
     let ask = Analyses.ask_of_man man in
@@ -686,6 +625,67 @@ struct
           None
       )
     |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+
+  let query_invariant_transition man =
+    let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+    let exact = GobConfig.get_bool "witness.invariant.exact" in
+
+    let st = man.local in
+    let ask = Analyses.ask_of_man man in
+    let r1 = RD.keep_filter st.rel (fun var ->
+        match RV.find_metadata var with
+        | Some (Local _) -> true
+        | _ -> false
+      )
+    in
+    Logs.debug "r1: %a" RD.pretty r1;
+    let r1vars = RD.vars r1 in
+    let r1vars' = List.map (fun var ->
+        match RV.find_metadata var with
+        | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
+        | _ -> assert false
+      ) r1vars
+    in
+    let r2 = RD.add_vars r1 r1vars' in
+    let r2' = RD.assign_var_parallel' r2 r1vars' r1vars in
+    let r3 = RD.keep_vars r2' r1vars' in
+    Logs.debug "r3: %a" RD.pretty r3;
+    (* let r3' = RD.assr3 in *)
+    (* Logs.debug "r3': %a" RD.pretty r3'; *)
+    let r4 = RD.unify r1 r3 in
+    let r5 =
+      List.fold_left (fun acc var ->
+          match RV.to_cil_varinfo var with
+          | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
+            let vi' = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
+            let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var {vi' with vglob = vi.vglob})) (Lval (Cil.var vi)) in (* RichVarinfo-s are all global, so make local if vi is local for assert_inv check to pass *)
+            let acc' = RD.assert_inv ask acc exp false (lazy false) in
+            RD.remove_vars acc' [RV.local vi; RV.local vi']
+          | _ ->
+            acc
+        ) r4 r1vars
+    in
+    Logs.debug "r5: %a" RD.pretty r5;
+    let scope = Node.find_fundec man.node in
+    let e_inv = Fun.id in (* TODO: handle globals? *)
+    let inv =
+      RD.invariant r5
+      |> List.to_seq
+      |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+          (* filter one-vars and exact *)
+          (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
+          if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
+            RD.cil_exp_of_lincons1 lincons1
+            |> Option.map e_inv
+            |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
+          )
+          else
+            None
+        )
+      |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    in
+    Logs.debug "inv: %a" Invariant.pretty inv;
+    inv
 
   let query_invariant_global man g =
     if GobConfig.get_bool "ana.relation.invariant.global" && man.ask (GhostVarAvailable Multithreaded) then (
