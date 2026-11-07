@@ -204,7 +204,7 @@ struct
   let equal   x y = binop_for_all (fun n (module S : Printable.S) x y -> S.equal (Obj.obj x) (Obj.obj y)) x y
   let compare x y = binop_compare (fun n (module S : Printable.S) x y -> S.compare (Obj.obj x) (Obj.obj y)) x y
 
-  let hash     = unop_fold (fun acc _ (module S : Printable.S) x -> Hashtbl.hash (acc, S.hash (Obj.obj x))) 0
+  let hash     = unop_fold (fun acc _ (module S : Printable.S) x -> 31 * S.hash (Obj.obj x) + acc) 0
 
   (* let name () =
        let domain_name (n, (module D: Printable.S)) =
