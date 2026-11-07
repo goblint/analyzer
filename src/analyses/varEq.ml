@@ -32,12 +32,21 @@ struct
             if B.cardinal s' >= 2 then (
               (* instead of returning quadratically many pairwise equalities from a cluster,
                  output linear number of equalities with just one expression *)
-              let lhs = B.choose s' in (* choose arbitrary expression for lhs *)
-              let rhss = B.remove lhs s' in (* and exclude it from rhs-s (no point in reflexive equality) *)
-              let i = B.fold (fun rhs a ->
-                  let eq = BinOp (Eq, lhs, rhs, intType) in
-                  Invariant.(a && of_exp eq)
-                ) rhss (Invariant.top ())
+              let s'_const, s'_nonconst = B.partition (function Const _ -> true | _ -> false) s' in
+              let i =
+                match B.choose s'_const with
+                | rhs -> (* if the cluster contains a constant, use it as rhs (more intuitive and get deduplicated with IntDomain invariants) *)
+                  B.fold (fun lhs a ->
+                      let eq = BinOp (Eq, lhs, rhs, intType) in
+                      Invariant.(a && of_exp eq)
+                    ) s'_nonconst (Invariant.top ()) (* and output an equality with every non-constant lhs (no equalities between two constants) *)
+                | exception Not_found -> (* if the cluster contains no constants *)
+                  let lhs = B.choose s' in (* choose arbitrary (non-constant) expression for lhs *)
+                  let rhss = B.remove lhs s' in (* and exclude it from rhs-s (no point in reflexive equality) *)
+                  B.fold (fun rhs a ->
+                      let eq = BinOp (Eq, lhs, rhs, intType) in
+                      Invariant.(a && of_exp eq)
+                    ) rhss (Invariant.top ())
               in
               Invariant.(a && i)
             )
@@ -99,10 +108,26 @@ struct
     | Lval    (Mem e,_)
     | CastE (_,_,e)           -> interesting e
 
+  (** Removes textual representation from {!GoblintCil.constant}s.
+      This avoids treating the same constant with different textual representation as different. *)
+  let remove_textual_representation_visitor = object
+    inherit nopCilVisitor
+    method! vexpr (e: exp) =
+      match e with
+      | Const (CInt (z, ik, Some _)) -> ChangeTo (Const (CInt (z, ik, None)))
+      | Const (CReal (f, fk, Some _)) -> ChangeTo (Const (CReal (f, fk, None)))
+      | _ -> DoChildren
+  end
+
+  let normalize_exp e =
+    let e = visitCilExpr remove_textual_representation_visitor e in
+    constFold true e (* Used to [stripCasts] before [constFold], but that creates mistyped equalities. *)
+
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
-    let e1 = constFold false (stripCasts e1) in
-    let e2 = constFold false (stripCasts e2) in
+    let e1, e2 = Cilfacade.remove_binop_pointer_conversions e1 e2 in
+    let e1 = normalize_exp e1 in
+    let e2 = normalize_exp e2 in
     if exp_equal e1 e2 then true else
       match D.find_class e1 s with
       | Some ss when D.B.mem e2 ss -> true
@@ -369,6 +394,7 @@ struct
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
+    let rv = normalize_exp rv in
     let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     if M.tracing then (
       M.tracel "var_eq" "add_eq is_global_var %a = %B" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
@@ -417,8 +443,7 @@ struct
   let rec assume ask exp st =
     match exp with
     | BinOp (Eq, e1, e2, t) ->
-      (* Pointer equalities have casts on both sides. Strip them to get to the actual Lval. *)
-      begin match stripCasts e1, stripCasts e2 with
+      begin match Cilfacade.remove_binop_pointer_conversions e1 e2 with
         | Lval lval, exp
         | exp, Lval lval ->
           add_eq ask lval exp st
@@ -444,7 +469,6 @@ struct
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   let assign man (lval:lval) (rval:exp) : D.t  =
-    let rval = constFold true (stripCasts rval) in
     assign_eq (Analyses.ask_of_man man) lval rval man.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
@@ -506,8 +530,8 @@ struct
 
   let unknown_fn man lval f args =
     let desc = LF.find f in
-    let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-    let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_args = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false args in
+    let deep_args = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true args in
     let shallow_args =
       match lval with
       | Some l -> mkAddrOf l :: shallow_args

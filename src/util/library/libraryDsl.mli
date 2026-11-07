@@ -53,12 +53,18 @@ val r: access
     Rarely needed. *)
 val r_deep: access
 
+(** Shallow atomic {!AccessKind.Read} access. *)
+val r_atomic: access
+
 (** Shallow {!AccessKind.Write} access. *)
 val w: access
 
 (** Deep {!AccessKind.Write} access.
     Rarely needed. *)
 val w_deep: access
+
+(** Shallow atomic {!AccessKind.Write} access. *)
+val w_atomic: access
 
 (** Shallow {!AccessKind.Free} access. *)
 val f: access

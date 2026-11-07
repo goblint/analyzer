@@ -73,7 +73,7 @@ type unsupported_cilExp =
 module type ConvBounds =
 sig
   type t
-  val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
+  val bound_texpr: t -> Texpr1.t -> (Z.t option * Z.t option) option
 end
 
 (** Conversion from CIL expressions to Apron.
@@ -107,11 +107,12 @@ struct
         let (type_min, type_max) = IntDomain.Size.range ik in
         let texpr1 = Texpr1.of_expr env expr in
         match Bounds.bound_texpr d texpr1 with
-        | Some min, Some max when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 ->
+        | Some (Some min, Some max) when Z.compare type_min min <= 0 && Z.compare max type_max <= 0 ->
           ()
-        | min_opt, max_opt ->
+        | Some (min_opt, max_opt) ->
           if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)" CilType.Exp.pretty exp (Pretty.docOpt (IntOps.BigIntOps.pretty ())) min_opt (Pretty.docOpt (IntOps.BigIntOps.pretty ())) max_opt;
           raise (Unsupported_CilExp Overflow)
+        | None -> ()
       )
 
   let texpr1_expr_of_cil_exp (ask:Queries.ask) d env exp no_ov =
@@ -534,7 +535,7 @@ sig
   val env: t -> Environment.t
 
   val assert_constraint: Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
-  val eval_interval : Queries.ask -> t -> Texpr1.t -> Z.t option * Z.t option
+  val eval_interval : Queries.ask -> t -> Texpr1.t -> (Z.t option * Z.t option) option
 end
 
 module Tracked = RelationCil.Tracked
@@ -574,7 +575,7 @@ struct
     | texpr1 ->
       eval_interval ask d texpr1
     | exception Convert.Unsupported_CilExp _ ->
-      (None, None)
+      Some (None, None)
 
   (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int ask d e no_ov =
@@ -592,10 +593,11 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr ask d e no_ov with
-        | (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
-        | (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
-        | (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
-        | (None, None) -> ID.top_of ik
+        | Some (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
+        | Some (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
+        | Some (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
+        | Some (None, None) -> ID.top_of ik
+        | None -> ID.bot_of ik
 
 end
 

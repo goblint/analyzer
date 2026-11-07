@@ -308,7 +308,7 @@ struct
 
   let event man e oman =
     match e with
-    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_man man) -> (* threadflag query in post-threadspawn man *)
+    | Events.Access {exp; ad; kind; atomic; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_man man) -> (* threadflag query in post-threadspawn man *)
       (* must use original (pre-assign, etc) man queries *)
       let exp =
         match kind with
@@ -324,11 +324,11 @@ struct
       let node = man.prev_node in
       let add_access conf voffs =
         let acc = part_access (Option.map fst voffs) in
-        Access.add ~side:(side_access oman {conf; kind; node; exp; acc}) ~side_empty:(side_access_empty oman) exp voffs;
+        Access.add ~side:(side_access oman {conf; kind; atomic; node; exp; acc}) ~side_empty:(side_access_empty oman) exp voffs;
       in
       let add_access_struct conf ci =
         let acc = part_access None in
-        Access.add_one ~side:(side_access oman {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
+        Access.add_one ~side:(side_access oman {conf; kind; atomic; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
       let oask = Analyses.ask_of_man oman in
       (* The following function adds accesses to the lval-set ls
@@ -383,10 +383,11 @@ struct
       let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
       let kind = AccessKind.Call in
+      let atomic = false in
       let node = man.prev_node in
       let vo = Some f in
       let acc = Obj.obj (man.ask (PartAccess (Memory {exp; var_opt=vo; kind}))) in
-      side_access man {conf; kind; node; exp; acc} ((`Var f), `NoOffset) ;
+      side_access man {conf; kind; atomic; node; exp; acc} ((`Var f), `NoOffset) ;
     );
     man.local
 

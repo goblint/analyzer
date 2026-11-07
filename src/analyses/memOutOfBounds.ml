@@ -303,11 +303,9 @@ struct
   let special man (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     let is_arg_implicitly_derefed arg =
-      let read_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = false } arglist in
-      let read_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Read; deep = true } arglist in
-      let write_shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
-      let write_deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
-      List.mem arg read_shallow_args || List.mem arg read_deep_args || List.mem arg write_shallow_args || List.mem arg write_deep_args
+      let read_args = LibraryDesc.Accesses.find desc.accs ~kind:Read arglist in
+      let write_args = LibraryDesc.Accesses.find desc.accs ~kind:Write arglist in
+      List.mem arg read_args || List.mem arg write_args
     in
     Option.iter (fun x -> check_lval_for_oob_access man x) lval;
     List.iter (fun arg -> check_exp_for_oob_access man ~is_implicitly_derefed:(is_arg_implicitly_derefed arg) arg) arglist;

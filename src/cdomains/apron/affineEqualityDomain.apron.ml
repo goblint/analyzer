@@ -125,19 +125,22 @@ struct
   include VarManagement (Vc) (Mx)
 
   let bound_texpr t texpr =
-    let texpr = Texpr1.to_expr texpr in
-    match Option.bind (get_coeff_vec t texpr) to_constant_opt with
-    | Some c when Mpqf.get_den c = Z.one ->
-      let int_val = Mpqf.get_num c in
-      Some int_val, Some int_val
-    | _ -> None, None
+    if t.d = None then None
+    else
+      let texpr = Texpr1.to_expr texpr in
+      match Option.bind (get_coeff_vec t texpr) to_constant_opt with
+      | Some c when Mpqf.get_den c = Z.one ->
+        let int_val = Mpqf.get_num c in
+        Some (Some int_val, Some int_val)
+      | Some _ -> None (* Term is a constant but has a denominator different from 1; meaning an actual fraction -> no integer value *)
+      | None -> Some (None, None) (* Term is not constant *)
 
 
   let bound_texpr d texpr1 =
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
+       | Some (Some min, Some max) -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
        | _ -> ()
     );
     res
@@ -411,7 +414,11 @@ struct
     (* sequence of assignments: i' = snd vv_i : *)
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t ->                    (* SUBSTITUTE assigned_vars/primed_vars via OVERWRITE & ERASE *)
+    | Some m when not @@ is_top_env multi_t ->                    (* SUBSTITUTE assigned_vars/primed_vars via FORGET, OVERWRITE & ERASE *)
+      (* Forget the assigned variables, so that their columns are zero. After the overwrite, each assigned variable carries the constraints
+         of its primed variable, and the primed columns are then erased. *)
+      let multi_t = forget_vars multi_t assigned_vars in          (* FORGET the variables that are to be overwritten *)
+      let m = Option.get multi_t.d in
       let replace_col m x y =                                     (* OVERWRITES column for var_y with column for var_x *)
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col_upper_triangular m dim_x in
@@ -538,7 +545,11 @@ struct
       let one_constraint i =
         let row = Matrix.get_row m i in
         let coeff_vars = List.map (fun x ->  Coeff.s_of_mpqf @@ Vector.nth row (Environment.dim_of_var t.env x), x) (vars t) in
-        let cst = Coeff.s_of_mpqf @@ Vector.nth row (Vector.length row - 1) in
+        (* Matrix rows store the negated constant (see meet_vec and vec_to_constraint):
+           the row [a1; ...; an; c] denotes a1*x1 + ... + an*xn - c = 0.
+           Apron Lincons1 expects the constant with the opposite sign as in the row,
+           so negate it here, otherwise the exported invariant has a flipped constant. *)
+        let cst = Coeff.s_of_mpqf @@ Mpqf.neg @@ Vector.nth row (Vector.length row - 1) in
         let e1 = Linexpr1.make t.env in
         Linexpr1.set_list e1 coeff_vars (Some cst);
         Lincons1.make e1 EQ

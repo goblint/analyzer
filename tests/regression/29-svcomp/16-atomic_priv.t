@@ -101,8 +101,7 @@ Non-atomic privatization:
     content:
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || ((0 <= myglobal && myglobal <= 127) && myglobal !=
-          0)'
+        value: '! multithreaded || (1 <= myglobal && myglobal <= 127)'
         format: c_expression
     - invariant:
         type: flow_insensitive_invariant

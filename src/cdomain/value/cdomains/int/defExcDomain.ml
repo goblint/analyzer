@@ -62,6 +62,24 @@ struct
           false
       end
     end
+
+  let maximal (Exc (excl, r)) =
+    let rec decrement_while_contained v =
+      if BISet.mem v excl
+      then decrement_while_contained (Z.pred v)
+      else v
+    in
+    let range_max = max_of_range r in
+    Some (decrement_while_contained range_max)
+
+  let minimal (Exc (excl, r)) =
+    let rec increment_while_contained v =
+      if BISet.mem v excl
+      then increment_while_contained (Z.succ v)
+      else v
+    in
+    let range_min = min_of_range r in
+    Some (increment_while_contained range_min)
 end
 
 module DefExc : S with type int_t = Z.t = (* definite or set of excluded values *)
@@ -111,12 +129,12 @@ struct
 
   let maximal = function
     | `Definite x -> Some x
-    | `Excluded (s,r) -> Some (Exclusion.max_of_range r)
+    | `Excluded (s,r) -> Exclusion.maximal (Exc (s, r))
     | `Bot -> None
 
   let minimal = function
     | `Definite x -> Some x
-    | `Excluded (s,r) -> Some (Exclusion.min_of_range r)
+    | `Excluded (s,r) -> Exclusion.minimal (Exc (s, r))
     | `Bot -> None
 
   let in_range r i =

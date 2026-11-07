@@ -66,7 +66,7 @@ struct
 end
 
 
-module NH = Hashtbl.Make (Node)
+module NH = BatHashtbl.Make (Node)
 
 module type SpecSysSol2 =
 sig
@@ -76,7 +76,9 @@ sig
 
   val gh: EQSys.G.t GHT.t
   val lh: Spec.D.t LHT.t
-  val nh: Spec.D.t NH.t Lazy.t
+  (** Node index whose context joins are evaluated and memoized independently. *)
+  val nh: Spec.D.t Lazy.t NH.t Lazy.t
+  val local_node: Node.t -> Spec.D.t
 
   val ask_local: EQSys.LVar.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
   val ask_local_node: Node.t -> ?local:Spec.D.t -> 'a Queries.t -> 'a Queries.result
@@ -89,14 +91,23 @@ struct
   include SpecSysSol
   open SpecSys
 
-  let nh: Spec.D.t NH.t Lazy.t = lazy (
-    let nh = NH.create 113 in
+  (* Build the node index on first use, but defer joining each node's
+     contexts until that node is queried. This avoids expensive joins
+     for nodes which witness generation never visits. *)
+  let nh: Spec.D.t Lazy.t NH.t Lazy.t = lazy (
+    let states = NH.create 113 in
     LHT.iter (fun (n, _) d ->
-        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
-        NH.replace nh n d'
+        NH.modify_def [] n (List.cons d) states
       ) lh;
-    nh
+    NH.map (fun _ ds -> lazy (List.fold_left Spec.D.join (Spec.D.bot ()) ds)) states
   )
+
+  (* Compute a node's joined state on demand and cache it through Lazy.
+     Nodes absent from the solution retain the previous bottom fallback. *)
+  let local_node node =
+    match NH.find_opt (Lazy.force nh) node with
+    | Some local -> Lazy.force local
+    | None -> Spec.D.bot ()
 
   module Query = Query (SpecSys)
 
@@ -109,7 +120,7 @@ struct
   let ask_local_node node ?local q =
     let local = match local with
       | Some local -> local
-      | None -> try NH.find (Lazy.force nh) node with Not_found -> Spec.D.bot ()
+      | None -> local_node node
     in
     Query.ask_local_node gh node local q
   let ask_global q = Query.ask_global gh q

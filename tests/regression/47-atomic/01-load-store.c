@@ -9,4 +9,6 @@ int main() {
 
     // Should not be invalidated
     __goblint_check(g == 8);
+
+    return 0;
 }
