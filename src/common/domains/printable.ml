@@ -567,7 +567,7 @@ struct
     BatPrintf.fprintf f "</map>\n</value>\n"
 
   let to_yojson q = `List (BatDeque.to_list @@ BatDeque.map (Base.to_yojson) q)
-  let hash q = BatDeque.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
+  let hash q = BatDeque.fold_left (fun acc x -> 31 * acc + Base.hash x)  11 q
   let equal q1 q2 = BatDeque.eq ~eq:Base.equal q1 q2
   let compare q1 q2 =
     match BatDeque.front q1, BatDeque.front q2 with
