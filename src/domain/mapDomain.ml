@@ -268,7 +268,7 @@ struct
 
   let equal = reflexive_equal Range.equal
   let compare = reflexive_compare Range.compare
-  let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
+  let hash xs = fold (fun k v a -> a + Hashtbl.hash (Domain.hash k, Range.hash v)) xs 0
 
   let empty () = M.empty
 
