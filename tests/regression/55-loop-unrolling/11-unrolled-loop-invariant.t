@@ -202,6 +202,7 @@
     location invariants: 11
     loop invariants: 5
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml

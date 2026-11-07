@@ -12,6 +12,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 2
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -113,6 +114,7 @@ Flow-insensitive invariants as location invariants.
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -185,6 +187,7 @@ Same with ghost_instrumentation and invariant_set entries.
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -292,6 +295,7 @@ Same protected invariant with vojdani but no unprotected invariant.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 1
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -385,6 +389,7 @@ Same as protection with mutex-meet.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 2
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1

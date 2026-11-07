@@ -2863,6 +2863,7 @@
                 "enum": [
                   "location_invariant",
                   "loop_invariant",
+                  "loop_transition_invariant",
                   "flow_insensitive_invariant"
                 ]
               },

@@ -23,6 +23,7 @@ Without diff-box:
     location invariants: 0
     loop invariants: 16
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml | tee witness-disable-diff-box.yml
@@ -198,6 +199,7 @@ With diff-box:
     location invariants: 0
     loop invariants: 2
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml | tee witness-enable-diff-box.yml
