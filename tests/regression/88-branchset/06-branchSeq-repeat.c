@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] branchSeq --set ana.branchSeq.k 2
+// PARAM: --set ana.activated[+] branchSeq --set ana.branchSeq.length 2
 // CRAM: Only consecutive identical branch decisions are skipped.
 #include <goblint.h>
 

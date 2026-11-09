@@ -1,4 +1,4 @@
-(** Path-sensitivity in the last [ana.branchSeq.k] branch decisions.
+(** Path-sensitivity in the last [ana.branchSeq.length] branch decisions.
     Histories pass from caller to callee and back; new threads start empty. *)
 
 open Analyses
@@ -16,9 +16,9 @@ struct
   let k = ref 0
 
   let init _ =
-    k := GobConfig.get_int "ana.branchSeq.k";
+    k := GobConfig.get_int "ana.branchSeq.length";
     if !k <= 0 then
-      failwith "ana.branchSeq.k must be positive if analysis is active"
+      failwith "ana.branchSeq.length must be positive if analysis is active"
 
   (* Most recent decision first. Consecutive visits to the same node preserve
      the existing history, including its recorded branch value. *)

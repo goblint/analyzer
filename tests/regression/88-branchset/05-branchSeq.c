@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] branchSeq --set ana.branchSeq.k 2
+// PARAM: --set ana.activated[+] branchSeq --set ana.branchSeq.length 2
 // CRAM: Bounded branch histories retain correlations until the decision expires.
 #include <goblint.h>
 

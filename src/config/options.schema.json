@@ -374,8 +374,8 @@
           "description": "Path-sensitivity in recent branch decisions",
           "type": "object",
           "properties": {
-            "k": {
-              "title": "ana.branchSeq.k",
+            "length": {
+              "title": "ana.branchSeq.length",
               "description": "Number of recent branch decisions to retain across function calls.",
               "type": "integer",
               "minimum": 0,
