@@ -317,13 +317,13 @@ struct
 end
 
 module DomListRepresentative (DLSpec : DomainListRepresentativeSpec)
-  : DisjointDomain.Representative with type t = (int * Obj.t) list and type elt = (int * Obj.t) list
+  : DisjointDomain.Representative with type elt = (int * Obj.t) list
 =
 struct
   open DLSpec
   open List
 
-  include DomListPrintable (PrintableOfRepresentativeSpec (DLSpec))
+  include Printable.HashCached (DomListPrintable (PrintableOfRepresentativeSpec (DLSpec)))
   let name () = "MCP.P"
 
   type elt = (int * Obj.t) list
@@ -339,7 +339,7 @@ struct
         aux xs' ss acc
       | [], _ :: _ -> invalid_arg "DomListRepresentative.of_elt"
     in
-    List.rev (aux xs (domain_list ()) [])
+    lift (List.rev (aux xs (domain_list ()) []))
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
