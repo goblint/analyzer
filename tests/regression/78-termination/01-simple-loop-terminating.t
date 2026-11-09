@@ -58,7 +58,7 @@ Same with loop unrolling:
     location invariants: 0
     loop invariants: 1
     flow-insensitive invariants: 0
-    loop transition invariants: 0
+    loop transition invariants: 1
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -73,3 +73,12 @@ Same with loop unrolling:
           function: main
         value: (2U <= i && i <= 11U) || i == 1U
         format: c_expression
+    - invariant:
+        type: loop_transition_invariant
+        location:
+          file_name: 01-simple-loop-terminating.c
+          line: 8
+          column: 3
+          function: main
+        value: (long long )i >= (long long )\at(i, AnyPrev) + 1LL
+        format: ext_c_expression
