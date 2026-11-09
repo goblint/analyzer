@@ -245,6 +245,10 @@ struct
       Error "parse_cil"
 end
 
+let sha256_file f = try Sha256.(to_hex (file f)) with Sys_error _ -> ""
+let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5
+let sha256_file = sha256_file_cache.get
+
 module Locator (E: Set.OrderedType) =
 struct
   module FileH = BatHashtbl.Make (Basetype.RawStrings)
@@ -272,6 +276,17 @@ struct
       None
     else
       Some es
+
+  let find_opt file_loc_es ?(metadata: YamlWitnessType.Metadata.t option) loc =
+    let open GobOption.Syntax in
+    match find_opt file_loc_es loc with
+    | Some es -> Some es
+    | None ->
+      let* metadata in
+      let* task = metadata.task in
+      let* hash = List.assoc_opt loc.file task.input_file_hashes in
+      let* asd = FileH.to_seq_keys file_loc_es |> Seq.find (fun file -> sha256_file file = hash) in
+      find_opt file_loc_es {loc with file = asd}
 
   let clear (file_loc_es: t): unit =
     FileH.clear file_loc_es

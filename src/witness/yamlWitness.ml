@@ -5,10 +5,6 @@ open GoblintCil
 
 let uuid_random_state = Random.State.make_self_init ()
 
-let sha256_file f = try Sha256.(to_hex (file f)) with Sys_error _ -> ""
-let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5
-let sha256_file = sha256_file_cache.get
-
 module Entry =
 struct
   open YamlWitnessType
@@ -44,7 +40,7 @@ struct
     {
       input_files;
       input_file_hashes = List.map (fun file ->
-          (file, sha256_file file)
+          (file, WitnessUtil.sha256_file file)
         ) input_files;
       data_model;
       language = "C";
@@ -521,6 +517,7 @@ struct
     cnt_disabled := 0;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
+      let metadata = entry.metadata in
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let validate_lvars_invariant ~loc ~lvars inv =
@@ -578,7 +575,7 @@ struct
           let loc = loc_of_location location_invariant.location in
           let inv = location_invariant.value in
 
-          match Locator.find_opt location_locator loc with
+          match Locator.find_opt location_locator ~metadata loc with
           | Some lvars ->
             validate_lvars_invariant ~loc ~lvars inv
           | None ->
@@ -590,7 +587,7 @@ struct
           let loc = loc_of_location loop_invariant.location in
           let inv = loop_invariant.value in
 
-          match Locator.find_opt loop_locator loc with
+          match Locator.find_opt loop_locator ~metadata loc with
           | Some lvars ->
             validate_lvars_invariant ~loc ~lvars inv
           | None ->

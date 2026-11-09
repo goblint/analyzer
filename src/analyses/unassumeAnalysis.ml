@@ -74,7 +74,8 @@ struct
     NH.clear invs;
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
-      let uuid = entry.metadata.uuid in
+      let metadata = entry.metadata in
+      let uuid = metadata.uuid in
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let unassume_nodes_invariant ~loc ~nodes ?i inv =
@@ -111,7 +112,7 @@ struct
           let inv = location_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
-          match Locator.find_opt location_locator loc with
+          match Locator.find_opt location_locator ~metadata loc with
           | Some nodes ->
             unassume_nodes_invariant ~loc ~nodes ~i inv
           | None ->
@@ -123,7 +124,7 @@ struct
           let inv = loop_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
-          match Locator.find_opt loop_locator loc with
+          match Locator.find_opt loop_locator ~metadata loc with
           | Some nodes ->
             unassume_nodes_invariant ~loc ~nodes ~i inv
           | None ->
