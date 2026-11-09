@@ -1,0 +1,26 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.1"
+    uuid: da16148d-421e-4120-bc3c-537812f935f4
+    creation_time: 2026-11-09T09:24:46Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 03-nested-loop-terminating.c
+      input_file_hashes:
+        03-nested-loop-terminating.c: b10846a14e996557994e9e8c42d494946269638207d6bcaf9e99331aab004351
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: loop_transition_invariant
+      location:
+        file_name: 03-nested-loop-terminating.c
+        line: 16
+        column: 5
+        function: main
+      # This is wrong and should not be confirmed!
+      value: j >= \at(j, AnyPrev) + 1
+      format: ext_c_expression

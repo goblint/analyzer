@@ -107,6 +107,7 @@ type _ t =
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> AD.t t
   | EvalInt: exp -> ID.t t
+  | EvalTransitionInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> SizeDomain.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
@@ -193,6 +194,7 @@ struct
     | MustBeSingleThreaded _ -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
+    | EvalTransitionInt _ -> (module ID)
     | EvalLength _ -> (module SizeDomain)
     | EvalMutexAttr _ -> (module MutexAttrDomain)
     | EvalValue _ -> (module VD)
@@ -273,6 +275,7 @@ struct
     | MustBeSingleThreaded _ -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
+    | EvalTransitionInt _ -> ID.top ()
     | EvalLength _ -> SizeDomain.top ()
     | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | EvalValue _ -> VD.top ()
@@ -357,6 +360,7 @@ struct
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalTransitionInt e1), Any (EvalTransitionInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
@@ -419,6 +423,7 @@ struct
     | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x
     | Any (EvalFunvar e) -> CilType.Exp.hash e
     | Any (EvalInt e) -> CilType.Exp.hash e
+    | Any (EvalTransitionInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
@@ -479,6 +484,7 @@ struct
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
+    | Any (EvalTransitionInt e) -> Pretty.dprintf "EvalTransitionInt %a" CilType.Exp.pretty e
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
@@ -549,6 +555,12 @@ let may_be_less = eval_int_binop (module MayBool) Lt
 let eval_bool (ask: ask) e: BoolDomain.FlatBool.t =
   let e' = CastE (Internal, TInt (IBool, []), e) in
   match ask.f (EvalInt e') with
+  | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
+  | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
+
+let eval_transition_bool (ask: ask) e: BoolDomain.FlatBool.t =
+  let e' = CastE (Internal, TInt (IBool, []), e) in
+  match ask.f (EvalTransitionInt e') with
   | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
   | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
 
