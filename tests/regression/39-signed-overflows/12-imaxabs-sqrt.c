@@ -6,7 +6,7 @@ int main() {
     int64_t data;
     if (data > (-0x7fffffffffffffff - 1) && imaxabs((intmax_t)data) <= sqrtl(0x7fffffffffffffffLL))
     {
-        int64_t result = data * data; // TODO NOWARN
+        int64_t result = data * data; // NOWARN
     }
     return 8;
 }

@@ -375,26 +375,12 @@ module Enums : S with type int_t = Z.t = struct
 
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
-    | Exc (excl,r) ->
-      let rec decrement_while_contained v =
-        if BISet.mem v excl
-        then decrement_while_contained (Z.pred v)
-        else v
-      in
-      let range_max = Exclusion.max_of_range r in
-      Some (decrement_while_contained range_max)
+    | Exc (excl,r) -> Exclusion.maximal (Exc (excl, r))
     | _ (* bottom case *) -> None
 
   let minimal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.min_elt xs)
-    | Exc (excl,r) ->
-      let rec increment_while_contained v =
-        if BISet.mem v excl
-        then increment_while_contained (Z.succ v)
-        else v
-      in
-      let range_min = Exclusion.min_of_range r in
-      Some (increment_while_contained range_min)
+    | Exc (excl,r) -> Exclusion.minimal (Exc (excl, r))
     | _ (* bottom case *) -> None
 
   let lt ik x y =

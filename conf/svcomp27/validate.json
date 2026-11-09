@@ -13,11 +13,13 @@
       "strict": true,
       "entry-types": [
         "invariant_set",
-        "violation_sequence"
+        "violation_sequence",
+        "ghost_instrumentation"
       ],
       "invariant-types": [
         "location_invariant",
-        "loop_invariant"
+        "loop_invariant",
+        "loop_transition_invariant"
       ]
     },
     "invariant": {

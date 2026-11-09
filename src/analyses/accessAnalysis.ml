@@ -31,23 +31,23 @@ struct
     let activated = get_string_list "ana.activated" in
     emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated || List.mem (UseAfterFree.Spec.name ()) activated (* TODO: some of these don't have access as dependency *)
 
-  let do_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
+  let do_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (atomic:bool) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     let ad = man.ask reach_or_mpt in
-    man.emit (Access {exp=e; ad; kind; reach})
+    man.emit (Access {exp=e; ad; kind; atomic; reach})
 
   (** Three access levels:
       + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
-  let access_one_top ?(force=false) ?(deref=false) man (kind: AccessKind.t) reach exp =
+  let access_one_top ?(force=false) ?(deref=false) ?(atomic=false) man (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) then (
       if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
-        do_access man kind reach exp;
+        do_access man kind atomic reach exp;
       if M.tracing then M.tracei "access" "distribute_access_exp";
-      Access.distribute_access_exp (do_access man Read false) exp;
+      Access.distribute_access_exp (do_access man Read false false) exp;
       if M.tracing then M.traceu "access" "distribute_access_exp";
     );
     if M.tracing then M.traceu "access" "access_one_top"
@@ -93,8 +93,8 @@ struct
     | Unlock _ ->
       man.local
     | _ ->
-      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
-          access_one_top ~deref:true man kind reach exp (* access dereferenced using special accesses *)
+      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach; atomic} exp ->
+          access_one_top ~deref:true ~atomic man kind reach exp (* access dereferenced using special accesses *)
         ) arglist;
       Option.iter (fun x -> access_one_top ~deref:true man Write false (AddrOf x)) lv;
       List.iter (access_one_top man Read false) arglist; (* always read all argument expressions without dereferencing *)

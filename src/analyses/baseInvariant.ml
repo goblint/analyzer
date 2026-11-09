@@ -251,7 +251,7 @@ struct
         else
           `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
-      | BinOp(op, CastE (_, t1, c1), CastE (_, t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
+      | BinOp(op, CastE (_, t1, c1), CastE (_, t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2) (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (_, t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
         begin match eval_rv ~man st (Lval x) with
@@ -666,7 +666,7 @@ struct
         | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_statically_safe_cast fails for all float types anyways *)
-        | BinOp((Eq | Ne) as op, CastE (_, t1, e1), CastE (_, t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) ->
+        | BinOp((Eq | Ne) as op, CastE (_, t1, e1), CastE (_, t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
           inv_exp (Int c) (BinOp (op, e1, e2, t)) st
         | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
           (* copied & modified from eval_rv_base... *)
@@ -674,7 +674,7 @@ struct
           (* split nested LOr Eqs to equality pairs, if possible *)
           let rec split = function
             (* copied from above to support pointer equalities with implicit casts inserted *)
-            | BinOp (Eq, CastE (_, t1, e1), CastE (_, t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
+            | BinOp (Eq, CastE (_, t1, e1), CastE (_, t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *) (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
               Some [(e1, e2)]
             | BinOp (Eq, arg1, arg2, _) ->
               Some [(arg1, arg2)]
@@ -862,6 +862,10 @@ struct
                | TFloat (fk, _), FLongDouble
                | TFloat (FDouble as fk, _), FDouble
                | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
+               | (TInt (ik_e, _) | TEnum ({ekind = ik_e; _}, _)), _ ->
+                 (match FD.inv_of_int ik_e c with
+                  | Some possible_ints -> inv_exp (Int possible_ints) e st
+                  | None -> contra st)
                | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
             | (TInt (ik, _) as t), Int c
             | (TEnum ({ekind = ik; _ }, _) as t), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)

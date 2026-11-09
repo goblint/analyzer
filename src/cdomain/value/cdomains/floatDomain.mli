@@ -118,6 +118,10 @@ module type FloatDomainBase = sig
 
   val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
 
+  val inv_of_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t option
+  (** Integers of the given kind whose conversion to a floating-point type abstracted by this domain may lie within the given value, or [None] if there are none.
+      This is the inverse of [of_int], used to refine an integer from the possible values of its cast to a floating-point type. *)
+
   val nan: unit -> t
 
   val of_const : float -> t
@@ -146,6 +150,11 @@ module type FloatDomain = sig
   include FloatArith with type t := t
 
   val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+
+  val inv_of_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t option
+  (** Integers of the given kind whose conversion to the floating-point type of the given value may lie within it, or [None] if there are none.
+      This is the inverse of [of_int], used to refine an integer from the possible values of its cast to a floating-point type. *)
+
   val cast_to : Cil.fkind -> t -> t
 
   val of_const : Cil.fkind -> float -> t

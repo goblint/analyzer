@@ -107,6 +107,7 @@ type _ t =
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> AD.t t
   | EvalInt: exp -> ID.t t
+  | EvalTransitionInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> SizeDomain.t t (* length of an array or string *)
   | EvalValue: exp -> VD.t t
@@ -138,6 +139,7 @@ type _ t =
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
   | Invariant: invariant_context -> Invariant.t t
+  | InvariantTransition: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
@@ -150,7 +152,7 @@ type _ t =
   | TmpSpecial: Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
   | GasExhausted: CilType.Fundec.t ->  MustBool.t t
-  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
+  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t * VS.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]), YAML witness task and variables in YAML witness invariants. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
@@ -192,6 +194,7 @@ struct
     | MustBeSingleThreaded _ -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | EvalInt _ -> (module ID)
+    | EvalTransitionInt _ -> (module ID)
     | EvalLength _ -> (module SizeDomain)
     | EvalMutexAttr _ -> (module MutexAttrDomain)
     | EvalValue _ -> (module VD)
@@ -217,6 +220,7 @@ struct
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
     | Invariant _ -> (module Invariant)
+    | InvariantTransition _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
@@ -271,6 +275,7 @@ struct
     | MustBeSingleThreaded _ -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | EvalInt _ -> ID.top ()
+    | EvalTransitionInt _ -> ID.top ()
     | EvalLength _ -> SizeDomain.top ()
     | EvalMutexAttr _ -> MutexAttrDomain.top ()
     | EvalValue _ -> VD.top ()
@@ -295,6 +300,7 @@ struct
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
     | Invariant _ -> Invariant.top ()
+    | InvariantTransition _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
@@ -354,6 +360,7 @@ struct
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalTransitionInt e1), Any (EvalTransitionInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (EvalMutexAttr e1), Any (EvalMutexAttr e2) -> CilType.Exp.compare e1 e2
@@ -378,8 +385,14 @@ struct
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
+      | Any (InvariantTransition i1), Any (InvariantTransition i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
-      | Any (YamlEntryGlobal (vi1, task1)), Any (YamlEntryGlobal (vi2, task2)) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) (* TODO: compare task *)
+      | Any (YamlEntryGlobal (vi1, task1, vs1)), Any (YamlEntryGlobal (vi2, task2, vs2)) ->
+        let r = Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) in (* TODO: compare task *)
+        if r <> 0 then
+          r
+        else
+          VS.compare vs1 vs2
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
@@ -410,6 +423,7 @@ struct
     | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x
     | Any (EvalFunvar e) -> CilType.Exp.hash e
     | Any (EvalInt e) -> CilType.Exp.hash e
+    | Any (EvalTransitionInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (EvalMutexAttr e) -> CilType.Exp.hash e
@@ -429,9 +443,10 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
+    | Any (InvariantTransition i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
-    | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
+    | Any (YamlEntryGlobal (vi, task, vs)) -> 31 * Hashtbl.hash vi + VS.hash vs (* TODO: hash task *)
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
     | Any (MustProtectingLocks g) -> hash_mustprotectinglocks g
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
@@ -469,6 +484,7 @@ struct
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e
     | Any (EvalInt e) -> Pretty.dprintf "EvalInt %a" CilType.Exp.pretty e
+    | Any (EvalTransitionInt e) -> Pretty.dprintf "EvalTransitionInt %a" CilType.Exp.pretty e
     | Any (EvalStr e) -> Pretty.dprintf "EvalStr %a" CilType.Exp.pretty e
     | Any (EvalLength e) -> Pretty.dprintf "EvalLength %a" CilType.Exp.pretty e
     | Any (EvalValue e) -> Pretty.dprintf "EvalValue %a" CilType.Exp.pretty e
@@ -492,10 +508,11 @@ struct
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
     | Any (MustProtectingLocks g) -> Pretty.dprintf "MustProtectingLocks _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
+    | Any (InvariantTransition i) -> Pretty.dprintf "InvariantTransition _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
-    | Any (YamlEntryGlobal (i, task)) -> Pretty.dprintf "YamlEntryGlobal _"
+    | Any (YamlEntryGlobal (i, task, vs)) -> Pretty.dprintf "YamlEntryGlobal _"
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
     | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
@@ -538,6 +555,12 @@ let may_be_less = eval_int_binop (module MayBool) Lt
 let eval_bool (ask: ask) e: BoolDomain.FlatBool.t =
   let e' = CastE (Internal, TInt (IBool, []), e) in
   match ask.f (EvalInt e') with
+  | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
+  | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
+
+let eval_transition_bool (ask: ask) e: BoolDomain.FlatBool.t =
+  let e' = CastE (Internal, TInt (IBool, []), e) in
+  match ask.f (EvalTransitionInt e') with
   | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
   | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
 

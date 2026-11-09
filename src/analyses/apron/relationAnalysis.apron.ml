@@ -260,6 +260,7 @@ struct
             let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
             let r' = assert_type_bounds ask r v in
             if M.tracing then M.traceu "relation" "-> %a" RD.pretty r';
+            if RD.is_bot_env r' then raise Deadcode;
             r'
           )
       )
@@ -505,8 +506,8 @@ struct
   let special_unknown_invalidate man f args =
     (* No warning here, base already produces the appropriate warnings *)
     let desc = LibraryFunctions.find f in
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true args in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         foldGlobals !Cilfacade.current_file (fun acc global ->
@@ -566,51 +567,54 @@ struct
       (* invalidate lval if present *)
       Option.map_default (invalidate_one ask man st') st' r
 
-  let query_invariant man context =
+  let invariant_state man context =
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
+
+    let ask = Analyses.ask_of_man man in
+
+    if ThreadFlag.has_ever_been_multi ask then (
+      let priv_vars =
+        if keep_global then
+          Priv.invariant_vars ask man.global man.local
+        else
+          [] (* avoid pointless queries *)
+      in
+      let (rel, e_inv, v_ins_inv) = read_globals_to_locals_inv ask man.global man.local priv_vars in
+      (* filter variables *)
+      let var_filter v = match RV.find_metadata v with
+        | Some (Local v) ->
+          if VH.mem v_ins_inv v then
+            keep_global
+          else if ThreadEscape.has_escaped ask v then
+            (* Escaped local variables should be read in via their v#in# variables, this apron var may refer to stale values only *)
+            (* and is not a sound description of the C variable. *)
+            false
+          else
+            keep_local
+        | _ -> false
+      in
+      let rel = RD.keep_filter rel var_filter in
+      (rel, e_inv)
+    )
+    else (
+      (* filter variables *)
+      let var_filter v = match RV.find_metadata v with
+        | Some (Global _) -> keep_global
+        | Some (Local _) -> keep_local
+        | _ -> false
+      in
+      let apr = RD.keep_filter man.local.rel var_filter in
+      (apr, Fun.id)
+    )
+
+  let query_invariant man context =
     let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
     let exact = GobConfig.get_bool "witness.invariant.exact" in
 
-    let ask = Analyses.ask_of_man man in
     let scope = Node.find_fundec man.node in
 
-    let (apr, e_inv) =
-      if ThreadFlag.has_ever_been_multi ask then (
-        let priv_vars =
-          if keep_global then
-            Priv.invariant_vars ask man.global man.local
-          else
-            [] (* avoid pointless queries *)
-        in
-        let (rel, e_inv, v_ins_inv) = read_globals_to_locals_inv ask man.global man.local priv_vars in
-        (* filter variables *)
-        let var_filter v = match RV.find_metadata v with
-          | Some (Local v) ->
-            if VH.mem v_ins_inv v then
-              keep_global
-            else if ThreadEscape.has_escaped ask v then
-              (* Escaped local variables should be read in via their v#in# variables, this apron var may refer to stale values only *)
-              (* and is not a sound description of the C variable. *)
-              false
-            else
-              keep_local
-          | _ -> false
-        in
-        let rel = RD.keep_filter rel var_filter in
-        (rel, e_inv)
-      )
-      else (
-        (* filter variables *)
-        let var_filter v = match RV.find_metadata v with
-          | Some (Global _) -> keep_global
-          | Some (Local _) -> keep_local
-          | _ -> false
-        in
-        let apr = RD.keep_filter man.local.rel var_filter in
-        (apr, Fun.id)
-      )
-    in
+    let (apr, e_inv) = invariant_state man context in
     RD.invariant apr
     |> List.to_seq
     |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
@@ -620,6 +624,66 @@ struct
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
           |> Option.filter (InvariantCil.exp_is_suitable ~scope)
+        else
+          None
+      )
+    |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+
+  let transition_state ask apr =
+    let vars = RD.vars apr in
+    let loop_counter_vis = List.filter_map (fun var ->
+        match RV.to_cil_varinfo var with
+        | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters -> Some vi
+        | _ -> None
+      ) vars
+    in
+    let anyprev_vars = List.map (fun var ->
+        match RV.find_metadata var with
+        | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
+        | Some (Global x) -> RV.global (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
+        | _ -> assert false (* should be filtered out by invariant_state *)
+      ) vars
+    in
+    let anyprev_apr = (* apr, but all vars have been replaced with corresponding AnyPrev vars while maintaining their relations *)
+      let apr' = RD.add_vars apr anyprev_vars in
+      let apr' = RD.assign_var_parallel' apr' anyprev_vars vars in
+      RD.keep_vars apr' anyprev_vars
+    in
+    let unified_apr = RD.unify apr anyprev_apr in (* unified state without relations between original and AnyPrev vars *)
+    let transition_apr = (* unified state with relations between original and AnyPrev vars via termination loop counters *)
+      match loop_counter_vis with
+      | [vi] -> (* currently limited to just one loop counter *) (* TODO: support nested/multiple loops (requires knowing their nesting structure) *)
+        assert (not vi.vglob); (* loop counters should all be local *)
+        let anyprev_vi = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
+        let anyprev_vi' = {anyprev_vi with vglob = false} in (* RichVarinfo-s are all global, so make local for assert_inv check to pass *)
+        let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var anyprev_vi')) (Lval (Cil.var vi)) in
+        let acc' = RD.assert_inv ask unified_apr exp false (lazy false) in
+        RD.remove_vars acc' [RV.local vi; RV.local anyprev_vi] (* project out loop counters *)
+      | _ ->
+        unified_apr
+    in
+    transition_apr
+
+  let query_invariant_transition man =
+    let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+    let exact = GobConfig.get_bool "witness.invariant.exact" in
+
+    let ask = Analyses.ask_of_man man in
+    let scope = Node.find_fundec man.node in
+
+    let (apr, e_inv) = invariant_state man context in
+    let apr' = transition_state ask apr in
+    RD.invariant apr'
+    |> List.to_seq
+    |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+        (* filter one-vars and exact *)
+        (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
+        if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then (
+          RD.cil_exp_of_lincons1 lincons1
+          |> Option.map e_inv
+          |> Option.filter TransitionInvariant.exp_has_transition (* exclude invariants entirely on normal variables (duplicating normal invariants) or entirely on AnyPrev variables (also redundant) *)
+          |> Option.filter (TransitionInvariant.exp_is_suitable ~scope)
+        )
         else
           None
       )
@@ -636,25 +700,46 @@ struct
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
+    let ask = Analyses.ask_of_man man in
     let st = man.local in
     let eval_int e no_ov =
       let esimple = replace_deref_exps man.ask e in
       read_from_globals_wrapper
-        (Analyses.ask_of_man man)
+        ask
         man.global st esimple
-        (fun rel' e' -> RD.eval_int (Analyses.ask_of_man man) rel' e' no_ov)
+        (fun rel' e' -> RD.eval_int ask rel' e' no_ov)
+    in
+    let eval_transition_int e no_ov =
+      let e = visitCilExpr TransitionInvariant.extvar_localize_visitor e in (* RichVarinfo-s are global by default, but make AnyPrev-s of locals local for Apron expression conversion *)
+      let esimple = replace_deref_exps man.ask e in
+      read_from_globals_wrapper
+        ask
+        man.global st esimple
+        (fun rel' e' ->
+           let rel' = transition_state ask rel' in
+           if M.tracing then M.trace "evaltransitionint" "relation transition rel': %a" RD.pretty rel';
+           RD.eval_int ask rel' e' no_ov
+        )
     in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "relation query %a (%a)" d_exp e d_plainexp e;
       if M.tracing then M.trace "evalint" "relation st: %a" D.pretty man.local;
-      let r = eval_int e (no_overflow (Analyses.ask_of_man man) e) in
+      let r = eval_int e (no_overflow ask e) in
       if M.tracing then M.traceu "evalint" "relation query %a -> %a" d_exp e ID.pretty r;
+      r
+    | EvalTransitionInt e ->
+      let e = Cilfacade.stripOuterBoolCast e in (* For normal EvalInt these are stripped by base *)
+      if M.tracing then M.traceli "evaltransitionint" "relation query %a (%a)" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evaltransitionint" "relation st: %a" D.pretty man.local;
+      let r = eval_transition_int e (no_overflow ask e) in
+      if M.tracing then M.traceu "evaltransitionint" "relation query %a -> %a" d_exp e ID.pretty r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars man.global vq vf'
     | Queries.Invariant context -> query_invariant man context
+    | Queries.InvariantTransition _context -> query_invariant_transition man
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g

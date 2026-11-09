@@ -96,7 +96,7 @@ struct
         | None -> man.local
       in
       let write_args =
-        LibraryDesc.Accesses.find_kind desc.accs Write arglist
+        LibraryDesc.Accesses.find desc.accs ~kind:Write arglist
       in
       (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
       List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_man man) e st) st write_args

@@ -61,8 +61,8 @@ struct
       | None -> man.local
     in
     let desc = LibraryFunctions.find f in
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } arglist in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } arglist in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false arglist in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true arglist in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         foldGlobals !Cilfacade.current_file (fun acc global ->

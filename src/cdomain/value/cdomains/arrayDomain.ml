@@ -818,7 +818,12 @@ let array_oob_check (x, l) (e, v) =
   if !AnalysisState.executing_speculative_computations then
     ()
   else if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
-    let idx_before_end = Idx.lt v (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) (SizeDomain.unlift l)) in (* check whether index is before the end of the array *) (* TODO: proper castkind *) (* TODO: refine v to non-negative and cast to SizeDomain instead (to avoid spurious overflows in casts and be more precise)? *)
+    let idx_before_end = (* check whether index is before the end of the array *)
+      try
+        SizeDomain.lt (SizeDomain.of_index v) l
+      with IntDomain.ArithmeticOnIntegerBot _ -> (* happens if v is definitely negative *)
+        Some true (* then definitely before the end *)
+    in
     let idx_after_start = Idx.ge v (Idx.of_int Z.zero) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)
     match idx_after_start, idx_before_end with

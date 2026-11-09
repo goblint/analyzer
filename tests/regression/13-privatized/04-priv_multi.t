@@ -19,6 +19,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 3
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -170,7 +171,7 @@
     content:
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+        value: '! multithreaded || (1 <= B && B <= 127)'
         format: c_expression
     - invariant:
         type: flow_insensitive_invariant
@@ -204,6 +205,7 @@ Flow-insensitive invariants as location invariants.
     location invariants: 9
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -252,7 +254,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >         line: 65
   >         column: 3
   >         function: main
-  >       value: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+  >       value: '! multithreaded || (1 <= B && B <= 127)'
   >       format: c_expression
   >   - invariant:
   >       type: location_invariant
@@ -279,7 +281,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >         line: 67
   >         column: 3
   >         function: main
-  >       value: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+  >       value: '! multithreaded || (1 <= B && B <= 127)'
   >       format: c_expression
   >   - invariant:
   >       type: location_invariant

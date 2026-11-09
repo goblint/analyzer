@@ -288,7 +288,10 @@ struct
               }
             in
             (* meet results so that precision from all analyses is combined *)
-            let res = S.query man' q in
+            let res =
+              try S.query man' q
+              with Deadcode -> failwith (Printf.sprintf "Deadcode in %s query" (S.name ()))
+            in
             if M.tracing then M.trace "queryanswers" "analysis %s query %a -> answer %a" (S.name ()) Queries.Any.pretty anyq Result.pretty res;
             Result.meet a @@ res
           in
@@ -301,10 +304,10 @@ struct
             (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
             let (n, g): V.t = Obj.obj g in
             f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n man.local)
-          | Queries.YamlEntryGlobal (g, task) ->
+          | Queries.YamlEntryGlobal (g, task, vs) ->
             (* YamlEntryGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
             let (n, g): V.t = Obj.obj g in
-            f ~q:(YamlEntryGlobal (Obj.repr g, task)) (Result.top ()) (n, spec n, assoc n man.local)
+            f ~q:(YamlEntryGlobal (Obj.repr g, task, vs)) (Result.top ()) (n, spec n, assoc n man.local)
           | Queries.PartAccess a ->
             Obj.repr (access man a)
           | Queries.IterSysVars (vq, fi) ->
@@ -531,7 +534,10 @@ struct
     let man'' = outer_man "enter" ~spawns ~sides man in
     let f (n,(module S:MCPSpec),d) =
       let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "enter" man'' n d in
-      map (fun (c,d) -> ((n, Obj.repr c), (n, Obj.repr d))) @@ S.enter man' r f a
+      try
+        map (fun (c,d) -> ((n, Obj.repr c), (n, Obj.repr d))) @@ S.enter man' r f a
+      with Deadcode ->
+        failwith (Printf.sprintf "Deadcode in %s enter" (S.name ()))
     in
     let css = map f @@ spec_list man.local in
     do_sideg man !sides;
@@ -602,7 +608,10 @@ struct
     let man'' = outer_man "threadenter" ~sides ~emits man in
     let f (n,(module S:MCPSpec),d) =
       let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadenter" man'' n d in
-      map (fun d -> (n, Obj.repr d)) @@ (S.threadenter ~multiple) man' lval f a
+      try
+        map (fun d -> (n, Obj.repr d)) @@ (S.threadenter ~multiple) man' lval f a
+      with Deadcode ->
+        failwith (Printf.sprintf "Deadcode in %s threadenter" (S.name ()))
     in
     let css = map f @@ spec_list man.local in
     do_sideg man !sides;

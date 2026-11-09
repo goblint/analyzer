@@ -354,13 +354,16 @@ struct
   include VarManagement
 
   let bound_texpr t texpr =
-    if t.d = None then None, None
+    if t.d = None then None
     else
       match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
-      | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
-         Some res, Some res)
-      | _ -> None, None
+      | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero ->
+        let res = Z.div offset divisor in (
+          if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
+          Some (Some res, Some res)
+        )
+      | Some (None, _, _) -> None
+      | _ -> Some (None, None)
 
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
@@ -709,10 +712,6 @@ struct
 
 
   (** Assert a constraint expression.
-      The overflow is completely handled by the flag "no_ov",
-      which is set in relationAnalysis.ml via the function no_overflow.
-      In case of a potential overflow, "no_ov" is set to false
-      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow
 
       meet_tcons -> meet with guard in if statement
       texpr -> tree expr (right hand side of equality)
@@ -720,7 +719,7 @@ struct
       tcons -> tree constraint (expression < 0)
       -> does not have types (overflow is type dependent)
   *)
-  let meet_tcons ask t tcons original_expr no_ov =
+  let meet_tcons ask t tcons original_expr =
     match t.d with
     | None -> t
     | Some d ->
@@ -756,9 +755,9 @@ struct
             end
           | _ -> t (* For equalities of more then 2 vars we just return t *))
 
-  let meet_tcons ask t tcons original_expr no_ov  =
-    if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" d_exp original_expr (Lazy.force no_ov);
-    meet_tcons ask t tcons original_expr no_ov
+  let meet_tcons ask t tcons original_expr =
+    if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a" d_exp original_expr;
+    meet_tcons ask t tcons original_expr
 
   let meet_tcons t tcons expr = Timing.wrap "meet_tcons" (meet_tcons t tcons) expr
 
@@ -783,7 +782,7 @@ struct
   *)
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
-    | tcons1 -> meet_tcons ask d tcons1 e no_ov
+    | tcons1 -> meet_tcons ask d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_constraint ask d e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask d e negate) no_ov

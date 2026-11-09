@@ -33,8 +33,11 @@ struct
   module R =
   struct
     include VIES
-    (* new predecessors are always the right ones for the latest evaluation *)
-    let widen x y = y
+    (* New predecessors from the latest evaluation should be the right ones.
+       This is (probably) true for locals at loop head widenings.
+       But this isn't true for globals at function entry side effect widenings.
+       So must join to not wipe out predecessors for other calls. *)
+    let widen x y = join x y
     let narrow x y = y
   end
 
@@ -72,14 +75,16 @@ struct
   end
 
   (* Additional dependencies component between values before and after sync.
-     This is required because some analyses (e.g. region) do sideg through local domain diff and sync.
-     sync is automatically applied in FromSpec before any transition, so previous values may change (diff is flushed).
+     sync is automatically applied in FromSpec before any transition, so previous values may change.
      We now use Sync for every tf such that threadspawn after tf could look up state before tf. *)
   module SyncSet =
   struct
     include SetDomain.Make (Spec.D)
-    (* new predecessors are always the right ones for the latest evaluation *)
-    let widen x y = y
+    (* New predecessors from the latest evaluation should be the right ones.
+       This is (probably) true for locals at loop head widenings.
+       But this isn't true for globals at function entry side effect widenings.
+       So must join to not wipe out predecessors for other calls. *)
+    let widen x y = join x y
     let narrow x y = y
   end
   module Sync = SpecDMap (SyncSet)
@@ -257,6 +262,13 @@ struct
       (* let (d, _) = List.at (S.elements s) i in *)
       let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst man.local)) in
       Spec.query (conv man d) (Invariant c)
+    | InvariantTransition _
+    | EvalTransitionInt _ ->
+      (* Join over all paths to generate a sound transition invariant.
+         Required because transitions can (and do) go from one path to another and
+         just disjuncting their transition invariants doesn't account for transitions between them. *)
+      let d = Dom.fold_keys Spec.D.join (fst man.local) (Spec.D.bot ()) in
+      Spec.query (conv man d) q
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in

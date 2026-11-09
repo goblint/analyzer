@@ -168,8 +168,6 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
-
   let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ())
 
   let id_binary_pred result_ik f x y =
@@ -336,13 +334,13 @@ struct
           (* Binary operations on pointer types should not generate warnings in SV-COMP *)
           let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
-          `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
+          `Index(IdxDom.add i (IdxDom.lift n), `NoOffset)
         | `Field (f, `NoOffset) ->
           (* If we have arrived at the last Offset and it is a Field,
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let n_offset = iDtoIdx n in
+          let n_offset = IdxDom.lift n in
           begin match t with
             | Some t ->
               let f_offset_bytes = Cilfacade.fieldBytesOffsetOnly f in
@@ -359,7 +357,7 @@ struct
         | `Field (f, o) ->
           let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
           `Field(f, addToOffset n t' o)
-        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+        | `NoOffset -> `Index(IdxDom.lift n, `NoOffset)
       in
       match addr with
       | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
@@ -382,10 +380,10 @@ struct
       | MinusPI ->
         let n = (* only speculative during ID.neg *)
           let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-          ID.neg (ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n) (* TODO: proper castkind *)
+          IdxDom.neg (IdxDom.lift n)
         in
         Address (ad_concat_map (addToAddr n) p)
-      | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
+      | Mod -> Int (IdxDom.top ()) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
     in
     (* The main function! *)
@@ -429,7 +427,7 @@ struct
     | Address p, Top ->
       (* same as previous, but with Unknown instead of int *)
       (* TODO: why does this even happen in zstd-thread-pool-add? *)
-      let n = ID.top_of (Cilfacade.ptrdiff_ikind ()) in (* pretend to have unknown ptrdiff int instead *)
+      let n = IdxDom.top () in (* pretend to have unknown ptrdiff int instead *)
       addToAddrOp p n
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
@@ -492,7 +490,7 @@ struct
         | Ne ->
           Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int ik Z.one else match eq p1 p2 with Some x when x -> ID.of_int ik Z.zero | _ -> bool_top ik)
         | IndexPI when AD.to_string p2 = ["all_index"] ->
-          addToAddrOp p1 (ID.top_of (Cilfacade.ptrdiff_ikind ()))
+          addToAddrOp p1 (IdxDom.top ())
         | IndexPI | PlusPI ->
           addToAddrOp p1 (AD.to_int p2) (* sometimes index is AD for some reason... *)
         | _ -> VD.top ()
@@ -787,6 +785,14 @@ struct
     done;
     !collected
 
+  (** Does casting a pointer to [it] and (back) to [t] have to give the original pointer?
+
+      Implementation-defined by C11 6.3.2.3p5-6.
+      Well-behaved under GCC: https://gcc.gnu.org/onlinedocs/gcc/Arrays-and-pointers-implementation.html. *)
+  let is_pointer_integer_roundtrip (t: typ) (it: typ): bool =
+    isPointerType t && isIntegralType it
+    && (try bitsSizeOf it >= bitsSizeOf t with SizeOfError _ -> false)
+
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv ~(man: _ man) (st: store) (exp:exp): value =
     if M.tracing then M.traceli "evalint" "base eval_rv %a" d_exp exp;
@@ -884,7 +890,7 @@ struct
         eval_rv_base_lval ~eval_lv ~man st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
-      | BinOp ((Eq | Ne) as op, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
+      | BinOp ((Eq | Ne) as op, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 -> (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
         let a1 = eval_rv ~man st e1 in
         let a2 = eval_rv ~man st e2 in
         let extra_is_safe =
@@ -901,7 +907,7 @@ struct
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
-          | BinOp (Eq, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
+          | BinOp (Eq, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 -> (* TODO: use Cilfacade.remove_binop_pointer_conversions? this seems more general *)
             Some [binop_remove_same_casts ~extra_is_safe:false ~e1 ~e2 ~t1 ~t2 ~c1 ~c2]
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
@@ -987,6 +993,13 @@ struct
         let array_start = add_offset_varinfo array_ofs in
         Address (ad_concat_map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
+      (* [(T * )(uintptr_t )p] preserves the pointer when the intermediate integer type can represent it.
+         Evaluating the casts separately would turn non-null addresses into unknown integers and pointers. *)
+      | CastE (kind, t, CastE (int_kind, it, inner)) when is_pointer_integer_roundtrip t it ->
+        begin match eval_rv ~man st inner with
+          | Address _ as v -> VD.cast ~kind t v
+          | v -> VD.cast ~kind t (VD.cast ~kind:int_kind it v)
+        end
       | CastE (kind, t, exp) ->
         let v = eval_rv ~man st exp in
         VD.cast ~kind t v
@@ -1128,7 +1141,7 @@ struct
       `Index (IdxDom.top (), convert_offset ~man st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~man st exp with
-      | Int i -> `Index (iDtoIdx i, convert_offset ~man st ofs)
+      | Int i -> `Index (IdxDom.lift i, convert_offset ~man st ofs)
       | Address add -> `Index (AD.to_int add, convert_offset ~man st ofs)
       | Top   -> `Index (IdxDom.top (), convert_offset ~man st ofs)
       | Bot -> `Index (IdxDom.bot (), convert_offset ~man st ofs)
@@ -2258,8 +2271,8 @@ struct
         List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | _, _ ->
-      let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
-      let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
+      let shallow_args = LibraryDesc.Accesses.find desc.accs ~kind:Spawn ~deep:false args in
+      let deep_args = LibraryDesc.Accesses.find desc.accs ~kind:Spawn ~deep:true args in
       let shallow_flist = collect_invalidate ~deep:false ~man man.local shallow_args in
       let deep_flist = collect_invalidate ~deep:true ~man man.local deep_args in
       let flist = AD.join shallow_flist deep_flist in
@@ -2281,8 +2294,8 @@ struct
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called";
       ));
     let desc = LF.find f in
-    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:false args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs ~kind:Write ~deep:true args in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
@@ -2347,6 +2360,7 @@ struct
           let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
           let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
           begin
+            let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
             try SizeDomain.mul item_typ_size_in_bytes arr_len
             with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
           end

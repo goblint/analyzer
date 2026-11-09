@@ -145,7 +145,7 @@ struct
 
   let event man e oman =
     match e with
-    | Events.Access {exp; ad; kind; reach} ->
+    | Events.Access {exp; ad; kind; atomic; reach} ->
       (* must use original (pre-assign, etc) man queries *)
       let is_free = kind = Free in
       let freed_heap_vars = snd oman.local in

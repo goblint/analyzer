@@ -411,6 +411,7 @@ struct
   type t = {
     conf : int;
     kind : AccessKind.t;
+    atomic : bool;
     node : Node.t;
     exp : CilType.Exp.t;
     acc : MCPAccess.A.t;
@@ -418,8 +419,9 @@ struct
 
   let name () = "access"
 
-  let pretty () {conf; kind; node; exp; acc} =
-    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty (Node.location node) CilType.Exp.pretty exp MCPAccess.A.pretty acc
+  let pretty () {conf; kind; atomic; node; exp; acc} =
+    let atomic_pretty = if atomic then " (atomic)" else "" in
+    Pretty.dprintf "%d, %a%s, %a, %a, %a" conf AccessKind.pretty kind atomic_pretty CilType.Location.pretty (Node.location node) CilType.Exp.pretty exp MCPAccess.A.pretty acc
 
   include Printable.SimplePretty (
     struct
@@ -428,8 +430,8 @@ struct
     end
     )
 
-  let relift {conf; kind; node; exp; acc} =
-    {conf; kind; node; exp; acc = MCPAccess.A.relift acc}
+  let relift {conf; kind; atomic; node; exp; acc} =
+    {conf; kind; atomic; node; exp; acc = MCPAccess.A.relift acc}
 end
 
 module AS =
@@ -442,14 +444,17 @@ end
 
 
 (** Check if two accesses may race. *)
-let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
-  match kind, kind2 with
-  | Read, Read -> false (* two read/read accesses do not race *)
-  | Free, _
-  | _, Free when not (get_bool "ana.race.free") -> false
-  | Call, _
-  | _, Call when not (get_bool "ana.race.call") -> false
-  | _, _ -> MCPAccess.A.may_race acc acc2 (* analysis-specific information excludes race *)
+let may_race A.{kind; atomic; acc; _} A.{kind=kind2; atomic=atomic2; acc=acc2; _} =
+  if atomic && atomic2 then
+    false (* two atomic accesses do not race *)
+  else
+    match kind, kind2 with
+    | Read, Read -> false (* two read/read accesses do not race *)
+    | Free, _
+    | _, Free when not (get_bool "ana.race.free") -> false
+    | Call, _
+    | _, Call when not (get_bool "ana.race.call") -> false
+    | _, _ -> MCPAccess.A.may_race acc acc2 (* analysis-specific information excludes race *)
 
 (** Access sets for race detection and warnings. *)
 module WarnAccs =
@@ -633,14 +638,15 @@ let print_accesses memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let acc_msg ?(indent="") A.{conf; kind; node; exp; acc} =
+    let acc_msg ?(indent="") A.{conf; kind; atomic; node; exp; acc} =
       let acc_doc () =
         if MCPAccess.A.should_print acc then
           dprintf " with %a" MCPAccess.A.pretty acc
         else
           nil
       in
-      let doc = dprintf "%s%a%t (conf. %d)  (exp: %a)" indent AccessKind.pretty kind acc_doc conf d_exp exp in
+      let atomic_prefix = if atomic then "atomic " else "" in
+      let doc = dprintf "%s%s%a%t (conf. %d)  (exp: %a)" indent atomic_prefix AccessKind.pretty kind acc_doc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
     match coloring_module with
