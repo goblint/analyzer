@@ -64,6 +64,25 @@
     disabled: 0
     total validation entries: 3
 
+Wrong invariant from handwritten witnes should not be confirmed:
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --set ana.activated[+] expsplit --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 54-path-sens-terminating.bad.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 54-path-sens-terminating.c 
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 10
+    dead: 0
+    total lines: 10
+  [Warning][Witness] invariant unconfirmed: \at(x, AnyPrev) < x (54-path-sens-terminating.c:14:3)
+  [Info][Witness] witness validation summary:
+    confirmed: 0
+    unconfirmed: 1
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
 Same with loop unrolling:
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --set ana.activated[+] expsplit --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 54-path-sens-terminating.c --set exp.unrolling-factor 1 | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
@@ -124,3 +143,24 @@ Same with loop unrolling:
     unsupported: 0
     disabled: 0
     total validation entries: 2
+
+Wrong invariant from handwritten witnes should not be confirmed:
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --set ana.activated[+] expsplit --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 54-path-sens-terminating.bad.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 54-path-sens-terminating.c --set exp.unrolling-factor 1
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info] unrolling loop at 54-path-sens-terminating.c:14:3-18:3 with factor 1
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 10
+    dead: 0
+    total lines: 10
+  [Warning][Witness] invariant unconfirmed: \at(x, AnyPrev) < x (54-path-sens-terminating.c:14:3)
+  [Info][Witness] witness validation summary:
+    confirmed: 0
+    unconfirmed: 1
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
