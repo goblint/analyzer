@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.apron.narrowing_gas 1 --set ana.activated[+] apron --set ana.apron.domain polyhedra
+//PARAM: --set ana.apron.narrowing_gas 1 --set ana.activated[+] apron --set ana.apron.domain polyhedra
 // Apron is not precise enough for some nested loops
 #include <goblint.h>
 #include <stdio.h>

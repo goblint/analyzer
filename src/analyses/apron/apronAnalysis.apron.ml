@@ -20,15 +20,14 @@ let spec_module: (module MCPSpec) Lazy.t =
     if (narrowing_gas > 0) then
       let module Narrowed =
       struct
-        module PolyhedraChainParams: Printable.ChainParams =
+        module ApronChainParams: Printable.ChainParams =
         struct
           let n () = narrowing_gas
           let names = string_of_int
         end
-        include NarrowingGas.DLifter (Spec) (PolyhedraChainParams)
+        include NarrowingGas.DLifter (Spec) (ApronChainParams)
         module A = Spec.A
         let access = Spec.access
-        let name = Spec.name
       end
       in
       (module Narrowed)

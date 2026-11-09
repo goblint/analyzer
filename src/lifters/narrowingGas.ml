@@ -1,7 +1,7 @@
 (** narrowing delay with counters.
 
     Abstract elements are paired with an integer counter, indicating how many times narrowing has been delayed.
-    Lifted abstract elements are only narrowed if the counter exceeds a predefined limit (gas). *)
+    Lifted abstract elements are only narrowed if the counter exceeds a predefined limit (gas), otherwise a meet is performed. *)
 
 open Batteries
 open Lattice
@@ -66,7 +66,7 @@ struct
 
   module NameLifter =
   struct
-    let lift_name x = x ^ " with narrowing count"
+    let lift_name x = x
   end
   include SpecLifters.DomainLifter (NameLifter) (DD) (S)
 
