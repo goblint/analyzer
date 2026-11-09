@@ -80,6 +80,16 @@ struct
         };
     }
 
+  let loop_transition_invariant ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LoopTransitionInvariant {
+          location;
+          value = invariant;
+          format = "ext_c_expression";
+          labels = None;
+        };
+    }
+
   (* non-standard extension *)
   let flow_insensitive_invariant ~(invariant): InvariantSet.InvariantKind.t =
     Invariant {
@@ -221,6 +231,7 @@ struct
     let cnt_loop_invariant = ref 0 in
     let cnt_location_invariant = ref 0 in
     let cnt_flow_insensitive_invariant = ref 0 in
+    let cnt_loop_transition_invariant = ref 0 in
 
     let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
 
@@ -305,6 +316,44 @@ struct
                         let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force loop_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate loop transition invariants *)
+        let invariants =
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopTransitionInvariant.invariant_type then (
+            LH.fold (fun loc ns acc ->
+                if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
+                  (* Join over all (unrolled) nodes at a location to generate a sound transition invariant.
+                     Required because transitions can (and do) go from one unrolled node to another and
+                     just disjuncting their transition invariants doesn't account for transitions between them. *)
+                  let local = List.fold_left (fun acc n ->
+                      let local = R.local_node n in
+                      Spec.D.join acc local
+                    ) (Spec.D.bot ()) ns
+                  in
+                  let inv = R.ask_local_node (List.hd ns) ~local (InvariantTransition Invariant.default_context) in (* TODO: fix node hack *)
+                  match inv with
+                  | `Lifted inv ->
+                    let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                    let location_function = fundec.svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
+                    let invs = Invariant.Exp.process inv in
+                    List.fold_left (fun acc inv ->
+                        add_invariant_vars inv;
+                        let invariant = Invariant.Exp.show inv in
+                        let invariant = Entry.loop_transition_invariant ~location ~invariant in
+                        incr cnt_loop_transition_invariant;
                         invariant :: acc
                       ) acc invs
                   | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -411,6 +460,7 @@ struct
       (Pretty.dprintf "location invariants: %d" !cnt_location_invariant, None);
       (Pretty.dprintf "loop invariants: %d" !cnt_loop_invariant, None);
       (Pretty.dprintf "flow-insensitive invariants: %d" !cnt_flow_insensitive_invariant, None);
+      (Pretty.dprintf "loop transition invariants: %d" !cnt_loop_transition_invariant, None);
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 

@@ -7,6 +7,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 3
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -162,6 +163,7 @@ protection doesn't have precise protected invariant for g2.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 4
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -321,6 +323,7 @@ protection-read has precise protected invariant for g2.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 2
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -472,6 +475,7 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 4
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
