@@ -716,9 +716,9 @@ struct
         ask
         man.global st esimple
         (fun rel' e' ->
-          let rel' = transition_state ask rel' in
-          if M.tracing then M.trace "evaltransitionint" "relation transition rel': %a" RD.pretty rel';
-          RD.eval_int ask rel' e' no_ov
+           let rel' = transition_state ask rel' in
+           if M.tracing then M.trace "evaltransitionint" "relation transition rel': %a" RD.pretty rel';
+           RD.eval_int ask rel' e' no_ov
         )
     in
     match q with
