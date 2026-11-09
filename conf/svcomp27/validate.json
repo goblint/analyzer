@@ -18,7 +18,8 @@
       ],
       "invariant-types": [
         "location_invariant",
-        "loop_invariant"
+        "loop_invariant",
+        "loop_transition_invariant"
       ]
     },
     "invariant": {

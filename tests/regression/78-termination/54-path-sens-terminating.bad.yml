@@ -1,0 +1,26 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.1"
+    uuid: 9a3f1c36-29ee-4ccd-8741-3da6bb81cf21
+    creation_time: 2026-11-09T09:18:14Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 54-path-sens-terminating.c
+      input_file_hashes:
+        54-path-sens-terminating.c: 48f218d7e5bde9423942d91e4ac1ad37fa975a7d42cb8b615e0a1f7c9062b6ca
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: loop_transition_invariant
+      location:
+        file_name: 54-path-sens-terminating.c
+        line: 14
+        column: 3
+        function: main
+      # This is wrong and should not be confirmed!
+      value: \at(x, AnyPrev) < x
+      format: ext_c_expression
