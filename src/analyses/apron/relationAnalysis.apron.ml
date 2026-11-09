@@ -631,6 +631,12 @@ struct
 
   let transition_state ask apr =
     let vars = RD.vars apr in
+    let loop_counter_vis = List.filter_map (fun var ->
+        match RV.to_cil_varinfo var with
+        | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters -> Some vi
+        | _ -> None
+      ) vars
+    in
     let anyprev_vars = List.map (fun var ->
         match RV.find_metadata var with
         | Some (Local x) -> RV.local (TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev x))
@@ -645,18 +651,16 @@ struct
     in
     let unified_apr = RD.unify apr anyprev_apr in (* unified state without relations between original and AnyPrev vars *)
     let transition_apr = (* unified state with relations between original and AnyPrev vars via termination loop counters *)
-      List.fold_left (fun acc var ->
-          match RV.to_cil_varinfo var with
-          | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
-            assert (not vi.vglob); (* loop counters should all be local *)
-            let anyprev_vi = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
-            let anyprev_vi' = {anyprev_vi with vglob = false} in (* RichVarinfo-s are all global, so make local for assert_inv check to pass *)
-            let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var anyprev_vi')) (Lval (Cil.var vi)) in
-            let acc' = RD.assert_inv ask acc exp false (lazy false) in
-            RD.remove_vars acc' [RV.local vi; RV.local anyprev_vi] (* project out loop counters *)
-          | _ ->
-            acc
-        ) unified_apr vars
+      match loop_counter_vis with
+      | [vi] -> (* currently limited to just one loop counter *) (* TODO: support nested/multiple loops (requires knowing their nesting structure) *)
+        assert (not vi.vglob); (* loop counters should all be local *)
+        let anyprev_vi = TransitionInvariant.ExtVarMap.to_varinfo (AnyPrev vi) in
+        let anyprev_vi' = {anyprev_vi with vglob = false} in (* RichVarinfo-s are all global, so make local for assert_inv check to pass *)
+        let exp = Cilfacade.makeBinOp Lt (Lval (Cil.var anyprev_vi')) (Lval (Cil.var vi)) in
+        let acc' = RD.assert_inv ask unified_apr exp false (lazy false) in
+        RD.remove_vars acc' [RV.local vi; RV.local anyprev_vi] (* project out loop counters *)
+      | _ ->
+        unified_apr
     in
     transition_apr
 
