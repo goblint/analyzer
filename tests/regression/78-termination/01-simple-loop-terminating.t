@@ -110,11 +110,11 @@ Same with loop unrolling:
     dead: 0
     total lines: 6
   [Success][Witness] invariant confirmed: (2U <= i && i <= 11U) || i == 1U (01-simple-loop-terminating.c:8:3)
-  [Error][Witness] invariant refuted: (long long )i >= (long long )\at(i, AnyPrev) + 1LL (01-simple-loop-terminating.c:8:3)
+  [Success][Witness] invariant confirmed: (long long )i >= (long long )\at(i, AnyPrev) + 1LL (01-simple-loop-terminating.c:8:3)
   [Info][Witness] witness validation summary:
-    confirmed: 1
+    confirmed: 2
     unconfirmed: 0
-    refuted: 1
+    refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0

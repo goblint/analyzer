@@ -114,11 +114,11 @@ Same with loop unrolling:
     dead: 0
     total lines: 10
   [Success][Witness] invariant confirmed: (c <= 20 && (((((2 <= c && 2 <= x) && x <= 20) && mode == 0) && (long long )x == (long long )c) || ((((-99 <= x && 1 <= c) && x <= -80) && mode == 1) && (long long )x + 100LL == (long long )c))) || ((c == 0 && x == 0) && mode == 0) (54-path-sens-terminating.c:14:3)
-  [Error][Witness] invariant refuted: (long long )c >= (long long )\at(c, AnyPrev) + 1LL (54-path-sens-terminating.c:14:3)
+  [Success][Witness] invariant confirmed: (long long )c >= (long long )\at(c, AnyPrev) + 1LL (54-path-sens-terminating.c:14:3)
   [Info][Witness] witness validation summary:
-    confirmed: 1
+    confirmed: 2
     unconfirmed: 0
-    refuted: 1
+    refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0

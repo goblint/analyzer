@@ -634,25 +634,30 @@ struct
             TransitionInvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs
           in
 
-          let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
-              let fundec = Node.find_fundec n in
+          let (n, _) = LvarS.choose lvars in (* TODO: fix node hack *)
+          let fundec = Node.find_fundec n in
 
-              let result: VR.result = match FundecH.find_or_add_default_delayed ~default:parse_cil memo fundec with
-                | Ok inv_exp ->
-                  begin match Queries.eval_transition_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
-                    | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
-                    | `Lifted true -> Confirmed
-                    | `Lifted false -> Refuted
-                    | `Top -> Unconfirmed
-                  end
-                | Error e ->
-                  ParseError
+          let result: VR.result = match FundecH.find_or_add_default_delayed ~default:parse_cil memo fundec with
+            | Ok inv_exp ->
+              (* Join over all (unrolled) nodes at a location to generate a sound transition invariant.
+                 Required because transitions can (and do) go from one unrolled node to another and
+                 just disjuncting their transition invariants doesn't account for transitions between them. *)
+              let local = LvarS.fold (fun lvar acc ->
+                  let local = try LHT.find lh lvar with Not_found -> Spec.D.bot () in
+                  Spec.D.join acc local
+                ) lvars (Spec.D.bot ())
               in
-              VR.join acc (VR.result_to_enum result)
-            ) lvars (VR.bot ())
+              begin match Queries.eval_transition_bool {f = (fun (type a) (q: a Queries.t) -> ask_local_node n ~local q)} inv_exp with
+                | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
+                | `Lifted true -> Confirmed
+                | `Lifted false -> Refuted
+                | `Top -> Unconfirmed
+              end
+            | Error e ->
+              ParseError
           in
 
-          begin match Option.get (VR.result_of_enum result) with
+          begin match result with
             | Confirmed ->
               incr cnt_confirmed;
               M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv
