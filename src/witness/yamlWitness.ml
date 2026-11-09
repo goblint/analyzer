@@ -334,11 +334,15 @@ struct
           if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopTransitionInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
-                  let inv = List.fold_left (fun acc n ->
+                  (* Join over all (unrolled) nodes at a location to generate a sound transition invariant.
+                     Required because transitions can (and do) go from one unrolled node to another and
+                     just disjuncting their transition invariants doesn't account for transitions between them. *)
+                  let local = List.fold_left (fun acc n ->
                       let local = R.local_node n in
-                      Invariant.(acc || R.ask_local_node n ~local (InvariantTransition Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-                    ) (Invariant.bot ()) ns
+                      Spec.D.join acc local
+                    ) (Spec.D.bot ()) ns
                   in
+                  let inv = R.ask_local_node (List.hd ns) ~local (InvariantTransition Invariant.default_context) in (* TODO: fix node hack *)
                   match inv with
                   | `Lifted inv ->
                     let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
