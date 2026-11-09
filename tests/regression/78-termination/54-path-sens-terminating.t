@@ -64,7 +64,7 @@
     disabled: 0
     total validation entries: 3
 
-Wrong invariant from handwritten witnes should not be confirmed:
+Wrong invariant from handwritten witness should not be confirmed:
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --set ana.activated[+] expsplit --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 54-path-sens-terminating.bad.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 54-path-sens-terminating.c 
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
@@ -144,7 +144,7 @@ Same with loop unrolling:
     disabled: 0
     total validation entries: 2
 
-Wrong invariant from handwritten witnes should not be confirmed:
+Wrong invariant from handwritten witness should not be confirmed:
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --set ana.activated[+] expsplit --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 54-path-sens-terminating.bad.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 54-path-sens-terminating.c --set exp.unrolling-factor 1
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none

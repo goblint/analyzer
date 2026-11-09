@@ -137,3 +137,23 @@ No wrong transition invariant `j >= \at(j, AnyPrev) + 1` for inner loop.
     unsupported: 0
     disabled: 0
     total validation entries: 10
+
+Wrong invariants from handwritten witness should not be confirmed:
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 07-nested-for-loop-terminating.bad.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 07-nested-for-loop-terminating.c
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 8
+    dead: 0
+    total lines: 8
+  [Warning][Witness] invariant unconfirmed: i >= \at(i, AnyPrev) + 1 (07-nested-for-loop-terminating.c:12:5)
+  [Warning][Witness] invariant unconfirmed: j >= \at(j, AnyPrev) + 1 (07-nested-for-loop-terminating.c:12:5)
+  [Info][Witness] witness validation summary:
+    confirmed: 0
+    unconfirmed: 2
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 2
