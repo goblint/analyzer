@@ -715,7 +715,8 @@ struct
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | InvariantTransition _ ->
+    | InvariantTransition _
+    | EvalTransitionInt _ ->
       (* Join over all paths to generate a sound transition invariant.
          Required because transitions can (and do) go from one path to another and
          just disjuncting their transition invariants doesn't account for transitions between them. *)
