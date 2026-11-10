@@ -74,7 +74,7 @@ struct
     match e with
     | Events.Lock (UnknownPtr, _) ->
       man.local (* don't add unknown lock *)
-    | Events.Lock (Addr (v, _), _) when not v.vglob || man.ask (IsMultiple v) ->
+    | Events.Lock (Addr (v, _), _) when not (BaseUtil.is_globally_unique (Analyses.ask_of_man man) v) ->
       man.local (* don't add local or non-unique lock *)
     | Events.Lock l ->
       Arg.add man l (* add definite lock or none in parallel if ambiguous *)
