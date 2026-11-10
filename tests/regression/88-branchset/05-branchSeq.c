@@ -24,6 +24,6 @@ int main(void) {
     z = 1;
   else
     z = 2;
-  __goblint_check(x == y); // Needs both recent decisions.
+  __goblint_check(x == y); // Needs the decision from choose() retained across the unrelated branch on s.
   return 0;
 }

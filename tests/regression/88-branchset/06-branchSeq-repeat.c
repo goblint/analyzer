@@ -1,5 +1,7 @@
 // PARAM: --set ana.activated[+] branchSeq --set ana.branchSeq.length 2
-// CRAM: Only consecutive identical branch decisions are skipped.
+// Consecutive identical decisions do not consume history slots: the first branch
+// still separates x and y after visiting the same node twice with the same outcome.
+// A different outcome at that node consumes a slot and evicts the first branch.
 #include <goblint.h>
 
 int marker;

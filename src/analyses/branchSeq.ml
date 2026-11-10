@@ -20,8 +20,10 @@ struct
     if !k <= 0 then
       failwith "ana.branchSeq.length must be positive if analysis is active"
 
-  (* Most recent decision first. Consecutive visits to the same node preserve
-     the existing history, including its recorded branch value. *)
+  (* Most recent decision first. Consecutive identical branch decisions preserve
+     the existing history.
+     TODO: Use man.prev_node to identify the branching site rather than the first
+     node in the branch, together with the same change in branchSet. *)
   let branch man _ tv =
     match man.local with
     | `Lifted ((otv, node) :: _) when otv = tv && Node.equal node man.node -> man.local
