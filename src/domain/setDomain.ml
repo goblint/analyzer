@@ -469,36 +469,70 @@ end
 module Joined (E: Lattice.S): S with type elt = E.t =
 struct
   type elt = E.t
-  include E
 
-  let singleton e = e
-  let of_list es = List.fold_left E.join (E.bot ()) es
-  let exists p e = p e
-  let for_all p e = p e
-  let mem e e' = E.leq e e'
-  let choose e = e
-  let elements e = [e]
-  let to_seq e = Seq.return e
+  (* [LiftBot] to distinguish empty set ([`Bot]) from singleton set [`Lifted (E.bot ())].
+     Otherwise set functions can behave unexpectedly. *)
+  module L = Lattice.LiftBot (E)
+  include L
+
+  let singleton e = `Lifted e
+  let of_list = function
+    | [] -> `Bot
+    | es -> `Lifted (List.fold_left E.join (E.bot ()) es)
+  let exists p e =
+    match e with
+    | `Lifted e -> p e
+    | `Bot -> false
+  let for_all p e =
+    match e with
+    | `Lifted e -> p e
+    | `Bot -> true
+  let mem e e' =
+    match e' with
+    | `Lifted e' -> E.leq e e'
+    | `Bot -> false
+  let choose = function
+    | `Lifted e -> e
+    | `Bot -> raise Not_found
+  let elements = function
+    | `Lifted e -> [e]
+    | `Bot -> []
+  let to_seq = function
+    | `Lifted e -> Seq.return e
+    | `Bot -> Seq.empty
   let remove e e' =
-    if E.leq e' e then
-      E.bot () (* NB! strong removal *)
+    if L.leq e' (`Lifted e) then
+      L.bot () (* NB! strong removal *)
     else
       e'
-  let map f e = f e
-  let fold f e a = f e a
-  let empty () = E.bot ()
-  let add e e' = E.join e e'
-  let is_empty e = E.is_bot e
-  let union e e' = E.join e e'
-  let diff e e' = remove e' e (* NB! strong removal *)
-  let iter f e = f e
+  let map f e =
+    match e with
+    | `Lifted e -> `Lifted (f e)
+    | `Bot -> `Bot
+  let fold f e a =
+    match e with
+    | `Lifted e -> f e a
+    | `Bot -> a
+  let empty () = `Bot
+  let add e e' = L.join (`Lifted e) e'
+  let is_empty e = L.is_bot e
+  let union e e' = L.join e e'
+  let diff e e' =
+    if L.leq e' e then
+      L.bot () (* NB! strong removal *)
+    else
+      e'
+  let iter f e =
+    match e with
+    | `Lifted e -> f e
+    | `Bot -> ()
   let cardinal e =
     if is_empty e then
       0
     else
       1
-  let inter e e' = E.meet e e'
-  let subset e e' = E.leq e e'
+  let inter e e' = L.meet e e'
+  let subset e e' = L.leq e e'
   let filter p e = unsupported "Joined.filter"
   let partition p e = unsupported "Joined.partition"
   let min_elt e = unsupported "Joined.min_elt"

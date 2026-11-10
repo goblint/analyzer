@@ -906,6 +906,8 @@ module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type valu
 struct
   type key = E.t
   type value = R.t
+
+  (* TODO: LiftBot like SetDomain.Joined? *)
   include Lattice.Prod (E) (R)
 
   let singleton e r = (e, r)
