@@ -700,7 +700,7 @@ struct
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a" pretty j;
       let j =
-        if strengthening_enabled then (* TODO: skip if same envs? *)
+        if strengthening_enabled && not (Environment.equal (A.env x) (A.env y)) then (* TODO: skip if same envs? *)
           strengthening j x y
         else
           j
