@@ -353,7 +353,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet", "branchSetLocal", "branchSetFull"]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet", "branchSetLocal", "branchSetFull", "branchSeq"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -368,6 +368,21 @@
           "type": "array",
           "items": { "type": "string" },
           "default": []
+        },
+        "branchSeq": {
+          "title": "ana.branchSeq",
+          "description": "Path-sensitivity in recent branch decisions",
+          "type": "object",
+          "properties": {
+            "length": {
+              "title": "ana.branchSeq.length",
+              "description": "Number of recent branch decisions to retain across function calls.",
+              "type": "integer",
+              "minimum": 0,
+              "default": 5
+            }
+          },
+          "additionalProperties": false
         },
         "setjmp" : {
           "title": "ana.setjmp",
