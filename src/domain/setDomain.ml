@@ -518,10 +518,10 @@ struct
   let is_empty e = L.is_bot e
   let union e e' = L.join e e'
   let diff e e' =
-    if L.leq e' e then
+    if L.leq e e' then
       L.bot () (* NB! strong removal *)
     else
-      e'
+      e
   let iter f e =
     match e with
     | `Lifted e -> f e
