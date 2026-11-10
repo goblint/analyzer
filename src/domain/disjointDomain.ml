@@ -39,7 +39,7 @@ struct
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty], [cardinal] and [choose]. *)
+      Required for efficient [is_empty] and [choose]. *)
 
   let name () = "ProjectiveSet (" ^ B.name () ^ ")"
 
@@ -59,7 +59,7 @@ struct
 
   let is_empty = M.is_empty
   let empty = M.empty
-  let cardinal = M.cardinal
+  let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
 
   let leq = M.leq
   let join = M.join
@@ -226,7 +226,7 @@ struct
   module S = SetDomain.Make (B)
 
   (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty], [cardinal] and [choose]. *)
+      Required for efficient [is_empty] and [choose]. *)
 
   let name () = "Pairwise (" ^ B.name () ^ ")"
 
@@ -246,7 +246,7 @@ struct
 
   let is_empty = S.is_empty
   let empty = S.empty
-  let cardinal = S.cardinal
+  let cardinal m = S.fold (fun b a -> a + B.cardinal b) m 0
 
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
   let iter f s = S.iter (fun b -> B.iter f b) s
@@ -469,7 +469,7 @@ struct
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty], [cardinal] and [choose]. *)
+      Required for efficient [is_empty] and [choose]. *)
 
   let name () = "ProjectiveMap (" ^ B.name () ^ ")"
 
@@ -489,7 +489,7 @@ struct
 
   let is_empty = M.is_empty
   let empty = M.empty
-  let cardinal = M.cardinal
+  let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
 
   let leq = M.leq
   let join = M.join
@@ -666,7 +666,7 @@ struct
   module S = SetDomain.Make (B)
 
   (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty], [cardinal] and [choose]. *)
+      Required for efficient [is_empty] and [choose]. *)
 
   let name () = "PairwiseMap (" ^ B.name () ^ ")"
 
@@ -686,7 +686,7 @@ struct
 
   let is_empty = S.is_empty
   let empty = S.empty
-  let cardinal = S.cardinal
+  let cardinal m = S.fold (fun b a -> a + B.cardinal b) m 0
 
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
   let iter f s = S.iter (fun b -> B.iter f b) s

@@ -10,6 +10,6 @@ int main(void) {
 
   __goblint_check(p == q); // UNKNOWN!
   if (p != q) // Above check used to be unknown, but this true branch was unsoundly dead (issue #2319).
-    __goblint_check(1); // TODO reachable
+    __goblint_check(1); // reachable
   return 0;
 }
