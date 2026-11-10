@@ -87,6 +87,7 @@ struct
           match tid with
           | ThreadIdDomain.Thread tid_ft ->
             let (other_joined, other_clean) = man.global tid in
+            (* TODO: Also is_bot and Deadcode case here? (NB! This is in a loop.) *)
             (MustTIDsWithBot.union (MustTIDsWithBot.add tid_ft joined) other_joined, clean && other_clean)
           | ThreadIdDomain.UnknownThread -> assert false (* unreachable *)
         ) (man.local) threads
