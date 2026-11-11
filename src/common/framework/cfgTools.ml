@@ -34,13 +34,29 @@ struct
     next: (edges * node) list NH.t; (** Successor edges from this SCC to another SCC, mutated during [computeSCCs]. *)
     prev: (edges * node) list NH.t; (** Predecessor edges from another SCC to this SCC, mutated during [computeSCCs]. *)
   }
-  (* Identity by physical equality. *)
+end
+
+(** Temporary wrapper for SCC construction and traversal. Only the underlying
+    SCC is retained in [node_scc_global] after [iter_connect] finishes. *)
+module IndexedSCC =
+struct
+  type t = {
+    id: int; (** Immutable hash discriminator, unique only within one [computeSCCs] invocation.
+                 IDs restart at zero for recomputations and different functions.
+                 They must not be used alone for equality. *)
+    scc: SCC.t;
+  }
+  (* Wrapper identity by physical equality. All nodes of an SCC share one wrapper. *)
   let equal = (==)
-  let hash = Hashtbl.hash
+  (* Hashing only the immutable ID avoids collisions from structurally similar SCCs
+     and remains stable when their node/edge tables are mutated. Mixing wrappers from
+     different computations is correct with physical equality, but reused IDs may
+     cause collisions. *)
+  let hash scc = Hashtbl.hash scc.id
 end
 
 (** Compute strongly connected components (SCCs) of [nodes] in [Cfg].
-    Returns list of SCCs and a mapping from nodes to those SCCs. *)
+    Returns a list of indexed SCCs and a mapping from nodes to the same wrappers. *)
 let computeSCCs (module Cfg: CfgBidir) nodes =
   let nodes_length = List.length nodes in
   (* Kosaraju's algorithm *)
@@ -68,44 +84,49 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   let open SCC in (* open for SCC.t constructors *)
   let (sccs, node_scc) as r =
     (* second DFS to construct SCCs on transpose graph *)
-    let node_scc = NH.create nodes_length in (* like visited, but values are assigned SCCs *)
+    let node_scc = NH.create nodes_length in (* like visited, but values are shared SCC wrappers *)
 
-    let rec dfs_inner node scc =
+    let rec dfs_inner node (indexed: IndexedSCC.t) =
       (* assumes: not (NH.mem node_scc node) *)
-      NH.replace node_scc node scc;
+      NH.replace node_scc node indexed;
+      let scc = indexed.scc in
       NH.replace scc.nodes node ();
       List.iter (fun (edges, prev_node) ->
           if not (NH.mem node_scc prev_node) then
-            dfs_inner prev_node scc
+            dfs_inner prev_node indexed
           else if not (NH.mem scc.nodes prev_node) then (
             (* prev_node has been visited, but not in current SCC, therefore is backwards edge to predecessor scc *)
             if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s" (Node.show_id prev_node) (Node.show_id node);
             NH.modify_def [] node (List.cons (edges, prev_node)) scc.prev;
-            NH.modify_def [] prev_node (List.cons (edges, node)) (NH.find node_scc prev_node).next;
+            NH.modify_def [] prev_node (List.cons (edges, node)) (NH.find node_scc prev_node).scc.next;
           )
         ) (Cfg.prev node) (* implicitly transpose graph by moving backwards *)
     in
 
     (* outer DFS loop over unconnected components *)
-    let sccs = List.fold_left (fun sccs node ->
+    let (sccs, _) = List.fold_left (fun (sccs, next_id) node ->
         if not (NH.mem node_scc node) then
-          let scc = {
-            nodes = NH.create 1;
-            next = NH.create 1;
-            prev = NH.create 1
-          }
+          let indexed = IndexedSCC.{
+              id = next_id;
+              scc = {
+                nodes = NH.create 1;
+                next = NH.create 1;
+                prev = NH.create 1
+              }
+            }
           in
-          dfs_inner node scc;
-          scc :: sccs
+          dfs_inner node indexed;
+          (indexed :: sccs, next_id + 1)
         else
-          sccs
-      ) [] finished_rev
+          (sccs, next_id)
+      ) ([], 0) finished_rev
     in
     (sccs, node_scc)
   in
 
   if Messages.tracing then (
-    List.iter (fun scc ->
+    List.iter (fun (indexed: IndexedSCC.t) ->
+        let scc = indexed.scc in
         let nodes = scc.nodes |> NH.to_seq_keys |> List.of_seq in
         Messages.trace "cfg" "SCC: %a" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
         NH.iter (fun node _ ->
@@ -401,11 +422,17 @@ let createCFG (file: file) =
           let added_connect = ref false in
 
           (* DFS over SCCs starting from FunctionEntry SCC *)
-          let module SH = Hashtbl.Make (SCC) in
+          let module SH = Hashtbl.Make (IndexedSCC) in
+          (* Keep this table local to this computation: wrapper IDs are unique within
+             [sccs], but are reused when [iter_connect] recomputes SCCs. Each such
+             invocation creates fresh wrappers and a fresh visited table.
+             Only the final underlying SCCs are stored in [node_scc_global], keyed
+             by CFG nodes; their temporary wrappers and IDs are not retained there. *)
           let visited_scc = SH.create (List.length sccs) in
-          let rec iter_scc scc =
-            if not (SH.mem visited_scc scc) then (
-              SH.replace visited_scc scc ();
+          let rec iter_scc indexed =
+            if not (SH.mem visited_scc indexed) then (
+              SH.replace visited_scc indexed ();
+              let scc = indexed.IndexedSCC.scc in
               if NH.is_empty scc.next then (
                 if not (NH.mem scc.nodes (Function fd)) then (
                   (* scc has no successors but also doesn't contain return node, requires additional connections *)
@@ -456,7 +483,8 @@ let createCFG (file: file) =
           if !added_connect then
             iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
           else
-            NH.iter (NH.replace node_scc_global) node_scc; (* there's no merge inplace *)
+            (* Strip temporary IDs: only the underlying SCCs outlive this traversal. *)
+            NH.iter (fun node indexed -> NH.replace node_scc_global node indexed.IndexedSCC.scc) node_scc;
         in
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
