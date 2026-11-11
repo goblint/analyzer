@@ -9,7 +9,7 @@ void *t_fun(void *arg) {
   pthread_mutex_unlock(&mutex1);
 
   pthread_mutex_lock(&mutex1);
-  pthread_mutex_lock(&mutex1); // TODO WARN (must double locking)
+  pthread_mutex_lock(&mutex1); // WARN (must double locking)
   return NULL;
 }
 

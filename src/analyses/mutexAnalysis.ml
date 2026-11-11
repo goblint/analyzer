@@ -201,6 +201,10 @@ struct
     num_mutexes := 0;
     sum_protected := 0
 
+  let filter_globally_unique man =
+    let ask = Analyses.ask_of_man man in
+    MustLocksetRW.filter (fun ((v, _), _) -> BaseUtil.is_globally_unique ask v)
+
   let query (man: (D.t, _, _, V.t) man) (type a) (q: a Queries.t): a Queries.result =
     let ls, m = man.local in
     (* get the set of mutexes protecting the variable v in the given mode *)
@@ -208,7 +212,7 @@ struct
     match q with
     | Queries.MayBePublic _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublic {global=v; kind; protection} ->
-      let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
+      let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls |> filter_globally_unique man) in
       let protecting = protecting ~kind protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks man.local) then
@@ -217,7 +221,7 @@ struct
       MustLockset.disjoint held_locks protecting
     | Queries.MayBePublicWithout _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublicWithout {global=v; kind; without_mutex; protection} ->
-      let held_locks = MustLockset.remove without_mutex (MustLocksetRW.to_must_lockset ls) in
+      let held_locks = MustLockset.remove without_mutex (MustLocksetRW.to_must_lockset (ls |> filter_globally_unique man)) in (* TODO: why no MustLocksetRW.filter snd here? *)
       let protecting = protecting ~kind protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) man.local)) then
@@ -234,10 +238,10 @@ struct
     | Queries.MustProtectingLocks {global; kind} ->
       protecting ~kind Strong global
     | Queries.MustLockset ->
-      let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
+      let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls |> filter_globally_unique man) in
       held_locks
     | Queries.MustBeAtomic ->
-      let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
+      let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls |> filter_globally_unique man) in
       MustLockset.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
     | Queries.MustProtectedVars {mutex; kind} ->
       let protected = GProtected.get ~kind Strong (G.protected (man.global (V.protected mutex))) in
@@ -286,6 +290,7 @@ struct
 
   let access man (a: Queries.access) =
     fst man.local
+    |> filter_globally_unique man
 
   let event (man: (D.t, _, _, V.t) man) e (oman: (D.t, _, _, _) man) =
     match e with
@@ -298,7 +303,7 @@ struct
         match var_opt with
         | Some v ->
           if not (MustLocksetRW.is_all (fst oman.local)) then
-            let locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd (fst oman.local)) in
+            let locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd (fst oman.local) |> filter_globally_unique oman) in
             let kind = match kind with
               | Write | Free -> Write
               | Read -> Read
