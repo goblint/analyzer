@@ -482,7 +482,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         if GoblintCil.isSigned ik && (BArith.has_neg_values ik a || overflow) then top_of ik
         else norm ~ov:(underflow || overflow) ik (BArith.shift_left ik a b)
       in
-      (result, {underflow=underflow; overflow=overflow})
+      (result, {underflow; overflow})
 
   (* Arith *)
 
