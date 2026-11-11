@@ -906,48 +906,90 @@ module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type valu
 struct
   type key = E.t
   type value = R.t
-  include Lattice.Prod (E) (R)
 
-  let singleton e r = (e, r)
-  let exists p (e, r) = p e r
-  let for_all p (e, r) = p e r
-  let mem e (e', _) = E.leq e e'
-  let choose er = er
-  let bindings er = [er]
-  let remove e ((e', _) as er) =
-    if E.leq e' e then
-      (E.bot (), R.bot ())
-    else
-      er
-  let map f (e, r) = (e, f r)
-  let mapi f (e, r) = (e, f e r)
-  let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r')
-  let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r')
-  let idempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.idempotent_inter_filter" (* TODO: ? *)
-  let nonidempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.nonidempotent_inter_filter" (* TODO: ? *)
-  let idempotent_union f (e, r) (e', r') = (E.join e e', f r r')
-  let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r')
+  (* [LiftBot] to distinguish empty map ([`Bot]) from singleton map [`Lifted (E.bot (), _)].
+     Otherwise map functions can behave unexpectedly.
+     (Like [SetDomain.Joined].) *)
+  module P = Lattice.Prod (E) (R)
+  module L = Lattice.LiftBot (P)
+  include L
+
+  let singleton e r = `Lifted (e, r)
+  let exists p l =
+    match l with
+    | `Lifted (e, r) -> p e r
+    | `Bot -> false
+  let for_all p l =
+    match l with
+    | `Lifted (e, r) -> p e r
+    | `Bot -> true
+  let mem e l =
+    match l with
+    | `Lifted (e', _) -> E.leq e e'
+    | `Bot -> false
+  let choose = function
+    | `Lifted er -> er
+    | `Bot -> raise Not_found
+  let bindings = function
+    | `Lifted er -> [er]
+    | `Bot -> []
+  let remove e l =
+    match l with
+    | `Lifted (e', _) when E.leq e' e -> `Bot (* NB! strong removal *)
+    | _ -> l
+  let map f l =
+    match l with
+    | `Lifted (e, r) -> `Lifted (e, f r)
+    | `Bot -> `Bot
+  let mapi f l =
+    match l with
+    | `Lifted (e, r) -> `Lifted (e, f e r)
+    | `Bot -> `Bot
+  let idempotent_inter f l l' =
+    match l, l' with
+    | `Lifted (e, r), `Lifted (e', r') -> `Lifted (E.meet e e', f r r')
+    | _, _ -> `Bot
+  let nonidempotent_inter f l l' =
+    match l, l' with
+    | `Lifted (e, r), `Lifted (e', r') -> `Lifted (E.meet e e', f r r')
+    | _, _ -> `Bot
+  let idempotent_inter_filter f l l' = failwith "MapDomain.Joined.idempotent_inter_filter" (* TODO: ? *)
+  let nonidempotent_inter_filter f l l' = failwith "MapDomain.Joined.nonidempotent_inter_filter" (* TODO: ? *)
+  let idempotent_union f l l' =
+    match l, l' with
+    | `Lifted (e, r), `Lifted (e', r') -> `Lifted (E.join e e', f r r')
+    | `Bot, l
+    | l, `Bot -> l
+  let nonidempotent_union f l l' =
+    match l, l' with
+    | `Lifted (e, r), `Lifted (e', r') -> `Lifted (E.join e e', f r r')
+    | `Bot, l
+    | l, `Bot -> l
   let difference f m1 m2 = failwith "MapDomain.Joined.difference" (* TODO: ? *)
-  let fold f (e, r) a = f e r a
-  let empty () = (E.bot (), R.bot ())
-  let add e r (e', r') = (E.join e e', R.join r r')
-  let is_empty (e, _) = E.is_bot e
-  let iter f (e, r) = f e r
-  let cardinal er =
-    if is_empty er then
+  let fold f l a =
+    match l with
+    | `Lifted (e, r) -> f e r a
+    | `Bot -> a
+  let empty () = `Bot
+  let add e r l = L.join (`Lifted (e, r)) l
+  let is_empty l = L.is_bot l
+  let iter f l =
+    match l with
+    | `Lifted (e, r) -> f e r
+    | `Bot -> ()
+  let cardinal l =
+    if is_empty l then
       0
     else
       1
-  let find e (e', r) =
-    if E.leq e e' then
-      r
-    else
-      raise Not_found
-  let find_opt e (e', r) =
-    if E.leq e e' then
-      Some r
-    else
-      None
+  let find e l =
+    match l with
+    | `Lifted (e', r) when E.leq e e' -> r
+    | _ -> raise Not_found
+  let find_opt e l =
+    match l with
+    | `Lifted (e', r) when E.leq e e' -> Some r
+    | _ -> None
   let filter p s = failwith "MapDomain.Joined.filter"
   let add_list ers m = List.fold_left (fun acc (e, r) ->
       add e r acc
