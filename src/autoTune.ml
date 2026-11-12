@@ -227,7 +227,10 @@ let reduceAnalyses () =
     | _ -> LibraryDesc.Accesses.find desc.accs ~kind:Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
-  if not hasThreadCreate then disableAnalyses "no thread creation" notNeccessaryThreadAnalyses
+  if not hasThreadCreate then
+    disableAnalyses "no thread creation" notNeccessaryThreadAnalyses;
+  if not (hasSpec SvcompSpec.NoDataRace) then
+    disableAnalyses "no specification NoDataRace" notNeccessaryRaceAnalyses
 
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with

@@ -27,7 +27,11 @@
       "threadJoins",
       "abortUnless",
       "mutexGhosts",
-      "pthreadMutexType"
+      "pthreadMutexType",
+      "threadDescendants",
+      "mustlockHistory",
+      "descendantLockset",
+      "creationLockset"
     ],
     "path_sens": [
       "mutex",
