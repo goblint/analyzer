@@ -111,6 +111,40 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     disabled: 0
     total validation entries: 1
 
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 80-terminating-program-example-2.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 7
+    dead: 0
+    total lines: 7
+  [Success][Witness] invariant confirmed: i - j < \at(i, AnyPrev) - \at(j, AnyPrev) (80-terminating-program-example.c:15:1)
+  [Info][Witness] witness validation summary:
+    confirmed: 1
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 80-terminating-program-example-3.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 7
+    dead: 0
+    total lines: 7
+  [Success][Witness] invariant confirmed: i - j <= \at(i, AnyPrev) - \at(j, AnyPrev) (80-terminating-program-example.c:15:1)
+  [Info][Witness] witness validation summary:
+    confirmed: 1
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
 
 Same with octagon:
 
@@ -247,6 +281,40 @@ TODO: Are transition invariants between i and j useful/avoidable?
     dead: 0
     total lines: 7
   [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (80-terminating-program-example.c:15:5)
+  [Info][Witness] witness validation summary:
+    confirmed: 1
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate 80-terminating-program-example-2.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 7
+    dead: 0
+    total lines: 7
+  [Success][Witness] invariant confirmed: i - j < \at(i, AnyPrev) - \at(j, AnyPrev) (80-terminating-program-example.c:15:1)
+  [Info][Witness] witness validation summary:
+    confirmed: 1
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate 80-terminating-program-example-3.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
+  [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 7
+    dead: 0
+    total lines: 7
+  [Success][Witness] invariant confirmed: i - j <= \at(i, AnyPrev) - \at(j, AnyPrev) (80-terminating-program-example.c:15:1)
   [Info][Witness] witness validation summary:
     confirmed: 1
     unconfirmed: 0
