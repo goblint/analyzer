@@ -55,7 +55,6 @@
         "loopUnrollHeuristic",
         "memsafetySpecification",
         "noOverflows",
-        "termination",
         "tmpSpecialAnalysis",
         "pthreadBarriers",
         "pthreadOnce"
