@@ -253,24 +253,44 @@ module FileH = BatHashtbl.Make (Basetype.RawStrings)
 
 module FileHashes =
 struct
-  type t = (string * string) list (* TODO: optimize *)
+  module HashH = FileH
+
+  (* Assumes bijection. *)
+  type t = {
+    file_hashes: string FileH.t;
+    hash_files: string HashH.t;
+  }
+
+  let create (): t = {
+    file_hashes = FileH.create 3;
+    hash_files = HashH.create 3;
+  }
+
+  let of_list (l: (string * string) list): t =
+    let {file_hashes; hash_files} as r = create () in
+    List.iter (fun (file, hash) ->
+        FileH.replace file_hashes file hash;
+        HashH.replace hash_files hash file;
+      ) l;
+    r
 
   let of_locator (locator: _ FileH.t): t =
     FileH.to_seq_keys locator
     |> Seq.map (fun file -> (file, sha256_file file))
     |> List.of_seq
+    |> of_list
 
   let of_yaml_metadata (metadata: YamlWitnessType.Metadata.t): t =
     let open GobOption.Syntax in
     match metadata.task with
-    | Some task -> task.input_file_hashes
-    | None -> []
+    | Some task -> of_list task.input_file_hashes
+    | None -> create ()
 
-  let find_file_hash (file_hashes: t) file =
-    List.assoc_opt file file_hashes
+  let find_file_hash ({file_hashes; _}: t) file =
+    FileH.find_opt file_hashes file
 
-  let find_hash_file (file_hashes: t) hash =
-    List.assoc_opt hash (List.map BatTuple.Tuple2.swap file_hashes)
+  let find_hash_file ({hash_files; _}: t) hash =
+    HashH.find_opt hash_files hash
 end
 
 module Locator (E: Set.OrderedType) =
