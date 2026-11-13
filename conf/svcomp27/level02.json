@@ -6,6 +6,9 @@
       "bitfield":true,
       "interval": true
     },
+    "branchSeq": {
+         "length": 3
+    },
     "float": {
       "interval": true,
       "evaluate_math_functions": true
@@ -32,12 +35,9 @@
       "abortUnless",
       "mutexGhosts",
       "pthreadMutexType",
-      "threadDescendants",
-      "mustlockHistory",
-      "descendantLockset",
-      "creationLockset",
       "affeq",
-      "apron"
+      "apron",
+      "branchSeq"
     ],
     "apron": {
       "domain": "octagon"
@@ -49,7 +49,8 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-      "threadflag"
+      "threadflag",
+      "branchSeq"
     ],
     "base": {
       "arrays": {
@@ -79,8 +80,8 @@
   },
   "solvers": {
     "td3": {
-      "widen_gas": 30,
-      "side_widen_gas": 30
+      "widen_gas": 15,
+      "side_widen_gas": 15
     }
   }
 }

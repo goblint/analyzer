@@ -6,6 +6,9 @@
       "bitfield":true,
       "interval": true
     },
+    "branchSeq": {
+         "length": 5
+    },
     "float": {
       "interval": true,
       "evaluate_math_functions": true
@@ -32,13 +35,9 @@
       "abortUnless",
       "mutexGhosts",
       "pthreadMutexType",
-      "threadDescendants",
-      "mustlockHistory",
-      "descendantLockset",
-      "creationLockset",
       "affeq",
       "apron",
-      "branchSet"
+      "branchSeq"
     ],
     "apron": {
       "domain": "octagon"
@@ -51,7 +50,7 @@
       "activeSetjmp",
       "memLeak",
       "threadflag",
-      "branchSet"
+      "branchSeq"
     ],
     "base": {
       "arrays": {
