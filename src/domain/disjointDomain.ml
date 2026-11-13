@@ -27,7 +27,8 @@ end
     Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t):
+module GenProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t)
+    (M: MapDomain.S with type key = R.t and type value = B.t):
 sig
   include SetDomain.S with type elt = E.t
   val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
@@ -35,8 +36,6 @@ end
 =
 struct
   type elt = E.t
-
-  module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
       Required for efficient [is_empty] and [choose]. *)
@@ -162,6 +161,33 @@ struct
   let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
 
   let fold_buckets = M.fold
+end
+
+module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t) =
+  GenProjectiveSet (E) (B) (R) (MapDomain.MapBot (R) (B))
+
+(** Hash-indexed buckets, retaining distinct representatives on collisions. *)
+module PatriciaProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t) =
+struct
+  module Collisions = ProjectiveSet (E) (B) (R)
+  module HashRepresentative = struct
+    include Printable.StdLeaf
+    type t = int [@@deriving eq, ord, hash]
+    let show = string_of_int
+    include Printable.SimpleShow (struct type nonrec t = t let show = show end)
+    let name () = "path hash"
+    type elt = E.t
+    let of_elt e = R.hash (R.of_elt e)
+    let tag x = x
+  end
+  include GenProjectiveSet (E) (Collisions) (HashRepresentative)
+      (MapDomain.PatriciaMapBot (HashRepresentative) (Collisions))
+
+  let cardinal m = fold_buckets (fun _ bucket acc -> acc + Collisions.cardinal bucket) m 0
+
+  (* Relifting can change representative hashes (e.g. hash-cons tags), so
+     rebuild the hash index rather than retaining the old integer keys. *)
+  let relift m = fold (fun e acc -> add (E.relift e) acc) m (empty ())
 end
 
 module type MayEqualSetDomain =
