@@ -1,13 +1,13 @@
 # Portfolio Configuration Sequence
 # paths are relative to analyzer base directory
 #
-# minimalist run, basically only constants/def_exc, but with context gas
+# minimalist run, basically only constants/def_exc, but with context gas, no unrolling
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level00.json
-# standard run based on svcomp 25 settings, but with context gas
+# standard run based on svcomp 25 settings, but with context gas and unrolling
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level01.json
-# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 15, no autotuner for apron, branchseq with length 3
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level02.json
-# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron, branchset-sensitive
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron, branchseq with length 5
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level03.json
 # base-pathsensitive run
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level04.json

@@ -56,7 +56,6 @@
         "mallocWrappers",
         "noRecursiveIntervals",
         "wideningThresholds",
-        "loopUnrollHeuristic",
         "memsafetySpecification",
         "noOverflows",
         "termination",
