@@ -1,0 +1,28 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: '2.2'
+    uuid: 90035317-937b-4582-b97a-16f25a536c8b
+    creation_time: '2026-11-12T12:09:01+01:00'
+    producer:
+      name: Automizer
+      version: 0.3.2-dev-f60e54cd9f
+    task:
+      input_files:
+      - /home/cwd/sv-benchmarks/c/loop-lit/mine2017-ex4.7.i
+      input_file_hashes:
+        /home/cwd/sv-benchmarks/c/loop-lit/mine2017-ex4.7.i: 3397f45d27726c9a1d25b20e63240db1323fe96d29e6915b69b7d677618e1378 # Changed from SV-COMP 2027 prerun to match our tests.
+      specification: |+
+        CHECK( init(main()), LTL(G ! call(reach_error())) )
+
+      data_model: ILP32
+      language: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: /home/cwd/sv-benchmarks/c/loop-lit/mine2017-ex4.7.i
+        line: 6 # Changed from SV-COMP 2027 prerun to match our tests.
+        column: 3
+        function: main
+      value: 0 <= x && x <= 40
+      format: c_expression
