@@ -2849,7 +2849,9 @@
                 "2.2",
                 "2.2-goblint",
                 "2.3",
-                "2.3-goblint"
+                "2.3-goblint",
+                "2.4",
+                "2.4-goblint"
               ],
               "default": "2.1"
             },

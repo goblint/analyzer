@@ -5,6 +5,7 @@ struct
     | V2_1
     | V2_2
     | V2_3
+    | V2_4
   [@@deriving ord, enum]
 
   let show = function
@@ -12,6 +13,7 @@ struct
     | V2_1 -> "2.1"
     | V2_2 -> "2.2"
     | V2_3 -> "2.3"
+    | V2_4 -> "2.4"
 
   let leq x y = compare x y <= 0
 
@@ -44,6 +46,8 @@ let v2_2 = {version = V2_2; goblint = false}
 let v2_2_goblint = {version = V2_2; goblint = true}
 let v2_3 = {version = V2_3; goblint = false}
 let v2_3_goblint = {version = V2_3; goblint = true}
+let v2_4 = {version = V2_4; goblint = false}
+let v2_4_goblint = {version = V2_4; goblint = true}
 
 let show {version; goblint} = Version.show version ^ Goblint.show goblint
 
@@ -63,6 +67,8 @@ let of_string = function
   | "2.2-goblint" -> v2_2_goblint
   | "2.3" -> v2_3
   | "2.3-goblint" -> v2_3_goblint
+  | "2.4" -> v2_4
+  | "2.4-goblint" -> v2_4_goblint
   | _ -> invalid_arg "YamlWitnessVersion.of_string"
 
 let of_option () =
