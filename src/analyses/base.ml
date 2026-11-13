@@ -95,16 +95,17 @@ struct
   (*After a function call, the domain has to be the same as before and we can not depend on the pointers staying the same*)
   (*-> we determine the arrays a pointer can point to once at the beginning of a function*)
   (*There surely is a better way, because this means that often the wrong one gets chosen*)
-  module VarH = Hashtbl.Make(CilType.Varinfo)
   module VarMap = Map.Make(CilType.Varinfo)
-  let array_map = ref (VarH.create 20)
+  (* Filled during solving, which may run on several domains, hence a lock-free table. *)
+  let create_array_map () = Saturn.Htbl.create ~hashed_type:(module CilType.Varinfo) ()
+  let array_map : (varinfo, attributes VarMap.t) Saturn.Htbl.t ref = ref (create_array_map ())
 
-  type marshal = attributes VarMap.t VarH.t
+  type marshal = (varinfo * attributes VarMap.t) list
 
-  let array_domain_annotation_enabled = lazy (GobConfig.get_bool "annotation.goblint_array_domain")
+  let array_domain_annotation_enabled = Goblint_parallel.DomainsafeLazy.from_fun (fun () -> GobConfig.get_bool "annotation.goblint_array_domain")
 
   let add_to_array_map fundec arguments =
-    if Lazy.force array_domain_annotation_enabled then
+    if Goblint_parallel.DomainsafeLazy.force array_domain_annotation_enabled then
       let rec pointedArrayMap = function
         | [] -> VarMap.empty
         | (info,(value:VD.t))::xs ->
@@ -114,13 +115,13 @@ struct
             Seq.fold_left (fun map arr -> VarMap.add arr (info.vattr) map) (pointedArrayMap xs) @@ Seq.filter (fun info -> isArrayType info.vtype) possibleVars
           | _ -> pointedArrayMap xs
       in
-      match VarH.find_option !array_map fundec.svar with
-      | Some _ -> () (*We already have something -> do not change it*)
-      | None -> VarH.add !array_map fundec.svar (pointedArrayMap arguments)
+      if not (Saturn.Htbl.mem !array_map fundec.svar) then
+        (* We already have something -> do not change it. If several domains add at the same time, the first one wins. *)
+        ignore (Saturn.Htbl.try_add !array_map fundec.svar (pointedArrayMap arguments))
 
   let attributes_varinfo info fundec =
-    if Lazy.force array_domain_annotation_enabled then
-      let map = VarH.find !array_map fundec.svar in
+    if Goblint_parallel.DomainsafeLazy.force array_domain_annotation_enabled then
+      let map = Saturn.Htbl.find_exn !array_map fundec.svar in
       match VarMap.find_opt info map with
       | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
       | None -> Some (info.vattr, typeAttrs (info.vtype))
@@ -152,17 +153,28 @@ struct
     info
 
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
-  let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
+  (* Written during solving, which may run on several domains: lock-free table holding immutable strings,
+     updated by compare-and-set. Keys are compared like in the polymorphic Hashtbl used before. *)
+  module CharArrayKey = struct
+    type t = lval
+    let equal a b = compare a b = 0
+    let hash = Hashtbl.hash
+  end
+  let char_array : (lval, string) Saturn.Htbl.t = Saturn.Htbl.create ~hashed_type:(module CharArrayKey) ()
 
   let init marshal =
-    GobOption.iter ((:=) array_map) marshal;
+    GobOption.iter (fun loaded ->
+        let h = create_array_map () in
+        List.iter (fun (v, m) -> ignore (Saturn.Htbl.try_add h v m)) loaded;
+        array_map := h
+      ) marshal;
     return_varstore := Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType;
     longjmp_return := Cilfacade.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
     Priv.init ()
 
   let finalize () =
     Priv.finalize ();
-    !array_map
+    List.of_seq (Saturn.Htbl.to_seq !array_map)
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -1648,8 +1660,9 @@ struct
             | TPtr(TInt(IChar, _), _) ->
               let mval = List.hd (AD.to_mval a) in
               let lval = Addr.Mval.to_cil mval in
-              (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
-               with Not_found -> Queries.Result.top q)
+              (match Saturn.Htbl.find_opt char_array lval with
+               | Some s -> `Lifted s
+               | None -> Queries.Result.top q)
             | _ -> (* TODO: what about ISChar and IUChar? what about TEnum? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
               Queries.Result.top q
@@ -1978,17 +1991,19 @@ struct
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
         let i = Z.to_int i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
-        let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
-        if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
-          let dst = Bytes.make (i+1) '\000' in
-          Bytes.blit s 0 dst 0 (Bytes.length s); (* dst[0:len(s)] = s *)
-          Bytes.set dst i c; (* set character i to c inplace *)
-          Hashtbl.replace char_array lv dst
-        ) else (
-          Bytes.set s i c; (* set character i to c inplace *)
-          Hashtbl.replace char_array lv s
-        )
-      (*BatHashtbl.modify_def "" lv (fun s -> Bytes.set s i c) char_array*)
+        (* set character i of the current string for lv (padded with '\000' if too short) to c *)
+        let update s =
+          let dst = Bytes.make (max (i+1) (String.length s)) '\000' in
+          Bytes.blit_string s 0 dst 0 (String.length s);
+          Bytes.set dst i c;
+          Bytes.unsafe_to_string dst
+        in
+        let rec set () =
+          match Saturn.Htbl.find_opt char_array lv with
+          | None -> if not (Saturn.Htbl.try_add char_array lv (update "")) then set ()
+          | Some s -> if not (Saturn.Htbl.try_compare_and_set char_array lv s (update s)) then set ()
+        in
+        set ()
       | _ -> ()
     in
     char_array_hack ();
@@ -2594,7 +2609,7 @@ struct
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~man st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~man st
-                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Lazy.force Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
+                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         ) st lv
     | Strcmp { s1; s2; n }, _ ->
       Option.map_default (fun _ ->

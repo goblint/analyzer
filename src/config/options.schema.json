@@ -564,7 +564,8 @@
                   "termination",
                   "tmpSpecialAnalysis",
                   "pthreadBarriers",
-                  "pthreadOnce"
+                  "pthreadOnce",
+                  "demandFunction"
                 ]
               },
               "default": [

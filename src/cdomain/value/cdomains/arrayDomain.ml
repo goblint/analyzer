@@ -168,7 +168,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset when get_bool "witness.invariant.goblint" ->
-      let i_lval = Cil.addOffsetLval (Index (Lazy.force Offset.Index.Exp.all, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.all, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval x
     | NoOffset ->
       Invariant.none
@@ -280,7 +280,7 @@ struct
         if Val.is_bot xr then
           Invariant.top ()
         else if get_bool "witness.invariant.goblint" then (
-          let i_lval = Cil.addOffsetLval (Index (Lazy.force Offset.Index.Exp.all, NoOffset)) lval in
+          let i_lval = Cil.addOffsetLval (Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.all, NoOffset)) lval in
           value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
         )
         else
@@ -801,7 +801,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset when get_bool "witness.invariant.goblint" ->
-      let i_lval = Cil.addOffsetLval (Index (Lazy.force Offset.Index.Exp.all, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.all, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
     | NoOffset ->
       Invariant.none

@@ -126,7 +126,7 @@ sig
       (** Special index expression for some unknown index.
           Weakly updates array in assignment.
           Used for [exp.fast_global_inits]. *)
-      val any: GoblintCil.exp Lazy.t
+      val any: GoblintCil.exp Goblint_parallel.DomainsafeLazy.t
 
       (** [is_any e] is like [CilType.Exp.equal e any], except it ignores cast kind. *)
       val is_any: GoblintCil.exp -> bool
@@ -134,7 +134,7 @@ sig
       (** Special index expression for all indices.
           Strongly updates array in assignment.
           Used for Goblint-specific witness invariants. *)
-      val all: GoblintCil.exp Lazy.t
+      val all: GoblintCil.exp Goblint_parallel.DomainsafeLazy.t
 
       (** [is_all e] is like [CilType.Exp.equal e all], except it ignores cast kind. *)
       val is_all: GoblintCil.exp -> bool

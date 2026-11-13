@@ -6,15 +6,15 @@ open GobConfig
 
 module M = Messages
 
-let intmax_t = lazy (
-  let res = ref None in
-  GoblintCil.iterGlobals !Cilfacade.current_file (function
-      | GType ({tname = "intmax_t"; ttype; _}, _) ->
-        res := Some ttype;
-      | _ -> ()
-    );
-  !res
-)
+let intmax_t = Goblint_parallel.DomainsafeLazy.from_fun (fun () ->
+    let res = ref None in
+    GoblintCil.iterGlobals !Cilfacade.current_file (function
+        | GType ({tname = "intmax_t"; ttype; _}, _) ->
+          res := Some ttype;
+        | _ -> ()
+      );
+    !res
+  )
 
 let stripOuterBoolCast = function
   | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
@@ -154,7 +154,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (IInt, j)) });
     ("labs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILong, j)) });
     ("llabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILongLong, j)) });
-    ("imaxabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (Cilfacade.get_ikind (Option.get (Lazy.force intmax_t)), j)) });
+    ("imaxabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (Cilfacade.get_ikind (Option.get (Goblint_parallel.DomainsafeLazy.force intmax_t)), j)) });
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)

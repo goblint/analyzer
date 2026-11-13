@@ -74,14 +74,14 @@ let int_precision_from_fundec (fd: GoblintCil.fundec): int_precision =
 let float_precision_from_fundec (fd: GoblintCil.fundec): float_precision =
   ((ContextUtil.should_keep ~isAttr:GobPrecision ~keepOption:"ana.float.interval" ~removeAttr:"no-float-interval" ~keepAttr:"float-interval" fd))
 let int_precision_from_node (): int_precision =
-  match !MyCFG.current_node with
+  match Domain.DLS.get MyCFG.current_node with
   | Some n -> int_precision_from_fundec (Node.find_fundec n)
   | _ -> max_int_precision (* In case a Node is None we have to handle Globals, i.e. we activate all IntDomains (TODO: verify this assumption) *)
 
 let is_congruence_active (_, _, _, c,_,_: int_precision): bool = c
 
 let float_precision_from_node (): float_precision =
-  match !MyCFG.current_node with
+  match Domain.DLS.get MyCFG.current_node with
   | Some n -> float_precision_from_fundec (Node.find_fundec n)
   | _ -> max_float_precision
 
