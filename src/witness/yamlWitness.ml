@@ -54,7 +54,6 @@ struct
   let location ~location:(loc: Cil.location) ~(location_function): Location.t =
     {
       file_name = loc.file;
-      file_hash = None;
       line = loc.line;
       column = Some loc.column;
       function_ = Some location_function;
