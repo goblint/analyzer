@@ -61,7 +61,8 @@
         "noOverflows",
         "tmpSpecialAnalysis",
         "pthreadBarriers",
-        "pthreadOnce"
+        "pthreadOnce",
+        "demandFunction"
       ]
     }
   }
