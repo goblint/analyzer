@@ -101,10 +101,10 @@ struct
 
   type marshal = attributes VarMap.t VarH.t
 
-  let array_domain_annotation_enabled = lazy (GobConfig.get_bool "annotation.goblint_array_domain")
+  let array_domain_annotation_enabled = Goblint_parallel.DomainsafeLazy.from_fun (fun () -> GobConfig.get_bool "annotation.goblint_array_domain")
 
   let add_to_array_map fundec arguments =
-    if Lazy.force array_domain_annotation_enabled then
+    if Goblint_parallel.DomainsafeLazy.force array_domain_annotation_enabled then
       let rec pointedArrayMap = function
         | [] -> VarMap.empty
         | (info,(value:VD.t))::xs ->
@@ -119,7 +119,7 @@ struct
       | None -> VarH.add !array_map fundec.svar (pointedArrayMap arguments)
 
   let attributes_varinfo info fundec =
-    if Lazy.force array_domain_annotation_enabled then
+    if Goblint_parallel.DomainsafeLazy.force array_domain_annotation_enabled then
       let map = VarH.find !array_map fundec.svar in
       match VarMap.find_opt info map with
       | Some attr ->  Some (attr, typeAttrs (info.vtype)) (*if the function has a different domain for this array, use it*)
@@ -2594,7 +2594,7 @@ struct
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~man st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~man st
-                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Lazy.force Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
+                                                              (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
         ) st lv
     | Strcmp { s1; s2; n }, _ ->
       Option.map_default (fun _ ->

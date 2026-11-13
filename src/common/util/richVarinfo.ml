@@ -3,9 +3,9 @@ open GoblintCil
 let create_var name typ = Cilfacade.create_var @@ makeGlobalVar name typ
 
 let single ~name ~typ =
-  let vi = lazy (create_var name typ) in
+  let vi = Goblint_parallel.DomainsafeLazy.from_fun (fun () -> create_var name typ) in
   fun () ->
-    Lazy.force vi
+    Goblint_parallel.DomainsafeLazy.force vi
 
 module type VarinfoMap =
 sig
