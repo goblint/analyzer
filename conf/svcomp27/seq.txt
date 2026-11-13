@@ -9,7 +9,7 @@
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level02.json
 # apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron, branchseq with length 5
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level03.json
-# base-pathsensitive run, full path-sensitive base
+# base-pathsensitive run
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level04.json
 # polyhedra analysis
 --conf conf/svcomp27/common.json --conf conf/svcomp27/verify.json --conf conf/svcomp27/level05.json
