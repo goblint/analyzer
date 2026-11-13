@@ -485,16 +485,40 @@ let init () =
       Svcomp.errorwith "witness missing"
     )
 
-let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-  file = location.file_name;
-  line = location.line;
-  column = Option.value location.column ~default:1;
-  byte = -1;
-  endLine = -1;
-  endColumn = -1;
-  endByte = -1;
-  synthetic = false;
-}
+let loc_of_location ~file_hashes ~input_file_hashes (location: YamlWitnessType.Location.t): Cil.location =
+  let file =
+    match WitnessUtil.FileHashes.find_file_hash input_file_hashes location.file_name with
+    | Some input_file_hash -> (* TODO: also consider location.file_hash? or is it deprecated? *)
+      begin match WitnessUtil.FileHashes.find_file_hash file_hashes location.file_name, WitnessUtil.FileHashes.find_hash_file file_hashes input_file_hash with
+        | Some file_hash, None -> (* original file exists but mapping via hash doesn't exist *)
+          assert (not (String.equal file_hash input_file_hash)); (* otherwise mapping via hash would've been found *)
+          M.debug_noloc ~category:Witness "file hash mismatch: %s (%s vs %s)" location.file_name file_hash input_file_hash; (* TODO: convert to warning once tests are fixed *)
+          location.file_name (* use original file *)
+        | None, Some file -> (* original file doesn't exist but mapping via hash exists *)
+          file (* use mapping via hash *)
+        | Some file_hash, Some file -> (* original file exists and mapping via hash exists also *)
+          if not (String.equal file_hash input_file_hash) then
+            M.debug_noloc ~category:Witness "file hash mismatch: %s (%s vs %s)" location.file_name file_hash input_file_hash; (* TODO: convert to warning once tests are fixed *)
+          if not (String.equal file location.file_name) then
+            M.debug_noloc ~category:Witness "file ambiguous: %s vs %s" location.file_name file; (* TODO: convert to warning once tests are fixed *)
+          location.file_name (* use original file, arbitrarily *)
+        | None, None -> (* original file doesn't exist and mapping via hash doesn't exist either *)
+          location.file_name (* use original file, Locator won't find it though *)
+      end
+    | None ->
+      M.warn_noloc ~category:Witness "file missing from input_file_hashes: %s" location.file_name;
+      location.file_name
+  in
+  {
+    file;
+    line = location.line;
+    column = Option.value location.column ~default:1;
+    byte = -1;
+    endLine = -1;
+    endColumn = -1;
+    endByte = -1;
+    synthetic = false;
+  }
 
 module ValidationResult =
 struct
@@ -548,6 +572,8 @@ struct
             Locator.add loop_locator loc lvar
           ) (WitnessInvariant.loop_location n)
       ) lh;
+    let location_file_hashes = WitnessUtil.FileHashes.of_locator location_locator in
+    let loop_file_hashes = WitnessUtil.FileHashes.of_locator loop_locator in
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
@@ -568,7 +594,7 @@ struct
     cnt_disabled := 0;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
-      let metadata = entry.metadata in
+      let input_file_hashes = WitnessUtil.FileHashes.of_yaml_metadata entry.metadata in
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let validate_lvars_invariant ~loc ~lvars inv =
@@ -678,10 +704,10 @@ struct
       let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
-          let loc = loc_of_location location_invariant.location in
+          let loc = loc_of_location ~file_hashes:location_file_hashes ~input_file_hashes location_invariant.location in
           let inv = location_invariant.value in
 
-          match Locator.find_opt location_locator ~metadata loc with
+          match Locator.find_opt location_locator loc with
           | Some lvars ->
             validate_lvars_invariant ~loc ~lvars inv
           | None ->
@@ -690,10 +716,10 @@ struct
         in
 
         let validate_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
-          let loc = loc_of_location loop_invariant.location in
+          let loc = loc_of_location ~file_hashes:loop_file_hashes ~input_file_hashes loop_invariant.location in
           let inv = loop_invariant.value in
 
-          match Locator.find_opt loop_locator ~metadata loc with
+          match Locator.find_opt loop_locator loc with
           | Some lvars ->
             validate_lvars_invariant ~loc ~lvars inv
           | None ->
@@ -702,10 +728,10 @@ struct
         in
 
         let validate_loop_transition_invariant (loop_transition_invariant: YamlWitnessType.InvariantSet.LoopTransitionInvariant.t) =
-          let loc = loc_of_location loop_transition_invariant.location in
+          let loc = loc_of_location ~file_hashes:loop_file_hashes ~input_file_hashes loop_transition_invariant.location in
           let inv = loop_transition_invariant.value in
 
-          match Locator.find_opt loop_locator ~metadata loc with
+          match Locator.find_opt loop_locator loc with
           | Some lvars ->
             validate_lvars_transition_invariant ~loc ~lvars inv
           | None ->

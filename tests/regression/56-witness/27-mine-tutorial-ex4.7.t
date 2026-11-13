@@ -251,7 +251,7 @@ Requires SHA256 hash matching.
     live: 11
     dead: 0
     total lines: 11
-  [Success][Witness] invariant confirmed: 0 <= x && x <= 40 (/home/cwd/sv-benchmarks/c/loop-lit/mine2017-ex4.7.i:6:3)
+  [Success][Witness] invariant confirmed: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:6:3)
   [Info][Witness] witness validation summary:
     confirmed: 1
     unconfirmed: 0

@@ -60,6 +60,9 @@ struct
         | _ -> ()
       );
 
+    let location_file_hashes = WitnessUtil.FileHashes.of_locator location_locator in
+    let loop_file_hashes = WitnessUtil.FileHashes.of_locator loop_locator in
+
     let yaml = match GobResult.Syntax.(Fpath.of_string (GobConfig.get_string "witness.yaml.unassume") >>= Yaml_unix.of_file) with
       | Ok yaml -> yaml
       | Error (`Msg m) ->
@@ -75,6 +78,7 @@ struct
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
       let metadata = entry.metadata in
+      let input_file_hashes = WitnessUtil.FileHashes.of_yaml_metadata metadata in
       let uuid = metadata.uuid in
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
@@ -108,11 +112,11 @@ struct
       let unassume_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let unassume_location_invariant ~i (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
-          let loc = YamlWitness.loc_of_location location_invariant.location in
+          let loc = YamlWitness.loc_of_location ~file_hashes:location_file_hashes ~input_file_hashes location_invariant.location in
           let inv = location_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
-          match Locator.find_opt location_locator ~metadata loc with
+          match Locator.find_opt location_locator loc with
           | Some nodes ->
             unassume_nodes_invariant ~loc ~nodes ~i inv
           | None ->
@@ -120,11 +124,11 @@ struct
         in
 
         let unassume_loop_invariant ~i (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
-          let loc = YamlWitness.loc_of_location loop_invariant.location in
+          let loc = YamlWitness.loc_of_location ~file_hashes:loop_file_hashes ~input_file_hashes loop_invariant.location in
           let inv = loop_invariant.value in
           let msgLoc: M.Location.t = CilLocation loc in
 
-          match Locator.find_opt loop_locator ~metadata loc with
+          match Locator.find_opt loop_locator loc with
           | Some nodes ->
             unassume_nodes_invariant ~loc ~nodes ~i inv
           | None ->

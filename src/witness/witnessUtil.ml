@@ -249,9 +249,32 @@ let sha256_file f = try Sha256.(to_hex (file f)) with Sys_error _ -> ""
 let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5
 let sha256_file = sha256_file_cache.get
 
+module FileH = BatHashtbl.Make (Basetype.RawStrings)
+
+module FileHashes =
+struct
+  type t = (string * string) list (* TODO: optimize *)
+
+  let of_locator (locator: _ FileH.t): t =
+    FileH.to_seq_keys locator
+    |> Seq.map (fun file -> (file, sha256_file file))
+    |> List.of_seq
+
+  let of_yaml_metadata (metadata: YamlWitnessType.Metadata.t): t =
+    let open GobOption.Syntax in
+    match metadata.task with
+    | Some task -> task.input_file_hashes
+    | None -> []
+
+  let find_file_hash (file_hashes: t) file =
+    List.assoc_opt file file_hashes
+
+  let find_hash_file (file_hashes: t) hash =
+    List.assoc_opt hash (List.map BatTuple.Tuple2.swap file_hashes)
+end
+
 module Locator (E: Set.OrderedType) =
 struct
-  module FileH = BatHashtbl.Make (Basetype.RawStrings)
   module LocM = BatMap.Make (CilType.Location)
   module ES = BatSet.Make (E)
 
@@ -276,17 +299,6 @@ struct
       None
     else
       Some es
-
-  let find_opt file_loc_es ?(metadata: YamlWitnessType.Metadata.t option) loc =
-    let open GobOption.Syntax in
-    match find_opt file_loc_es loc with
-    | Some es -> Some es
-    | None ->
-      let* metadata in
-      let* task = metadata.task in
-      let* hash = List.assoc_opt loc.file task.input_file_hashes in
-      let* asd = FileH.to_seq_keys file_loc_es |> Seq.find (fun file -> sha256_file file = hash) in
-      find_opt file_loc_es {loc with file = asd}
 
   let clear (file_loc_es: t): unit =
     FileH.clear file_loc_es
