@@ -202,7 +202,6 @@ let handle_options () =
     AutoSoundConfig.enableAnalysesForMemSafetySpecification ();
   if AutoTune.isActivated "memsafetySpecification" then
     AutoTune.focusOnMemSafetySpecification ();
-  AfterConfig.run ();
   Cilfacade.init_options ();
   handle_flags ()
 

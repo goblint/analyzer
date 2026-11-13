@@ -252,8 +252,6 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
     enableAnalyses "Specification: Termination" "termination analyses" terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
     set_bool "ana.int.interval" true;
-    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
-    ()
   | _ -> ()
 
 let focusOnTermination () =
@@ -500,7 +498,7 @@ let activatePthreadBarriers () =
   let isBarrierInit (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.BarrierInit _ -> true
-    | _ -> false 
+    | _ -> false
   in
   let hasBarrierInit = hasFunction isBarrierInit in
   if hasBarrierInit then
@@ -510,7 +508,7 @@ let activatePthreadOnce () =
   let isOnce (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.Once _ -> true
-    | _ -> false 
+    | _ -> false
   in
   let hasOnce = hasFunction isOnce in
   if hasOnce then
