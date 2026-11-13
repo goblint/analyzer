@@ -13,7 +13,7 @@ rm -f goblint
 cp _build/default/src/goblint.exe goblint
 chmod +w goblint
 # must replace absolute apron runpath to C library with relative
-chrpath -r '$ORIGIN/lib' goblint
+patchelf --set-rpath '$ORIGIN/lib' goblint
 # copy just necessary apron C libraries
 mkdir -p lib/
 cp _opam/share/apron/lib/libapron.so lib/
@@ -25,25 +25,25 @@ cp scripts/sv-comp/goblint_runner.py .
 cp scripts/sv-comp/smoketest.sh .
 cp -r scripts/sv-comp/smoketests .
 
-# done outside to ensure archive contains goblint/ directory
+# done outside to ensure archive contains goblint-par/ directory
 cd ..
 
-rm -f goblint/scripts/sv-comp/goblint.zip
+rm -f goblint-par/scripts/sv-comp/goblint-par.zip
 
-zip -r goblint/scripts/sv-comp/goblint.zip \
-    goblint/goblint \
-    goblint/goblint_runner.py \
-    goblint/lib/libapron.so \
-    goblint/lib/liboctD.so \
-    goblint/lib/libboxD.so \
-    goblint/lib/libpolkaMPQ.so \
-    goblint/lib/LICENSE.APRON \
-    goblint/conf/svcomp27/ \
-    goblint/lib/libc/stub/include/assert.h \
-    goblint/lib/goblint/runtime/include/goblint.h \
-    goblint/lib/libc/stub/src/stdlib.c \
-    goblint/lib/sv-comp/stub/src/sv-comp.c \
-    goblint/README.md \
-    goblint/LICENSE \
-    goblint/smoketest.sh \
-    goblint/smoketests/
+zip -r goblint-par/scripts/sv-comp/goblint-par.zip \
+    goblint-par/goblint \
+    goblint-par/goblint_runner.py \
+    goblint-par/lib/libapron.so \
+    goblint-par/lib/liboctD.so \
+    goblint-par/lib/libboxD.so \
+    goblint-par/lib/libpolkaMPQ.so \
+    goblint-par/lib/LICENSE.APRON \
+    goblint-par/conf/svcomp27/ \
+    goblint-par/lib/libc/stub/include/assert.h \
+    goblint-par/lib/goblint-par/runtime/include/goblint.h \
+    goblint-par/lib/libc/stub/src/stdlib.c \
+    goblint-par/lib/sv-comp/stub/src/sv-comp.c \
+    goblint-par/README.md \
+    goblint-par/LICENSE \
+    goblint-par/smoketest.sh \
+    goblint-par/smoketests/

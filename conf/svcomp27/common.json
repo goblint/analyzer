@@ -21,7 +21,7 @@
   "exp": {
     "region-offsets": true
   },
-  "solver": "td3",
+  "solver": "td_parallel_immediate",
   "solvers": {
     "td3": {
       "weak-deps": "lazy"
