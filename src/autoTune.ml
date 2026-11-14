@@ -252,6 +252,11 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
     enableAnalyses "Specification: Termination" "termination analyses" terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
     set_bool "ana.int.interval" true;
+
+    (* Enable strengthening for witness unassuming in termination.
+       Otherwise, unassuming invariants on program variables destroys their relations to instrumented loop counters, destroying their bounds. *)
+    if get_string "witness.yaml.unassume" <> "" then
+      set_bool "ana.apron.strengthening" true;
   | _ -> ()
 
 let focusOnTermination () =
