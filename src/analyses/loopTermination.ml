@@ -54,6 +54,13 @@ struct
               match bound with
               | `Top -> false
               | `Lifted bound ->
+                (* It is not enough to check if bound is `Top (above): https://github.com/goblint/analyzer/issues/2336.
+                   There may be congruence/bitfield/def_exc/enums components which are not top but interval/interval_set bounds are.
+                   So check if bound is strictly smaller than loop counter maximum. *)
+                (* TODO: This is still not sound in general: https://github.com/goblint/analyzer/issues/1608.
+                   It assumes that congruence/bitfield/def_exc/enums have sufficiently imprecise lt/maximal functions,
+                   which don't exclude the maximum value, e.g., based on parity.
+                   It also assumes IntDomTuple doesn't refine enough between int domains. *)
                 let _, counter_max = IntDomain0.Size.range TerminationPreprocessing.counter_ikind in
                 ValueDomain.ID.lt bound (ValueDomain.ID.of_int TerminationPreprocessing.counter_ikind counter_max) = Some true
             in
