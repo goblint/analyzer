@@ -714,10 +714,19 @@ struct
   let sync man reason = map man Spec.sync (fun h -> h reason)
 
   let query man (type a) (q: a Queries.t): a Queries.result =
-    (* TODO: handle Invariant path like PathSensitive3? *)
-    (* join results so that they are sound for all paths *)
-    let module Result = (val Queries.Result.lattice q) in
-    fold' man Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
+    match q with
+    | InvariantTransition _
+    | EvalTransitionInt _ ->
+      (* Join over all paths to generate a sound transition invariant.
+         Required because transitions can (and do) go from one path to another and
+         just disjuncting their transition invariants doesn't account for transitions between them. *)
+      let d = D.fold Spec.D.join man.local (Spec.D.bot ()) in
+      Spec.query (conv man d) q
+    | _ ->
+      (* TODO: handle Invariant path like PathSensitive3? *)
+      (* join results so that they are sound for all paths *)
+      let module Result = (val Queries.Result.lattice q) in
+      fold' man Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
 
   let enter man l f a =
     let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in

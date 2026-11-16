@@ -3,6 +3,7 @@
     location invariants: 4
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set witness.yaml.invariant-types '["location_invariant"]' --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 96-witness-mm-escape2.yml 96-witness-mm-escape2.c

@@ -36,6 +36,7 @@ Protection succeeds on check in t_fun.
     location invariants: 10
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -153,6 +154,7 @@ Vojdani does not succeed on check in t_fun.
     location invariants: 9
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 1

@@ -5,10 +5,6 @@ open GoblintCil
 
 let uuid_random_state = Random.State.make_self_init ()
 
-let sha256_file f = try Sha256.(to_hex (file f)) with Sys_error _ -> ""
-let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5
-let sha256_file = sha256_file_cache.get
-
 module Entry =
 struct
   open YamlWitnessType
@@ -44,7 +40,7 @@ struct
     {
       input_files;
       input_file_hashes = List.map (fun file ->
-          (file, sha256_file file)
+          (file, WitnessUtil.sha256_file file)
         ) input_files;
       data_model;
       language = "C";
@@ -76,6 +72,16 @@ struct
           location;
           value = invariant;
           format = "c_expression";
+          labels = None;
+        };
+    }
+
+  let loop_transition_invariant ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LoopTransitionInvariant {
+          location;
+          value = invariant;
+          format = "ext_c_expression";
           labels = None;
         };
     }
@@ -221,6 +227,7 @@ struct
     let cnt_loop_invariant = ref 0 in
     let cnt_location_invariant = ref 0 in
     let cnt_flow_insensitive_invariant = ref 0 in
+    let cnt_loop_transition_invariant = ref 0 in
 
     let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
 
@@ -305,6 +312,44 @@ struct
                         let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force loop_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate loop transition invariants *)
+        let invariants =
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopTransitionInvariant.invariant_type then (
+            LH.fold (fun loc ns acc ->
+                if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
+                  (* Join over all (unrolled) nodes at a location to generate a sound transition invariant.
+                     Required because transitions can (and do) go from one unrolled node to another and
+                     just disjuncting their transition invariants doesn't account for transitions between them. *)
+                  let local = List.fold_left (fun acc n ->
+                      let local = R.local_node n in
+                      Spec.D.join acc local
+                    ) (Spec.D.bot ()) ns
+                  in
+                  let inv = R.ask_local_node (List.hd ns) ~local (InvariantTransition Invariant.default_context) in (* TODO: fix node hack *)
+                  match inv with
+                  | `Lifted inv ->
+                    let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                    let location_function = fundec.svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
+                    let invs = Invariant.Exp.process inv in
+                    List.fold_left (fun acc inv ->
+                        add_invariant_vars inv;
+                        let invariant = Invariant.Exp.show inv in
+                        let invariant = Entry.loop_transition_invariant ~location ~invariant in
+                        incr cnt_loop_transition_invariant;
                         invariant :: acc
                       ) acc invs
                   | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -411,6 +456,7 @@ struct
       (Pretty.dprintf "location invariants: %d" !cnt_location_invariant, None);
       (Pretty.dprintf "loop invariants: %d" !cnt_loop_invariant, None);
       (Pretty.dprintf "flow-insensitive invariants: %d" !cnt_flow_insensitive_invariant, None);
+      (Pretty.dprintf "loop transition invariants: %d" !cnt_loop_transition_invariant, None);
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
@@ -439,16 +485,40 @@ let init () =
       Svcomp.errorwith "witness missing"
     )
 
-let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-  file = location.file_name;
-  line = location.line;
-  column = Option.value location.column ~default:1;
-  byte = -1;
-  endLine = -1;
-  endColumn = -1;
-  endByte = -1;
-  synthetic = false;
-}
+let loc_of_location ~file_hashes ~input_file_hashes (location: YamlWitnessType.Location.t): Cil.location =
+  let file =
+    match WitnessUtil.FileHashes.find_file_hash input_file_hashes location.file_name with
+    | Some input_file_hash -> (* TODO: also consider location.file_hash? or is it deprecated? *)
+      begin match WitnessUtil.FileHashes.find_file_hash file_hashes location.file_name, WitnessUtil.FileHashes.find_hash_file file_hashes input_file_hash with
+        | Some file_hash, None -> (* original file exists but mapping via hash doesn't exist *)
+          assert (not (String.equal file_hash input_file_hash)); (* otherwise mapping via hash would've been found *)
+          M.debug_noloc ~category:Witness "file hash mismatch: %s (%s vs %s)" location.file_name file_hash input_file_hash; (* TODO: convert to warning once tests are fixed *)
+          location.file_name (* use original file *)
+        | None, Some file -> (* original file doesn't exist but mapping via hash exists *)
+          file (* use mapping via hash *)
+        | Some file_hash, Some file -> (* original file exists and mapping via hash exists also *)
+          if not (String.equal file_hash input_file_hash) then
+            M.debug_noloc ~category:Witness "file hash mismatch: %s (%s vs %s)" location.file_name file_hash input_file_hash; (* TODO: convert to warning once tests are fixed *)
+          if not (String.equal file location.file_name) then
+            M.debug_noloc ~category:Witness "file ambiguous: %s vs %s" location.file_name file; (* TODO: convert to warning once tests are fixed *)
+          location.file_name (* use original file, arbitrarily *)
+        | None, None -> (* original file doesn't exist and mapping via hash doesn't exist either *)
+          location.file_name (* use original file, Locator won't find it though *)
+      end
+    | None ->
+      M.warn_noloc ~category:Witness "file missing from input_file_hashes: %s" location.file_name;
+      location.file_name
+  in
+  {
+    file;
+    line = location.line;
+    column = Option.value location.column ~default:1;
+    byte = -1;
+    endLine = -1;
+    endColumn = -1;
+    endByte = -1;
+    synthetic = false;
+  }
 
 module ValidationResult =
 struct
@@ -486,6 +556,7 @@ struct
   module LvarS = Locator.ES
   module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg)
   module InvariantParser = WitnessUtil.InvariantParser
+  module TransitionInvariantParser = TransitionInvariant.InvariantParser (InvariantParser)
   module VR = ValidationResult
   module FundecH = GobHashtbl.Make (CilType.Fundec)
 
@@ -501,6 +572,8 @@ struct
             Locator.add loop_locator loc lvar
           ) (WitnessInvariant.loop_location n)
       ) lh;
+    let location_file_hashes = WitnessUtil.FileHashes.of_locator location_locator in
+    let loop_file_hashes = WitnessUtil.FileHashes.of_locator loop_locator in
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
@@ -521,6 +594,7 @@ struct
     cnt_disabled := 0;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
+      let input_file_hashes = WitnessUtil.FileHashes.of_yaml_metadata entry.metadata in
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let validate_lvars_invariant ~loc ~lvars inv =
@@ -572,10 +646,65 @@ struct
           M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
+      let validate_lvars_transition_invariant ~loc ~lvars inv =
+        let msgLoc: M.Location.t = CilLocation loc in
+
+        match TransitionInvariantParser.parse_cabs inv with
+        | Ok inv_cabs ->
+          (* do parse_cil at most once per function *)
+          let memo = FundecH.create 1 in (* loc should just be in one function *)
+          let parse_cil fundec =
+            TransitionInvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs
+          in
+
+          let (n, _) = LvarS.choose lvars in (* TODO: fix node hack *)
+          let fundec = Node.find_fundec n in
+
+          let result: VR.result = match FundecH.find_or_add_default_delayed ~default:parse_cil memo fundec with
+            | Ok inv_exp ->
+              (* Join over all (unrolled) nodes at a location to generate a sound transition invariant.
+                 Required because transitions can (and do) go from one unrolled node to another and
+                 just disjuncting their transition invariants doesn't account for transitions between them. *)
+              let local = LvarS.fold (fun lvar acc ->
+                  let local = try LHT.find lh lvar with Not_found -> Spec.D.bot () in
+                  Spec.D.join acc local
+                ) lvars (Spec.D.bot ())
+              in
+              begin match Queries.eval_transition_bool {f = (fun (type a) (q: a Queries.t) -> ask_local_node n ~local q)} inv_exp with
+                | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
+                | `Lifted true -> Confirmed
+                | `Lifted false -> Refuted
+                | `Top -> Unconfirmed
+              end
+            | Error e ->
+              ParseError
+          in
+
+          begin match result with
+            | Confirmed ->
+              incr cnt_confirmed;
+              M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv
+            | Unconfirmed ->
+              incr cnt_unconfirmed;
+              M.warn ~category:Witness ~loc:msgLoc "invariant unconfirmed: %s" inv
+            | Refuted ->
+              incr cnt_refuted;
+              M.error ~category:Witness ~loc:msgLoc "invariant refuted: %s" inv
+            | ParseError ->
+              incr cnt_error;
+              M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
+              M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
+          end
+        | Error e ->
+          incr cnt_error;
+          M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
+          M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
+      in
+
       let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
-          let loc = loc_of_location location_invariant.location in
+          let loc = loc_of_location ~file_hashes:location_file_hashes ~input_file_hashes location_invariant.location in
           let inv = location_invariant.value in
 
           match Locator.find_opt location_locator loc with
@@ -587,12 +716,24 @@ struct
         in
 
         let validate_loop_invariant (loop_invariant: YamlWitnessType.InvariantSet.LoopInvariant.t) =
-          let loc = loc_of_location loop_invariant.location in
+          let loc = loc_of_location ~file_hashes:loop_file_hashes ~input_file_hashes loop_invariant.location in
           let inv = loop_invariant.value in
 
           match Locator.find_opt loop_locator loc with
           | Some lvars ->
             validate_lvars_invariant ~loc ~lvars inv
+          | None ->
+            incr cnt_error;
+            M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
+        in
+
+        let validate_loop_transition_invariant (loop_transition_invariant: YamlWitnessType.InvariantSet.LoopTransitionInvariant.t) =
+          let loc = loc_of_location ~file_hashes:loop_file_hashes ~input_file_hashes loop_transition_invariant.location in
+          let inv = loop_transition_invariant.value in
+
+          match Locator.find_opt loop_locator loc with
+          | Some lvars ->
+            validate_lvars_transition_invariant ~loc ~lvars inv
           | None ->
             incr cnt_error;
             M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
@@ -605,7 +746,9 @@ struct
             validate_location_invariant x
           | true, LoopInvariant ({labels = (None | Some []); _} as x) ->
             validate_loop_invariant x
-          | false, (LocationInvariant _ | LoopInvariant _) ->
+          | true, LoopTransitionInvariant ({labels = (None | Some []); _} as x) ->
+            validate_loop_transition_invariant x
+          | false, (LocationInvariant _ | LoopInvariant _ | LoopTransitionInvariant _) ->
             incr cnt_disabled;
             M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
           | _ ->

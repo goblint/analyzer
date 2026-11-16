@@ -9,6 +9,7 @@ def_exc only:
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -44,6 +45,7 @@ interval only:
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -79,6 +81,7 @@ enums only:
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -114,6 +117,7 @@ congruence only:
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -131,6 +135,7 @@ interval_set only:
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -166,6 +171,7 @@ bitfield only:
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -183,6 +189,7 @@ all:
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -218,6 +225,7 @@ all without inexact-type-bounds:
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml

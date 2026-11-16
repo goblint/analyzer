@@ -262,6 +262,13 @@ struct
       (* let (d, _) = List.at (S.elements s) i in *)
       let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst man.local)) in
       Spec.query (conv man d) (Invariant c)
+    | InvariantTransition _
+    | EvalTransitionInt _ ->
+      (* Join over all paths to generate a sound transition invariant.
+         Required because transitions can (and do) go from one path to another and
+         just disjuncting their transition invariants doesn't account for transitions between them. *)
+      let d = Dom.fold_keys Spec.D.join (fst man.local) (Spec.D.bot ()) in
+      Spec.query (conv man d) q
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in

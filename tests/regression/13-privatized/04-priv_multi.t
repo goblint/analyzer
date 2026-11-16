@@ -19,6 +19,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 3
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -204,6 +205,7 @@ Flow-insensitive invariants as location invariants.
     location invariants: 9
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2

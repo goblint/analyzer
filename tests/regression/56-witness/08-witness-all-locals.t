@@ -7,6 +7,7 @@
     location invariants: 3
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
@@ -52,6 +53,7 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
     location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml

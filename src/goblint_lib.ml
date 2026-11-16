@@ -180,6 +180,7 @@ module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
 module BranchSet = BranchSet
+module BranchSeq = BranchSeq
 
 (** {2 Helper}
 
@@ -372,6 +373,7 @@ module SvcompSpec = SvcompSpec
 
 module Invariant = Invariant
 module InvariantCil = InvariantCil
+module TransitionInvariant = TransitionInvariant
 module WitnessUtil = WitnessUtil
 
 (** {3 YAML}

@@ -477,12 +477,7 @@ struct
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
-  (** Assert a constraint expression.
-
-      The overflow is completely handled by the flag "no_ov",
-      which is set in relationAnalysis.ml via the function no_overflow.
-      In case of a potential overflow, "no_ov" is set to false
-      and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
+  (** Assert a constraint expression. *)
 
   let meet_tcons ask t tcons expr =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in

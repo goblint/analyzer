@@ -32,3 +32,8 @@
 (cram
  (applies_to 27-mine-tutorial-ex4.7 54-witness-lifter-abortUnless)
  (enabled_if %{bin-available:graph-easy}))
+
+(cram
+ (alias runaprontest)
+ (applies_to 80-terminating-program-example)
+ (enabled_if %{lib-available:apron}))

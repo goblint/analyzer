@@ -477,6 +477,11 @@ let exp_is_boolean = function
   | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
   | _ -> false
 
+let stripOuterBoolCast = function
+  | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
+  | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
+  | e -> e
+
 (** Remove {!PointerConversion} casts from {!BinOp} operands, if present.
     CIL adds these casts for pointer comparisons. *)
 let remove_binop_pointer_conversions e1 e2 =

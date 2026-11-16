@@ -12,6 +12,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 4
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -124,6 +125,7 @@ Same with vojdani.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 1
+    loop transition invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2

@@ -40,6 +40,7 @@ Without diff-box:
     location invariants: 8
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 3
@@ -163,6 +164,7 @@ With diff-box:
     location invariants: 4
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
   [Info][Race] Memory locations race summary:
     safe: 3
