@@ -40,7 +40,7 @@ zip -r goblint-par/scripts/sv-comp/goblint-par.zip \
     goblint-par/lib/LICENSE.APRON \
     goblint-par/conf/svcomp27/ \
     goblint-par/lib/libc/stub/include/assert.h \
-    goblint-par/lib/goblint-par/runtime/include/goblint.h \
+    goblint-par/lib/goblint/runtime/include/goblint.h \
     goblint-par/lib/libc/stub/src/stdlib.c \
     goblint-par/lib/sv-comp/stub/src/sv-comp.c \
     goblint-par/README.md \
