@@ -168,7 +168,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.1.0"
-    "git+https://github.com/goblint/cil.git#59ed1d857dce8620eb91c767b9a761a8206c45f1"
+    "git+https://github.com/arkocal/goblint-cil.git#00d252b3d82d4fe29fe5d6f37bdbfd291cdf16a0"
   ]
   [
     "batteries.3.11.0"

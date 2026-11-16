@@ -122,42 +122,42 @@ module HConsed (Base:S) =
 struct
   include Std (* for default invariant, tag, ... *)
 
-  module HC = BatHashcons.MakeTable (Base)
+  module HC = GobHashcons.MakeTable (Base)
   let htable = HC.create 100000
 
-  type t = Base.t BatHashcons.hobj
-  let unlift x = x.BatHashcons.obj
+  type t = Base.t GobHashcons.hobj
+  let unlift x = x.GobHashcons.obj
   let lift = HC.hashcons htable
-  let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
+  let lift_f f (x:Base.t GobHashcons.hobj) = f (x.GobHashcons.obj)
 
   let show = lift_f Base.show
   let pretty () = lift_f (Base.pretty ())
 
   (* Debug printing with tags *)
-  (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
-     let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]" *)
+  (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.GobHashcons.obj x.GobHashcons.tag x.GobHashcons.hcode
+     let show x = (Base.show x.GobHashcons.obj) ^ "[" ^ string_of_int x.GobHashcons.tag ^ "," ^ string_of_int x.GobHashcons.hcode ^ "]" *)
 
-  let relift x = let y = Base.relift x.BatHashcons.obj in HC.hashcons htable y
+  let relift x = let y = Base.relift x.GobHashcons.obj in HC.hashcons htable y
   let name () = "HConsed "^Base.name ()
-  let hash x = x.BatHashcons.hcode
-  let tag x = x.BatHashcons.tag
-  let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
+  let hash x = x.GobHashcons.hcode
+  let tag x = x.GobHashcons.tag
+  let compare x y =  Stdlib.compare x.GobHashcons.tag y.GobHashcons.tag
   let to_yojson = lift_f (Base.to_yojson)
-  let printXml f x = Base.printXml f x.BatHashcons.obj
+  let printXml f x = Base.printXml f x.GobHashcons.obj
 
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
-    if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
-      if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
+    if x.GobHashcons.tag = y.GobHashcons.tag then ( (* x.GobHashcons.obj == y.GobHashcons.obj || *)
+      if not (Base.equal x.GobHashcons.obj y.GobHashcons.obj) then
         Logs.error "tags are equal but values are not for %a and %a" pretty x pretty y;
-      assert (Base.equal x.BatHashcons.obj y.BatHashcons.obj);
+      assert (Base.equal x.GobHashcons.obj y.GobHashcons.obj);
       true
     ) else (
-      if Base.equal x.BatHashcons.obj y.BatHashcons.obj then
+      if Base.equal x.GobHashcons.obj y.GobHashcons.obj then
         Logs.error "tags are not equal but values are for %a and %a" pretty x pretty y;
-      assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
+      assert (not (Base.equal x.GobHashcons.obj y.GobHashcons.obj));
       false
     )
-  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
+  let equal x y = x.GobHashcons.tag = y.GobHashcons.tag
   (* let equal = equal_debug *)
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end

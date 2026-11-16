@@ -162,7 +162,7 @@ let add_check check =
 let check kind title fmt =
   if !AnalysisState.should_warn then (
     let finish doc =
-      let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
+      let loc = Option.map UpdateCil0.getLoc (Domain.DLS.get Node0.current_node) in
       let messages = GobPretty.show doc in
       let check = Check.make ~kind ~title ?range:loc ~messages () in
       add_check check in

@@ -283,7 +283,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
       let text = GobPretty.show doc in
       let loc = match loc with
         | Some node -> Some node
-        | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
+        | None -> Option.map (fun node -> Location.Node node) (Domain.DLS.get Node0.current_node)
       in
       add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
     in

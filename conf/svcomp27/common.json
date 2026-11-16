@@ -25,6 +25,10 @@
   "solvers": {
     "td3": {
       "weak-deps": "lazy"
+    },
+    "td_parallel": {
+      "domains": 4,
+      "hashmap": "saturn"
     }
   },
   "sem": {

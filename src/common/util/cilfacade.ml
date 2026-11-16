@@ -850,4 +850,4 @@ let sync_formals file =
 (** Special index expression for some unknown index.
     Weakly updates array in assignment.
     Used for [exp.fast_global_inits]. *)
-let any_index_exp = lazy (CastE (Explicit, TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
+let any_index_exp = Goblint_parallel.DomainsafeLazy.from_fun (fun () -> CastE (Explicit, TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
