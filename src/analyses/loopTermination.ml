@@ -50,16 +50,22 @@ struct
         begin match VarToStmt.find_opt loop_counter !loop_counters with
           | Some loop_statement ->
             let bound = ask_bound man loop_counter in
-            let is_bounded = bound <> `Top in
+            let is_bounded =
+              match bound with
+              | `Top -> false
+              | `Lifted bound ->
+                let _, counter_max = IntDomain0.Size.range TerminationPreprocessing.counter_ikind in
+                ValueDomain.ID.lt bound (ValueDomain.ID.of_int TerminationPreprocessing.counter_ikind counter_max) = Some true
+            in
             man.sideg () (G.add loop_statement is_bounded (man.global ()));
             let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
-            begin match bound with
-              | `Top ->
+            begin match is_bounded with
+              | false ->
                 M.warn ~category:Termination ~loc "The program might not terminate! (Loop analysis)"
-              | `Lifted bound ->
+              | true ->
                 (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
                 if GobConfig.get_bool "dbg.termination-bounds" then
-                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" IntDomain.IntDomTuple.pretty bound;
+                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" Queries.ID.pretty bound;
             end
           | None ->
             failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."
