@@ -46,6 +46,7 @@ let main () =
     if AutoTune.isActivated "termination" then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
+      AfterConfig.run ();
       let file =
         if get_bool "server.reparse" then
           None
