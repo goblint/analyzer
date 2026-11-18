@@ -1,0 +1,24 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.1"
+    uuid: "f326ecfc-637a-48d2-a35c-0152faeb935e"
+    creation_time: "2026-05-10T09:35:16+0000"
+    producer:
+      name: "Handcrafted"
+      version: ""
+    task:
+      input_files:
+      - "80-terminating-program-example.c"
+      input_file_hashes:
+        "80-terminating-program-example.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
+      specification: "F end"
+      data_model: "LP64"
+      language: "C"
+  content:
+  - invariant:
+      type: loop_transition_invariant
+      location:
+        line: 15
+        file_name: "80-terminating-program-example.c"
+      value: "i - j < \\at(i, AnyPrev) - \\at(j, AnyPrev)"
+      format: ext_c_expression
