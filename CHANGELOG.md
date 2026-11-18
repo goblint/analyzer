@@ -48,6 +48,8 @@ Functionally equivalent to Goblint in SV-COMP 2026.
 * Add division by zero analysis (#1764).
 * Add bitfield domain (#1623).
 * Add weakly-relational C-2PO pointer analysis (#1485).
+* Add pthread barrier analysis (#1651, #1652).
+* Add `pthread_once` analysis (#1662, #1663).
 * Add widening delay (#1358, #1442, #1483).
 * Add narrowing of globals to top-down solver (#1636).
 * Add weak dependencies to top-down solver (#1746, #1747).
