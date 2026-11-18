@@ -15,7 +15,7 @@ authors: # same authors as in .zenodo.json and dune-project
     orcid: "https://orcid.org/0000-0002-9828-0308"
   - given-names: Julian
     family-names: Erhard
-    affiliation: "Technische Universität München"
+    affiliation: "CISPA Helmholtz Center for Information Security"
     orcid: "https://orcid.org/0000-0002-1729-3925"
   - given-names: Sarah
     family-names: Tilscher
