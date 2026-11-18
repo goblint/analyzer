@@ -247,7 +247,7 @@ struct
     (* allow nesting *)
     if is_immutable () then f ()
     else
-      GobRef.wrap immutable true f
+      GobRef.wrap_ref immutable true f
 
   (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability.
       @raise Failure

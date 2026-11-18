@@ -232,6 +232,20 @@ let reduceAnalyses () =
   if not (hasSpec SvcompSpec.NoDataRace) then
     disableAnalyses "no specification NoDataRace" notNeccessaryRaceAnalyses
 
+(* Without threads, the parallel solvers only get demands at thread creation, i.e., none, so all work runs in one task.
+   Demanding every callee lets them start work on it in parallel. *)
+let demandFunction () =
+  let isThreadCreate (desc: LibraryDesc.t) args =
+    match desc.special args with
+    | LibraryDesc.ThreadCreate _ -> true
+    | _ -> LibraryDesc.Accesses.find desc.accs ~kind:Spawn args <> []
+  in
+  let hasThreadCreate = hasFunction isThreadCreate in
+  if String.starts_with ~prefix:"td_parallel" (get_string "solver") && not hasThreadCreate then (
+    Logs.info "No thread creation -> enabling ana.demand-function for the parallel solver";
+    set_bool "ana.demand-function" true
+  )
+
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
   | ValidMemtrack
@@ -579,6 +593,9 @@ let chooseConfig file =
 
   if isActivated "reduceAnalyses" then
     reduceAnalyses ();
+
+  if isActivated "demandFunction" then
+    demandFunction ();
 
   if isActivated "arrayDomain" then
     selectArrayDomains file;

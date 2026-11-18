@@ -349,3 +349,24 @@ module DemandEqIncrSolverFromEqSolver (Sol: GenericEqSolver): DemandEqIncrSolver
       Post.post xs vs vh;
       (vh, ())
   end
+
+
+(** Convert a non-incremental demand solver into an "incremental" solver.
+    It will solve from scratch, perform standard postsolving and have no marshal data. *)
+module DemandEqIncrSolverFromDemandEqSolver (Sol: DemandEqSolver): DemandEqIncrSolver =
+  functor (Arg: IncrSolverArg) (S: DemandEqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    module Sol' = Sol (S) (VH)
+    (* Postsolving does not need the demands, so it runs on the equation system. *)
+    module EqSys = EqConstrSysFromDemandConstrSys (S)
+    module Post = MakeList (ListArgFromStdArg (EqSys) (VH) (Arg))
+
+    type marshal = unit
+    let copy_marshal () = ()
+    let relift_marshal () = ()
+
+    let solve xs vs _old_data =
+      let vh = Sol'.solve xs vs in
+      Post.post xs vs vh;
+      (vh, ())
+  end

@@ -242,7 +242,10 @@ struct
     let paths = S.enter man lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context man f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    (* Demanding the callee lets a parallel solver start work on it. *)
+    let demandl_and_getl x = demandl x; getl x in
+    let get_callee = if GobConfig.get_bool "ana.demand-function" then demandl_and_getl else getl in
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else get_callee (Function f, fc))) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
@@ -375,16 +378,16 @@ struct
     List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel demandl getg sideg u) edges) locs
 
   let tf (v,c) (e,u) getl sidel demandl getg sideg =
-    let old_node = !current_node in
+    let old_node = Domain.DLS.get current_node in
     let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
     let new_fd = Node.find_fundec v in
     if not (CilType.Fundec.equal old_fd new_fd) then
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
-    current_node := Some u;
+    Domain.DLS.set current_node (Some u);
     M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
-        current_node := old_node;
+        Domain.DLS.set current_node old_node;
         M.current_context := old_context;
         if not (CilType.Fundec.equal old_fd new_fd) then
           Timing.Program.exit new_fd.svar.vname

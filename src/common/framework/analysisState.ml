@@ -8,7 +8,7 @@ let should_warn = ref false
     {!svcomp_may_overflow} being set to true. This is useful when, e.g., {!BaseInvariant.Make.invariant} executes computations that
     are not in the actual program
 *)
-let executing_speculative_computations = ref false
+let executing_speculative_computations = Domain.DLS.new_key (fun () -> false)
 
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false

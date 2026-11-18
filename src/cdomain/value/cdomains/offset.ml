@@ -27,14 +27,14 @@ struct
       | CastE (_, TInt (ik, []), Const (CStr ("any_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
       | _ -> false
 
-    let all = lazy (CastE (Explicit, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let all = Goblint_parallel.DomainsafeLazy.from_fun (fun () -> CastE (Explicit, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
     let is_all = function
       | CastE (_, TInt (ik, []), Const (CStr ("all_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
       | _ -> false
 
     (* Override output *)
     let pretty () x =
-      if equal x (Lazy.force any) then
+      if equal x (Goblint_parallel.DomainsafeLazy.force any) then
         Pretty.text "?"
       else
         dn_exp () x
@@ -135,7 +135,7 @@ struct
     | `Index (i,o) ->
       let i_exp = match Idx.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> Lazy.force Index.Exp.any
+        | None -> Goblint_parallel.DomainsafeLazy.force Index.Exp.any
       in
       `Index (i_exp, to_exp o)
     | `Field (f,o) -> `Field (f, to_exp o)
@@ -145,7 +145,7 @@ struct
     | `Index (i,o) ->
       let i_exp = match Idx.to_int i with
         | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
-        | None -> Lazy.force Index.Exp.any
+        | None -> Goblint_parallel.DomainsafeLazy.force Index.Exp.any
       in
       Index (i_exp, to_cil o)
     | `Field (f,o) -> Field (f, to_cil o)
@@ -278,7 +278,7 @@ module Exp =
 struct
   include MakePrintable (Index.Exp)
 
-  let top_indices = map_indices (fun _ -> Lazy.force Index.Exp.any)
+  let top_indices = map_indices (fun _ -> Goblint_parallel.DomainsafeLazy.force Index.Exp.any)
 
   let rec of_cil: offset -> t = function
     | NoOffset    -> `NoOffset

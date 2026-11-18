@@ -58,10 +58,10 @@
         "wideningThresholds",
         "memsafetySpecification",
         "noOverflows",
-        "termination",
         "tmpSpecialAnalysis",
         "pthreadBarriers",
-        "pthreadOnce"
+        "pthreadOnce",
+        "demandFunction"
       ]
     }
   }

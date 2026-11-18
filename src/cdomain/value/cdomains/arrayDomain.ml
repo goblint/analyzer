@@ -168,7 +168,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset when get_bool "witness.invariant.goblint" ->
-      let i_lval = Cil.addOffsetLval (Index (Lazy.force Offset.Index.Exp.all, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.all, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval x
     | NoOffset ->
       Invariant.none
@@ -280,7 +280,7 @@ struct
         if Val.is_bot xr then
           Invariant.top ()
         else if get_bool "witness.invariant.goblint" then (
-          let i_lval = Cil.addOffsetLval (Index (Lazy.force Offset.Index.Exp.all, NoOffset)) lval in
+          let i_lval = Cil.addOffsetLval (Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.all, NoOffset)) lval in
           value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
         )
         else
@@ -801,7 +801,7 @@ struct
     match offset with
     (* invariants for all indices *)
     | NoOffset when get_bool "witness.invariant.goblint" ->
-      let i_lval = Cil.addOffsetLval (Index (Lazy.force Offset.Index.Exp.all, NoOffset)) lval in
+      let i_lval = Cil.addOffsetLval (Index (Goblint_parallel.DomainsafeLazy.force Offset.Index.Exp.all, NoOffset)) lval in
       value_invariant ~offset ~lval:i_lval (join_of_all_parts x)
     | NoOffset ->
       Invariant.none
@@ -815,7 +815,7 @@ end
 
 (* This is the main array out of bounds check *)
 let array_oob_check (x, l) (e, v) =
-  if !AnalysisState.executing_speculative_computations then
+  if Domain.DLS.get AnalysisState.executing_speculative_computations then
     ()
   else if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = (* check whether index is before the end of the array *)

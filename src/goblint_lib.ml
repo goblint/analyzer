@@ -433,6 +433,7 @@ module FloatOps = FloatOps
 
 module LazyEval = LazyEval
 module ResettableLazy = ResettableLazy
+module GobHashcons = GobHashcons
 
 module ProcessPool = ProcessPool
 module Timeout = Timeout

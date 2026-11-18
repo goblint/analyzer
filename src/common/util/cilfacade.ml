@@ -88,7 +88,7 @@ let init_options () =
     match machine with
     | Some _ -> Cil.envMachine := machine
     | None ->
-      GobRef.wrap AnalysisState.should_warn true (fun () -> Messages.msg_final Error ~category:Unsound "Machine definition not available for selected architecture");
+      GobRef.wrap_ref AnalysisState.should_warn true (fun () -> Messages.msg_final Error ~category:Unsound "Machine definition not available for selected architecture");
       Logs.error "Machine definition not available for selected architecture, defaulting to host"
   )
 
@@ -855,4 +855,4 @@ let sync_formals file =
 (** Special index expression for some unknown index.
     Weakly updates array in assignment.
     Used for [exp.fast_global_inits]. *)
-let any_index_exp = lazy (CastE (Explicit, TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
+let any_index_exp = Goblint_parallel.DomainsafeLazy.from_fun (fun () -> CastE (Explicit, TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
