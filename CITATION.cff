@@ -39,6 +39,7 @@ authors: # same authors as in .zenodo.json and dune-project
   - given-names: Kalmer
     family-names: Apinis
     affiliation: "University of Tartu"
+    orcid: "https://orcid.org/0009-0006-2395-6584"
   - given-names: Vesal
     family-names: Vojdani
     affiliation: "University of Tartu"
