@@ -281,7 +281,6 @@ struct
     |> of_list
 
   let of_yaml_metadata (metadata: YamlWitnessType.Metadata.t): t =
-    let open GobOption.Syntax in
     match metadata.task with
     | Some task -> of_list task.input_file_hashes
     | None -> create ()
