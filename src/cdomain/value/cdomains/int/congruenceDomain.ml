@@ -389,6 +389,7 @@ struct
     | None, None -> bot()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some(c2, m2) ->
+      (* TODO: handle sem.int.div-by-zero option *)
       if m2 =: Z.zero then
         if (c2 |: m1) && (c1 %: c2 =: Z.zero || m1 =: Z.zero || not (Cil.isSigned ik)) then
           Some (c1 %: c2, Z.zero)
@@ -405,7 +406,7 @@ struct
     match x,y with
     | None, None -> bot ()
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | _, x when leq zero x -> top ()
+    | _, x when leq zero x -> top () (* TODO: handle sem.int.div-by-zero option *)
     | Some(c1, m1), Some(c2, m2) when not no_ov && m2 =: Z.zero && c2 =: Z.neg Z.one -> top ()
     | Some(c1, m1), Some(c2, m2) when m1 =: Z.zero && m2 =: Z.zero -> Some (c1 /: c2, Z.zero)
     | Some(c1, m1), Some(c2, m2) when m2 =: Z.zero && c2 |: m1 && c2 |: c1 -> Some (c1 /: c2, m1 /: c2)
