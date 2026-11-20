@@ -1,4 +1,4 @@
-## v2.9.0 Dizzy Dullahan (unreleased)
+## v2.9.0 Dizzy Dullahan
 Functionally equivalent to Goblint in SV-COMP 2027.
 
 * Add transition invariant support in witnesses (#1849, #2305).
