@@ -134,10 +134,8 @@ struct
       end
     | Alloca _ ->
       (* Create fresh heap var for the alloca() call *)
-      begin match man.ask (Queries.AllocVar Stack) with
-        | `Lifted v -> (AllocaVars.add v (fst state), snd state)
-        | _ -> state
-      end
+      let vars = man.ask (Queries.AllocVar Stack) in
+      (AllocaVars.join (fst state) vars, snd state)
     | _ -> state
 
   let startstate v = D.bot ()

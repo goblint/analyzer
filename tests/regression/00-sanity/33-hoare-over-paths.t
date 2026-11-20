@@ -10,7 +10,7 @@
   Mapping {
     33-hoare-over-paths.c:9:7-9:8(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -32,7 +32,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:10:5-10:10(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -54,7 +54,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:11:5-11:24(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -76,7 +76,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:15:5-15:27(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -98,7 +98,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:16:5-16:24(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -120,7 +120,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:33:10-33:11(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -141,7 +141,7 @@
          assert:(),
          pthreadMutexType:()], widen-context:{}),
        ([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -163,7 +163,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:7:1-34:1(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -182,7 +182,7 @@
          pthreadMutexType:()], widen-context:{})}
     33-hoare-over-paths.c:7:1-34:1(main) ->
       {([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex
@@ -203,7 +203,7 @@
          assert:(),
          pthreadMutexType:()], widen-context:{}),
        ([expRelation:(),
-         mallocWrapper:(wrapper call:Unknown node, unique calls:{}),
+         mallocWrapper:(wrapper call:Unknown node, unique calls:(Reversed (top or map):{}, top or map:{})),
          base:({
                  Global {
                    m ->   mutex

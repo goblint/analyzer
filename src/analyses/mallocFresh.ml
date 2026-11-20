@@ -40,9 +40,11 @@ struct
   let special man lval f args =
     let desc = LibraryFunctions.find f in
     let alloc_var location =
-      match man.ask (AllocVar location) with
-      | `Lifted var -> D.add var man.local
-      | _ -> man.local
+      let vars = man.ask (AllocVar location) in
+      (* Adding a different representative on each path yields no new must-fresh variable. *)
+      if not (Queries.VS.is_top vars) && Queries.VS.cardinal vars = 1 then
+        D.add (Queries.VS.choose vars) man.local
+      else man.local
     in
     match desc.special args with
     | Malloc _

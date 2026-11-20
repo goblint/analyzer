@@ -199,17 +199,30 @@ struct
     | Calloc _
     | Realloc _ ->
       man.sideg () true;
-      begin match man.ask (Queries.AllocVar Heap), lval with
-        | `Lifted var, Some lval ->
-          man.split (ToppedVarInfoSet.add var state) [SplitBranch (Lval lval, true)];
-          if GobConfig.get_bool "sem.malloc.fail" then
-            man.split state [SplitBranch (Lval lval, false)];
-          raise Analyses.Deadcode
-        | `Lifted var, None ->
-          (* No reason to split without lval: the untracked memory cannot be freed anyway. *)
-          ToppedVarInfoSet.add var state
-        | _ -> state
-      end
+      let vars = man.ask (Queries.AllocVar Heap) in
+      if Queries.VS.is_top vars then state
+      else if Queries.VS.is_empty vars then raise Analyses.Deadcode
+      else
+        let multiple = Queries.VS.cardinal vars > 1 in
+        begin match lval with
+          | None when not multiple -> ToppedVarInfoSet.add (Queries.VS.choose vars) state
+          | _ ->
+            (* Keep each successful allocation's leak partition and pointer correlated
+               so a later free can remove the corresponding unique representative. *)
+            Queries.VS.iter (fun var ->
+                let events = match lval with
+                  | Some lv when multiple -> [Events.SplitBranch (Lval lv, true); AllocatedVar (lv, var)]
+                  | Some lv -> [Events.SplitBranch (Lval lv, true)]
+                  | None -> []
+                in
+                man.split (ToppedVarInfoSet.add var state) events
+              ) vars;
+            Option.iter (fun lv ->
+                if GobConfig.get_bool "sem.malloc.fail" then
+                  man.split state [SplitBranch (Lval lv, false)]
+              ) lval;
+            raise Analyses.Deadcode
+        end
     | Free ptr ->
       begin match man.ask (Queries.MayPointTo ptr) with
         | ad when (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad = 1 ->
