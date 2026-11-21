@@ -9,6 +9,7 @@ type t =
   | Escape of EscapeDomain.EscapedVars.t
   | EnterMultiThreaded
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)
+  | AllocatedVar of lval * varinfo (** On this success path the returned pointer targets this representative. *)
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
   | Access of {exp: CilType.Exp.t; ad: Queries.AD.t; kind: AccessKind.t; atomic: bool; reach: bool}
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [man.assign]. *) (* TODO: unused *)
@@ -29,6 +30,7 @@ let emit_on_deadcode = function
     true
   | Lock _ (* Doesn't need to publish. *)
   | SplitBranch _ (* only emitted in split, which is never dead. *)
+  | AllocatedVar _
   | AssignSpawnedThread _ (* Happens only after live thread spawn. *)
   | Assign _
   | UpdateExpSplit _ (* Pointless to split on dead. *)
@@ -46,6 +48,7 @@ let pretty () = function
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv
+  | AllocatedVar (lv, v) -> dprintf "AllocatedVar (%a, %a)" d_lval lv CilType.Varinfo.pretty v
   | AssignSpawnedThread (lval, tid) -> dprintf "AssignSpawnedThread (%a, %a)" d_lval lval ThreadIdDomain.Thread.pretty tid
   | Access {exp; ad; kind; atomic; reach} -> dprintf "Access {exp=%a; ad=%a; kind=%a; atomic=%B; reach=%B}" CilType.Exp.pretty exp Queries.AD.pretty ad AccessKind.pretty kind atomic reach
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp

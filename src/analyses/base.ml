@@ -145,11 +145,10 @@ struct
    * Initializing my variables
    **************************************************************************)
 
-  let alloced_var location man =
-    let info = match (man.ask (Q.AllocVar location)) with
-      | `Lifted vinfo -> vinfo
-      | _ -> failwith("Ran without a malloc analysis.") in
-    info
+  let alloced_addrs location man =
+    let vars = man.ask (Q.AllocVar location) in
+    if Q.VS.is_top vars then failwith "Ran without a malloc analysis.";
+    Q.VS.fold (fun v acc -> AD.join (AD.of_var v) acc) vars (AD.empty ())
 
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
@@ -2536,8 +2535,8 @@ struct
       if not include_pointer then
         (None, AD.null_ptr)
       else
-        let var = AD.of_var (alloced_var loc man) in
-        (Some var, if include_null then AD.join var AD.null_ptr else var)
+        let addrs = alloced_addrs loc man in
+        (Some addrs, if include_null then AD.join addrs AD.null_ptr else addrs)
     in
     (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
     List.iter (fun arg -> eval_rv ~man st arg |> ignore) args;
@@ -3138,6 +3137,19 @@ struct
         )
     | Events.Escape escaped ->
       Priv.escape ask (priv_getg man.global) (priv_sideg man.sideg) st escaped
+    | Events.AllocatedVar (lv, var) ->
+      (* Keep the actual offset (calloc may return an array address). *)
+      begin match eval_rv ~man st (Lval lv) with
+        | Address addrs ->
+          let addrs = AD.filter (function
+              | Addr.Addr (v, _) -> CilType.Varinfo.equal v var
+              | UnknownPtr -> true
+              | _ -> false
+            ) addrs in
+          if AD.is_bot addrs then raise Analyses.Deadcode;
+          set ~man ~invariant:true st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) (Address addrs)
+        | _ -> st
+      end
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
