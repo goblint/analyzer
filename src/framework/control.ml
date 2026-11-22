@@ -563,6 +563,8 @@ struct
           Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
+          (* stop periodic solver statistics (set up in Generic.SolverStats) during post-processing; dbg.solver-signal still works *)
+          ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = 0.; it_value = 0. });
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (
