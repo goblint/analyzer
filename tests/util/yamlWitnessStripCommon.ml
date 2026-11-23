@@ -8,8 +8,8 @@ struct
   }
   [@@deriving ord]
 
-  let strip_file_hashes {entry_type} =
-    let ghost_location_update_strip_file_hash (x: GhostInstrumentation.LocationUpdate.t): GhostInstrumentation.LocationUpdate.t =
+  let normalize {entry_type} =
+    let ghost_location_update_normalize (x: GhostInstrumentation.LocationUpdate.t): GhostInstrumentation.LocationUpdate.t =
       {
         x with
         updates = List.sort GhostInstrumentation.Update.compare x.updates (* Sort, so order is deterministic regardless of Goblint. *)
@@ -24,7 +24,7 @@ struct
       | GhostInstrumentation x ->
         GhostInstrumentation { (* Sort, so order is deterministic regardless of Goblint. *)
           ghost_variables = List.sort GhostInstrumentation.Variable.compare x.ghost_variables;
-          ghost_updates = List.sort GhostInstrumentation.LocationUpdate.compare (List.map ghost_location_update_strip_file_hash x.ghost_updates);
+          ghost_updates = List.sort GhostInstrumentation.LocationUpdate.compare (List.map ghost_location_update_normalize x.ghost_updates);
         }
     in
     {entry_type}
@@ -46,7 +46,7 @@ module StrippedEntrySet = Set.Make (StrippedEntry)
 let print_stripped_entries stripped_entries =
   let stripped_yaml_entries =
     StrippedEntrySet.elements stripped_entries
-    |> List.map StrippedEntry.strip_file_hashes
+    |> List.map StrippedEntry.normalize
     |> List.rev_map StrippedEntry.to_yaml
   in
 
