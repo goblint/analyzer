@@ -73,7 +73,7 @@ depends: [
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
   "fs-io" {= "3.21.1"}
-  "goblint-cil" {= "2.1.0"}
+  "goblint-cil" {= "2.2.1"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -164,8 +164,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.1.0"
-    "git+https://github.com/goblint/cil.git#59ed1d857dce8620eb91c767b9a761a8206c45f1"
+    "goblint-cil.2.2.1"
+    "git+https://github.com/goblint/cil.git#bf4435ea7c42bc7305621369c5c2cf5d735ca781"
   ]
   [
     "batteries.3.11.0"

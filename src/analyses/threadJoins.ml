@@ -65,7 +65,10 @@ struct
         | [(ThreadIdDomain.Thread tid_ft) as tid] when TID.is_unique tid->
           let (local_joined, local_clean) = man.local in
           let (other_joined, other_clean) = man.global tid in
-          (MustTIDsWithBot.union (MustTIDsWithBot.add tid_ft local_joined) other_joined, local_clean && other_clean)
+          if MustTIDsWithBot.is_bot other_joined then
+            raise Deadcode
+          else
+            (MustTIDsWithBot.union (MustTIDsWithBot.add tid_ft local_joined) other_joined, local_clean && other_clean)
         | _ -> man.local (* if multiple possible thread ids are joined, none of them is must joined *)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
@@ -84,6 +87,7 @@ struct
           match tid with
           | ThreadIdDomain.Thread tid_ft ->
             let (other_joined, other_clean) = man.global tid in
+            (* TODO: Also is_bot and Deadcode case here? (NB! This is in a loop.) *)
             (MustTIDsWithBot.union (MustTIDsWithBot.add tid_ft joined) other_joined, clean && other_clean)
           | ThreadIdDomain.UnknownThread -> assert false (* unreachable *)
         ) (man.local) threads
