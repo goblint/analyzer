@@ -259,7 +259,13 @@ struct
   let exists p s = S.exists (fun b -> B.exists p b) s
   let for_all p s = S.for_all (fun b -> B.for_all p b) s
 
-  let singleton e = S.singleton (B.singleton e)
+  let b_nonbot_singleton e =
+    let b' = B.singleton e in
+    if B.is_bot b' then (* forbid bot bucket to preserve invariant *)
+      failwith "DisjointDomain: singleton bucket is bot"; (* could also allow by handling in singleton/add, but that gives unnecessary and surprising behavior *)
+    b'
+
+  let singleton e = S.singleton (b_nonbot_singleton e)
   let choose s = B.choose (S.choose s)
 
   (* based on SetDomain.SensitiveConf *)
@@ -272,7 +278,7 @@ struct
       | b ->
         assert (S.cardinal s_match = 1);
         B.add e b
-      | exception Not_found -> B.singleton e
+      | exception Not_found -> b_nonbot_singleton e
     in
     S.add b' s_rest
   let remove e s =
@@ -506,7 +512,13 @@ struct
   let exists p m = M.exists (fun _ e -> B.exists p e) m
   let for_all p m = M.for_all (fun _ e -> B.for_all p e) m
 
-  let singleton e v = M.singleton (R.of_elt e) (B.singleton e v)
+  let b_nonbot_singleton e v =
+    let b' = B.singleton e v in
+    if B.is_bot b' then (* forbid bot bucket to preserve invariant *)
+      failwith "DisjointDomain: singleton bucket is bot"; (* could also allow by handling in singleton/add, but that gives unnecessary and surprising behavior *)
+    b'
+
+  let singleton e v = M.singleton (R.of_elt e) (b_nonbot_singleton e v)
   let choose m = B.choose (snd (M.choose m))
 
   let mem e m =
@@ -527,7 +539,7 @@ struct
     let r = R.of_elt e in
     let b' = match M.find_opt r m with
       | Some b -> B.add e v b
-      | None -> B.singleton e v
+      | None -> b_nonbot_singleton e v
     in
     M.add r b' m
   let remove e m =
@@ -699,7 +711,13 @@ struct
   let exists p s = S.exists (fun b -> B.exists p b) s
   let for_all p s = S.for_all (fun b -> B.for_all p b) s
 
-  let singleton e r = S.singleton (B.singleton e r)
+  let b_nonbot_singleton e v =
+    let b' = B.singleton e v in
+    if B.is_bot b' then (* forbid bot bucket to preserve invariant *)
+      failwith "DisjointDomain: singleton bucket is bot"; (* could also allow by handling in singleton/add, but that gives unnecessary and surprising behavior *)
+    b'
+
+  let singleton e r = S.singleton (b_nonbot_singleton e r)
   let choose s = B.choose (S.choose s)
 
   (* based on SetDomain.SensitiveConf *)
@@ -724,7 +742,7 @@ struct
       | b ->
         assert (S.cardinal s_match = 1);
         B.add e r b
-      | exception Not_found -> B.singleton e r
+      | exception Not_found -> b_nonbot_singleton e r
     in
     S.add b' s_rest
   let remove e s =
