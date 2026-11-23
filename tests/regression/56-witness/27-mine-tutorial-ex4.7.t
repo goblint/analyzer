@@ -208,3 +208,56 @@ Two copies of __VERIFIER_nondet_bool in ARG.
                                                                                              ┌────────────────────────────────────────────┐                                                                                     │
                                                                                              │                     _                      │ ────────────────────────────────────────────────────────────────────────────────────┘
                                                                                              └────────────────────────────────────────────┘
+
+
+# Witness validation
+
+## Handcrafted witness
+
+  $ goblint --enable ana.int.interval --enable ana.sv-comp.functions --set ana.activated[+] unassume --set witness.yaml.unassume 27-mine-tutorial-ex4.7.yml --set witness.yaml.validate 27-mine-tutorial-ex4.7.yml 27-mine-tutorial-ex4.7.c
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:5:7-5:12)
+  [Success][Assert] Assertion "0 <= x" will succeed (27-mine-tutorial-ex4.7.c:7:5-7:28)
+  [Success][Assert] Assertion "x <= 40" will succeed (27-mine-tutorial-ex4.7.c:8:5-8:29)
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:12:9-12:14)
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:11:11-11:17)
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:9:9-9:38)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 11
+    dead: 0
+    total lines: 11
+  [Success][Witness] invariant confirmed: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:6:3)
+  [Info][Witness] witness validation summary:
+    confirmed: 1
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1
+
+## UAutomizer witness
+
+Requires SHA256 hash matching.
+
+  $ goblint --enable ana.int.interval --enable ana.sv-comp.functions --set ana.activated[+] unassume --set witness.yaml.unassume 27-mine-tutorial-ex4.7-uautomizer.yml --set witness.yaml.validate 27-mine-tutorial-ex4.7-uautomizer.yml 27-mine-tutorial-ex4.7.c
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:5:7-5:12)
+  [Success][Assert] Assertion "0 <= x" will succeed (27-mine-tutorial-ex4.7.c:7:5-7:28)
+  [Success][Assert] Assertion "x <= 40" will succeed (27-mine-tutorial-ex4.7.c:8:5-8:29)
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:12:9-12:14)
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:11:11-11:17)
+  [Info][Witness] unassume invariant: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:9:9-9:38)
+  [Info][Deadcode] Logical lines of code (LLoC) summary:
+    live: 11
+    dead: 0
+    total lines: 11
+  [Success][Witness] invariant confirmed: 0 <= x && x <= 40 (27-mine-tutorial-ex4.7.c:6:3)
+  [Info][Witness] witness validation summary:
+    confirmed: 1
+    unconfirmed: 0
+    refuted: 0
+    error: 0
+    unchecked: 0
+    unsupported: 0
+    disabled: 0
+    total validation entries: 1

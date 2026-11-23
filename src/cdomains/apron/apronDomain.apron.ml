@@ -599,6 +599,7 @@ struct
   let join x y =
     let x_env = A.env x in
     let y_env = A.env y in
+    (* TODO: avoid all the env changes when equal? *)
     let c_env = gce x_env y_env in
     let x_c = A.change_environment Man.mgr x c_env false in
     let y_c = A.change_environment Man.mgr y c_env false in
@@ -700,7 +701,7 @@ struct
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a" pretty j;
       let j =
-        if strengthening_enabled then (* TODO: skip if same envs? *)
+        if strengthening_enabled && not (Environment.equal (A.env x) (A.env y)) then (* skip slow and unnecessary strengthening for homogeneous joins *)
           strengthening j x y
         else
           j
