@@ -46,6 +46,7 @@ let main () =
     if AutoTune.isActivated "termination" then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
+      AfterConfig.run ();
       let file =
         if get_bool "server.reparse" then
           None
@@ -66,6 +67,7 @@ let main () =
       AutoSoundConfig.activateLongjmpAnalysesWhenRequired ();
       if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
+      AfterConfig.run ();
       file |> do_analyze changeInfo;
       do_gobview file;
       do_stats ();
