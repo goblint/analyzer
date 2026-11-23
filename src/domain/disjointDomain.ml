@@ -70,12 +70,13 @@ struct
   let exists p m = M.exists (fun _ e -> B.exists p e) m
   let for_all p m = M.for_all (fun _ e -> B.for_all p e) m
 
-  let singleton e =
+  let b_nonbot_singleton e =
     let b' = B.singleton e in
-    if B.is_bot b' then
-      M.empty () (* remove bot bucket to preserve invariant *)
-    else
-      M.singleton (R.of_elt e) b'
+    if B.is_bot b' then (* forbid bot bucket to preserve invariant *)
+      failwith "DisjointDomain: singleton bucket is bot"; (* could also allow by handling in singleton/add, but that gives unnecessary and surprising behavior *)
+    b'
+
+  let singleton e = M.singleton (R.of_elt e) (b_nonbot_singleton e)
   let choose m = B.choose (snd (M.choose m))
 
   let mem e m =
@@ -84,14 +85,11 @@ struct
     | None -> false
   let add e m =
     let r = R.of_elt e in
-    match M.find_opt r m with
-    | Some b -> M.add r (B.add e b) m
-    | None ->
-      let b' = B.singleton e in
-      if B.is_bot b' then
-        M.empty () (* remove bot bucket to preserve invariant *)
-      else
-        M.add r b' m
+    let b' = match M.find_opt r m with
+      | Some b -> B.add e b
+      | None -> b_nonbot_singleton e
+    in
+    M.add r b' m
   let remove e m =
     let r = R.of_elt e in
     match M.find_opt r m with
