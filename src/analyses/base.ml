@@ -1708,6 +1708,16 @@ struct
        joining its payload with an old payload would discard the fresh zero. *)
     let include_fresh_zero (blob: value): value = match blob with
       | Blob (Bot, _, z) when ZeroInit.equal z ZeroInit.calloc -> blob
+      | Blob ((Struct s as payload), size, z) when ZeroInit.equal z ZeroInit.calloc && not (ValueDomain.Structs.is_bot s) ->
+        (* Materialize the fresh zeros at the type of the stored struct. Joining
+           with it keeps old pointer targets (also inside array fields) alongside
+           NULL. Only use a typed zero if the fields identify one struct. *)
+        let contents = match ValueDomain.Structs.keys s with
+          | f :: fs when List.for_all (fun g -> g.fcomp.ckey = f.fcomp.ckey) fs ->
+            VD.join payload (VD.zero_init_value (TComp (f.fcomp, [])))
+          | _ -> VD.top ()
+        in
+        Blob (contents, size, z)
       | Blob (_, size, z) -> Blob (Top, size, z)
       | Bot -> Bot
       | _ -> Top
