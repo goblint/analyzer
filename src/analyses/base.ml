@@ -1289,6 +1289,7 @@ struct
       let context = context
       let scope = Node.find_fundec man.node
       let find v = get_var ~man man.local v
+      let is_multiple v = man.ask (Q.IsMultiple v)
     end
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
