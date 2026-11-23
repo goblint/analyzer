@@ -487,7 +487,7 @@ let init () =
 let loc_of_location ~file_hashes ~input_file_hashes (location: YamlWitnessType.Location.t): Cil.location =
   let file =
     match WitnessUtil.FileHashes.find_file_hash input_file_hashes location.file_name with
-    | Some input_file_hash -> (* TODO: also consider location.file_hash? or is it deprecated? *)
+    | Some input_file_hash ->
       begin match WitnessUtil.FileHashes.find_file_hash file_hashes location.file_name, WitnessUtil.FileHashes.find_hash_file file_hashes input_file_hash with
         | Some file_hash, None -> (* original file exists but mapping via hash doesn't exist *)
           assert (not (String.equal file_hash input_file_hash)); (* otherwise mapping via hash would've been found *)
