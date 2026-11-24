@@ -15,8 +15,13 @@ let is_excluded_from_invalidation v =  List.mem v.vname (get_string_list "exp.ex
 
 module AD = ValueDomain.AD
 
+let addr_is_definite (ask: Q.ask) = function
+  | AD.Addr.NullPtr -> true
+  | Addr m -> ValueDomain.Mval.is_definite m
+  | _ -> false
+
 let ad_is_definite (ask: Q.ask) x =
-  AD.cardinal x = 1 && AD.Addr.is_definite (AD.choose x)
+  AD.cardinal x = 1 && addr_is_definite ask (AD.choose x)
 
 let is_globally_unique (ask: Q.ask) v =
   (* TODO: check if main is non-recursive *)

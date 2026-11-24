@@ -82,11 +82,6 @@ struct
     | StrPtr s -> SD.to_exp s
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
-
-  let is_definite = function
-    | NullPtr -> true
-    | Addr m -> Mval.is_definite m
-    | _ -> false
 end
 
 module AddressLattice (Mval: Mval.Lattice) =

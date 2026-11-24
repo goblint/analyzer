@@ -30,9 +30,6 @@ sig
   sig
     include module type of AddressBase (Mval)
 
-    val is_definite: t -> bool
-    (** Whether address is a [NULL] pointer or an mvalue that has only definite integer indexing (and fields). *)
-
     val of_var: GoblintCil.varinfo -> t
     (** Convert from variable (without offset). *)
 
