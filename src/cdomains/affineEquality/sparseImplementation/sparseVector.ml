@@ -25,8 +25,6 @@ sig
 
   val map_f_preserves_zero: (num -> num) -> t -> t
 
-  val mapi_f_preserves_zero: (int -> num -> num) -> t -> t
-
   val map2_f_preserves_zero: (num -> num -> num) -> t ->  t -> t
 
   val map2_f_preserves_zero_helper: (int -> int -> int) -> (num -> num -> num) -> t ->  t -> t
@@ -276,18 +274,6 @@ module SparseVector: SparseVectorFunctor =
       {v with entries = entries'}
 
     let map_f_preserves_zero f v = timing_wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
-
-    (**
-       [mapi_f_preserves_zero f v] returns the mapping of [v] specified by [f].
-
-       Note that [f] {b must} be such that [f i 0 = 0] for any index [i]!
-
-    *)
-    let mapi_f_preserves_zero f v =
-      let entries' = List.filter_map (
-          fun (idx, value) -> let new_val = f idx value in
-            if new_val = A.zero then None else Some (idx, new_val)) v.entries in
-      {v with entries = entries'}
 
     (**
        [map2_f_preserves_zero termorder f v v'] returns the mapping of [v] and [v'] specified by [f].
