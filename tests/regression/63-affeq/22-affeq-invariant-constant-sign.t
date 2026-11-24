@@ -9,6 +9,7 @@ With sparse domain:
     location invariants: 1
     loop invariants: 0
     flow-insensitive invariants: 0
+    loop transition invariants: 0
     total generation entries: 1
 
 The correct invariant is `x = z + 1`, not `x + 1 = z`:
