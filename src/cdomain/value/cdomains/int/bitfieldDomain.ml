@@ -230,8 +230,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     if GoblintCil.isSigned ik then top ()
     else (BArith.one_mask, Ints_t.of_bigint (snd (Size.range ik)))
 
-  let bot_of ik = bot ()
-
   let to_pretty_bits (z,o) =
     let known_bitmask = BArith.bits_known (z,o) in
     let invalid_bitmask = BArith.bits_invalid (z,o) in
@@ -456,14 +454,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       do_shift ()
 
   let shift_right ik a b = match is_bot a, is_bot b with
-    | true, true -> bot_of ik, {underflow=false; overflow=false}
+    | true, true -> bot (), {underflow=false; overflow=false}
     | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s >> %s" (show a) (show b)))
     | _ ->
       top_on_undefined_shift ik a b @@ fun () ->
       (norm ik (BArith.shift_right ik a b), {underflow=false; overflow=false})
 
   let shift_left ik a b = match is_bot a, is_bot b with
-    | true, true -> bot_of ik, {underflow=false; overflow=false}
+    | true, true -> bot (), {underflow=false; overflow=false}
     | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s << %s" (show a) (show b)))
     | _ ->
       top_on_undefined_shift ~is_shift_left:true ik a b @@ fun () ->
@@ -715,7 +713,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let refine_with_incl_list ik t (ls : int_t list) : t =
     let joined =
-      List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
+      List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot ()) ls
     in
     meet ik t joined
 

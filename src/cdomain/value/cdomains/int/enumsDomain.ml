@@ -17,7 +17,6 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = Inc (BISet.empty ())
-  let bot_of ik = bot ()
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
 
   let top_of ?bitfield ik =
@@ -80,7 +79,7 @@ module Enums : S with type int_t = Z.t = struct
             | false, false -> top_bool  (* Not {} -> {0, 1} *)
             | true, false -> Inc (BISet.singleton Z.one) (* Not {0} -> {1} *)
             | false, true -> Inc (BISet.singleton Z.zero) (* Not {1} -> {0} *)
-            | true, true -> bot_of ikind (* Not {0, 1} -> bot *)
+            | true, true -> bot () (* Not {0, 1} -> bot *)
           end
         | _ ->
           v

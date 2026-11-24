@@ -113,7 +113,6 @@ struct
       in
       `Excluded (S.empty (), range)
     | _ -> `Excluded (S.empty (), size ik)
-  let bot_of ik = bot ()
 
   let show x =
     let short_size x = "("^R.show x^")" in

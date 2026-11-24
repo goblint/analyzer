@@ -596,7 +596,6 @@ struct
   let top () = raise Unknown
   let bot () = raise Error
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
@@ -661,8 +660,6 @@ struct
     end) (Base)
 
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
-
 
   let name () = "flat integers"
   let cast_to ?(suppress_ovwarn=false) ~kind t = function
@@ -743,7 +740,7 @@ struct
     end) (Base)
   type int_t = Base.int_t
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
+
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"

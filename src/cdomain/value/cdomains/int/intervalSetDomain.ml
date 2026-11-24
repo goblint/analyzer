@@ -47,8 +47,6 @@ struct
 
   let bot () = []
 
-  let bot_of ik = bot ()
-
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"

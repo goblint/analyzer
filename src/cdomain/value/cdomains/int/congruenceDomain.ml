@@ -46,7 +46,6 @@ struct
   let top () = Some (Z.zero, Z.one)
   let top_of ?bitfield ik = Some (Z.zero, Z.one)
   let bot () = None
-  let bot_of ik = bot ()
 
   let show = function ik -> match ik with
     | None -> "⟂"
