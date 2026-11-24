@@ -168,7 +168,6 @@ module type B =
 sig
   include BDefault
 
-  val bot_of: Cil.ikind -> t
   val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val of_excl_list: Cil.ikind -> int_t list -> t
@@ -301,6 +300,7 @@ end
 module type Y =
 sig
   include B
+  val bot_of: Cil.ikind -> t
   include Lattice.Top with type t := t
   include Arith with type t:=t
 

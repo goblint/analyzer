@@ -113,7 +113,6 @@ module IntDomTupleImpl = struct
   (* f0: constructors *)
   let bot () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot } ()
   let top_of ?bitfield = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of ?bitfield }
-  let bot_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot_of }
   let of_bool ik = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_excl_list ik}
   let of_int ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_int ik }
@@ -273,7 +272,7 @@ module IntDomTupleImpl = struct
     let maybe' reffun ik domtup dom =
       match dom with
       | Some (Some y) -> reffun ik domtup y (* dom is activated and not bot *)
-      | Some None -> bot_of ik (* dom is activated but bot, refine everything to bot *)
+      | Some None -> bot () (* dom is activated but bot, refine everything to bot *)
       | None -> domtup (* dom is not activated *)
     in
     [(fun (a, b, c, d, e, f) -> maybe refine_with_excl_list ik (a, b, c, d, e,f) (to_excl_list (a, b, c, d, e,f)));
@@ -294,7 +293,7 @@ module IntDomTupleImpl = struct
          let old_dt = !dt in
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
          quit_loop := equal old_dt !dt;
-         if is_bot !dt then (dt := bot_of ik; quit_loop := true);
+         if is_bot !dt then (dt := bot (); quit_loop := true);
          if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a" pretty old_dt pretty !dt;
        done;
      | _ -> ()
