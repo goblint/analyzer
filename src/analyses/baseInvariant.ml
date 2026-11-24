@@ -181,7 +181,12 @@ struct
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x AD.pretty n;
               match eval_rv_address ~man st (Lval x) with
               | Address a when AD.is_definite n ->
-                `Refine (x, Address (AD.diff a n))
+                begin match AD.Addr.to_var (AD.choose n) with
+                  | Some v when man.ask (Queries.IsMultiple v) ->
+                    (* Inequality excludes one concrete address, not the whole summary. *)
+                    `NotUnderstood
+                  | _ -> `Refine (x, Address (AD.diff a n))
+                end
               | Top when AD.is_null n ->
                 `Refine (x, Address AD.not_null)
               | v ->
