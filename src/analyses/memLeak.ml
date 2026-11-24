@@ -42,52 +42,61 @@ struct
     get_global_vars ()
     |> List.filter (fun v -> Cilfacade.isStructType v.vtype)
 
+  (* One pointer cannot establish reachability of every possible target, or
+     of every allocation represented by a single summary target. *)
+  let unique_target man a =
+    if not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1 then
+      match Queries.AD.choose a with
+      | Queries.AD.Addr.Addr (v, _) when not (man.ask (Queries.IsMultiple v)) -> Some v
+      | _ -> None
+    else None
+
+  let struct_pointer_targets man s =
+    (* Check each pointer field separately: two fields may each establish a
+       different target, but one field with two alternatives establishes neither.
+       Keep non-heap targets too, since a field may point to a pointer variable
+       that the caller can follow to a heap allocation. *)
+    ValueDomain.Structs.keys s
+    |> List.filter_map (fun f ->
+        if isPointerType f.ftype then
+          match ValueDomain.Structs.get s f with
+          | Queries.VD.Address a -> unique_target man a
+          | _ -> None
+        else None)
+
   let get_reachable_mem_from_globals (global_vars:varinfo list) man =
+    (* A direct global pointer [g] can account for the heap variable it points
+       to. Since [check_for_mem_leak] subtracts that entire variable from the
+       allocated set, a may-target is not enough: [g] must identify one address,
+       and the variable at that address must represent only one object. *)
     global_vars
     |> List.map (fun v -> Lval (Var v, NoOffset))
     |> List.filter_map (fun exp ->
-        match man.ask (Queries.MayPointTo exp) with
-        | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1  ->
-          begin match List.hd @@ Queries.AD.elements a with
-            | Queries.AD.Addr.Addr (v, _) when (man.ask (Queries.IsHeapVar v)) && not (man.ask (Queries.IsMultiple v)) -> Some v
-            | _ -> None
-          end
+        match unique_target man (man.ask (Queries.MayPointTo exp)) with
+        | Some v when man.ask (Queries.IsHeapVar v) -> Some v
         | _ -> None)
 
   let rec get_reachable_mem_from_str_ptr_globals (global_struct_ptr_vars:varinfo list) man =
+    (* For [struct S *root], reaching [root->p] takes two steps: follow [root]
+       to the struct, then read [p]. Uniqueness at the first step says nothing
+       about the second, so check each pointer before counting or following its
+       target. Recursive calls start at the target, not at the original global. *)
     let eval_value_of_heap_var heap_var =
       match man.ask (Queries.EvalValue (Lval (Var heap_var, NoOffset))) with
-      | a when not (Queries.VD.is_top a) ->
-        begin match a with
-          | Struct s ->
-            List.fold_left (fun acc f ->
-                if isPointerType f.ftype then
-                  begin match ValueDomain.Structs.get s f with
-                    | Queries.VD.Address a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1 ->
-                      let reachable_from_addr_set =
-                        Queries.AD.fold (fun addr acc ->
-                            match addr with
-                            | Queries.AD.Addr.Addr (v, _) -> (v :: get_reachable_mem_from_str_ptr_globals [v] man) @ acc
-                            | _ -> acc
-                          ) a []
-                      in
-                      reachable_from_addr_set @ acc
-                    | _ -> acc
-                  end
-                else acc
-              ) [] (ValueDomain.Structs.keys s)
-          | _ -> []
-        end
+      | Struct s ->
+        (* The caller has already counted the struct allocation. Each accepted
+           field contributes its target [v] and anything reachable through [v]. *)
+        struct_pointer_targets man s
+        |> List.concat_map (fun v -> v :: get_reachable_mem_from_str_ptr_globals [v] man)
       | _ -> []
     in
     let get_pts_of_non_heap_ptr_var var =
-      match man.ask (Queries.MayPointTo (Lval (Var var, NoOffset))) with
-      | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1  ->
-        begin match List.hd @@ Queries.AD.elements a with
-          | Queries.AD.Addr.Addr (v, _) when (man.ask (Queries.IsHeapVar v)) && not (man.ask (Queries.IsMultiple v)) -> v :: (eval_value_of_heap_var v)
-          | Queries.AD.Addr.Addr (v, _) when not (man.ask (Queries.IsAllocVar v)) && isPointerType v.vtype -> get_reachable_mem_from_str_ptr_globals [v] man
-          | _ -> []
-        end
+      (* A heap target is itself reachable, even if it has no pointer fields.
+         An intermediate pointer variable can lead us to a heap allocation
+         without itself being an allocation to count. *)
+      match unique_target man (man.ask (Queries.MayPointTo (Lval (Var var, NoOffset)))) with
+      | Some v when man.ask (Queries.IsHeapVar v) -> v :: eval_value_of_heap_var v
+      | Some v when not (man.ask (Queries.IsAllocVar v)) && isPointerType v.vtype -> get_reachable_mem_from_str_ptr_globals [v] man
       | _ -> []
     in
     global_struct_ptr_vars
@@ -98,39 +107,19 @@ struct
       ) []
 
   let get_reachable_mem_from_str_non_ptr_globals (global_struct_non_ptr_vars:varinfo list) man =
+    (* For [struct S root], the struct is the global itself: start at its fields.
+       If [root.p] may point to either A or B, this field establishes neither
+       target individually. Even a singleton target H is insufficient when H
+       summarizes several allocations: overwriting [root.p] can lose the old
+       allocation while leaving its abstract address unchanged. Only descend
+       through targets that [struct_pointer_targets] can establish. *)
     global_struct_non_ptr_vars
-    (* Filter out global struct vars that don't have pointer fields *)
-    |> List.filter_map (fun v ->
+    |> List.concat_map (fun v ->
         match man.ask (Queries.EvalValue (Lval (Var v, NoOffset))) with
-        | a when not (Queries.VD.is_top a) ->
-          begin match a with
-            | Queries.VD.Struct s ->
-              let struct_fields = ValueDomain.Structs.keys s in
-              let ptr_struct_fields = List.filter (fun f -> isPointerType f.ftype) struct_fields in
-              if ptr_struct_fields = [] then None else Some (s, ptr_struct_fields)
-            | _ -> None
-          end
-        | _ -> None
-      )
-    |> List.fold_left (fun acc_struct (s, fields) ->
-        let reachable_from_fields =
-          List.fold_left (fun acc_field field ->
-              match ValueDomain.Structs.get s field with
-              | Queries.VD.Address a ->
-                let reachable_from_addr_set =
-                  Queries.AD.fold (fun addr acc_addr ->
-                      match addr with
-                      | Queries.AD.Addr.Addr (v, _) ->
-                        let reachable_from_v = Queries.AD.of_list (List.map (fun v -> Queries.AD.Addr.Addr (v, `NoOffset)) (get_reachable_mem_from_str_ptr_globals [v] man)) in
-                        Queries.AD.join (Queries.AD.add addr reachable_from_v) acc_addr
-                      | _ -> acc_addr
-                    ) a (Queries.AD.empty ())
-                in (Queries.AD.to_var_may reachable_from_addr_set) @ acc_field
-              | _ -> acc_field
-            ) [] fields
-        in
-        reachable_from_fields @ acc_struct
-      ) []
+        | Queries.VD.Struct s ->
+          struct_pointer_targets man s
+          |> List.concat_map (fun v -> v :: get_reachable_mem_from_str_ptr_globals [v] man)
+        | _ -> [])
 
   let warn_for_multi_threaded_due_to_abort man =
     let malloc_called = was_malloc_called man in
