@@ -1703,33 +1703,7 @@ struct
     if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
     r
 
-  let merge_summary_calloc (old_value: value) (fresh: value): value =
-    (* A fresh calloc blob encodes zero as Bot plus the calloc flag. Simply
-       joining its payload with an old payload would discard the fresh zero. *)
-    let include_fresh_zero (blob: value): value = match blob with
-      | Blob (Bot, _, z) when ZeroInit.equal z ZeroInit.calloc -> blob
-      | Blob ((Struct s as payload), size, z) when ZeroInit.equal z ZeroInit.calloc && not (ValueDomain.Structs.is_bot s) ->
-        (* Materialize the fresh zeros at the type of the stored struct. Joining
-           with it keeps old pointer targets (also inside array fields) alongside
-           NULL. Only use a typed zero if the fields identify one struct. *)
-        let contents = match ValueDomain.Structs.keys s with
-          | f :: fs when List.for_all (fun g -> g.fcomp.ckey = f.fcomp.ckey) fs ->
-            VD.join payload (VD.zero_init_value (TComp (f.fcomp, [])))
-          | _ -> VD.top ()
-        in
-        Blob (contents, size, z)
-      | Blob (_, size, z) -> Blob (Top, size, z)
-      | Bot -> Bot
-      | _ -> Top
-    in
-    match old_value, fresh with
-    | Bot, _ -> fresh (* First allocation represented by this summary. *)
-    | Blob _, Blob _ -> include_fresh_zero (VD.join old_value fresh)
-    | Array a, Array b -> Array (CArrays.map include_fresh_zero (CArrays.join a b))
-    | _ -> Top (* The same site can allocate with different counts. *)
-
-  (* Updating a single varinfo*offset pair. NB! This function's type does
-   * not include the flag. *)
+  (* Update a single variable and offset. Even a single target may represent several objects. *)
   let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?(initializing_calloc=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) (lval_type: Cil.typ) (value: value): store =
     let ask = Analyses.ask_of_man man in
     let cil_offset = Offs.to_cil_offset offs in (* Only for partitioned arrays! Drops indices. *)
@@ -1752,27 +1726,17 @@ struct
     let update_offset old_value =
       (* Projection globals to highest Precision *)
       let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
-      let new_value =
-        if initializing_calloc && man.ask (Q.IsMultiple x) then
-          merge_summary_calloc old_value projected_value
-        else
-          VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t
-      in
-      if WeakUpdates.mem x st.weak then (
-        if invariant then
-          old_value (* without this, invariant for ambiguous pointer might worsen precision for each individual weakly updatable address to their join *)
-        else
-          VD.join old_value new_value
-      )
-      else if invariant then (
-        (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
-        try
-          VD.meet old_value new_value
-        with Lattice.Uncomparable ->
-          new_value
-      )
+      let weak = WeakUpdates.mem x st.weak || (initializing_calloc && man.ask (Q.IsMultiple x)) in
+      if weak && invariant then
+        old_value (* The invariant need not hold for every represented object. *)
       else
-        new_value
+        let new_value = VD.update_offset ~blob_destructive ~weak ~initializing_calloc (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+        if invariant then (
+          (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
+          try VD.meet old_value new_value with Lattice.Uncomparable -> new_value
+        )
+        else
+          new_value
     in
     if M.tracing then M.tracel "set" "update_one_addr: start with '%a' (type '%a') \nstate:%a" Addr.Mval.pretty (x,offs) d_type t D.pretty st;
     if isFunctionType x.vtype then begin
@@ -2792,13 +2756,12 @@ struct
     | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv ->
-          (* For [p = calloc(n, size)], [addr] is the pointer assigned to [p]
-             (and may include NULL); [heap_var] names the block to initialize,
-             if the call can return allocated storage. *)
+          (* [addr] is the base address (possibly including NULL); [heap_var]
+             is the allocation variable to initialize if the call can succeed. *)
           let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
-          (* Construct the new allocation in isolation. Its blob starts at Bot:
+          (* Construct the new allocation in isolation. Its blob payload starts at Bot:
              the calloc tag makes a read of untouched contents produce zero
              at the type of the read. *)
           let addr, fresh =
@@ -2818,11 +2781,9 @@ struct
               let addr_offset = ad_concat_map (add_offset_varinfo offset) addr in
               addr_offset, VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))
           in
-          (* Assign the return value normally. When initializing its target,
-             [heap_var] may already summarize older allocations. In that case
-             [initializing_calloc] tells [set_mval] to merge [fresh] with the
-             previous contents: zeroing the new block does not zero an older
-             block still reachable through another pointer. *)
+          (* Assign the returned pointer normally. Only its target is freshly
+             initialized: for a summary, [set_mval] selects a weak update and
+             [VD.update_offset] retains the older objects alongside the new one. *)
           let st = set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) (Address addr) in
           Option.map_default (fun v -> set_mval ~man ~initializing_calloc:true st (v, `NoOffset) voidType fresh) st heap_var
         | _ -> st
