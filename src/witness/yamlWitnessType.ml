@@ -479,7 +479,7 @@ struct
       let of_yaml y =
         match y with
         | `String s -> Ok (String s)
-        | `Float f -> Ok (Int (int_of_float f))
+        | `Float f when Float.is_integer f -> Ok (Int (int_of_float f))
         | _ -> Error (`Msg "Expected a string or integer value")
     end
 

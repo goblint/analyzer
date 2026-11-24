@@ -34,8 +34,12 @@ let find s y =
     Error (`Msg ("find " ^ s ^ ": " ^ e))
 
 let to_int y =
-  let+ f = to_float y in
-  int_of_float f
+  let* f = to_float y in
+  if Float.is_integer f then
+    Ok (int_of_float f)
+  else
+    Error (`Msg ("to_int: " ^ string_of_float f))
+
 
 let list = function
   | `A l -> Ok l
