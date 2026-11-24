@@ -1703,9 +1703,34 @@ struct
     if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
     r
 
+  let merge_summary_calloc (old_value: value) (fresh: value): value =
+    (* A fresh calloc blob encodes zero as Bot plus the calloc flag. Simply
+       joining its payload with an old payload would discard the fresh zero. *)
+    let include_fresh_zero (blob: value): value = match blob with
+      | Blob (Bot, _, z) when ZeroInit.equal z ZeroInit.calloc -> blob
+      | Blob ((Struct s as payload), size, z) when ZeroInit.equal z ZeroInit.calloc && not (ValueDomain.Structs.is_bot s) ->
+        (* Materialize the fresh zeros at the type of the stored struct. Joining
+           with it keeps old pointer targets (also inside array fields) alongside
+           NULL. Only use a typed zero if the fields identify one struct. *)
+        let contents = match ValueDomain.Structs.keys s with
+          | f :: fs when List.for_all (fun g -> g.fcomp.ckey = f.fcomp.ckey) fs ->
+            VD.join payload (VD.zero_init_value (TComp (f.fcomp, [])))
+          | _ -> VD.top ()
+        in
+        Blob (contents, size, z)
+      | Blob (_, size, z) -> Blob (Top, size, z)
+      | Bot -> Bot
+      | _ -> Top
+    in
+    match old_value, fresh with
+    | Bot, _ -> fresh (* First allocation represented by this summary. *)
+    | Blob _, Blob _ -> include_fresh_zero (VD.join old_value fresh)
+    | Array a, Array b -> Array (CArrays.map include_fresh_zero (CArrays.join a b))
+    | _ -> Top (* The same site can allocate with different counts. *)
+
   (* Updating a single varinfo*offset pair. NB! This function's type does
    * not include the flag. *)
-  let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) (lval_type: Cil.typ) (value: value): store =
+  let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?(initializing_calloc=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) (lval_type: Cil.typ) (value: value): store =
     let ask = Analyses.ask_of_man man in
     let cil_offset = Offs.to_cil_offset offs in (* Only for partitioned arrays! Drops indices. *)
     let t = match t_override with
@@ -1727,7 +1752,12 @@ struct
     let update_offset old_value =
       (* Projection globals to highest Precision *)
       let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
-      let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+      let new_value =
+        if initializing_calloc && man.ask (Q.IsMultiple x) then
+          merge_summary_calloc old_value projected_value
+        else
+          VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t
+      in
       if WeakUpdates.mem x st.weak then (
         if invariant then
           old_value (* without this, invariant for ambiguous pointer might worsen precision for each individual weakly updatable address to their join *)
@@ -2512,7 +2542,7 @@ struct
         | _ ->
           set ~man st lv_a lv_typ (VD.top_value lv_typ)
     in
-    (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
+    (* Return the allocation variable (if any) and the pointer result (possibly null). *)
     let alloc (loc: Q.AllocationLocation.t) size =
       let zero_option, fail_option =
         match loc with
@@ -2536,8 +2566,9 @@ struct
       if not include_pointer then
         (None, AD.null_ptr)
       else
-        let var = AD.of_var (alloced_var loc man) in
-        (Some var, if include_null then AD.join var AD.null_ptr else var)
+        let var = alloced_var loc man in
+        let addr = AD.of_var var in
+        (Some var, if include_null then AD.join addr AD.null_ptr else addr)
     in
     (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
     List.iter (fun arg -> eval_rv ~man st arg |> ignore) args;
@@ -2754,31 +2785,46 @@ struct
           let loc = match op with | Alloca _ -> Stack | Malloc _ -> Heap | _ -> assert false in
           let (heap_var, addr) = alloc loc size in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
-          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift (eval_int ~man st size), ZeroInit.malloc))]) [] heap_var in
+          let blob_set = Option.map_default (fun heap_var -> [(AD.of_var heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift (eval_int ~man st size), ZeroInit.malloc))]) [] heap_var in
           set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), VD.Address addr) :: blob_set)
         | _ -> st
       end
     | Calloc { count = n; size }, _ ->
       begin match lv with
-        | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
+        | Some lv ->
+          (* For [p = calloc(n, size)], [addr] is the pointer assigned to [p]
+             (and may include NULL); [heap_var] names the block to initialize,
+             if the call can return allocated storage. *)
           let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
-          if ID.equal_to Z.one countval = `Eq then
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), SizeDomain.lift sizeval, ZeroInit.calloc)]) [] heap_var in
-            set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
-          else
-            let blobsize = (* only speculative during ID.mul *)
-              (* TODO: Since C23, calloc returns NULL when this multiplication would overflow, but int domains don't return overflow information here currently; needs refactor to not produce overflow warnings inside domains *)
-              let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-              SizeDomain.mul (SizeDomain.lift sizeval) (SizeDomain.lift countval)
-            in
-            let offset = `Index (IdxDom.of_int Z.zero, `NoOffset) in
-            (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
-            let addr_offset = ad_concat_map (add_offset_varinfo offset) addr in
-            (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
-            set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)
+          (* Construct the new allocation in isolation. Its blob starts at Bot:
+             the calloc tag makes a read of untouched contents produce zero
+             at the type of the read. *)
+          let addr, fresh =
+            if ID.equal_to Z.one countval = `Eq then
+              (* Exactly one element: the returned pointer addresses the blob directly. *)
+              addr, VD.Blob (VD.bot (), SizeDomain.lift sizeval, ZeroInit.calloc)
+            else
+              let blobsize = (* only speculative during ID.mul *)
+                (* TODO: Since C23, calloc returns NULL when this multiplication would overflow, but int domains don't return overflow information here currently; needs refactor to not produce overflow warnings inside domains *)
+                let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+                SizeDomain.mul (SizeDomain.lift sizeval) (SizeDomain.lift countval)
+              in
+              (* When the count isn't known to be one, return a pointer to index
+                 zero of an abstract array. Its single blob covers all [n * size]
+                 bytes; the array length of one is not the concrete element count. *)
+              let offset = `Index (IdxDom.of_int Z.zero, `NoOffset) in
+              let addr_offset = ad_concat_map (add_offset_varinfo offset) addr in
+              addr_offset, VD.Array (CArrays.make (SizeDomain.of_int Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))
+          in
+          (* Assign the return value normally. When initializing its target,
+             [heap_var] may already summarize older allocations. In that case
+             [initializing_calloc] tells [set_mval] to merge [fresh] with the
+             previous contents: zeroing the new block does not zero an older
+             block still reachable through another pointer. *)
+          let st = set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) (Address addr) in
+          Option.map_default (fun v -> set_mval ~man ~initializing_calloc:true st (v, `NoOffset) voidType fresh) st heap_var
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
@@ -2798,7 +2844,7 @@ struct
           let heap_val:value = Blob (p_addr_get, SizeDomain.lift size_int, ZeroInit.malloc) in (* copy old contents with new size *)
           let (heap_var,addr) = alloc Queries.AllocationLocation.Heap size in
           let lv_addr = eval_lv ~man st lv in
-          let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
+          let blob_set = Option.map_default (fun v -> [AD.of_var v, TVoid [], heap_val]) [] heap_var in
           (* TODO: free (i.e. invalidate) old blob if successful? *)
           (* TODO: realloc may return the same pointer, is this handled correctly? *)
           set_many ~man st ((lv_addr, Cilfacade.typeOfLval lv, Address addr) :: blob_set)
