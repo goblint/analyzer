@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: b4aa9a9a-2e2f-48ed-8636-ed8558fabda2
+    creation_time: 2026-11-24T08:28:04Z
+    producer:
+      name: Goblint regression suite
+      version: n/a
+    task:
+      input_files:
+      - 81-base-lor-summary-addr.c
+      input_file_hashes:
+        81-base-lor-summary-addr.c: bb151aeea89c7e19f756080d19af2dafe44d07803109ad5b044911467496c0b2
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 81-base-lor-summary-addr.c
+        line: 14
+        column: 3
+        function: main
+      value: p == q || p == r
+      format: c_expression
