@@ -31,7 +31,7 @@ struct
 
   let of_addr (addr : Addr.t) : t option =
     match addr with
-    | Addr mv when Mval.is_definite mv -> Some (of_mval mv)
+    | Addr mv when BaseUtil.mval_is_definite 1 mv -> Some (of_mval mv)
     | _ -> None
 
   let to_mval ((v, o): t): Mval.t =

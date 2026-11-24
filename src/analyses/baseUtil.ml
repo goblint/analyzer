@@ -15,6 +15,8 @@ let is_excluded_from_invalidation v =  List.mem v.vname (get_string_list "exp.ex
 
 module AD = ValueDomain.AD
 
+let mval_is_definite (ask: Q.ask) (_, o) = ValueDomain.Offs.is_definite o
+
 let addr_is_definite (ask: Q.ask) = function
   | AD.Addr.NullPtr -> true
   | Addr m -> ValueDomain.Mval.is_definite m
