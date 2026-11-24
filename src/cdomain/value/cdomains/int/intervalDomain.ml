@@ -20,8 +20,8 @@ struct
       else
         Some (Ints_t.zero, unsigned_upper_bound)
     | _ -> Some (range ik)
-  let bot () = None
-  let bot_of ik = bot () (* TODO: improve *)
+  let bot () : t = None
+  let bot_of ik : t = bot () (* TODO: improve *)
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
@@ -180,9 +180,7 @@ struct
 
   let bit f ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | true, _ | _   , true -> bot_of ik
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (f ik x y) |> fst with Division_by_zero -> top_of ik)
@@ -291,9 +289,7 @@ struct
 
   let shift_right ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, true -> (bot_of ik, {underflow=false; overflow=false})
-    | true, _
-    | _, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | true, _ | _, true -> (bot_of ik, {underflow=false; overflow=false})
     | _, _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik, {underflow=false; overflow=false}))
@@ -307,8 +303,7 @@ struct
   let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some x -> norm ik @@ Some (IArith.neg x)
 
   let binary_op_with_norm ?no_ov op ik x y = match x, y with
-    | None, None -> (None, {overflow=false; underflow= false})
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> (bot_of ik, {overflow=false; underflow=false})
     | Some x, Some y -> norm ik @@ Some (op x y)
 
   let add ?no_ov = binary_op_with_norm IArith.add
@@ -317,9 +312,7 @@ struct
 
   let shift_left ik a b =
     match is_bot a, is_bot b with
-    | true, true -> (bot_of ik,{underflow=false; overflow=false})
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show a) (show b)))
+    | true, _ | _   , true -> (bot_of ik, {underflow=false; overflow=false})
     | _ ->
       match a, minimal b, maximal b with
       | Some a, Some bl, Some bu when (Ints_t.compare bl Ints_t.zero >= 0) ->
@@ -330,8 +323,7 @@ struct
       | _              -> (top_of ik,{underflow=true; overflow=true})
 
   let rem ik x y = match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> bot_of ik
     | Some (xl, xu), Some (yl, yu) ->
       if is_top_of ik x && is_top_of ik y then
         (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
@@ -353,8 +345,7 @@ struct
 
   let div ?no_ov ik x y =
     match x, y with
-    | None, None -> (bot (),{underflow=false; overflow=false})
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> (bot_of ik, {underflow=false; overflow=false})
     | Some x, Some y ->
       let (neg, pos) = IArith.div x y in
       let (r, ov) = norm ik (join_no_norm ik neg pos) in (* normal join drops overflow info *)
@@ -365,8 +356,7 @@ struct
 
   let ne ik x y =
     match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
         Some true
@@ -376,8 +366,7 @@ struct
 
   let eq ik x y =
     match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
         Some true
@@ -387,8 +376,7 @@ struct
 
   let ge ik x y =
     match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 then Some true
       else if Ints_t.compare x2 y1 < 0 then Some false
@@ -396,8 +384,7 @@ struct
 
   let le ik x y =
     match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 <= 0 then Some true
       else if Ints_t.compare y2 x1 < 0 then Some false
@@ -405,8 +392,7 @@ struct
 
   let gt ik x y =
     match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 then Some true
       else if Ints_t.compare x2 y1 <= 0 then Some false
@@ -414,8 +400,7 @@ struct
 
   let lt ik x y =
     match x, y with
-    | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> None
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare x2 y1 < 0 then Some true
       else if Ints_t.compare y2 x1 <= 0 then Some false

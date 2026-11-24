@@ -45,9 +45,9 @@ struct
     in
     [top_interval]
 
-  let bot () = []
+  let bot () : t = []
 
-  let bot_of ik = bot ()
+  let bot_of ik : t = bot ()
 
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
@@ -260,8 +260,7 @@ struct
 
   let lt ik x y =
     match x, y with
-    | [], [] -> None
-    | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | [], _ | _, [] -> None
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
@@ -274,8 +273,7 @@ struct
 
   let le ik x y =
     match x, y with
-    | [], [] -> None
-    | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | [], _ | _, [] -> None
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in

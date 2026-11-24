@@ -17,11 +17,7 @@ struct
 
   include Analyses.IdentitySpec
 
-  let get_value (ask: Queries.ask) exp =
-    try
-      ask.f (MayPointTo exp)
-    with IntDomain.ArithmeticOnIntegerBot _ ->
-      AD.top()
+  let get_value (ask: Queries.ask) exp = ask.f (MayPointTo exp)
 
   (** If e is a known variable (=one of the duplicated variables), then it returns the value for this variable.
       If e is an unknown variable or an expression that is not simply a variable, then it returns top. *)

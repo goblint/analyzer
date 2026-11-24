@@ -303,15 +303,8 @@ struct
           x
       in
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
-      let meet_com oi = (* commutative *)
-        try
-          meet_bin (oi c b) (oi c a)
-        with
-          IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode in
-      let meet_non oi oo = (* non-commutative *)
-        try
-          meet_bin (oi c b) (oo a c)
-        with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode in
+      let meet_com oi = meet_bin (oi c b) (oi c a) in (* commutative *)
+      let meet_non oi oo = meet_bin (oi c b) (oo a c) in (* non-commutative *)
       match op with
       | PlusA  -> meet_com ID.sub
       | Mult   ->
@@ -346,44 +339,39 @@ struct
          * Since division truncates towards zero, this implies sign(c) == sign(a).
          * We first refine based on the sign, and then apply the identity refinement. *)
         let a', b' =
-          try (* Any ArithmeticOnIntegerBot implies unreachability. *)
-            (* We rely on sign(a) = sign(c) for nonzero c (and |c| <= |a|), so
-             * for definitely positive c, refine a >= c;
-             * for definitely negative c, refine a <= c. *)
-            let a_sign = match ID.minimal c with
-              | Some cl when Z.gt cl Z.zero -> ID.starting ikind cl
-              | _ -> ID.top_of ikind
+          let a_sign = match ID.minimal c with
+            | Some cl when Z.gt cl Z.zero -> ID.starting ikind cl
+            | _ -> ID.top_of ikind
+          in
+          let a_sign = match ID.maximal c with
+            | Some cu when Z.lt cu Z.zero -> ID.meet a_sign (ID.ending ikind cu)
+            | _ -> a_sign
+          in
+          (* When b and c are definite values, we can compute the most precise refinement of a. *)
+          match ID.to_int b, ID.to_int c with
+          | Some bv, Some cv when not (Z.equal bv Z.zero) ->
+            (* Cases like a % 2 == 17 are impossible: *)
+            if Z.geq (Z.abs cv) (Z.abs bv) then raise Analyses.Deadcode;
+            (* Directly enforce the congruence for domains that can represent them: *)
+            let a_congruence = ID.meet a_sign (ID.of_congruence ikind (cv, bv)) in
+            (* For intervals, we move bounds towards the closest value congruent to c mod b.
+              * BUT meet with half-planes to avoid bottomizing the congruences! *)
+            let a_congruence = match ID.maximal a with
+              | Some m -> ID.meet a_congruence (ID.ending ikind (Z.sub m (Z.erem (Z.sub m cv) bv)))
+              | None -> a_congruence
             in
-            let a_sign = match ID.maximal c with
-              | Some cu when Z.lt cu Z.zero -> ID.meet a_sign (ID.ending ikind cu)
-              | _ -> a_sign
+            let a_congruence = match ID.minimal a with
+              | Some m -> ID.meet a_congruence (ID.starting ikind (Z.add m (Z.erem (Z.sub cv m) bv)))
+              | None -> a_congruence
             in
-            (* When b and c are definite values, we can compute the most precise refinement of a. *)
-            match ID.to_int b, ID.to_int c with
-            | Some bv, Some cv when not (Z.equal bv Z.zero) ->
-              (* Cases like a % 2 == 17 are impossible: *)
-              if Z.geq (Z.abs cv) (Z.abs bv) then raise Analyses.Deadcode;
-              (* Directly enforce the congruence for domains that can represent them: *)
-              let a_congruence = ID.meet a_sign (ID.of_congruence ikind (cv, bv)) in
-              (* For intervals, we move bounds towards the closest value congruent to c mod b.
-               * BUT meet with half-planes to avoid bottomizing the congruences! *)
-              let a_congruence = match ID.maximal a with
-                | Some m -> ID.meet a_congruence (ID.ending ikind (Z.sub m (Z.erem (Z.sub m cv) bv)))
-                | None -> a_congruence
-              in
-              let a_congruence = match ID.minimal a with
-                | Some m -> ID.meet a_congruence (ID.starting ikind (Z.add m (Z.erem (Z.sub cv m) bv)))
-                | None -> a_congruence
-              in
-              a_congruence, b
-            | _, _ ->
-              (* The identity a/b * b + c == a solves to:
-               *      a == (a / b) * b + c
-               *      b == (a - c) / (a / b). *)
-              let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a b) b) c) in
-              let b_identity = ID.div (ID.sub a c) (ID.div a b) in
-              a_identity, b_identity
-          with IntDomain.ArithmeticOnIntegerBot _ -> raise Analyses.Deadcode
+            a_congruence, b
+          | _, _ ->
+            (* The identity a/b * b + c == a solves to:
+              *      a == (a / b) * b + c
+              *      b == (a - c) / (a / b). *)
+            let a_identity = ID.meet a_sign (ID.add (ID.mul (ID.div a b) b) c) in
+            let b_identity = ID.div (ID.sub a c) (ID.div a b) in
+            a_identity, b_identity
         in
         (* Special handling for case a % 2 != c *)
         let callerFundec = Node.find_fundec man.node in

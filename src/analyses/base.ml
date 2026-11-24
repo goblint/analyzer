@@ -1196,12 +1196,9 @@ struct
   (* run eval_rv from above, but change bot to top to be sound for programs with undefined behavior. *)
   (* Previously we only gave sound results for programs without undefined behavior, so yielding bot for accessing an uninitialized array was considered ok. Now only [invariant] can yield bot/Deadcode if the condition is known to be false but evaluating an expression should not be bot. *)
   let eval_rv ~man (st: store) (exp:exp): value =
-    try
-      let r = eval_rv ~man st exp in
-      if M.tracing then M.tracel "eval" "eval_rv %a = %a" d_exp exp VD.pretty r;
-      if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
-    with IntDomain.ArithmeticOnIntegerBot _ ->
-      ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
+    let r = eval_rv ~man st exp in
+    if M.tracing then M.tracel "eval" "eval_rv %a = %a" d_exp exp VD.pretty r;
+    if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
 
   let query_evalint ~man st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a" d_exp e;
@@ -1210,7 +1207,6 @@ struct
       | Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       | Top   -> Queries.ID.top () (* some float computations cause top (57-float/01-base), but query result should then be unknown *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
-      | exception (IntDomain.ArithmeticOnIntegerBot _)  when not !AnalysisState.should_warn -> Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a" d_exp e Queries.ID.pretty r;
     r
@@ -2361,8 +2357,7 @@ struct
           let arr_len = man.ask (Queries.EvalLength (AddrOf (Var v, NoOffset))) in (* TODO: shouldn't addr offset matter? *)
           begin
             let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
-            try SizeDomain.mul item_typ_size_in_bytes arr_len
-            with IntDomain.ArithmeticOnIntegerBot _ -> SizeDomain.bot ()
+            SizeDomain.mul item_typ_size_in_bytes arr_len
           end
         | _ ->
           let type_size_in_bytes = size_of_type_in_bytes v.vtype in
@@ -2400,11 +2395,7 @@ struct
         match dest_size, n_intdom with
         | ds, `Lifted n ->
           let casted_n = SizeDomain.lift n in
-          let ds_eq_n =
-            begin try SizeDomain.eq ds casted_n
-              with IntDomain.ArithmeticOnIntegerBot _ -> None
-            end
-          in
+          let ds_eq_n = SizeDomain.eq ds casted_n in
           Option.default false ds_eq_n
         | _ -> false
       in
