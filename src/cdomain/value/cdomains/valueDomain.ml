@@ -1345,7 +1345,18 @@ sig
   val context: Invariant.context
   val scope: fundec
   val find: varinfo -> Compound.t
-  val is_multiple: varinfo -> bool
+  val target_has_unique_instance: varinfo -> bool
+  (** For an in-scope, non-heap pointer target [v], can [&v] name the intended
+      concrete object wherever the invariant applies?
+
+      A location invariant uses the negation of [IsMultiple v] in the current
+      state: for example, [&v] names this frame's local, not a reachable copy
+      in a caller's frame. A global invariant has no current frame or thread,
+      so only non-thread-local globals satisfy this requirement.
+
+      [false] means that identity is not guaranteed, not that multiple objects
+      must exist. It rules out emitting [p == &v], but facts about the object
+      reached through [p], such as [*p == 1], can still be emitted. *)
 end
 
 module ValueInvariant (Arg: InvariantArg) =
@@ -1372,7 +1383,7 @@ struct
           in
           let i =
             (* A definite offset does not distinguish different live instances of vi. *)
-            if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) && not (is_multiple vi) then
+            if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) && target_has_unique_instance vi then
               try
                 let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
                 let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
@@ -1462,8 +1473,8 @@ let invariant_global find g =
     let context = Invariant.default_context
     let scope = dummyFunDec
     let find = find
-    (* Without a current frame or thread, only name ordinary globals as pointer targets. *)
-    let is_multiple v = not v.vglob || hasAttribute "thread" v.vattr
+    (* A global invariant has no current frame or thread to select a local or TLS instance. *)
+    let target_has_unique_instance v = v.vglob && not (hasAttribute "thread" v.vattr)
   end
   in
   let module I = ValueInvariant (Arg) in
