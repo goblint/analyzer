@@ -239,7 +239,6 @@ struct
   let to_var_may x = List.filter_map Addr.to_var_may (elements x)
   let to_var_must x = List.filter_map Addr.to_var_must (elements x)
   let to_mval x = List.filter_map Addr.to_mval (elements x)
-  let is_definite x = cardinal x = 1 && Addr.is_definite (choose x)
 
   (* strings *)
   let of_string x = singleton (Addr.of_string x)

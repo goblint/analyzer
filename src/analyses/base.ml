@@ -434,7 +434,7 @@ struct
     | Address p1, Address p2 -> begin
         let ik = Cilfacade.get_ikind t in
         let eq x y =
-          if AD.is_definite x && AD.is_definite y then
+          if BaseUtil.ad_is_definite (Analyses.ask_of_man man) x && BaseUtil.ad_is_definite (Analyses.ask_of_man man) y then
             let ax = AD.choose x in
             let ay = AD.choose y in
             let handle_address_is_multiple addr = begin match Addr.to_var addr with
@@ -476,7 +476,7 @@ struct
                 calculateDiffFromOffset xo yo
               | _ -> Int (ID.top_of ik)
             in
-            if AD.is_definite p1 && AD.is_definite p2 then
+            if BaseUtil.ad_is_definite (Analyses.ask_of_man man) p1 && BaseUtil.ad_is_definite (Analyses.ask_of_man man) p2 then
               match Addr.to_mval (AD.choose p1), Addr.to_mval (AD.choose p2) with
               | Some (x, xo), Some (y, yo) when CilType.Varinfo.equal x y ->
                 calculateDiffFromOffset xo yo
@@ -942,7 +942,7 @@ struct
             (* get definite addrs from vs *)
             let rec to_definite_ad: value list -> AD.t = function
               | [] -> AD.empty ()
-              | Address a :: vs when AD.is_definite a ->
+              | Address a :: vs when BaseUtil.ad_is_definite (Analyses.ask_of_man man) a ->
                 AD.union a (to_definite_ad vs)
               | _ :: vs ->
                 to_definite_ad vs
