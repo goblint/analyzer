@@ -1345,6 +1345,7 @@ sig
   val context: Invariant.context
   val scope: fundec
   val find: varinfo -> Compound.t
+  val is_multiple: varinfo -> bool
 end
 
 module ValueInvariant (Arg: InvariantArg) =
@@ -1370,7 +1371,8 @@ struct
             Cilfacade.mkCast ~kind:Explicit ~e ~newt:(TPtr (TVoid [], []))
           in
           let i =
-            if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) then
+            (* A definite offset does not distinguish different live instances of vi. *)
+            if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) && not (is_multiple vi) then
               try
                 let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
                 let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
@@ -1460,6 +1462,8 @@ let invariant_global find g =
     let context = Invariant.default_context
     let scope = dummyFunDec
     let find = find
+    (* Without a current frame or thread, only name ordinary globals as pointer targets. *)
+    let is_multiple v = not v.vglob || hasAttribute "thread" v.vattr
   end
   in
   let module I = ValueInvariant (Arg) in
