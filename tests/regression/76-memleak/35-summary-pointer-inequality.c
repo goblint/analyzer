@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated '["base","mallocWrapper","threadflag","memLeak"]' --set ana.base.privatization none --set ana.malloc.unique_address_count 1 --disable sem.malloc.fail --enable exp.no-narrow --enable verify --enable ana.sv-comp.enabled --set exp.architecture 64bit --set ana.specification 'CHECK( init(main()), LTL(G valid-memcleanup) )'
+// PARAM: --set ana.activated[+] memLeak  --set ana.malloc.unique_address_count 1 --disable sem.malloc.fail --enable verify
 #include <stdlib.h>
 
 static void *alloc(void) {
