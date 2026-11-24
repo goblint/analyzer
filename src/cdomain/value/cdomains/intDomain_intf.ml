@@ -423,10 +423,6 @@ sig
 
   exception ArithmeticOnIntegerBot of string
 
-  exception Unknown
-  (** An exception that can be raised when the result of a computation is unknown.
-    * This is caught by lifted domains and will be replaced by top. *)
-
   exception Error
   (** An exception that can be raised when an arithmetic error occurs. This is
     * caught by lifted domains and the evaluation will then be set to bot, which
