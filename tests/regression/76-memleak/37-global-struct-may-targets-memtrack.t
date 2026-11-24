@@ -3,10 +3,11 @@ reachable on each execution.
 
   $ goblint --set ana.malloc.unique_address_count 1 --disable sem.malloc.fail \
   >   --enable ana.sv-comp.enabled --set ana.specification 'CHECK( init(main()), LTL(G valid-memtrack) )' \
-  >   --enable witness.yaml.enabled 37-global-struct-may-targets-memtrack.c
+  >   --enable witness.yaml.enabled 37-global-struct-may-targets-memtrack.c > goblint.out 2>&1
+  $ sed -E 's/sid:[0-9]+/sid:$SID/g' goblint.out
   [Info] Specification: CHECK( init(main()), LTL(G valid-memtrack) ) -> enabling soundness analyses: "memLeak"
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G valid-memtrack) )
-  [Warning][Behavior > Undefined > MemoryLeak][CWE-401] There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars (alloc@sid:15@tid:[main](#0)), (alloc@sid:13@tid:[main](#0)) (37-global-struct-may-targets-memtrack.c:10:10-10:11)
+  [Warning][Behavior > Undefined > MemoryLeak][CWE-401] There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars (alloc@sid:$SID@tid:[main](#0)), (alloc@sid:$SID@tid:[main](#0)) (37-global-struct-may-targets-memtrack.c:10:10-10:11)
   [Warning][Behavior > Undefined > MemoryLeak][CWE-401] Memory leak detected for heap variables (37-global-struct-may-targets-memtrack.c:10:10-10:11)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 5

@@ -3,10 +3,11 @@ share a summary address.
 
   $ goblint --set ana.malloc.unique_address_count 1 --disable sem.malloc.fail \
   >   --enable ana.sv-comp.enabled --set ana.specification 'CHECK( init(main()), LTL(G valid-memtrack) )' \
-  >   --enable witness.yaml.enabled 36-global-struct-summary-memtrack.c
+  >   --enable witness.yaml.enabled 36-global-struct-summary-memtrack.c > goblint.out 2>&1
+  $ sed -E 's/sid:[0-9]+/sid:$SID/g' goblint.out
   [Info] Specification: CHECK( init(main()), LTL(G valid-memtrack) ) -> enabling soundness analyses: "memLeak"
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G valid-memtrack) )
-  [Warning][Behavior > Undefined > MemoryLeak][CWE-401] There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars (alloc@sid:13@tid:[main]) (36-global-struct-summary-memtrack.c:14:10-14:11)
+  [Warning][Behavior > Undefined > MemoryLeak][CWE-401] There is unreachable allocated heap memory at program exit. A memory leak might occur for the alloc vars (alloc@sid:$SID@tid:[main]) (36-global-struct-summary-memtrack.c:14:10-14:11)
   [Warning][Behavior > Undefined > MemoryLeak][CWE-401] Memory leak detected for heap variables (36-global-struct-summary-memtrack.c:14:10-14:11)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
