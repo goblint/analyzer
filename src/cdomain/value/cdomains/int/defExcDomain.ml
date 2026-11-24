@@ -125,7 +125,7 @@ struct
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   let maximal = function
     | `Definite x -> Some x

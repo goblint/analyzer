@@ -48,7 +48,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc xs -> "{" ^ (String.concat ", " (List.map Z.to_string (BISet.elements  xs))) ^ "}"
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map Z.to_string (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)

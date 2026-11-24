@@ -117,7 +117,7 @@ struct
     | _, _ -> canonize @@ GobList.cartesian_concat_map op x y
 
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   let minimal = function
     | [] -> None

@@ -383,15 +383,14 @@ module Std (B: sig
     type t
     val name: unit -> string
     val top_of: ?bitfield:int -> Cil.ikind -> t
-    val bot_of: Cil.ikind -> t
+    val bot: unit -> t
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
   include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
-                                                This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
+  let is_bot x = B.equal x (bot ()) (* TODO: implement in domains directly to avoid allocation *)
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.show *)
@@ -600,7 +599,7 @@ struct
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false

@@ -57,7 +57,7 @@ struct
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   let is_top x = x = top ()
 
