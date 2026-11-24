@@ -2615,7 +2615,7 @@ struct
             publish_all man `Return; (* like normal return *)
             let ask = Analyses.ask_of_man man in
             match ThreadId.get_current ask with
-            | `Lifted tid when ThreadReturn.is_current ask ->
+            | `Lifted tid ->
               ignore @@ Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st
             | _ -> ())
         | _ -> ()
