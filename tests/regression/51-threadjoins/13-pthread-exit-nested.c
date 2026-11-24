@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
   pthread_t thread;
   pthread_create(&thread, NULL, worker, argc > 1 ? &value : NULL);
   pthread_join(thread, NULL);
-  __goblint_check(value == 2); // UNKNOWN
-  __goblint_check(value == 9); // UNKNOWN
+  __goblint_check(value == 2); //UNKNOWN!
+  __goblint_check(value == 9); //UNKNOWN!
   return 0;
 }
