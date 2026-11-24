@@ -423,11 +423,6 @@ sig
 
   exception ArithmeticOnIntegerBot of string
 
-  exception Error
-  (** An exception that can be raised when an arithmetic error occurs. This is
-    * caught by lifted domains and the evaluation will then be set to bot, which
-    * signifies an error in computation *)
-
   exception IncompatibleIKinds of string
 
   (** {b Predefined domains} *)

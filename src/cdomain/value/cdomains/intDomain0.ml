@@ -10,7 +10,6 @@ let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
 exception IncompatibleIKinds of string
-exception Error
 exception ArithmeticOnIntegerBot of string
 
 
@@ -594,7 +593,7 @@ struct
   type t = Ints_t.t [@@deriving eq, ord, hash]
   type int_t = Ints_t.t
   let top () = raise Lattice.TopValue
-  let bot () = raise Error
+  let bot () = raise Lattice.BotValue
   let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
@@ -640,18 +639,18 @@ struct
   let invariant _ _ = Invariant.none (* TODO *)
 end
 
-module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises TopValue/Error on join/meet *)
+module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises TopValue/BotValue on join/meet *)
 struct
   include Integers(IntOps.Int64Ops)
   let top () = raise Lattice.TopValue
-  let bot () = raise Error
+  let bot () = raise Lattice.BotValue
   let leq = equal
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
   let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
 
-module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Lift, but goes to `Top/`Bot if Base raises TopValue/Error *)
+module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Lift, but goes to `Top/`Bot if Base raises TopValue/BotValue *)
 struct
   type int_t = Base.int_t
   include Lattice.FlatConf (struct
@@ -697,16 +696,16 @@ struct
 
   let lift1 f x = match x with
     | `Lifted x ->
-      (try `Lifted (f x) with Lattice.TopValue -> `Top | Error -> `Bot)
+      (try `Lifted (f x) with Lattice.TopValue -> `Top | Lattice.BotValue -> `Bot)
     | x -> x
   let lift2 f x y = match x,y with
     | `Lifted x, `Lifted y ->
-      (try `Lifted (f x y) with Lattice.TopValue -> `Top | Error -> `Bot)
+      (try `Lifted (f x y) with Lattice.TopValue -> `Top | Lattice.BotValue -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
   let lift2_bool f x y = match x,y with
     | `Lifted x, `Lifted y ->
-      (try f x y with Lattice.TopValue -> None | Error -> None)
+      (try f x y with Lattice.TopValue -> None | Lattice.BotValue -> None)
     | `Bot, `Bot -> None
     | _ -> None
 
