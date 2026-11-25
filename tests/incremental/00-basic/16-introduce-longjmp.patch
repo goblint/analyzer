@@ -1,0 +1,9 @@
+--- tests/incremental/00-basic/16-introduce-longjmp.c
++++ tests/incremental/00-basic/16-introduce-longjmp.c
+@@ -3,5 +3,5 @@
+ jmp_buf env_buffer;
+ 
+ int main() {
+-  return 0;
++  longjmp(env_buffer, 1); //WARN
+ }

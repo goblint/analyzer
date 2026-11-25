@@ -64,5 +64,9 @@ let activateLongjmpAnalysesWhenRequired () =
     | LibraryDesc.Longjmp _ -> true
     | _ -> false
   in
-  if hasFunction isLongjmp then
+  (* Keep the activated analyses stable across incremental runs,
+     as changes to the program may introduce or remove longjmp. *)
+  if get_bool "incremental.save" || get_bool "incremental.load" then
+    enableAnalyses "Incremental analysis" "longjmp analyses" longjmpAnalyses
+  else if hasFunction isLongjmp then
     enableAnalyses "Longjmp" "longjmp analyses" longjmpAnalyses;
