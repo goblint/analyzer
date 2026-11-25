@@ -314,6 +314,13 @@ struct
     | Lt | Gt | Le | Ge | Eq | Ne -> true
     | _ -> false
 
+  let address_is_multiple ~man addr =
+    match Addr.to_var addr with
+    | Some v when man.ask (Q.IsMultiple v) ->
+      if M.tracing then M.tracel "addr" "IsMultiple %a" CilType.Varinfo.pretty v;
+      true
+    | _ -> false
+
   (* Evaluate binop for two abstract values: *)
   let evalbinop_base ~man (op: binop) (a1:value) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a" d_binop op VD.pretty a1 VD.pretty a2;
@@ -437,18 +444,10 @@ struct
           if AD.is_definite x && AD.is_definite y then
             let ax = AD.choose x in
             let ay = AD.choose y in
-            let handle_address_is_multiple addr = begin match Addr.to_var addr with
-              | Some v when man.ask (Q.IsMultiple v) ->
-                if M.tracing then M.tracel "addr" "IsMultiple %a" CilType.Varinfo.pretty v;
-                None
-              | _ ->
-                Some true
-            end
-            in
             match Addr.semantic_equal ax ay with
             | Some true ->
               if M.tracing then M.tracel "addr" "semantic_equal %a %a" AD.pretty x AD.pretty y;
-              handle_address_is_multiple ax
+              if address_is_multiple ~man ax then None else Some true
             | Some false -> Some false
             | None -> None
           else
@@ -942,7 +941,8 @@ struct
             (* get definite addrs from vs *)
             let rec to_definite_ad: value list -> AD.t = function
               | [] -> AD.empty ()
-              | Address a :: vs when AD.is_definite a ->
+              | (* Each alternative must cover one concrete address, not an entire summary. *)
+                Address a :: vs when AD.is_definite a && not (address_is_multiple ~man (AD.choose a)) ->
                 AD.union a (to_definite_ad vs)
               | _ :: vs ->
                 to_definite_ad vs
