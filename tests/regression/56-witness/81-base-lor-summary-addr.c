@@ -11,5 +11,5 @@ int main(void) {
   int *r = alloc();
 
   // All three objects are distinct, even though they share a summary address.
-  return 0; // UNKNOWN (witness)
+  return 0; // UNKNOWN! (witness)
 }

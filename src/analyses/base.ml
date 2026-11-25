@@ -938,10 +938,11 @@ struct
           let ik = Cilfacade.get_ikind typ in
           match v with
           | Address a ->
-            (* Each alternative must cover one concrete address, not an entire summary. *)
+            (* get definite addrs from vs *)
             let rec to_definite_ad: value list -> AD.t = function
               | [] -> AD.empty ()
-              | Address a :: vs when AD.is_definite a && not (address_is_multiple ~man (AD.choose a)) ->
+              | (* Each alternative must cover one concrete address, not an entire summary. *)
+                Address a :: vs when AD.is_definite a && not (address_is_multiple ~man (AD.choose a)) ->
                 AD.union a (to_definite_ad vs)
               | _ :: vs ->
                 to_definite_ad vs
