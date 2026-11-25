@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated '["gStoreWideningSol","assert","base","mallocWrapper","escape"]' --set ana.base.privatization none --enable exp.globs_are_top ../06-gstore-thread.c
+  $ goblint --set ana.activated '["gStoreWideningSol","assert","base","mallocWrapper","weakUpdates","escape"]' --set ana.base.privatization none --enable exp.globs_are_top ../06-gstore-thread.c
   [Success][Assert] Assertion "global < 200" will succeed (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:31:3-31:32)
   [Success][Assert] Assertion "global >= 0" will succeed (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:32:3-32:31)
   [Warning][Assert] Assertion "global == 42" is unknown. (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:40:3-40:32)

@@ -12,6 +12,7 @@
       "access",
       "race",
       "mallocWrapper",
+      "weakUpdates",
       "mhp",
       "apron",
       "threadJoins",
