@@ -2,7 +2,7 @@
 // Reduced with creduce from sv-benchmarks/c/nla-digbench-scaling/lcm1_valuebound5.c
 
 unsigned d, e;
-main() {
+int main(void) {
   unsigned a, b;
   __goblint_assume(a <= 5);
   __goblint_assume(b && b <= 5);
@@ -23,4 +23,5 @@ main() {
       e = e - d;
     }
   }
+  return 0;
 }

@@ -10,6 +10,7 @@ void a(int *b) {
 
 int c = 1290;
 
-void main() {
+int main(void) {
     a(&c);
+    return 0;
 }
