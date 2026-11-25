@@ -41,9 +41,9 @@ end
 module IndexedSCC =
 struct
   type t = {
-    id: int; (** Immutable hash discriminator, unique only within one [computeSCCs] invocation.
-                 IDs restart at zero for recomputations and different functions.
-                 They must not be used alone for equality. *)
+    id: int; (** Used for hashing and equality within a single [computeSCCs] invocation.
+                 Each invocation assigns IDs starting at zero, so only compare wrappers
+                 from the same invocation. *)
     scc: SCC.t;
   }
   let equal a b = Int.equal a.id b.id
@@ -479,7 +479,7 @@ let createCFG (file: file) =
             iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
           else
             (* Strip temporary IDs: only the underlying SCCs outlive this traversal. *)
-            NH.iter (fun node indexed -> NH.replace node_scc_global node indexed.IndexedSCC.scc) node_scc;
+            NH.iter (fun node indexed -> NH.replace node_scc_global node indexed.IndexedSCC.scc) node_scc; (* there's no merge inplace *)
         in
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
