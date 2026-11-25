@@ -21,11 +21,10 @@ struct
         Some (Ints_t.zero, unsigned_upper_bound)
     | _ -> Some (range ik)
   let bot () = None
-  let bot_of ik = bot () (* TODO: improve *)
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
@@ -180,7 +179,7 @@ struct
 
   let bit f ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
+    | true, true -> bot ()
     | true, _
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _ ->
@@ -276,7 +275,7 @@ struct
 
   let bit1 f ik i1 f' =
     if is_bot i1 then
-      bot_of ik
+      bot ()
     else
       match to_int i1 with
       | Some x -> of_int ik (f ik x) |> fst
@@ -291,7 +290,7 @@ struct
 
   let shift_right ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, true -> (bot_of ik, {underflow=false; overflow=false})
+    | true, true -> (bot (), {underflow=false; overflow=false})
     | true, _
     | _, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
     | _, _ ->
@@ -317,7 +316,7 @@ struct
 
   let shift_left ik a b =
     match is_bot a, is_bot b with
-    | true, true -> (bot_of ik,{underflow=false; overflow=false})
+    | true, true -> (bot (), {underflow=false; overflow=false})
     | true, _
     | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show a) (show b)))
     | _ ->

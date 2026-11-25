@@ -179,7 +179,7 @@ struct
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
   let lift2_cmp op x y = check_ikinds x y; op x.ikind x.v y.v
 
-  let bot_of ikind = { v = I.bot_of ikind; ikind}
+  let bot_of ikind = { v = I.bot (); ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
   let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
@@ -381,15 +381,14 @@ module Std (B: sig
     type t
     val name: unit -> string
     val top_of: ?bitfield:int -> Cil.ikind -> t
-    val bot_of: Cil.ikind -> t
+    val bot: unit -> t
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
   include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
-                                                This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
+  let is_bot x = B.equal x (bot ()) (* TODO: implement in domains directly to avoid allocation *)
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.show *)
@@ -595,10 +594,9 @@ struct
   let top () = raise Lattice.TopValue
   let bot () = raise Lattice.BotValue
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
@@ -660,8 +658,6 @@ struct
     end) (Base)
 
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
-
 
   let name () = "flat integers"
   let cast_to ?(suppress_ovwarn=false) ~kind t = function
@@ -742,7 +738,7 @@ struct
     end) (Base)
   type int_t = Base.int_t
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
+
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"

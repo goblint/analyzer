@@ -281,7 +281,7 @@ struct
     OUnit.assert_equal 17 (I.to_int b1 |> Option.get |> to_int)
 
   let test_to_int_of_int _ =
-    OUnit.assert_equal None (I.to_int (I.bot_of ik));
+    OUnit.assert_equal None (I.to_int (I.bot ()));
     OUnit.assert_equal (of_int 13) (I.to_int (I.of_int ik (of_int 13)) |> Option.get);
     OUnit.assert_equal None (I.to_int (I.top_of ik));
     OUnit.assert_equal None (I.to_int (I.join ik (I.of_int ik (of_int 13)) (I.of_int ik (of_int 14))))
@@ -342,7 +342,7 @@ struct
   let test_leq_2 _ =
     let b1 = I.of_int ik (of_int 7) in
 
-    OUnit.assert_bool "bot leq 7" (I.leq (I.bot_of ik) b1);
+    OUnit.assert_bool "bot leq 7" (I.leq (I.bot ()) b1);
     OUnit.assert_bool "7 leq top" (I.leq b1 (I.top_of ik))
 
   let test_wrap_1 _ =
@@ -572,7 +572,7 @@ struct
                                             (Printf.sprintf "test_shift_right_ik_%s" (CilType.Ikind.show ik)) Int.shift_right I.shift_right :: acc
                                         ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
-  let bot = `B (I.bot_of ik)
+  let bot = `B (I.bot ())
   let top = `B (I.top_of ik)
 
   let isSigned = GoblintCil.Cil.isSigned

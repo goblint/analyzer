@@ -47,8 +47,6 @@ struct
 
   let bot () = []
 
-  let bot_of ik = bot ()
-
   let show (x: t) =
     let show_interval i = Printf.sprintf "[%s, %s]" (Ints_t.to_string (fst i)) (Ints_t.to_string (snd i)) in
     List.fold_left (fun acc i -> (show_interval i) :: acc) [] x |> List.rev |> String.concat ", " |> Printf.sprintf "[%s]"
@@ -117,7 +115,7 @@ struct
     | _, _ -> canonize @@ GobList.cartesian_concat_map op x y
 
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   let minimal = function
     | [] -> None
