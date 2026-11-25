@@ -1,5 +1,6 @@
 // PARAM: --set ana.activated[+] apron --set ana.path_sens[+] base --set ana.activated[+] abortUnless
 // Reduced with creduce from sv-benchmarks/c/nla-digbench-scaling/egcd-ll_valuebound5.c
+#include <goblint.h>
 
 long c;
 int main(void) {

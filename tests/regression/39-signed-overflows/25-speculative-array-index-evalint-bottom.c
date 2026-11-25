@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.base.partition-arrays.keep-expr last --set sem.int.signed_overflow assume_none
+#include <goblint.h>
 
 int main(void) {
   int a[129];

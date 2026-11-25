@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.def_exc --set sem.int.signed_overflow "assume_none"
 // Reduced with creduce from sv-benchmarks/c/recursified_nla-digbench/recursified_ps6.c
+#include <goblint.h>
 
 void a(int *b) {
     int *d = b;

@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval --enable ana.int.bitfield --set ana.activated[+] apron --set ana.apron.domain polyhedra --set exp.unrolling-factor 2
 // Reduced with creduce from sv-benchmarks/c/nla-digbench-scaling/lcm1_valuebound5.c
+#include <goblint.h>
 
 unsigned d, e;
 int main(void) {
