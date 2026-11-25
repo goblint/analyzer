@@ -252,20 +252,15 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
     enableAnalyses "Specification: Termination" "termination analyses" terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
     set_bool "ana.int.interval" true;
-    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
-    ()
+
+    (* Enable strengthening for witness unassuming in termination.
+       Otherwise, unassuming invariants on program variables destroys their relations to instrumented loop counters, destroying their bounds. *)
+    if get_string "witness.yaml.unassume" <> "" then
+      set_bool "ana.apron.strengthening" true;
   | _ -> ()
 
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
-
-let focusOnConcurrencySafety () =
-  if hasSpec SvcompSpec.NoDataRace then
-    (*enable all thread analyses*)
-    (* TODO: what's the exact relation between thread analyses enabled in conf, the ones we disable in reduceAnalyses and the ones we enable here? *)
-    enableAnalyses "Specification: NoDataRace" "thread analyses" notNeccessaryThreadAnalyses
-  else
-    disableAnalyses "NoDataRace property is not in spec" notNeccessaryRaceAnalyses
 
 let focusOnNoOverflows () =
   if hasSpec SvcompSpec.NoOverflow then (
@@ -500,7 +495,7 @@ let activatePthreadBarriers () =
   let isBarrierInit (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.BarrierInit _ -> true
-    | _ -> false 
+    | _ -> false
   in
   let hasBarrierInit = hasFunction isBarrierInit in
   if hasBarrierInit then
@@ -510,7 +505,7 @@ let activatePthreadOnce () =
   let isOnce (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.Once _ -> true
-    | _ -> false 
+    | _ -> false
   in
   let hasOnce = hasFunction isOnce in
   if hasOnce then
@@ -564,9 +559,6 @@ let chooseConfig file =
 
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
-
-  if isActivated "concurrencySafetySpecification" then
-    focusOnConcurrencySafety ();
 
   if isActivated "noOverflows" then
     focusOnNoOverflows ();

@@ -1,0 +1,32 @@
+#include<pthread.h>
+#include <goblint.h>
+
+int glob1 = 5;
+
+void *t_fun(void *arg) {
+  pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+  int t;
+  pthread_mutex_lock(&mutex1);
+  t = glob1;
+  __goblint_check(t == 5); // UNKNOWN
+  glob1 = -10;
+  __goblint_check(glob1 == -10); // UNKNOWN
+  glob1 = t;
+  pthread_mutex_unlock(&mutex1);
+  pthread_mutex_lock(&mutex1);
+  glob1++;
+  __goblint_check(glob1 == 6); // UNKNOWN
+  glob1--;
+  pthread_mutex_unlock(&mutex1);
+  return NULL;
+}
+
+int main(void) {
+  pthread_t id, id2;
+  __goblint_check(glob1 == 5);
+  pthread_create(&id, NULL, t_fun, NULL);
+  pthread_create(&id2, NULL, t_fun, NULL);
+  pthread_join (id, NULL);
+  pthread_join (id2, NULL);
+  return 0;
+}

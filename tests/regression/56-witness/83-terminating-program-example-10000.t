@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-10000.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 83-terminating-program-example-10000.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
@@ -20,7 +20,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -29,7 +29,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -38,7 +38,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -47,7 +47,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -56,7 +56,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -65,25 +65,25 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     - invariant:
         type: loop_transition_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
         value: (long long )\at(i, AnyPrev) >= (long long )i + 1LL
         format: ext_c_expression
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-10000.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 83-terminating-program-example-10000.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
-  [Success][Witness] invariant confirmed: 1 <= j (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: 5000 <= i (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: i <= 10000 (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: j <= 5001 (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: (long long )j + (long long )i == 10001LL (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (82-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: 1 <= j (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: 5000 <= i (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: i <= 10000 (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: j <= 5001 (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )j + (long long )i == 10001LL (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (83-terminating-program-example-10000.c:15:5)
   [Info][Witness] witness validation summary:
     confirmed: 6
     unconfirmed: 0
@@ -94,15 +94,15 @@ TODO: Why no transition invariant on j, like with octagons (below)?
     disabled: 0
     total validation entries: 6
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 82-terminating-program-example-10000.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-10000.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 83-terminating-program-example-10000.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 83-terminating-program-example-10000.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
-  [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: i - j < \at(i, AnyPrev) - \at(j, AnyPrev) (82-terminating-program-example-10000.c:15:1)
-  [Success][Witness] invariant confirmed: i - j <= \at(i, AnyPrev) - \at(j, AnyPrev) (82-terminating-program-example-10000.c:15:1)
+  [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: i - j < \at(i, AnyPrev) - \at(j, AnyPrev) (83-terminating-program-example-10000.c:15:1)
+  [Success][Witness] invariant confirmed: i - j <= \at(i, AnyPrev) - \at(j, AnyPrev) (83-terminating-program-example-10000.c:15:1)
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0
@@ -116,7 +116,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
 
 Same with octagon:
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable ana.apron.invariant.diff-box --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-10000.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable ana.apron.invariant.diff-box --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 83-terminating-program-example-10000.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
@@ -138,7 +138,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -147,7 +147,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -156,7 +156,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -165,7 +165,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -174,7 +174,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -183,7 +183,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_transition_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -192,7 +192,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_transition_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -201,7 +201,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_transition_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
@@ -210,28 +210,28 @@ TODO: Are transition invariants between i and j useful/avoidable?
     - invariant:
         type: loop_transition_invariant
         location:
-          file_name: 82-terminating-program-example-10000.c
+          file_name: 83-terminating-program-example-10000.c
           line: 15
           column: 5
           function: main
         value: 10000LL >= (long long )i + (long long )\at(j, AnyPrev)
         format: ext_c_expression
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-10000.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 83-terminating-program-example-10000.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
-  [Success][Witness] invariant confirmed: 1 <= j (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: 5000 <= i (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: i <= 10000 (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: j <= 5001 (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: (long long )j + (long long )i == 10001LL (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: 10000LL >= (long long )i + (long long )\at(j, AnyPrev) (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: (long long )j + (long long )\at(i, AnyPrev) >= 10002LL (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (82-terminating-program-example-10000.c:15:5)
-  [Success][Witness] invariant confirmed: (long long )j >= (long long )\at(j, AnyPrev) + 1LL (82-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: 1 <= j (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: 5000 <= i (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: i <= 10000 (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: j <= 5001 (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )j + (long long )i == 10001LL (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: 10000LL >= (long long )i + (long long )\at(j, AnyPrev) (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )j + (long long )\at(i, AnyPrev) >= 10002LL (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )\at(i, AnyPrev) >= (long long )i + 1LL (83-terminating-program-example-10000.c:15:5)
+  [Success][Witness] invariant confirmed: (long long )j >= (long long )\at(j, AnyPrev) + 1LL (83-terminating-program-example-10000.c:15:5)
   [Info][Witness] witness validation summary:
     confirmed: 9
     unconfirmed: 0
@@ -244,15 +244,15 @@ TODO: Are transition invariants between i and j useful/avoidable?
 
 TODO: Why not invariants confirmed?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate 82-terminating-program-example-10000.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-10000.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate 83-terminating-program-example-10000.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 83-terminating-program-example-10000.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
     total lines: 7
-  [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (82-terminating-program-example-10000.c:15:5)
-  [Warning][Witness] invariant unconfirmed: i - j < \at(i, AnyPrev) - \at(j, AnyPrev) (82-terminating-program-example-10000.c:15:1)
-  [Warning][Witness] invariant unconfirmed: i - j <= \at(i, AnyPrev) - \at(j, AnyPrev) (82-terminating-program-example-10000.c:15:1)
+  [Success][Witness] invariant confirmed: \at(i, AnyPrev) > i (83-terminating-program-example-10000.c:15:5)
+  [Warning][Witness] invariant unconfirmed: i - j < \at(i, AnyPrev) - \at(j, AnyPrev) (83-terminating-program-example-10000.c:15:1)
+  [Warning][Witness] invariant unconfirmed: i - j <= \at(i, AnyPrev) - \at(j, AnyPrev) (83-terminating-program-example-10000.c:15:1)
   [Info][Witness] witness validation summary:
     confirmed: 1
     unconfirmed: 2

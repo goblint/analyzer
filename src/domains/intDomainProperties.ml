@@ -65,7 +65,6 @@ struct
   let of_int = of_int (Ik.ikind ())
   let of_bool = of_bool (Ik.ikind ())
 
-  let bot () = bot_of (Ik.ikind ())
   let top () = top_of (Ik.ikind ())
   let is_top = is_top_of (Ik.ikind ())
 

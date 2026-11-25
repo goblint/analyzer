@@ -1,7 +1,7 @@
-  $ goblint --set ana.activated '["gStoreWideningSol","assert","base","mallocWrapper","escape"]' --set ana.base.privatization none --enable exp.globs_are_top ../06-gstore-thread.c
+  $ goblint --set ana.activated '["gStoreWideningSol","assert","base","mallocWrapper","escape"]' --set ana.base.privatization none --enable warn.deterministic --enable exp.globs_are_top ../06-gstore-thread.c
+  [Warning][Assert] Assertion "global == 42" is unknown. (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:40:3-40:32)
   [Success][Assert] Assertion "global < 200" will succeed (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:31:3-31:32)
   [Success][Assert] Assertion "global >= 0" will succeed (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:32:3-32:31)
-  [Warning][Assert] Assertion "global == 42" is unknown. (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:40:3-40:32)
   [Warning][Deadcode] Function 'main' has dead code:
     on line 28 (/workspace_root/tests/regression/99-tutorials/06-gstore-thread.c:28-28)
   [Warning][Deadcode] Function 'thread' has dead code:

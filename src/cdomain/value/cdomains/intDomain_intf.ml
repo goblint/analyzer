@@ -168,7 +168,6 @@ module type B =
 sig
   include BDefault
 
-  val bot_of: Cil.ikind -> t
   val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val of_excl_list: Cil.ikind -> int_t list -> t
@@ -301,6 +300,7 @@ end
 module type Y =
 sig
   include B
+  val bot_of: Cil.ikind -> t
   include Lattice.Top with type t := t
   include Arith with type t:=t
 
@@ -422,15 +422,6 @@ sig
   module BISet: SetDomain.S with type elt = Z.t
 
   exception ArithmeticOnIntegerBot of string
-
-  exception Unknown
-  (** An exception that can be raised when the result of a computation is unknown.
-    * This is caught by lifted domains and will be replaced by top. *)
-
-  exception Error
-  (** An exception that can be raised when an arithmetic error occurs. This is
-    * caught by lifted domains and the evaluation will then be set to bot, which
-    * signifies an error in computation *)
 
   exception IncompatibleIKinds of string
 

@@ -17,7 +17,6 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = Inc (BISet.empty ())
-  let bot_of ik = bot ()
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
 
   let top_of ?bitfield ik =
@@ -48,7 +47,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc xs -> "{" ^ (String.concat ", " (List.map Z.to_string (BISet.elements  xs))) ^ "}"
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map Z.to_string (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
 
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
@@ -80,7 +79,7 @@ module Enums : S with type int_t = Z.t = struct
             | false, false -> top_bool  (* Not {} -> {0, 1} *)
             | true, false -> Inc (BISet.singleton Z.one) (* Not {0} -> {1} *)
             | false, true -> Inc (BISet.singleton Z.zero) (* Not {1} -> {0} *)
-            | true, true -> bot_of ikind (* Not {0, 1} -> bot *)
+            | true, true -> bot () (* Not {0, 1} -> bot *)
           end
         | _ ->
           v

@@ -20,6 +20,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
+  let longjmp_enabled = List.mem "activeLongjmp" (get_string_list "ana.activated") in
   let hashcons_enabled = get_bool "ana.opt.hashcons" in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -43,7 +44,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
       |> lift (get_bool "ana.widen.tokens") (module WideningTokenLifter.Lifter)
-      |> lift true (module LongjmpLifter.Lifter)
+      |> lift longjmp_enabled (module LongjmpLifter.Lifter)
       |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
       |> lift (get_int "ana.widen.delay.global" > 0) (module WideningDelay.GLifter)
     )
@@ -563,6 +564,8 @@ struct
           Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
+          (* stop periodic solver statistics (set up in Generic.SolverStats) during post-processing; dbg.solver-signal still works *)
+          ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = 0.; it_value = 0. });
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (

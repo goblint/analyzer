@@ -14,9 +14,9 @@
       version: "4.1-1300-g2b080b54e5"
     task:
       input_files:
-      - "81-terminating-program-example-3.c"
+      - "82-terminating-program-example-3.c"
       input_file_hashes:
-        "81-terminating-program-example-3.c": "6e15b951aa41ca57be7a387c0c7db4e8aac5bf5cb4ad0226ae822fa59fb80505"
+        "82-terminating-program-example-3.c": "6e15b951aa41ca57be7a387c0c7db4e8aac5bf5cb4ad0226ae822fa59fb80505"
       specification: ""
       data_model: "LP64"
       language: "C"
@@ -24,7 +24,7 @@
   - invariant:
       type: "loop_transition_invariant"
       location:
-        file_name: "81-terminating-program-example-3.c"
+        file_name: "82-terminating-program-example-3.c"
         line: 15
         column: 5
         function: "main"
@@ -40,9 +40,9 @@
       version: ""
     task:
       input_files:
-      - "81-terminating-program-example-3.c"
+      - "82-terminating-program-example-3.c"
       input_file_hashes:
-        "81-terminating-program-example-3.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
+        "82-terminating-program-example-3.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
       specification: "F end"
       data_model: "LP64"
       language: "C"
@@ -51,7 +51,7 @@
       type: loop_transition_invariant
       location:
         line: 15
-        file_name: "81-terminating-program-example-3.c"
+        file_name: "82-terminating-program-example-3.c"
       value: "i - j < \\at(i, AnyPrev) - \\at(j, AnyPrev)"
       format: ext_c_expression
 - entry_type: invariant_set
@@ -64,9 +64,9 @@
       version: ""
     task:
       input_files:
-      - "81-terminating-program-example-3.c"
+      - "82-terminating-program-example-3.c"
       input_file_hashes:
-        "81-terminating-program-example-3.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
+        "82-terminating-program-example-3.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
       specification: "F end"
       data_model: "LP64"
       language: "C"
@@ -75,7 +75,7 @@
       type: loop_transition_invariant
       location:
         line: 15
-        file_name: "81-terminating-program-example-3.c"
+        file_name: "82-terminating-program-example-3.c"
       # Not well-founded
       value: "i - j <= \\at(i, AnyPrev) - \\at(j, AnyPrev)"
       format: ext_c_expression

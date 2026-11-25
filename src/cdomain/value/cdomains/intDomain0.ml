@@ -10,8 +10,6 @@ let (%) = Batteries.(%)
 let (|?) = Batteries.(|?)
 
 exception IncompatibleIKinds of string
-exception Unknown
-exception Error
 exception ArithmeticOnIntegerBot of string
 
 
@@ -181,7 +179,7 @@ struct
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
   let lift2_cmp op x y = check_ikinds x y; op x.ikind x.v y.v
 
-  let bot_of ikind = { v = I.bot_of ikind; ikind}
+  let bot_of ikind = { v = I.bot (); ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
   let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
@@ -383,15 +381,14 @@ module Std (B: sig
     type t
     val name: unit -> string
     val top_of: ?bitfield:int -> Cil.ikind -> t
-    val bot_of: Cil.ikind -> t
+    val bot: unit -> t
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
   include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
-                                                This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
+  let is_bot x = B.equal x (bot ()) (* TODO: implement in domains directly to avoid allocation *)
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.show *)
@@ -594,13 +591,12 @@ struct
   let name () = "integers"
   type t = Ints_t.t [@@deriving eq, ord, hash]
   type int_t = Ints_t.t
-  let top () = raise Unknown
-  let bot () = raise Error
+  let top () = raise Lattice.TopValue
+  let bot () = raise Lattice.BotValue
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot = bot let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
@@ -641,18 +637,18 @@ struct
   let invariant _ _ = Invariant.none (* TODO *)
 end
 
-module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
+module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises TopValue/BotValue on join/meet *)
 struct
   include Integers(IntOps.Int64Ops)
-  let top () = raise Unknown
-  let bot () = raise Error
+  let top () = raise Lattice.TopValue
+  let bot () = raise Lattice.BotValue
   let leq = equal
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
   let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
 
-module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
+module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Lift, but goes to `Top/`Bot if Base raises TopValue/BotValue *)
 struct
   type int_t = Base.int_t
   include Lattice.FlatConf (struct
@@ -662,8 +658,6 @@ struct
     end) (Base)
 
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
-
 
   let name () = "flat integers"
   let cast_to ?(suppress_ovwarn=false) ~kind t = function
@@ -698,16 +692,16 @@ struct
 
   let lift1 f x = match x with
     | `Lifted x ->
-      (try `Lifted (f x) with Unknown -> `Top | Error -> `Bot)
+      (try `Lifted (f x) with Lattice.TopValue -> `Top | Lattice.BotValue -> `Bot)
     | x -> x
   let lift2 f x y = match x,y with
     | `Lifted x, `Lifted y ->
-      (try `Lifted (f x y) with Unknown -> `Top | Error -> `Bot)
+      (try `Lifted (f x y) with Lattice.TopValue -> `Top | Lattice.BotValue -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
   let lift2_bool f x y = match x,y with
     | `Lifted x, `Lifted y ->
-      (try f x y with Unknown -> None | Error -> None)
+      (try f x y with Lattice.TopValue -> None | Lattice.BotValue -> None)
     | `Bot, `Bot -> None
     | _ -> None
 
@@ -744,7 +738,7 @@ struct
     end) (Base)
   type int_t = Base.int_t
   let top_of ?bitfield ik = top ()
-  let bot_of ik = bot ()
+
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"

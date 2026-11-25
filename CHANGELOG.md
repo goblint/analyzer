@@ -1,3 +1,21 @@
+## v2.9.0 Dizzy Dullahan
+Functionally equivalent to Goblint in SV-COMP 2027.
+
+* Add transition invariant support in witnesses (#1849, #2305).
+* Add `asm goto` support (#2067).
+* Improve termination analysis for `goto`s (#1725, #2179).
+* Remove unmaintained analyses: stack_trace, stack_trace_set, stack_loc (#2075).
+* Add used assumptions declarations (#2133).
+* Change widening specification (#2081).
+* Fix spurious overflow and out-of-bounds checks (#1801, #2079, #2069, #2077, #2181).
+* Improve allocation failure support (#2092, #2093, #2096, #2097).
+* Refactor and improve memory out-of-bounds analysis (#2057, #2058, #2060, #2066, #2078).
+* Fix many issues in affine equalities analysis (#1943, #2200, #2159, #2194, #2163, #2196, #2197, #2199, #2215, #2213).
+* Improve witness validation via unassume (#2158, #2167, #2169, #2302, #2330).
+* Optimize witness generation and validation (#1869, #2273, #2292, #2293, #2324).
+* Improve output readability (#2118, #2120, #2123, #2153, #2160, #2164, #2165, #2176).
+* Refactor integer domains usage (#2138, #2140, #2142, #2171, #2173, #2175, #2177, #2203, #2211).
+
 ## v2.8.0 Clumsy Clurichaun
 * Add new may-happen-in-parallel analyses (#1805, #1865, #1913, #1928).
 * Add Open Verification Dashboard checks output (#1838, #1929).
@@ -22,7 +40,7 @@ Functionally equivalent to Goblint in SV-COMP 2026.
 * Improve bitwise operations for integer domains (#1739).
 * Reimplement HTML output in OCaml (#1752).
 * Remove YAML witness version 0.1 support (#1812, #1817, #1852, #1853, #1855).
-* Fix incorrect invariants in witnesses (#1818, #1876).
+* Fix incorrect invariants in witnesses (#1722, #1818, #1876).
 * Simplify relational invariants in witnesses (#1826, #1871, #1873).
 * Fix argument types in Goblint stubs (#1684, #1814, #1779, #1820).
 
@@ -30,6 +48,8 @@ Functionally equivalent to Goblint in SV-COMP 2026.
 * Add division by zero analysis (#1764).
 * Add bitfield domain (#1623).
 * Add weakly-relational C-2PO pointer analysis (#1485).
+* Add pthread barrier analysis (#1651, #1652).
+* Add `pthread_once` analysis (#1662, #1663).
 * Add widening delay (#1358, #1442, #1483).
 * Add narrowing of globals to top-down solver (#1636).
 * Add weak dependencies to top-down solver (#1746, #1747).
