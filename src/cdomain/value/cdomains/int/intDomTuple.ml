@@ -293,7 +293,7 @@ module IntDomTupleImpl = struct
          let old_dt = !dt in
          List.iter (fun f -> dt := f !dt) (refine_functions ik);
          quit_loop := equal old_dt !dt;
-         if is_bot !dt then (dt := bot (); quit_loop := true);
+         if is_bot !dt then (dt := bot (); quit_loop := true); (* turn at least one bot ([is_bot]) into all bot ([bot]) *)
          if M.tracing then M.trace "cong-refine-loop" "old: %a, new: %a" pretty old_dt pretty !dt;
        done;
      | _ -> ()
