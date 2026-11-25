@@ -35,8 +35,6 @@ struct
 
   let to_cil ((v, o): t): lval = (Var v, Offs.to_cil o)
   let to_cil_exp lv = Lval (to_cil lv)
-
-  let is_definite (_, o) = Offs.is_definite o
 end
 
 module MakeLattice (Offs: Offset.Lattice): Lattice with type idx = Offs.idx =

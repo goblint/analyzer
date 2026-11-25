@@ -180,7 +180,7 @@ struct
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x AD.pretty n;
               match eval_rv_address ~man st (Lval x) with
-              | Address a when AD.is_definite n ->
+              | Address a when BaseUtil.ad_is_definite (Analyses.ask_of_man man) a ->
                 `Refine (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
                 `Refine (x, Address AD.not_null)
@@ -708,7 +708,7 @@ struct
               (* get definite addrs from vs *)
               let rec to_definite_ad = function
                 | [] -> AD.empty ()
-                | VD.Address a :: vs when AD.is_definite a ->
+                | VD.Address a :: vs when BaseUtil.ad_is_definite (Analyses.ask_of_man man) a ->
                   AD.union a (to_definite_ad vs)
                 | _ :: vs ->
                   AD.top ()

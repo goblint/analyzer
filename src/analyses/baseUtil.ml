@@ -13,6 +13,18 @@ let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volat
 let is_excluded_from_earlyglobs v = List.mem v.vname (get_string_list "exp.exclude_from_earlyglobs")
 let is_excluded_from_invalidation v =  List.mem v.vname (get_string_list "exp.exclude_from_invalidation")
 
+module AD = ValueDomain.AD
+
+let mval_is_definite (ask: Q.ask) (_, o) = ValueDomain.Offs.is_definite o
+
+let addr_is_definite (ask: Q.ask) = function
+  | AD.Addr.NullPtr -> true
+  | Addr m -> ValueDomain.Mval.is_definite m
+  | _ -> false
+
+let ad_is_definite (ask: Q.ask) x =
+  AD.cardinal x = 1 && addr_is_definite ask (AD.choose x)
+
 let is_globally_unique (ask: Q.ask) v =
   (* TODO: check if main is non-recursive *)
   (v.vglob || GobOption.exists (fun (fd: GoblintCil.fundec) -> fd.svar.vname = "main") (Cilfacade.find_scope_fundec v)) && not (ask.f (IsMultiple v))
