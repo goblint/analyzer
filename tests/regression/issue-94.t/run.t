@@ -1,4 +1,4 @@
-  $ goblint --enable ana.dead-code.lines --enable ana.dead-code.branches issue-94.c
+  $ goblint --enable ana.dead-code.lines --enable ana.dead-code.branches --enable warn.deterministic issue-94.c
   [Error][Assert] Assertion "tmp" will fail. (issue-94.c:13:3-13:35)
   [Warning][Deadcode] Function 'main' does not return
   [Warning][Deadcode] Function 'main' has dead code:
@@ -9,6 +9,6 @@
     live: 6
     dead: 3
     total lines: 9
+  [Warning][Deadcode][CWE-570] condition 'x > 1' is always false (issue-94.c:13:3-13:35)
   [Warning][Deadcode][CWE-571] condition '1' is always true (issue-94.c:5:7-5:8)
   [Warning][Deadcode][CWE-571] condition 'x' is always true (issue-94.c:9:7-9:8)
-  [Warning][Deadcode][CWE-570] condition 'x > 1' is always false (issue-94.c:13:3-13:35)
