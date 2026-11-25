@@ -3,6 +3,6 @@
 #include <goblint.h>
 
 int main(void) {
-  if (24007455 * 128 / 8 != 0); // NOCRASH
+  if (24007455 * 128 / 8 != 0); // WARN NOCRASH
   return 0;
 }
