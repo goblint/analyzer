@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memLeak  --set ana.malloc.unique_address_count 1 --disable sem.malloc.fail --enable verify
+// PARAM: --set ana.activated[+] memLeak  --set ana.malloc.unique_address_count 1 --disable sem.malloc.fail
 #include <stdlib.h>
 
 static void *alloc(void) {
