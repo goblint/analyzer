@@ -3,7 +3,7 @@
 #include <goblint.h>
 
 int main(void) {
-  __goblint_assume(24007455 * 128 / 8 != 0); // NOCRASH
+  __goblint_assume(24007455 * 128 / 8 != 0); // WARN NOCRASH
   return 0;
 }
 
