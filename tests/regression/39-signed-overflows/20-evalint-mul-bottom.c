@@ -1,4 +1,4 @@
-// PARAM: --enable ana.autotune.enabled --set ana.path_sens[+] base --set ana.activated[+] abortUnless
+// PARAM: --set ana.activated[+] apron --set ana.path_sens[+] base --set ana.activated[+] abortUnless
 // Reduced with creduce from sv-benchmarks/c/nla-digbench-scaling/egcd-ll_valuebound5.c
 
 long c;
