@@ -1,3 +1,4 @@
+// NOCRASH
 #include <setjmp.h>
 
 jmp_buf env_buffer;
