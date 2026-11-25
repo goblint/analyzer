@@ -949,11 +949,18 @@
               "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
-            "narrowing_gas": {
-              "title": "ana.apron.narrowing_gas",
-              "description": "Per state perform narrowing via meet as long as gas is left (0 to disable)",
-              "type": "integer",
-              "default": 0
+            "narrowing_delay": {
+              "title": "ana.apron.narrowing_delay",
+              "type": "object",
+              "properties": {
+                "local": {
+                  "title": "ana.apron.narrowing_delay.local",
+                  "description": "Number of narrowing steps that use meet for each local unknown (0 to disable)",
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
             },
             "threshold_widening": {
               "title": "ana.apron.threshold_widening",

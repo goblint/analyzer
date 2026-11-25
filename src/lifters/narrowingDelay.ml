@@ -1,28 +1,20 @@
-(** narrowing delay with counters.
+(** Narrowing delay with counters.
 
     Abstract elements are paired with an integer counter, indicating how many times narrowing has been delayed.
-    Lifted abstract elements are only narrowed if the counter exceeds a predefined limit (gas), otherwise a meet is performed. *)
+    The lifter uses meet until the counter reaches the configured delay, then uses narrowing. *)
 
 open Batteries
 open Lattice
 open Analyses
 
-module LocalChainParams: Printable.ChainParams =
-struct
-  let n () = GobConfig.get_int "ana.apron.narrowing_gas"
-  let names = string_of_int
-end
-
-module GlobalChainParams: Printable.ChainParams =
-struct
-  let n () = GobConfig.get_int "ana.apron.narrowing_gas"
-  let names = string_of_int
-end
-
 module Dom (Base: S) (ChainParams: Printable.ChainParams) =
 struct
-  module Chain = Printable.Chain (ChainParams)
-  include Printable.Prod (Base) (Chain)
+  module Chain =
+  struct
+    include Printable.Chain (ChainParams)
+    let name () = "narrow-delay"
+  end
+  include Printable.ProdConf (struct include Printable.DefaultConf let expand1 = false end) (Base) (Chain)
 
   let lift d = (d, 0)
   let unlift (d, _) = d
@@ -37,8 +29,8 @@ struct
   (** All operations keep maximal counter. *)
   let join (b1, i1) (b2, i2) = (Base.join b1 b2, max i1 i2)
   let meet (b1, i1) (b2, i2) = (Base.meet b1 b2, max i1 i2)
-  let widen (b1, i1) (b2, i2) = (Base.widen b1 b2, max i1 i2) 
-  let narrow (b1, i1) (b2, i2) = 
+  let widen (b1, i1) (b2, i2) = (Base.widen b1 b2, max i1 i2)
+  let narrow (b1, i1) (b2, i2) =
     let i' = max i1 i2 in
     if i' < ChainParams.n () then
       (Base.meet b1 b2, i' + 1)  (* Use meet to delay narrowing until counter reaches limit. *)
@@ -51,7 +43,7 @@ end
 
 
 
-(** Lift {!S} to use narrowing gas for local states.
+(** Lift {!S} to use narrowing delay for local states.
 
     All transfer functions reset the counter to 0, so counting only happens between old and new values at a local unknown. *)
 module DLifter (S: Spec) (C: Printable.ChainParams): Spec =
@@ -61,7 +53,7 @@ struct
     include Dom (D) (C)
 
     let printXml f (b, i) =
-      BatPrintf.fprintf f "%a<analysis name=\"narrow-count\">%a</analysis>" D.printXml b Chain.printXml i
+      BatPrintf.fprintf f "%a<analysis name=\"narrow-delay\">%a</analysis>" D.printXml b Chain.printXml i
   end
 
   module NameLifter =
@@ -76,22 +68,4 @@ struct
 
   let paths_as_set man =
     List.map (fun x -> (x, snd man.local)) @@ S.paths_as_set (conv man)
-end
-
-(** Lift {!S} to use narrowing gas for global unknowns. *)
-module GLifter (S: Spec): Spec =
-struct
-  module GG (G: Lattice.S) =
-  struct
-    include Dom (G) (GlobalChainParams)
-
-    let printXml f (b, i) =
-      BatPrintf.fprintf f "%a<analysis name=\"narrow-count\">%a</analysis>" G.printXml b Chain.printXml i
-  end
-
-  module NameLifter =
-  struct
-    let lift_name x = x ^ " with narrowing count"
-  end
-  include SpecLifters.GlobalDomainLifter (NameLifter) (GG) (S)
 end
