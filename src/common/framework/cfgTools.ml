@@ -46,13 +46,8 @@ struct
                  They must not be used alone for equality. *)
     scc: SCC.t;
   }
-  (* Wrapper identity by physical equality. All nodes of an SCC share one wrapper. *)
-  let equal = (==)
-  (* Hashing only the immutable ID avoids collisions from structurally similar SCCs
-     and remains stable when their node/edge tables are mutated. Mixing wrappers from
-     different computations is correct with physical equality, but reused IDs may
-     cause collisions. *)
-  let hash scc = Hashtbl.hash scc.id
+  let equal a b = Int.equal a.id b.id
+  let hash scc = scc.id
 end
 
 (** Compute strongly connected components (SCCs) of [nodes] in [Cfg].
