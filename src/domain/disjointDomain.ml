@@ -91,11 +91,21 @@ sig
   val cong: elt -> elt -> bool (** Congruence relation on elements. *)
 end
 
+(** Bucket for {!PairwiseCommon}. *)
+module type PairwiseBucket =
+sig
+  include Lattice.S
+
+  type elt (** Type of elements. *)
+
+  val choose_elt: t -> elt (** Choose element from bucket. *)
+end
+
 (** Elements [E.t] grouped into buckets by [C],
     where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module PairwiseCommon (E: Printable.S) (B: Lattice.S) (C: Congruence with type elt = E.t) = (* TODO: E unused? *)
+module PairwiseCommon (E: Printable.S) (B: PairwiseBucket with type elt = E.t) (C: Congruence with type elt = E.t) = (* TODO: E unused? *)
 struct
   module S = SetDomain.Make (B)
 
@@ -120,6 +130,104 @@ struct
 
   let is_empty = S.is_empty
   let empty = S.empty
+
+  let leq s1 s2 =
+    S.for_all (fun b1 ->
+        let e1 = B.choose_elt b1 in
+        S.exists (fun b2 -> C.cong (B.choose_elt b2) e1 && B.leq b1 b2) s2
+      ) s1
+
+  let pretty_diff () (s1, s2) =
+    (* based on HoareDomain.Set *)
+    let s1_not_leq = S.filter (fun b1 ->
+        let e1 = B.choose_elt b1 in
+        not (S.exists (fun b2 -> C.cong (B.choose_elt b2) e1 && B.leq b1 b2) s2)
+      ) s1
+    in
+    let b1_not_leq = S.choose s1_not_leq in
+    let e1_not_leq = B.choose_elt b1_not_leq in
+    GoblintCil.Pretty.(
+      dprintf "%a:\n" B.pretty b1_not_leq
+      ++
+      S.fold (fun b2 acc ->
+          if C.cong (B.choose_elt b2) e1_not_leq then
+            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
+          else
+            dprintf "not cong %a\n" B.pretty b2 ++ acc
+        ) s2 nil
+    )
+
+  let join s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          B.join b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
+  let widen s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose_elt e1) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          B.widen b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
+  let meet s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match B.meet b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+
+  let narrow s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match B.narrow b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
 
   let arbitrary () = failwith "PairwiseCommon.arbitrary"
 end
@@ -274,6 +382,12 @@ module PairwiseSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (C: Con
 struct
   type elt = E.t
 
+  module B =
+  struct
+    include B
+    let choose_elt = choose
+  end
+
   include PairwiseCommon (E) (B) (C)
 
   let name () = "PairwiseSet (" ^ B.name () ^ ")"
@@ -345,104 +459,6 @@ struct
   let map f s = fold (fun e acc ->
       add (f e) acc
     ) s (empty ()) (* no intermediate lists *)
-
-  let leq s1 s2 =
-    S.for_all (fun b1 ->
-        let e1 = B.choose b1 in
-        S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2
-      ) s1
-
-  let pretty_diff () (s1, s2) =
-    (* based on HoareDomain.Set *)
-    let s1_not_leq = S.filter (fun b1 ->
-        let e1 = B.choose b1 in
-        not (S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2)
-      ) s1
-    in
-    let b1_not_leq = S.choose s1_not_leq in
-    let e1_not_leq = B.choose b1_not_leq in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty b1_not_leq
-      ++
-      S.fold (fun b2 acc ->
-          if C.cong (B.choose b2) e1_not_leq then
-            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
-          else
-            dprintf "not cong %a\n" B.pretty b2 ++ acc
-        ) s2 nil
-    )
-
-  let join s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.join b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let widen s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose e1) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.widen b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let meet s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
-
-  let narrow s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
 
   let union = join
   let inter = meet
@@ -645,6 +661,13 @@ struct
   type key = E.t
   type value = B.value
 
+  module B =
+  struct
+    include B
+    type elt = E.t
+    let choose_elt b = fst (choose b)
+  end
+
   include PairwiseCommon (E) (B) (C)
 
   let name () = "PairwiseMap (" ^ B.name () ^ ")"
@@ -755,104 +778,6 @@ struct
   let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
   let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
   let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
-
-  let leq s1 s2 =
-    S.for_all (fun b1 ->
-        let e1 = fst (B.choose b1) in
-        S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2
-      ) s1
-
-  let pretty_diff () (s1, s2) =
-    (* based on PairwiseSet *)
-    let s1_not_leq = S.filter (fun b1 ->
-        let e1 = fst (B.choose b1) in
-        not (S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2)
-      ) s1
-    in
-    let b1_not_leq = S.choose s1_not_leq in
-    let e1_not_leq = fst (B.choose b1_not_leq) in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty b1_not_leq
-      ++
-      S.fold (fun b2 acc ->
-          if C.cong (fst (B.choose b2)) e1_not_leq then
-            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
-          else
-            dprintf "not cong %a\n" B.pretty b2 ++ acc
-        ) s2 nil
-    )
-
-  let join s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.join b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let widen s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (fst (B.choose e1)) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.widen b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let meet s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
-
-  let narrow s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
 
   include MapDomain.Print (E) (R) (
     struct
