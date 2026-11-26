@@ -135,8 +135,9 @@ end
 module type S3 =
 sig
   include S2
-  val cil_exp_of_lincons1: Lincons1.t -> exp option
-  val invariant: t -> Lincons1.t list
+  val invariant_exps: include_one_var:bool -> include_equalities:bool -> t -> exp Seq.t
+  (** Invariants expressible in CIL. When [include_one_var] is false, only
+      include constraints involving at least two variables. *)
 end
 
 type ('a, 'b) relcomponents_t = {

@@ -534,6 +534,8 @@ sig
 
   val env: t -> Environment.t
 
+  val invariant: t -> Lincons1.t list
+  val cil_exp_of_lincons1: Lincons1.t -> exp option
   val assert_constraint: Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_interval : Queries.ask -> t -> Texpr1.t -> (Z.t option * Z.t option) option
 end
@@ -546,6 +548,15 @@ struct
   type nonrec var = V.t
   module Tracked = Tracked
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
+
+  let invariant_exps ~include_one_var ~include_equalities d =
+    (* Filter after the domain's simplifications, e.g. octagons combine opposite inequalities into an equality. *)
+    AD.invariant d
+    |> List.to_seq
+    |> Seq.filter (fun c ->
+        (include_one_var || Lincons1.num_vars c >= 2) && (include_equalities || Lincons1.get_typ c <> EQ)
+      )
+    |> Seq.filter_map AD.cil_exp_of_lincons1
 
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
