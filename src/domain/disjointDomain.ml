@@ -189,14 +189,14 @@ struct
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
 
-  let meet s1 s2 =
+  let nonidempotent_inter f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose_elt b2 in
       let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          begin match B.meet b1 b2 with
+          begin match f b1 b2 with
             | b' when B.is_bot b' ->
               acc (* remove bot bucket to preserve invariant *)
             | exception Lattice.BotValue ->
@@ -210,26 +210,8 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
-  let narrow s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose_elt b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
+  let meet s1 s2 = nonidempotent_inter B.meet s1 s2
+  let narrow s1 s2 = nonidempotent_inter B.narrow s1 s2
 
   let difference f s1 s2 =
     let f b2 (s1, acc) =
@@ -725,26 +707,7 @@ struct
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
   let idempotent_union _ _ _ = failwith "PairwiseMap.idempotent_union" (* TODO: ? *)
-  let nonidempotent_inter f s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.nonidempotent_inter f b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
+  let nonidempotent_inter f s1 s2 = nonidempotent_inter (B.nonidempotent_inter f) s1 s2
   let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
   let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
   let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
