@@ -182,10 +182,12 @@ struct
   include DomainTest (D)
 
   let narrow_meet = make ~name:"narrow meet" (pair arb arb) (fun (a, b) -> D.leq (D.meet a b) (D.narrow a b))
+  let narrow_idem = make ~name:"narrow idem" arb (fun a -> D.equal (D.narrow a a) a)
   let narrow_fst = make ~name:"narrow fst" (pair arb arb) (fun (a, b) -> D.leq (D.narrow a b) a)
 
   let tests = [
     narrow_meet;
+    narrow_idem;
     narrow_fst
   ]
 end
