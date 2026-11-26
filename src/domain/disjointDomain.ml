@@ -159,14 +159,14 @@ struct
         ) s2 nil
     )
 
-  let join s1 s2 =
+  let nonidempotent_union f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = B.choose_elt b2 in
       let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          B.join b1 b2
+          f b1 b2
         | exception Not_found -> b2
       in
       (s1_rest, S.add b' acc)
@@ -174,20 +174,8 @@ struct
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
 
-  let widen s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose_elt b2 in
-      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose_elt e1) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.widen b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
+  let join s1 s2 = nonidempotent_union B.join s1 s2
+  let widen s1 s2 = nonidempotent_union B.widen s1 s2
 
   let nonidempotent_inter f s1 s2 =
     let f b2 (s1, acc) =
@@ -692,20 +680,7 @@ struct
   let mapi f m = S.map (fun b ->
       B.mapi f b
     ) m
-  let nonidempotent_union f s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.nonidempotent_union f b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
+  let nonidempotent_union f s1 s2 = nonidempotent_union (B.nonidempotent_union f) s1 s2
   let idempotent_union _ _ _ = failwith "PairwiseMap.idempotent_union" (* TODO: ? *)
   let nonidempotent_inter f s1 s2 = nonidempotent_inter (B.nonidempotent_inter f) s1 s2
   let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
