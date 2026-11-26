@@ -239,6 +239,28 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
 
+  let difference f s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match f b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
   let arbitrary () = failwith "PairwiseCommon.arbitrary"
 end
 
@@ -430,27 +452,7 @@ struct
           S.add b' s
       end
     | exception Not_found -> s
-  let diff s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.diff b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
+  let diff s1 s2 = difference B.diff s1 s2
 
   let of_list es = List.fold_left (fun acc e ->
       add e acc
@@ -770,7 +772,7 @@ struct
   let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
   let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
   let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
-  let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
+  let difference f m1 m2 = difference (B.difference f) m1 m2 (* TODO: ? *)
 
   include MapDomain.Print (E) (R) (
     struct
