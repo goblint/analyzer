@@ -1,0 +1,81 @@
+# This file is part of sv-witnesses repository: https://github.com/sosy-lab/sv-witnesses
+#
+# SPDX-FileCopyrightText: 2023 Dirk Beyer <https://www.sosy-lab.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+- entry_type: "invariant_set"
+  metadata:
+    format_version: "2.1"
+    uuid: "49dcf1a5-60cf-3a62-8025-e7489b69b1dd"
+    creation_time: "2025-11-19T14:24:18+01:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.1-1300-g2b080b54e5"
+    task:
+      input_files:
+      - "83-terminating-program-example-10000.c"
+      input_file_hashes:
+        "83-terminating-program-example-10000.c": "6e15b951aa41ca57be7a387c0c7db4e8aac5bf5cb4ad0226ae822fa59fb80505"
+      specification: ""
+      data_model: "LP64"
+      language: "C"
+  content:
+  - invariant:
+      type: "loop_transition_invariant"
+      location:
+        file_name: "83-terminating-program-example-10000.c"
+        line: 15
+        column: 5
+        function: "main"
+      value: "\\at(i, AnyPrev) > i"
+      format: "ext_c_expression"
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.1"
+    uuid: "f326ecfc-637a-48d2-a35c-0152faeb935e"
+    creation_time: "2026-05-10T09:35:16+0000"
+    producer:
+      name: "Handcrafted"
+      version: ""
+    task:
+      input_files:
+      - "83-terminating-program-example-10000.c"
+      input_file_hashes:
+        "83-terminating-program-example-10000.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
+      specification: "F end"
+      data_model: "LP64"
+      language: "C"
+  content:
+  - invariant:
+      type: loop_transition_invariant
+      location:
+        line: 15
+        file_name: "83-terminating-program-example-10000.c"
+      value: "i - j < \\at(i, AnyPrev) - \\at(j, AnyPrev)"
+      format: ext_c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.1"
+    uuid: "50b59e6b-9732-4579-a43f-ec0a7a9dac71"
+    creation_time: "2026-05-10T09:35:16+0000"
+    producer:
+      name: "Handcrafted"
+      version: ""
+    task:
+      input_files:
+      - "83-terminating-program-example-10000.c"
+      input_file_hashes:
+        "83-terminating-program-example-10000.c": "287610e8766968d20807fa7cedb2876e161017ade0a329100f16c8240065cc6a"
+      specification: "F end"
+      data_model: "LP64"
+      language: "C"
+  content:
+  - invariant:
+      type: loop_transition_invariant
+      location:
+        line: 15
+        file_name: "83-terminating-program-example-10000.c"
+      # Not well-founded
+      value: "i - j <= \\at(i, AnyPrev) - \\at(j, AnyPrev)"
+      format: ext_c_expression
