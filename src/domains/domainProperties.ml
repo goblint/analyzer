@@ -167,9 +167,13 @@ struct
   include DomainTest (D)
 
   let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a b))
+  let widen_idem = make ~name:"widen idem" arb (fun a -> D.equal (D.widen a a) a)
+  let widen_stable = make ~name:"widen stable" (pair arb arb) (fun (a, b) -> assume (D.leq b a); D.equal (D.widen a b) a)
 
   let tests = [
-    widen_join
+    widen_join;
+    widen_idem;
+    widen_stable;
   ]
 end
 
