@@ -9,6 +9,10 @@
         (apron -> sparseMatrixImplementationTest.apron.ml)
         (-> sparseMatrixImplementationTest.no-apron.ml)
     )
+    (select pentagonDomainTest.ml from
+        (apron -> pentagonDomainTest.apron.ml)
+        (-> pentagonDomainTest.no-apron.ml)
+    )
     (select apronDomainTest.ml from
         (apron -> apronDomainTest.apron.ml)
         (-> apronDomainTest.no-apron.ml)
