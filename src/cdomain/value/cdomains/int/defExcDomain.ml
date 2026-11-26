@@ -99,8 +99,7 @@ struct
   let name () = "def_exc"
 
 
-  let overflow_range = (-999, 999) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
-  let top_overflow () = `Excluded (S.empty (), overflow_range)
+  let top_overflow () = `Excluded (S.empty (), Size.overflow_range)
   let bot () = `Bot
   let top_of ?bitfield ik =
     match bitfield with
@@ -252,7 +251,7 @@ struct
       if x = y then `Definite x
       (* Unless one of them is zero, we can exclude it: *)
       else
-        let a,b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
+        let a,b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
         let r = R.join a b in
         `Excluded ((if Z.equal x Z.zero || Z.equal y Z.zero then S.empty () else S.singleton Z.zero), r)
     (* A known value and an exclusion set... the definite value should no
@@ -260,7 +259,7 @@ struct
     | `Excluded (s,r), `Definite x
     | `Definite x, `Excluded (s,r) ->
       if not (in_range r x) then
-        let a = Size.min_range_sign_agnostic ik x in
+        let a = Size.min_range_sign_agnostic x in
         `Excluded (S.remove x s, R.join a r)
       else
         `Excluded (S.remove x s, r)
@@ -322,7 +321,7 @@ struct
     if Z.compare x y = 0 then
       of_int ik x
     else
-      let a, b = Size.min_range_sign_agnostic ik x, Size.min_range_sign_agnostic ik y in
+      let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
       let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
@@ -361,7 +360,7 @@ struct
     | `Bot -> None
 
   let apply_range ik f r = (* apply f to the min/max of the old range r to get a new range *)
-    let rf m = (size % Size.min_for ~ik % f) (m r) in
+    let rf m = (Option.fold ~none:Size.overflow_range ~some:size % Size.min_for % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
     R.join r1 r2
 
