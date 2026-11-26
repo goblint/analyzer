@@ -133,9 +133,12 @@ struct
           match man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) with
           | `Lifted Recursive -> MustMultiplicity.increment mv m
           | `Lifted NonRec ->
-            if MustLocksetRW.mem_mval mv s then
+            if MustLocksetRW.mem_mval mv s then (
               M.error ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that is already held";
-            m
+              raise Deadcode
+            )
+            else
+              m
           | `Bot | `Top -> m
         in
         (s', m')
