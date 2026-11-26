@@ -81,6 +81,49 @@ struct
   let arbitrary () = failwith "ProjectiveCommon.arbitrary"
 end
 
+(** {2 By congruence} *)
+
+(** Buckets defined by congruence. *)
+module type Congruence =
+sig
+  type elt (** Type of elements. *)
+
+  val cong: elt -> elt -> bool (** Congruence relation on elements. *)
+end
+
+(** Elements [E.t] grouped into buckets by [C],
+    where each bucket is described by [B].
+
+    Handles {!Lattice.BotValue} from [B]. *)
+module PairwiseCommon (E: Printable.S) (B: Lattice.S) (C: Congruence with type elt = E.t) = (* TODO: E unused? *)
+struct
+  module S = SetDomain.Make (B)
+
+  (** Invariant: no explicit bot buckets.
+      Required for efficient [is_empty] and [choose]. *)
+
+  let name () = "PairwiseCommon (" ^ B.name () ^ ")"
+
+  (* explicitly delegate, so we don't accidentally delegate too much *)
+
+  type t = S.t
+  let equal = S.equal
+  let compare = S.compare
+  let hash = S.hash
+  let tag = S.tag
+  let relift = S.relift
+
+  let is_bot = S.is_bot
+  let bot = S.bot
+  let is_top = S.is_top
+  let top = S.top
+
+  let is_empty = S.is_empty
+  let empty = S.empty
+
+  let arbitrary () = failwith "PairwiseCommon.arbitrary"
+end
+
 (** {1 Sets} *)
 
 (** {2 By projection} *)
@@ -221,14 +264,6 @@ end
 
 (** {2 By congruence} *)
 
-(** Buckets defined by congruence. *)
-module type Congruence =
-sig
-  type elt (** Type of elements. *)
-
-  val cong: elt -> elt -> bool (** Congruence relation on elements. *)
-end
-
 (** Set of elements [E.t] grouped into buckets by [C],
     where each bucket is described by the set [B].
 
@@ -239,29 +274,10 @@ module PairwiseSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (C: Con
 struct
   type elt = E.t
 
-  module S = SetDomain.Make (B)
+  include PairwiseCommon (E) (B) (C)
 
-  (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty] and [choose]. *)
+  let name () = "PairwiseSet (" ^ B.name () ^ ")"
 
-  let name () = "Pairwise (" ^ B.name () ^ ")"
-
-  (* explicitly delegate, so we don't accidentally delegate too much *)
-
-  type t = S.t
-  let equal = S.equal
-  let compare = S.compare
-  let hash = S.hash
-  let tag = S.tag
-  let relift = S.relift
-
-  let is_bot = S.is_bot
-  let bot = S.bot
-  let is_top = S.is_top
-  let top = S.top
-
-  let is_empty = S.is_empty
-  let empty = S.empty
   let cardinal m = S.fold (fun b a -> a + B.cardinal b) m 0
 
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
@@ -440,8 +456,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "Pairwise.arbitrary"
 
   let filter p s = SetDomain.unsupported "Pairwise.filter"
   let partition p s = SetDomain.unsupported "Pairwise.partition"
@@ -631,29 +645,10 @@ struct
   type key = E.t
   type value = B.value
 
-  module S = SetDomain.Make (B)
-
-  (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty] and [choose]. *)
+  include PairwiseCommon (E) (B) (C)
 
   let name () = "PairwiseMap (" ^ B.name () ^ ")"
 
-  (* explicitly delegate, so we don't accidentally delegate too much *)
-
-  type t = S.t
-  let equal = S.equal
-  let compare = S.compare
-  let hash = S.hash
-  let tag = S.tag
-  let relift = S.relift
-
-  let is_bot = S.is_bot
-  let bot = S.bot
-  let is_top = S.is_top
-  let top = S.top
-
-  let is_empty = S.is_empty
-  let empty = S.empty
   let cardinal m = S.fold (fun b a -> a + B.cardinal b) m 0
 
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
@@ -868,8 +863,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "PairwiseMap.arbitrary"
 
   let filter p s = failwith "PairwiseMap.filter"
 
