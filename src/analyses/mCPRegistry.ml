@@ -95,6 +95,20 @@ sig
   val domain_list : unit -> (int * (module Lattice.S)) list
 end
 
+(* Dispatch lists are immutable. Reuse their mapped modules until the source
+   list is replaced, including when analyses are reconfigured. *)
+let cached_dispatch_map f source =
+  let previous = ref [] in
+  let mapped = ref [] in
+  fun () ->
+    let current = source () in
+    if current != !previous then begin
+      let result = List.map f current in
+      previous := current;
+      mapped := result
+    end;
+    !mapped
+
 module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpec =
 struct
   let assoc_dom n =
@@ -102,9 +116,9 @@ struct
     in
     f (D.assoc_dom n)
 
-  let domain_list () =
+  let domain_list =
     let f (module L:Lattice.S) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    cached_dispatch_map (fun (x,y) -> (x,f y)) D.domain_list
 end
 
 module PrintableOfRepresentativeSpec (D:DomainListRepresentativeSpec) : DomainListPrintableSpec =
@@ -114,9 +128,9 @@ struct
     in
     f (D.assoc_dom n)
 
-  let domain_list () =
+  let domain_list =
     let f (module L:DisjointDomain.Representative) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    cached_dispatch_map (fun (x,y) -> (x,f y)) D.domain_list
 end
 
 module PrintableOfMCPASpec (D:DomainListMCPASpec) : DomainListPrintableSpec =
@@ -126,9 +140,9 @@ struct
     in
     f (D.assoc_dom n)
 
-  let domain_list () =
+  let domain_list =
     let f (module L:MCPA) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    cached_dispatch_map (fun (x,y) -> (x,f y)) D.domain_list
 end
 
 module PrintableOfSysVarSpec (D:DomainListSysVarSpec) : DomainListPrintableSpec =
@@ -138,9 +152,9 @@ struct
     in
     f (D.assoc_dom n)
 
-  let domain_list () =
+  let domain_list =
     let f (module L:SpecSysVar) = (module L : Printable.S) in
-    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+    cached_dispatch_map (fun (x,y) -> (x,f y)) D.domain_list
 end
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
@@ -317,13 +331,13 @@ struct
 end
 
 module DomListRepresentative (DLSpec : DomainListRepresentativeSpec)
-  : DisjointDomain.Representative with type t = (int * Obj.t) list and type elt = (int * Obj.t) list
+  : DisjointDomain.Representative with type elt = (int * Obj.t) list
 =
 struct
   open DLSpec
   open List
 
-  include DomListPrintable (PrintableOfRepresentativeSpec (DLSpec))
+  include Printable.HashCached (DomListPrintable (PrintableOfRepresentativeSpec (DLSpec)))
   let name () = "MCP.P"
 
   type elt = (int * Obj.t) list
@@ -339,7 +353,7 @@ struct
         aux xs' ss acc
       | [], _ :: _ -> invalid_arg "DomListRepresentative.of_elt"
     in
-    List.rev (aux xs (domain_list ()) [])
+    lift (List.rev (aux xs (domain_list ()) []))
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
@@ -432,35 +446,35 @@ end
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (find_spec n).dom
-  let domain_list () = List.map (fun (n,p) -> n, p.dom) !activated
+  let domain_list = cached_dispatch_map (fun (n,p) -> n, p.dom) (fun () -> !activated)
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (find_spec n).glob
-  let domain_list () = List.map (fun (n,p) -> n, p.glob) !activated
+  let domain_list = cached_dispatch_map (fun (n,p) -> n, p.glob) (fun () -> !activated)
 end
 
 module ContextListSpec : DomainListPrintableSpec =
 struct
   let assoc_dom n = (find_spec n).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_context_sens
+  let domain_list = cached_dispatch_map (fun (n,p) -> n, p.cont) (fun () -> !activated_context_sens)
 end
 
 module VarListSpec : DomainListSysVarSpec =
 struct
   let assoc_dom n = (find_spec n).var
-  let domain_list () = List.map (fun (n,p) -> n, p.var) !activated
+  let domain_list = cached_dispatch_map (fun (n,p) -> n, p.var) (fun () -> !activated)
 end
 
 module AccListSpec : DomainListMCPASpec =
 struct
   let assoc_dom n = (find_spec n).acc
-  let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
+  let domain_list = cached_dispatch_map (fun (n,p) -> n, p.acc) (fun () -> !activated)
 end
 
 module PathListSpec : DomainListRepresentativeSpec =
 struct
   let assoc_dom n = (find_spec n).path
-  let domain_list () = List.map (fun (n,p) -> n, p.path) !activated_path_sens
+  let domain_list = cached_dispatch_map (fun (n,p) -> n, p.path) (fun () -> !activated_path_sens)
 end

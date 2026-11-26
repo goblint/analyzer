@@ -634,7 +634,7 @@ struct
       type elt = Spec.D.t
     end
     module J = SetDomain.Joined (Spec.D)
-    include DisjointDomain.ProjectiveSet (Spec.D) (J) (R)
+    include DisjointDomain.PatriciaProjectiveSet (Spec.D) (J) (R)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let printXml f x =
