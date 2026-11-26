@@ -78,6 +78,16 @@ struct
           Some b'
       ) m1 m2
 
+  let difference f m1 m2 = M.difference (fun b1 b2 ->
+      match f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+
   let arbitrary () = failwith "ProjectiveCommon.arbitrary"
 end
 
@@ -289,16 +299,7 @@ struct
           M.add r b' m
       end
     | None -> m
-  let diff m1 m2 =
-    M.difference (fun b1 b2 ->
-        match B.diff b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
+  let diff m1 m2 = difference B.diff m1 m2
 
   let of_list es = List.fold_left (fun acc e ->
       add e acc
@@ -620,15 +621,7 @@ struct
       | b' ->
         Some b'
     ) m1 m2
-  let difference f m1 m2 = M.difference (fun b1 b2 ->
-      match B.difference f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
-    ) m1 m2
+  let difference f m1 m2 = difference (B.difference f) m1 m2
 
   include MapDomain.Print (E) (V) (
     struct
