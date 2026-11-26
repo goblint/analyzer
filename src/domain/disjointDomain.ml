@@ -57,26 +57,18 @@ struct
 
   let widen = M.widen
 
-  let meet m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.meet b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-  let narrow m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.narrow b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
+  let nonidempotent_inter_filter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
+      match f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+
+  let meet m1 m2 = nonidempotent_inter_filter B.meet m1 m2 (* TODO: idempotent_inter_filter if not using int domain refinement *)
+  let narrow m1 m2 = nonidempotent_inter_filter B.narrow m1 m2 (* TODO: idempotent_inter_filter if not using int domain refinement *)
 
   let difference f m1 m2 = M.difference (fun b1 b2 ->
       match f b1 b2 with
@@ -596,15 +588,7 @@ struct
       | b' ->
         Some b'
     ) m1 m2
-  let nonidempotent_inter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
-      match B.nonidempotent_inter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
-    ) m1 m2
+  let nonidempotent_inter f m1 m2 = nonidempotent_inter_filter (B.nonidempotent_inter f) m1 m2
   let idempotent_inter_filter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
       match B.idempotent_inter_filter f b1 b2 with
       | b' when B.is_bot b' ->
@@ -614,15 +598,7 @@ struct
       | b' ->
         Some b'
     ) m1 m2
-  let nonidempotent_inter_filter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
-      match B.nonidempotent_inter_filter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
-    ) m1 m2
+  let nonidempotent_inter_filter f m1 m2 = nonidempotent_inter_filter (B.nonidempotent_inter_filter f) m1 m2
   let difference f m1 m2 = difference (B.difference f) m1 m2
 
   include MapDomain.Print (E) (V) (
