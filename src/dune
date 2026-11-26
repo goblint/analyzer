@@ -47,6 +47,18 @@
       (apron -> linearTwoVarEqualityDomain.apron.ml)
       (-> linearTwoVarEqualityDomain.no-apron.ml)
     )
+        (select subPolyhedraAnalysis.ml from
+      (apron -> subPolyhedraAnalysis.apron.ml)
+      (-> subPolyhedraAnalysis.no-apron.ml)
+    )
+    (select subPolyhedraCore.ml from
+      (apron -> subPolyhedraCore.apron.ml)
+      (-> subPolyhedraCore.no-apron.ml)
+    )
+    (select subPolyhedraDomain.ml from
+      (apron -> subPolyhedraDomain.apron.ml)
+      (-> subPolyhedraDomain.no-apron.ml)
+    )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
       (-> relationAnalysis.no-apron.ml)
@@ -84,6 +96,8 @@
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
 (copy_files# cdomains/apron/*.ml)
 (copy_files# analyses/apron/*.ml)
+(copy_files# cdomains/apron/subpoly/*.ml)
+(copy_files# cdomains/apron/subpoly/intervals/*.ml)
 (copy_files# util/apron/*.ml)
 (copy_files# arg/z3/*.ml)
 

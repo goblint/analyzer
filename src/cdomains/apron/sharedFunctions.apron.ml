@@ -122,7 +122,15 @@ struct
           match ask.f (EvalInt e) with
           | `Bot  (* This happens when called on a pointer type; -> we can safely return top *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
-          | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
+          | `Lifted x when IntDomain.IntDomTuple.is_bot x -> IntDomain.IntDomTuple.top_of ik
+          | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *)
+          (* These queries are speculative simplifications, not evaluations of
+             program statements. An empty intermediate value (e.g. after
+             signed overflow under assume_none) may make a nested operation
+             raise. Treat it as unavailable information and fall back to
+             symbolic conversion, including its usual overflow checks. *)
+          | exception IntDomain.ArithmeticOnIntegerBot _ -> IntDomain.IntDomTuple.top_of ik
+        in
         if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
         res
       in
