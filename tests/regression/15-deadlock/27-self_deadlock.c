@@ -1,6 +1,8 @@
-// PARAM: --set ana.activated[+] deadlock
+// PARAM: --set ana.activated[+] deadlock --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <stdio.h>
+
+extern _Bool __VERIFIER_nondet_bool();
 
 int g1, g2;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -8,7 +10,8 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex1); // DEADLOCK
-  pthread_mutex_lock(&mutex1); // DEADLOCK
+  if (__VERIFIER_nondet_bool())
+    pthread_mutex_lock(&mutex1); // DEADLOCK
   g1 = g2 + 1;
   pthread_mutex_unlock(&mutex1);
   pthread_mutex_unlock(&mutex1);
@@ -17,7 +20,8 @@ void *t1(void *arg) {
 
 void *t2(void *arg) {
   pthread_mutex_lock(&mutex2); // DEADLOCK
-  pthread_mutex_lock(&mutex2); // DEADLOCK
+  if (__VERIFIER_nondet_bool())
+    pthread_mutex_lock(&mutex2); // DEADLOCK
   g2 = g1 + 1;
   pthread_mutex_unlock(&mutex2);
   pthread_mutex_unlock(&mutex2);
