@@ -593,10 +593,17 @@ struct
         | `Top -> ID.top_of ik
       else
         match eval_interval_expr ask d e no_ov with
-        | Some (Some min, Some max) -> ID.of_interval ~suppress_ovwarn:true ik (min, max)
-        | Some (Some min, None) -> ID.starting ~suppress_ovwarn:true ik min
-        | Some (None, Some max) -> ID.ending ~suppress_ovwarn:true ik max
-        | Some (None, None) -> ID.top_of ik
+        | Some (min, max) ->
+          (* Apron bounds may exceed the C type range, e.g. due to outward
+             floating-point rounding. Intersect before constructing the integer
+             value so finite and infinite bounds are converted consistently. *)
+          let type_min, type_max = IntDomain.Size.range ik in
+          let min = Option.fold ~none:type_min ~some:(Z.max type_min) min in
+          let max = Option.fold ~none:type_max ~some:(Z.min type_max) max in
+          if Z.gt min max then
+            ID.bot_of ik
+          else
+            ID.of_interval ~suppress_ovwarn:true ik (min, max)
         | None -> ID.bot_of ik
 
 end
