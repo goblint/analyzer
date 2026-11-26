@@ -6,7 +6,7 @@
 
     Examples of such domains are path-sensitivity and address sets. *)
 
-(** {1 Sets} *)
+(** {1 Common} *)
 
 (** {2 By projection} *)
 
@@ -21,27 +21,18 @@ sig
   val of_elt: elt -> t (** Projection function. *)
 end
 
-(** Set of elements [E.t] grouped into buckets by [R],
-    where each bucket is described by the set [B].
-
-    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
+(** Elements [E.t] grouped into buckets by [R],
+    where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t):
-sig
-  include SetDomain.S with type elt = E.t
-  val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
-end
-=
+module ProjectiveCommon (E: Printable.S) (B: Lattice.S) (R: Representative with type elt = E.t) = (* TODO: E is unused *)
 struct
-  type elt = E.t
-
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
       Required for efficient [is_empty] and [choose]. *)
 
-  let name () = "ProjectiveSet (" ^ B.name () ^ ")"
+  let name () = "ProjectiveCommon (" ^ B.name () ^ ")"
 
   (* explicitly delegate, so we don't accidentally delegate too much *)
 
@@ -59,11 +50,61 @@ struct
 
   let is_empty = M.is_empty
   let empty = M.empty
-  let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
 
   let leq = M.leq
   let join = M.join
   let pretty_diff = M.pretty_diff
+
+  let widen = M.widen
+
+  let meet m1 m2 =
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.meet b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
+      ) m1 m2
+  let narrow m1 m2 =
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.narrow b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
+      ) m1 m2
+
+  let arbitrary () = failwith "ProjectiveCommon.arbitrary"
+end
+
+(** {1 Sets} *)
+
+(** {2 By projection} *)
+
+(** Set of elements [E.t] grouped into buckets by [R],
+    where each bucket is described by the set [B].
+
+    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
+
+    Handles {!Lattice.BotValue} from [B]. *)
+module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t):
+sig
+  include SetDomain.S with type elt = E.t
+  val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
+end
+=
+struct
+  type elt = E.t
+
+  include ProjectiveCommon (E) (B) (R)
+
+  let name () = "ProjectiveSet (" ^ B.name () ^ ")"
+
+  let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
 
   let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
   let iter f m = M.iter (fun _ e -> B.iter f e) m
@@ -117,29 +158,6 @@ struct
       add (f e) acc
     ) m (empty ()) (* no intermediate lists *)
 
-  let widen = M.widen
-
-  let meet m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.meet b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-  let narrow m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.narrow b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-
   let union = join
   let inter = meet
   let subset = leq
@@ -152,8 +170,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "Projective.arbitrary"
 
   let filter p m = SetDomain.unsupported "Projective.filter"
   let partition p m = SetDomain.unsupported "Projective.partition"
@@ -466,34 +482,11 @@ struct
   type key = E.t
   type value = B.value
 
-  module M = MapDomain.MapBot (R) (B)
-
-  (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty] and [choose]. *)
+  include ProjectiveCommon (E) (B) (R)
 
   let name () = "ProjectiveMap (" ^ B.name () ^ ")"
 
-  (* explicitly delegate, so we don't accidentally delegate too much *)
-
-  type t = M.t
-  let equal = M.equal
-  let compare = M.compare
-  let hash = M.hash
-  let tag = M.tag
-  let relift = M.relift
-
-  let is_bot = M.is_bot
-  let bot = M.bot
-  let is_top = M.is_top
-  let top = M.top
-
-  let is_empty = M.is_empty
-  let empty = M.empty
   let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
-
-  let leq = M.leq
-  let join = M.join
-  let pretty_diff = M.pretty_diff
 
   let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
   let iter f m = M.iter (fun _ e -> B.iter f e) m
@@ -607,29 +600,6 @@ struct
         Some b'
     ) m1 m2
 
-  let widen = M.widen
-
-  let meet m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.meet b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-  let narrow m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.narrow b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-
   include MapDomain.Print (E) (V) (
     struct
       type nonrec t = t
@@ -639,8 +609,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "ProjectiveMap.arbitrary"
 
   let filter p m = failwith "ProjectiveMap.filter"
 
