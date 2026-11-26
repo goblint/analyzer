@@ -23,6 +23,7 @@ let loopCount file =
 
 
 let createCFG (fileAST: file) =
+  LoopUnrolling.reset_copyof ();
   Cilfacade.do_preprocess fileAST;
   (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
   (* needs to be in its own block. end_basic_blocks does that.                                                        *)
@@ -40,13 +41,19 @@ let createCFG (fileAST: file) =
 
   let loops = loopCount fileAST in
 
-  iterGlobals fileAST (fun glob ->
+  let relationships = foldGlobals fileAST (fun relationships glob ->
       match glob with
       | GFun(fd,_) ->
         (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd loops;
+        let copies =
+          if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then
+            LoopUnrolling.unroll_loops fd loops
+          else []
+        in
         prepareCFG fd;
-        computeCFGInfo fd true
-      | _ -> ()
-    );
+        computeCFGInfo fd true;
+        List.rev_append copies relationships
+      | _ -> relationships
+    ) [] in
+  LoopUnrolling.rebuild_copyof relationships;
   if get_bool "dbg.run_cil_check" then assert (Check.checkFile [] fileAST);

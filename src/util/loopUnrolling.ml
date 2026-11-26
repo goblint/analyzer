@@ -410,7 +410,7 @@ include LoopUnrolling0
   Also assigns fresh names to all labels and patches gotos for labels appearing in the current
   fragment to their new name
 *)
-class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
+class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos, record_copy) = object
   inherit nopCilVisitor
 
   val mutable loopNestingDepth = 0
@@ -421,7 +421,7 @@ class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
       let new_labels = List.map (function Label(str,loc,b) -> Label (Cil.freshLabel str,loc,b) | x -> x) sn.labels in
       (* this makes new physical copy*)
       let new_s = {sn with labels = new_labels} in
-      CopyOfHashTable.replace copyof new_s s;
+      record_copy new_s s;
       if M.tracing then M.trace "cfg" "Marking %a as copy of %a" CilType.Stmt.pretty new_s CilType.Stmt.pretty s;
       if new_s.labels <> [] then
         (* Use original s, ns might be temporay e.g. if the type of statement changed *)
@@ -447,16 +447,16 @@ class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
     | _ -> ChangeDoChildrenPost(rename_labels s, after)
 end
 
-let copy_and_patch_labels break_target current_continue_target stmts =
+let copy_and_patch_labels record_copy break_target current_continue_target stmts =
   let gotos = StatementHashTable.create 20 in
-  let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target, gotos) in
+  let patcher = new copyandPatchLabelsVisitor (break_target, current_continue_target, gotos, record_copy) in
   let stmts' = List.map (visitCilStmt patcher) stmts in
   (* the labels can only be patched once the entire part of the AST we want has been transformed, and *)
   (* we know all lables appear in the hash table *)
   let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
   List.map (visitCilStmt patchLabelsVisitor) stmts'
 
-class loopUnrollingVisitor (func, totalLoops) = object
+class loopUnrollingVisitor (func, totalLoops, record_copy) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
   inherit nopCilVisitor
 
@@ -476,7 +476,7 @@ class loopUnrollingVisitor (func, totalLoops) = object
           let copies = List.init factor (fun i ->
               (* continues should go to the next unrolling *)
               let current_continue_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
-              let one_copy_stmts = copy_and_patch_labels break_target current_continue_target b.bstmts in
+              let one_copy_stmts = copy_and_patch_labels record_copy break_target current_continue_target b.bstmts in
               one_copy_stmts @ [current_continue_target]
             )
           in
@@ -491,8 +491,15 @@ class loopUnrollingVisitor (func, totalLoops) = object
 end
 
 let unroll_loops fd totalLoops =
+  (* Visitor callbacks collect provenance locally without hashing statements
+     before CFG numbering. Preserve immediate copies, including nested chains. *)
+  let relationships = ref [] in
+  let record_copy copy original =
+    relationships := (copy, original) :: !relationships
+  in
   if not (Cil.hasAttribute "goblint_stub" fd.svar.vattr) then (
     Cil.populateLabelAlphaTable fd;
-    let thisVisitor = new loopUnrollingVisitor(fd, totalLoops) in
+    let thisVisitor = new loopUnrollingVisitor(fd, totalLoops, record_copy) in
     ignore (visitCilFunction thisVisitor fd)
-  )
+  );
+  !relationships
