@@ -134,7 +134,21 @@ end
     where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module PairwiseCommon (E: Printable.S) (B: PairwiseBucket with type elt = E.t) (C: Congruence with type elt = E.t) = (* TODO: E unused? *)
+module PairwiseCommon (E: Printable.S) (B: PairwiseBucket with type elt = E.t) (C: Congruence with type elt = E.t):
+sig
+  module S: SetDomain.S with type elt = B.t
+
+  include Printable.Identity with type t = S.t
+  include Lattice.Ops with type t := t
+  include Lattice.Bot with type t := t
+  include Lattice.Top with type t := t
+  include MapDomain.MergeOps with type t := t and type value := B.t
+
+  val empty: unit -> t
+  val is_empty: t -> bool
+
+  val difference: (B.t -> B.t -> B.t) -> t -> t -> t
+end = (* TODO: E unused? *)
 struct
   module S = SetDomain.Make (B)
 
