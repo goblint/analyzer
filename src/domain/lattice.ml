@@ -25,6 +25,9 @@ sig
   val widen: t -> t -> t (** [widen x y] {e cannot} assume [leq x y]. *)
 
   val narrow: t -> t -> t
+
+  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
+  val pretty_diff: unit -> (t * t) -> Pretty.doc
 end
 
 (* Partial order. *)
@@ -32,9 +35,6 @@ module type PO =
 sig
   include Printable.S
   include Ops with type t := t
-
-  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
-  val pretty_diff: unit -> (t * t) -> Pretty.doc
 end
 
 module type Bot =
