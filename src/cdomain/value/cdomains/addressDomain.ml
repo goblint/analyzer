@@ -173,7 +173,7 @@ struct
     include SetDomain.Joined (Addr)
     let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
   end
-  module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.UnitOffsetRepr)
+  module OffsetSplit = SensitiveDomain.ProjectiveSet (Addr) (J) (Addr.UnitOffsetRepr)
 
   (* module H = HoareDomain.SetEM (Addr) *)
   (* Hoare set for bucket doesn't play well with StrPtr limiting:

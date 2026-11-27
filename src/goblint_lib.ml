@@ -229,6 +229,7 @@ module SetDomain = SetDomain
 module MapDomain = MapDomain
 module TrieDomain = TrieDomain
 module DisjointDomain = DisjointDomain
+module SensitiveDomain = SensitiveDomain
 module HoareDomain = HoareDomain
 module PartitionDomain = PartitionDomain
 module FlagHelper = FlagHelper

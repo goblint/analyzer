@@ -15,6 +15,7 @@ SetDomain
 MapDomain
 TrieDomain
 DisjointDomain
+SensitiveDomain
 HoareDomain
 PartitionDomain
 FlagHelper
