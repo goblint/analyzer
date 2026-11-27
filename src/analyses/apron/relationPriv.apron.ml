@@ -720,23 +720,10 @@ struct
     | `Left m' -> (* mutex *)
       let atomic = LockDomain.MustLock.equal m' (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
-        (* filters like query_invariant *)
-        let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
-        let exact = GobConfig.get_bool "witness.invariant.exact" in
-
         let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv =
-          RD.invariant rel
-          |> List.to_seq
-          |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
-              (* filter one-vars and exact *)
-              (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
-              if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
-                RD.cil_exp_of_lincons1 lincons1
-                |> Option.filter (InvariantCil.exp_is_suitable ?scope:None)
-              else
-                None
-            )
+          RelationCil.invariant_exps ~to_varinfo:AV.to_cil_varinfo ~pretty_var:AV.pretty RD.invariant_constraints rel
+          |> Seq.filter (InvariantCil.exp_is_suitable ?scope:None)
           |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
         in
         if atomic then

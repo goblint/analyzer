@@ -815,8 +815,6 @@ struct
     in
     BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
-  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
-
   let env t = t.env
 
   type marshal = t
@@ -835,4 +833,5 @@ struct
   end
   include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
   include D
+  let invariant_constraints = SharedFunctions.ConstraintOfApron.invariant_constraints D.invariant
 end

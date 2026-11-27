@@ -282,6 +282,7 @@ module ValueDomainQueries = ValueDomainQueries
     Domains for {!RelationAnalysis}. *)
 
 module RelationDomain = RelationDomain
+module LinearConstraint = LinearConstraint
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module AffineEqualityDenseDomain = AffineEqualityDenseDomain
