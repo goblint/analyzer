@@ -2217,7 +2217,7 @@ struct
     (* List of reachable variables *)
     let reachable = AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
-    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+    let new_cpa = CPA.add_seq (List.to_seq reachable |> Seq.map (fun v -> (v, CPA.find v st.cpa))) new_cpa in (* TODO: is this some kind of Map merge? *)
 
     (* Projection to Precision of the Callee *)
     let p = PU.int_precision_from_fundec fundec in

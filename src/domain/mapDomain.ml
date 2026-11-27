@@ -24,7 +24,6 @@ sig
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
   val add_seq: (key * value) Seq.t -> t -> t
-  val add_list_fun: key list -> (key -> value) -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
   val reflexive_subset_domain_for_all2: (value -> value -> bool) -> t -> t -> bool
@@ -275,9 +274,6 @@ struct
   let add_seq keyvalues m =
     Seq.fold_left (fun acc (key,value) -> add key value acc) m keyvalues
 
-  let add_list_fun keys f m =
-    List.fold_left (fun acc key -> add key (f key) acc) m keys
-
   include Print (Domain) (Range) (
     struct
       type nonrec t = t
@@ -331,8 +327,6 @@ struct
 
 
   let add_seq keyvalues = lift_f' (M.add_seq keyvalues)
-
-  let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
   let idempotent_union op = lift_f2' (M.idempotent_union op)
   let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
@@ -388,8 +382,6 @@ struct
 
 
   let add_seq keyvalues = lift_f' (M.add_seq keyvalues)
-
-  let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
   let idempotent_union op = lift_f2' (M.idempotent_union op)
   let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
@@ -466,7 +458,6 @@ struct
 
 
   let add_seq xs x = time "add_seq" (M.add_seq xs) x
-  let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
 
   let idempotent_union f x y = time "idempotent_union" (M.idempotent_union f x) y
   let nonidempotent_union f x y = time "nonidempotent_union" (M.nonidempotent_union f x) y
@@ -616,10 +607,6 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_seq xs x)
 
-  let add_list_fun ks f = function
-    | `Top -> `Top
-    | `Lifted x -> `Lifted (M.add_list_fun ks f x)
-
   let idempotent_inter f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter f x y)
@@ -768,10 +755,6 @@ struct
   let add_seq xs = function
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_seq xs x)
-
-  let add_list_fun ks f = function
-    | `Bot -> `Bot
-    | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
   let idempotent_inter f x y =
     match x, y with
@@ -977,9 +960,6 @@ struct
   let add_seq ers m = Seq.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
-  let add_list_fun es f m = List.fold_left (fun acc e ->
-      add e (f e) acc
-    ) m es
 
   let reflexive_subset_domain_for_all2 _ _ _ = failwith "MapDomain.Joined.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "MapDomain.Joined.leq_with_fct"

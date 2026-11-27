@@ -924,7 +924,7 @@ struct
     let oct_side_cluster gs =
       RD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
-    (LRD.add_list_fun clusters oct_side_cluster (LRD.empty ()), clusters)
+    (LRD.add_seq (List.to_seq clusters |> Seq.map (fun gs -> (gs, oct_side_cluster gs))) (LRD.empty ()), clusters)
 
   let filter_clusters f oct =
     LRD.filter (fun gs _ -> f gs) oct

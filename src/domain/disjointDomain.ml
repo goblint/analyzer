@@ -541,9 +541,6 @@ struct
   let add_seq evs m = Seq.fold_left (fun acc (e, v) ->
       add e v acc
     ) m evs
-  let add_list_fun es f m = List.fold_left (fun acc e ->
-      add e (f e) acc
-    ) m es
   let bindings m = fold (fun e v acc -> (e, v) :: acc) m [] (* no intermediate per-bucket lists *)
 
   let map f m = M.map (fun b ->
@@ -736,9 +733,6 @@ struct
   let add_seq ers m = Seq.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
-  let add_list_fun es f m = List.fold_left (fun acc e ->
-      add e (f e) acc
-    ) m es
   let bindings m = fold (fun e r acc -> (e, r) :: acc) m [] (* no intermediate per-bucket lists *)
 
   let map f m = S.map (fun b ->

@@ -100,17 +100,6 @@ struct
     assert_equal "41" (M.find "3" !map);
     assert_equal "51" (M.find "4" !map)
 
-  let test_add_list_fun _ =
-    let map = ref (get_empty ()) in
-    let fun1 k = k^"1" in
-    let keys = ["1";"2";"3";"4"] in
-    map := M.add_list_fun keys fun1 !map;
-    assert_equal "11" (M.find "1" !map);
-    assert_equal "21" (M.find "2" !map);
-    assert_equal "31" (M.find "3" !map);
-    assert_equal "41" (M.find "4" !map)
-
-
   let test_for_all _ =
     let map = ref (get_empty ()) in
     let values = ["1","1";"2","2";"3","3";"4","4"] in
@@ -152,7 +141,6 @@ struct
       "test_iter"            >:: test_iter;
       "test_fold"            >:: test_fold;
       "test_map"             >:: test_map;
-      "test_add_list_fun"    >:: test_add_list_fun;
       "test_for_all"         >:: test_for_all;
       "test_nonidempotent_inter" >:: test_nonidempotent_inter;
       "test_nonidempotent_union" >:: test_nonidempotent_union;
