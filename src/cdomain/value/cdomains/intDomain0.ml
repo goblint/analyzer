@@ -297,7 +297,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   open Cil
   let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
-  let min_for ~ik x = Option.value ~default:ik (intKindForValue x (sign x = `Unsigned))
+  let min_for x = intKindForValue x (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -336,16 +336,18 @@ module Size = struct (* size in bits as int, range as int64 *)
       if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
+  let overflow_range = (-999, 999) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+
   (** @return Bit range always includes 0. *)
-  let min_range_sign_agnostic ik x =
+  let min_range_sign_agnostic x =
     let size ik =
       let a,b = bits ik in
       -a,b
     in
     if sign x = `Signed then
-      size (min_for ~ik x)
+      Option.fold ~none:overflow_range ~some:size (min_for x)
     else
-      let a, b = size (min_for ~ik x) in
+      let a, b = Option.fold ~none:overflow_range ~some:size (min_for x) in
       let upper_bound_less = b - 1 in
       let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
       if x <= max_one_less then
