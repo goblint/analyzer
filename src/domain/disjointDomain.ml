@@ -25,7 +25,21 @@ end
     where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveCommon (E: Printable.S) (B: Lattice.S) (R: Representative with type elt = E.t) = (* TODO: E is unused *)
+module ProjectiveCommon (E: Printable.S) (B: Lattice.S) (R: Representative with type elt = E.t):
+sig
+  module M: MapDomain.S with type key = R.t and type value = B.t
+
+  include Printable.Identity with type t = M.t
+  include Lattice.Ops with type t := t
+  include Lattice.Bot with type t := t
+  include Lattice.Top with type t := t
+  include MapDomain.MergeOps with type t := t and type value := B.t
+
+  val empty: unit -> t
+  val is_empty: t -> bool
+
+  val difference: (B.t -> B.t -> B.t) -> t -> t -> t
+end = (* TODO: E is unused *)
 struct
   module M = MapDomain.MapBot (R) (B)
 
