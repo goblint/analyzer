@@ -13,6 +13,14 @@ module LatticeDriver = Lattice.Fake (PrintableDriver)
 
 module TestMap (M:MapDomain.S with type key = string and type value = string) =
 struct
+  module M =
+  struct
+    include M
+
+    (* For testing convenience. *)
+    let add_list l m = add_seq (List.to_seq l) m
+  end
+
   let is_empty_top = ref true
 
   let get_empty () =
@@ -92,25 +100,6 @@ struct
     assert_equal "41" (M.find "3" !map);
     assert_equal "51" (M.find "4" !map)
 
-  let test_add_list_set _ =
-    let map = ref (get_empty ()) in
-    let keys = ["1";"2";"3"] in
-    map := M.add_list_set keys "v" !map;
-    assert_equal "v" (M.find "1" !map);
-    assert_equal "v" (M.find "2" !map);
-    assert_equal "v" (M.find "3" !map)
-
-  let test_add_list_fun _ =
-    let map = ref (get_empty ()) in
-    let fun1 k = k^"1" in
-    let keys = ["1";"2";"3";"4"] in
-    map := M.add_list_fun keys fun1 !map;
-    assert_equal "11" (M.find "1" !map);
-    assert_equal "21" (M.find "2" !map);
-    assert_equal "31" (M.find "3" !map);
-    assert_equal "41" (M.find "4" !map)
-
-
   let test_for_all _ =
     let map = ref (get_empty ()) in
     let values = ["1","1";"2","2";"3","3";"4","4"] in
@@ -152,8 +141,6 @@ struct
       "test_iter"            >:: test_iter;
       "test_fold"            >:: test_fold;
       "test_map"             >:: test_map;
-      "test_add_list_set"    >:: test_add_list_set;
-      "test_add_list_fun"    >:: test_add_list_fun;
       "test_for_all"         >:: test_for_all;
       "test_nonidempotent_inter" >:: test_nonidempotent_inter;
       "test_nonidempotent_union" >:: test_nonidempotent_union;
@@ -178,8 +165,8 @@ let test_Mbot_join_meet _ =
   let bot    = Mbot.bot () in (* bot is empty *)
   let mone   = Mbot.add "1" "1" bot in
   let mtwo   = Mbot.add "2" "2" bot in
-  let m12    = Mbot.add_list ["1","1";"2","2"] bot in
-  let m21    = Mbot.add_list ["2","2";"1","1"] bot in
+  let m12    = Mbot.add_seq (List.to_seq ["1","1";"2","2"]) bot in
+  let m21    = Mbot.add_seq (List.to_seq ["2","2";"1","1"]) bot in
   assert_eq bot    bot;
   assert_eq mone   mone;
   assert_eq mtwo   mtwo;
@@ -214,8 +201,8 @@ let test_Mtop_join_meet _ =
   let top    = Mtop.top () in (* bot is empty *)
   let mone   = Mtop.add "1" "1" top in
   let mtwo   = Mtop.add "2" "2" top in
-  let m12    = Mtop.add_list ["1","1";"2","2"] top in
-  let m21    = Mtop.add_list ["2","2";"1","1"] top in
+  let m12    = Mtop.add_seq (List.to_seq ["1","1";"2","2"]) top in
+  let m21    = Mtop.add_seq (List.to_seq ["2","2";"1","1"]) top in
   assert_eq top    top;
   assert_eq mone   mone;
   assert_eq mtwo   mtwo;
