@@ -24,7 +24,6 @@ sig
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
   val add_seq: (key * value) Seq.t -> t -> t
-  val add_list_set: key list -> value -> t -> t
   val add_list_fun: key list -> (key -> value) -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
@@ -276,9 +275,6 @@ struct
   let add_seq keyvalues m =
     Seq.fold_left (fun acc (key,value) -> add key value acc) m keyvalues
 
-  let add_list_set keys value m =
-    List.fold_left (fun acc key -> add key value acc) m keys
-
   let add_list_fun keys f m =
     List.fold_left (fun acc key -> add key (f key) acc) m keys
 
@@ -336,8 +332,6 @@ struct
 
   let add_seq keyvalues = lift_f' (M.add_seq keyvalues)
 
-  let add_list_set keys value = lift_f' (M.add_list_set keys value)
-
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
   let idempotent_union op = lift_f2' (M.idempotent_union op)
@@ -394,8 +388,6 @@ struct
 
 
   let add_seq keyvalues = lift_f' (M.add_seq keyvalues)
-
-  let add_list_set keys value = lift_f' (M.add_list_set keys value)
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
@@ -474,7 +466,6 @@ struct
 
 
   let add_seq xs x = time "add_seq" (M.add_seq xs) x
-  let add_list_set ks v x = time "add_list_set" (M.add_list_set ks v) x
   let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
 
   let idempotent_union f x y = time "idempotent_union" (M.idempotent_union f x) y
@@ -624,10 +615,6 @@ struct
   let add_seq xs = function
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_seq xs x)
-
-  let add_list_set ks v = function
-    | `Top -> `Top
-    | `Lifted x -> `Lifted (M.add_list_set ks v x)
 
   let add_list_fun ks f = function
     | `Top -> `Top
@@ -781,10 +768,6 @@ struct
   let add_seq xs = function
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_seq xs x)
-
-  let add_list_set ks v = function
-    | `Bot -> `Bot
-    | `Lifted x -> `Lifted (M.add_list_set ks v x)
 
   let add_list_fun ks f = function
     | `Bot -> `Bot
@@ -994,9 +977,6 @@ struct
   let add_seq ers m = Seq.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
-  let add_list_set es r m = List.fold_left (fun acc e ->
-      add e r acc
-    ) m es
   let add_list_fun es f m = List.fold_left (fun acc e ->
       add e (f e) acc
     ) m es

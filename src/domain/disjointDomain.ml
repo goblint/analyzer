@@ -541,9 +541,6 @@ struct
   let add_seq evs m = Seq.fold_left (fun acc (e, v) ->
       add e v acc
     ) m evs
-  let add_list_set es v m = List.fold_left (fun acc e ->
-      add e v acc
-    ) m es
   let add_list_fun es f m = List.fold_left (fun acc e ->
       add e (f e) acc
     ) m es
@@ -739,9 +736,6 @@ struct
   let add_seq ers m = Seq.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
-  let add_list_set es r m = List.fold_left (fun acc e ->
-      add e r acc
-    ) m es
   let add_list_fun es f m = List.fold_left (fun acc e ->
       add e (f e) acc
     ) m es

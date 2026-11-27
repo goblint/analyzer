@@ -80,6 +80,9 @@ module RegMap =
 struct
   include MapDomain.MapBot (VF) (RS)
   let name () = "regmap"
+
+  let add_list_set ks v m =
+    add_seq (List.to_seq ks |> Seq.map (fun k -> (k, v))) m
 end
 
 module Reg =
