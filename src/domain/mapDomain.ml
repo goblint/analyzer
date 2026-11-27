@@ -23,7 +23,7 @@ sig
   val mapi: (key -> value -> value) -> t -> t
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
-  val add_list: (key * value) list -> t -> t
+  val add_seq: (key * value) Seq.t -> t -> t
   val add_list_set: key list -> value -> t -> t
   val add_list_fun: key list -> (key -> value) -> t -> t
 
@@ -273,8 +273,8 @@ struct
   let empty () = M.empty
 
 
-  let add_list keyvalues m =
-    List.fold_left (fun acc (key,value) -> add key value acc) m keyvalues
+  let add_seq keyvalues m =
+    Seq.fold_left (fun acc (key,value) -> add key value acc) m keyvalues
 
   let add_list_set keys value m =
     List.fold_left (fun acc key -> add key value acc) m keys
@@ -334,7 +334,7 @@ struct
   let bindings = lift_f M.bindings
 
 
-  let add_list keyvalues = lift_f' (M.add_list keyvalues)
+  let add_seq keyvalues = lift_f' (M.add_seq keyvalues)
 
   let add_list_set keys value = lift_f' (M.add_list_set keys value)
 
@@ -393,7 +393,7 @@ struct
   let bindings = lift_f M.bindings
 
 
-  let add_list keyvalues = lift_f' (M.add_list keyvalues)
+  let add_seq keyvalues = lift_f' (M.add_seq keyvalues)
 
   let add_list_set keys value = lift_f' (M.add_list_set keys value)
 
@@ -473,7 +473,7 @@ struct
   let bindings x = time "bindings" M.bindings x
 
 
-  let add_list xs x = time "add_list" (M.add_list xs) x
+  let add_seq xs x = time "add_seq" (M.add_seq xs) x
   let add_list_set ks v x = time "add_list_set" (M.add_list_set ks v) x
   let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
 
@@ -621,9 +621,9 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.map f x)
 
-  let add_list xs = function
+  let add_seq xs = function
     | `Top -> `Top
-    | `Lifted x -> `Lifted (M.add_list xs x)
+    | `Lifted x -> `Lifted (M.add_seq xs x)
 
   let add_list_set ks v = function
     | `Top -> `Top
@@ -778,9 +778,9 @@ struct
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.map f x)
 
-  let add_list xs = function
+  let add_seq xs = function
     | `Bot -> `Bot
-    | `Lifted x -> `Lifted (M.add_list xs x)
+    | `Lifted x -> `Lifted (M.add_seq xs x)
 
   let add_list_set ks v = function
     | `Bot -> `Bot
@@ -991,7 +991,7 @@ struct
     | `Lifted (e', r) when E.leq e e' -> Some r
     | _ -> None
   let filter p s = failwith "MapDomain.Joined.filter"
-  let add_list ers m = List.fold_left (fun acc (e, r) ->
+  let add_seq ers m = Seq.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
   let add_list_set es r m = List.fold_left (fun acc e ->

@@ -2213,7 +2213,7 @@ struct
     (* Assign parameters to arguments *)
     let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
     add_to_array_map fundec pa;
-    let new_cpa = CPA.add_list pa st'.cpa in
+    let new_cpa = CPA.add_seq (List.to_seq pa) st'.cpa in
     (* List of reachable variables *)
     let reachable = AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in

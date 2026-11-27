@@ -538,7 +538,7 @@ struct
       end
     | None -> m
 
-  let add_list evs m = List.fold_left (fun acc (e, v) ->
+  let add_seq evs m = Seq.fold_left (fun acc (e, v) ->
       add e v acc
     ) m evs
   let add_list_set es v m = List.fold_left (fun acc e ->
@@ -736,7 +736,7 @@ struct
       end
     | exception Not_found -> s
 
-  let add_list ers m = List.fold_left (fun acc (e, r) ->
+  let add_seq ers m = Seq.fold_left (fun acc (e, r) ->
       add e r acc
     ) m ers
   let add_list_set es r m = List.fold_left (fun acc e ->

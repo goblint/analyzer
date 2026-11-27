@@ -13,6 +13,14 @@ module LatticeDriver = Lattice.Fake (PrintableDriver)
 
 module TestMap (M:MapDomain.S with type key = string and type value = string) =
 struct
+  module M =
+  struct
+    include M
+
+    (* For testing convenience. *)
+    let add_list l m = add_seq (List.to_seq l) m
+  end
+
   let is_empty_top = ref true
 
   let get_empty () =
@@ -178,8 +186,8 @@ let test_Mbot_join_meet _ =
   let bot    = Mbot.bot () in (* bot is empty *)
   let mone   = Mbot.add "1" "1" bot in
   let mtwo   = Mbot.add "2" "2" bot in
-  let m12    = Mbot.add_list ["1","1";"2","2"] bot in
-  let m21    = Mbot.add_list ["2","2";"1","1"] bot in
+  let m12    = Mbot.add_seq (List.to_seq ["1","1";"2","2"]) bot in
+  let m21    = Mbot.add_seq (List.to_seq ["2","2";"1","1"]) bot in
   assert_eq bot    bot;
   assert_eq mone   mone;
   assert_eq mtwo   mtwo;
@@ -214,8 +222,8 @@ let test_Mtop_join_meet _ =
   let top    = Mtop.top () in (* bot is empty *)
   let mone   = Mtop.add "1" "1" top in
   let mtwo   = Mtop.add "2" "2" top in
-  let m12    = Mtop.add_list ["1","1";"2","2"] top in
-  let m21    = Mtop.add_list ["2","2";"1","1"] top in
+  let m12    = Mtop.add_seq (List.to_seq ["1","1";"2","2"]) top in
+  let m21    = Mtop.add_seq (List.to_seq ["2","2";"1","1"]) top in
   assert_eq top    top;
   assert_eq mone   mone;
   assert_eq mtwo   mtwo;
