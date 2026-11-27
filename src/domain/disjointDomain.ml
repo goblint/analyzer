@@ -57,7 +57,20 @@ struct
 
   let widen = M.widen
 
+  let idempotent_union = M.idempotent_union
+  let nonidempotent_union = M.nonidempotent_union
+
   let nonidempotent_inter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
+      match f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+
+  let idempotent_inter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
       match f b1 b2 with
       | b' when B.is_bot b' ->
         None (* remove bot bucket to preserve invariant *)
@@ -543,29 +556,17 @@ struct
   let mapi f m = M.map (fun b ->
       B.mapi f b
     ) m
-  let idempotent_union f m1 m2 = M.idempotent_union (fun b1 b2 ->
+  let idempotent_union f m1 m2 = idempotent_union (fun b1 b2 ->
       B.idempotent_union f b1 b2
     ) m1 m2
-  let nonidempotent_union f m1 m2 = M.nonidempotent_union (fun b1 b2 ->
+  let nonidempotent_union f m1 m2 = nonidempotent_union (fun b1 b2 ->
       B.nonidempotent_union f b1 b2
     ) m1 m2
-  let idempotent_inter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
-      match B.idempotent_inter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
+  let idempotent_inter_filter f m1 m2 = idempotent_inter (fun b1 b2 ->
+      B.idempotent_inter_filter f b1 b2
     ) m1 m2
-  let idempotent_inter_filter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
-      match B.idempotent_inter_filter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
+  let idempotent_inter f m1 m2 = idempotent_inter (fun b1 b2 ->
+      B.idempotent_inter f b1 b2
     ) m1 m2
   let nonidempotent_inter_filter f m1 m2 = nonidempotent_inter (B.nonidempotent_inter_filter f) m1 m2
   let nonidempotent_inter f m1 m2 = nonidempotent_inter (B.nonidempotent_inter f) m1 m2
