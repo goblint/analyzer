@@ -1,6 +1,6 @@
 TODO: Why not verified terminating?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Warning][Termination] The program might not terminate! (Loop analysis) (82-terminating-program-example-3.c:15:12-15:20)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (82-terminating-program-example-3.c:15:12-15:20)
@@ -66,7 +66,7 @@ TODO: Why not verified terminating?
 
 TODO: Why not verified terminating?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Warning][Termination] The program might not terminate! (Loop analysis) (82-terminating-program-example-3.c:15:12-15:20)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (82-terminating-program-example-3.c:15:12-15:20)
@@ -92,7 +92,7 @@ TODO: Why not verified terminating?
 TODO: Why not verified terminating?
 TODO: Why not invariants confirmed?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --set witness.yaml.validate 82-terminating-program-example-3.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --set witness.yaml.validate 82-terminating-program-example-3.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Warning][Termination] The program might not terminate! (Loop analysis) (82-terminating-program-example-3.c:15:12-15:20)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (82-terminating-program-example-3.c:15:12-15:20)
@@ -118,7 +118,7 @@ Same with octagon:
 
 TODO: Why not verified terminating?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable ana.apron.invariant.diff-box --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --enable ana.apron.invariant.diff-box --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Warning][Termination] The program might not terminate! (Loop analysis) (82-terminating-program-example-3.c:15:12-15:20)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (82-terminating-program-example-3.c:15:12-15:20)
@@ -184,7 +184,7 @@ TODO: Why not verified terminating?
 
 TODO: Why not verified terminating?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Warning][Termination] The program might not terminate! (Loop analysis) (82-terminating-program-example-3.c:15:12-15:20)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (82-terminating-program-example-3.c:15:12-15:20)
@@ -210,7 +210,7 @@ TODO: Why not verified terminating?
 TODO: Why not verified terminating?
 TODO: Why not invariants confirmed?
 
-  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --set witness.yaml.validate 82-terminating-program-example-3.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
+  $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --set witness.yaml.validate 82-terminating-program-example-3.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 82-terminating-program-example-3.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Warning][Termination] The program might not terminate! (Loop analysis) (82-terminating-program-example-3.c:15:12-15:20)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (82-terminating-program-example-3.c:15:12-15:20)
