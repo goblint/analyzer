@@ -6,7 +6,7 @@
 
     Examples of such domains are path-sensitivity and address sets. *)
 
-(** {1 Sets} *)
+(** {1 Common} *)
 
 (** {2 By projection} *)
 
@@ -21,27 +21,18 @@ sig
   val of_elt: elt -> t (** Projection function. *)
 end
 
-(** Set of elements [E.t] grouped into buckets by [R],
-    where each bucket is described by the set [B].
-
-    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
+(** Elements [E.t] grouped into buckets by [R],
+    where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t):
-sig
-  include SetDomain.S with type elt = E.t
-  val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
-end
-=
+module ProjectiveCommon (E: Printable.S) (B: Lattice.S) (R: Representative with type elt = E.t) = (* TODO: E is unused *)
 struct
-  type elt = E.t
-
   module M = MapDomain.MapBot (R) (B)
 
   (** Invariant: no explicit bot buckets.
       Required for efficient [is_empty] and [choose]. *)
 
-  let name () = "ProjectiveSet (" ^ B.name () ^ ")"
+  let name () = "ProjectiveCommon (" ^ B.name () ^ ")"
 
   (* explicitly delegate, so we don't accidentally delegate too much *)
 
@@ -59,11 +50,223 @@ struct
 
   let is_empty = M.is_empty
   let empty = M.empty
-  let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
 
   let leq = M.leq
   let join = M.join
   let pretty_diff = M.pretty_diff
+
+  let widen = M.widen
+
+  let idempotent_union = M.idempotent_union
+  let nonidempotent_union = M.nonidempotent_union
+
+  let nonidempotent_inter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
+      match f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+
+  let idempotent_inter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
+      match f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+
+  let meet m1 m2 = nonidempotent_inter B.meet m1 m2 (* TODO: idempotent_inter if not using int domain refinement *)
+  let narrow m1 m2 = nonidempotent_inter B.narrow m1 m2 (* TODO: idempotent_inter if not using int domain refinement *)
+
+  let difference f m1 m2 = M.difference (fun b1 b2 ->
+      match f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+
+  let arbitrary () = failwith "ProjectiveCommon.arbitrary"
+end
+
+(** {2 By congruence} *)
+
+(** Buckets defined by congruence. *)
+module type Congruence =
+sig
+  type elt (** Type of elements. *)
+
+  val cong: elt -> elt -> bool (** Congruence relation on elements. *)
+end
+
+(** Bucket for {!PairwiseCommon}. *)
+module type PairwiseBucket =
+sig
+  include Lattice.S
+
+  type elt (** Type of elements. *)
+
+  val choose_elt: t -> elt (** Choose element from bucket. *)
+end
+
+(** Elements [E.t] grouped into buckets by [C],
+    where each bucket is described by [B].
+
+    Handles {!Lattice.BotValue} from [B]. *)
+module PairwiseCommon (E: Printable.S) (B: PairwiseBucket with type elt = E.t) (C: Congruence with type elt = E.t) = (* TODO: E unused? *)
+struct
+  module S = SetDomain.Make (B)
+
+  (** Invariant: no explicit bot buckets.
+      Required for efficient [is_empty] and [choose]. *)
+
+  let name () = "PairwiseCommon (" ^ B.name () ^ ")"
+
+  (* explicitly delegate, so we don't accidentally delegate too much *)
+
+  type t = S.t
+  let equal = S.equal
+  let compare = S.compare
+  let hash = S.hash
+  let tag = S.tag
+  let relift = S.relift
+
+  let is_bot = S.is_bot
+  let bot = S.bot
+  let is_top = S.is_top
+  let top = S.top
+
+  let is_empty = S.is_empty
+  let empty = S.empty
+
+  let leq s1 s2 =
+    S.for_all (fun b1 ->
+        let e1 = B.choose_elt b1 in
+        S.exists (fun b2 -> C.cong (B.choose_elt b2) e1 && B.leq b1 b2) s2
+      ) s1
+
+  let pretty_diff () (s1, s2) =
+    (* based on HoareDomain.Set *)
+    let s1_not_leq = S.filter (fun b1 ->
+        let e1 = B.choose_elt b1 in
+        not (S.exists (fun b2 -> C.cong (B.choose_elt b2) e1 && B.leq b1 b2) s2)
+      ) s1
+    in
+    let b1_not_leq = S.choose s1_not_leq in
+    let e1_not_leq = B.choose_elt b1_not_leq in
+    GoblintCil.Pretty.(
+      dprintf "%a:\n" B.pretty b1_not_leq
+      ++
+      S.fold (fun b2 acc ->
+          if C.cong (B.choose_elt b2) e1_not_leq then
+            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
+          else
+            dprintf "not cong %a\n" B.pretty b2 ++ acc
+        ) s2 nil
+    )
+
+  let nonidempotent_union f s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let b' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          f b1 b2
+        | exception Not_found -> b2
+      in
+      (s1_rest, S.add b' acc)
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
+  let idempotent_union = nonidempotent_union
+
+  let join s1 s2 = nonidempotent_union B.join s1 s2
+  let widen s1 s2 = nonidempotent_union B.widen s1 s2
+
+  let nonidempotent_inter f s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match f b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    snd (S.fold f s2 (s1, S.empty ()))
+
+  let idempotent_inter = nonidempotent_inter
+
+  let meet s1 s2 = nonidempotent_inter B.meet s1 s2
+  let narrow s1 s2 = nonidempotent_inter B.narrow s1 s2
+
+  let difference f s1 s2 =
+    let f b2 (s1, acc) =
+      let e2 = B.choose_elt b2 in
+      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose_elt b1) e2) s1 in
+      let acc' = match S.choose s1_match with
+        | b1 ->
+          assert (S.cardinal s1_match = 1);
+          begin match f b1 b2 with
+            | b' when B.is_bot b' ->
+              acc (* remove bot bucket to preserve invariant *)
+            | exception Lattice.BotValue ->
+              acc (* remove bot bucket to preserve invariant *)
+            | b' ->
+              S.add b' acc
+          end
+        | exception Not_found -> acc
+      in
+      (s1_rest, acc')
+    in
+    let (s1', acc) = S.fold f s2 (s1, empty ()) in
+    S.union s1' acc
+
+  let arbitrary () = failwith "PairwiseCommon.arbitrary"
+end
+
+(** {1 Sets} *)
+
+(** {2 By projection} *)
+
+(** Set of elements [E.t] grouped into buckets by [R],
+    where each bucket is described by the set [B].
+
+    Common choices for [B] are {!SetDomain.Joined} and {!HoareDomain.SetEM}.
+
+    Handles {!Lattice.BotValue} from [B]. *)
+module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: Representative with type elt = E.t):
+sig
+  include SetDomain.S with type elt = E.t
+  val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
+end
+=
+struct
+  type elt = E.t
+
+  include ProjectiveCommon (E) (B) (R)
+
+  let name () = "ProjectiveSet (" ^ B.name () ^ ")"
+
+  let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
 
   let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
   let iter f m = M.iter (fun _ e -> B.iter f e) m
@@ -97,16 +300,7 @@ struct
           M.add r b' m
       end
     | None -> m
-  let diff m1 m2 =
-    M.difference (fun b1 b2 ->
-        match B.diff b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
+  let diff m1 m2 = difference B.diff m1 m2
 
   let of_list es = List.fold_left (fun acc e ->
       add e acc
@@ -116,29 +310,6 @@ struct
   let map f m = fold (fun e acc ->
       add (f e) acc
     ) m (empty ()) (* no intermediate lists *)
-
-  let widen = M.widen
-
-  let meet m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.meet b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-  let narrow m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.narrow b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
 
   let union = join
   let inter = meet
@@ -152,8 +323,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "Projective.arbitrary"
 
   let filter p m = SetDomain.unsupported "Projective.filter"
   let partition p m = SetDomain.unsupported "Projective.partition"
@@ -205,14 +374,6 @@ end
 
 (** {2 By congruence} *)
 
-(** Buckets defined by congruence. *)
-module type Congruence =
-sig
-  type elt (** Type of elements. *)
-
-  val cong: elt -> elt -> bool (** Congruence relation on elements. *)
-end
-
 (** Set of elements [E.t] grouped into buckets by [C],
     where each bucket is described by the set [B].
 
@@ -223,29 +384,16 @@ module PairwiseSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (C: Con
 struct
   type elt = E.t
 
-  module S = SetDomain.Make (B)
+  module B =
+  struct
+    include B
+    let choose_elt = choose
+  end
 
-  (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty] and [choose]. *)
+  include PairwiseCommon (E) (B) (C)
 
-  let name () = "Pairwise (" ^ B.name () ^ ")"
+  let name () = "PairwiseSet (" ^ B.name () ^ ")"
 
-  (* explicitly delegate, so we don't accidentally delegate too much *)
-
-  type t = S.t
-  let equal = S.equal
-  let compare = S.compare
-  let hash = S.hash
-  let tag = S.tag
-  let relift = S.relift
-
-  let is_bot = S.is_bot
-  let bot = S.bot
-  let is_top = S.is_top
-  let top = S.top
-
-  let is_empty = S.is_empty
-  let empty = S.empty
   let cardinal m = S.fold (fun b a -> a + B.cardinal b) m 0
 
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
@@ -283,27 +431,7 @@ struct
           S.add b' s
       end
     | exception Not_found -> s
-  let diff s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.diff b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
+  let diff s1 s2 = difference B.diff s1 s2
 
   let of_list es = List.fold_left (fun acc e ->
       add e acc
@@ -313,104 +441,6 @@ struct
   let map f s = fold (fun e acc ->
       add (f e) acc
     ) s (empty ()) (* no intermediate lists *)
-
-  let leq s1 s2 =
-    S.for_all (fun b1 ->
-        let e1 = B.choose b1 in
-        S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2
-      ) s1
-
-  let pretty_diff () (s1, s2) =
-    (* based on HoareDomain.Set *)
-    let s1_not_leq = S.filter (fun b1 ->
-        let e1 = B.choose b1 in
-        not (S.exists (fun b2 -> C.cong (B.choose b2) e1 && B.leq b1 b2) s2)
-      ) s1
-    in
-    let b1_not_leq = S.choose s1_not_leq in
-    let e1_not_leq = B.choose b1_not_leq in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty b1_not_leq
-      ++
-      S.fold (fun b2 acc ->
-          if C.cong (B.choose b2) e1_not_leq then
-            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
-          else
-            dprintf "not cong %a\n" B.pretty b2 ++ acc
-        ) s2 nil
-    )
-
-  let join s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.join b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let widen s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (B.choose e1) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.widen b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let meet s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
-
-  let narrow s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = B.choose b2 in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (B.choose b1) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
 
   let union = join
   let inter = meet
@@ -424,8 +454,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "Pairwise.arbitrary"
 
   let filter p s = SetDomain.unsupported "Pairwise.filter"
   let partition p s = SetDomain.unsupported "Pairwise.partition"
@@ -466,34 +494,11 @@ struct
   type key = E.t
   type value = B.value
 
-  module M = MapDomain.MapBot (R) (B)
-
-  (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty] and [choose]. *)
+  include ProjectiveCommon (E) (B) (R)
 
   let name () = "ProjectiveMap (" ^ B.name () ^ ")"
 
-  (* explicitly delegate, so we don't accidentally delegate too much *)
-
-  type t = M.t
-  let equal = M.equal
-  let compare = M.compare
-  let hash = M.hash
-  let tag = M.tag
-  let relift = M.relift
-
-  let is_bot = M.is_bot
-  let bot = M.bot
-  let is_top = M.is_top
-  let top = M.top
-
-  let is_empty = M.is_empty
-  let empty = M.empty
   let cardinal m = M.fold (fun _ b a -> a + B.cardinal b) m 0
-
-  let leq = M.leq
-  let join = M.join
-  let pretty_diff = M.pretty_diff
 
   let fold f m a = M.fold (fun _ e a -> B.fold f e a) m a
   let iter f m = M.iter (fun _ e -> B.iter f e) m
@@ -555,80 +560,21 @@ struct
   let mapi f m = M.map (fun b ->
       B.mapi f b
     ) m
-  let idempotent_union f m1 m2 = M.idempotent_union (fun b1 b2 ->
+  let idempotent_union f m1 m2 = idempotent_union (fun b1 b2 ->
       B.idempotent_union f b1 b2
     ) m1 m2
-  let nonidempotent_union f m1 m2 = M.nonidempotent_union (fun b1 b2 ->
+  let nonidempotent_union f m1 m2 = nonidempotent_union (fun b1 b2 ->
       B.nonidempotent_union f b1 b2
     ) m1 m2
-  let idempotent_inter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
-      match B.idempotent_inter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
+  let idempotent_inter_filter f m1 m2 = idempotent_inter (fun b1 b2 ->
+      B.idempotent_inter_filter f b1 b2
     ) m1 m2
-  let nonidempotent_inter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
-      match B.nonidempotent_inter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
+  let idempotent_inter f m1 m2 = idempotent_inter (fun b1 b2 ->
+      B.idempotent_inter f b1 b2
     ) m1 m2
-  let idempotent_inter_filter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
-      match B.idempotent_inter_filter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
-    ) m1 m2
-  let nonidempotent_inter_filter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
-      match B.nonidempotent_inter_filter f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
-    ) m1 m2
-  let difference f m1 m2 = M.difference (fun b1 b2 ->
-      match B.difference f b1 b2 with
-      | b' when B.is_bot b' ->
-        None (* remove bot bucket to preserve invariant *)
-      | exception Lattice.BotValue ->
-        None (* remove bot bucket to preserve invariant *)
-      | b' ->
-        Some b'
-    ) m1 m2
-
-  let widen = M.widen
-
-  let meet m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.meet b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
-  let narrow m1 m2 =
-    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
-        match B.narrow b1 b2 with
-        | b' when B.is_bot b' ->
-          None (* remove bot bucket to preserve invariant *)
-        | exception Lattice.BotValue ->
-          None (* remove bot bucket to preserve invariant *)
-        | b' ->
-          Some b'
-      ) m1 m2
+  let nonidempotent_inter_filter f m1 m2 = nonidempotent_inter (B.nonidempotent_inter_filter f) m1 m2
+  let nonidempotent_inter f m1 m2 = nonidempotent_inter (B.nonidempotent_inter f) m1 m2
+  let difference f m1 m2 = difference (B.difference f) m1 m2
 
   include MapDomain.Print (E) (V) (
     struct
@@ -639,8 +585,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "ProjectiveMap.arbitrary"
 
   let filter p m = failwith "ProjectiveMap.filter"
 
@@ -663,29 +607,17 @@ struct
   type key = E.t
   type value = B.value
 
-  module S = SetDomain.Make (B)
+  module B =
+  struct
+    include B
+    type elt = E.t
+    let choose_elt b = fst (choose b)
+  end
 
-  (** Invariant: no explicit bot buckets.
-      Required for efficient [is_empty] and [choose]. *)
+  include PairwiseCommon (E) (B) (C)
 
   let name () = "PairwiseMap (" ^ B.name () ^ ")"
 
-  (* explicitly delegate, so we don't accidentally delegate too much *)
-
-  type t = S.t
-  let equal = S.equal
-  let compare = S.compare
-  let hash = S.hash
-  let tag = S.tag
-  let relift = S.relift
-
-  let is_bot = S.is_bot
-  let bot = S.bot
-  let is_top = S.is_top
-  let top = S.top
-
-  let is_empty = S.is_empty
-  let empty = S.empty
   let cardinal m = S.fold (fun b a -> a + B.cardinal b) m 0
 
   let fold f s a = S.fold (fun b a -> B.fold f b a) s a
@@ -753,143 +685,13 @@ struct
   let mapi f m = S.map (fun b ->
       B.mapi f b
     ) m
-  let nonidempotent_union f s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.nonidempotent_union f b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-  let idempotent_union _ _ _ = failwith "PairwiseMap.idempotent_union" (* TODO: ? *)
-  let nonidempotent_inter f s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.nonidempotent_inter f b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
-  let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
-  let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
-  let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
-  let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
-
-  let leq s1 s2 =
-    S.for_all (fun b1 ->
-        let e1 = fst (B.choose b1) in
-        S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2
-      ) s1
-
-  let pretty_diff () (s1, s2) =
-    (* based on PairwiseSet *)
-    let s1_not_leq = S.filter (fun b1 ->
-        let e1 = fst (B.choose b1) in
-        not (S.exists (fun b2 -> C.cong (fst (B.choose b2)) e1 && B.leq b1 b2) s2)
-      ) s1
-    in
-    let b1_not_leq = S.choose s1_not_leq in
-    let e1_not_leq = fst (B.choose b1_not_leq) in
-    GoblintCil.Pretty.(
-      dprintf "%a:\n" B.pretty b1_not_leq
-      ++
-      S.fold (fun b2 acc ->
-          if C.cong (fst (B.choose b2)) e1_not_leq then
-            dprintf "not leq %a because %a\n" B.pretty b2 B.pretty_diff (b1_not_leq, b2) ++ acc
-          else
-            dprintf "not cong %a\n" B.pretty b2 ++ acc
-        ) s2 nil
-    )
-
-  let join s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.join b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let widen s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun e1 -> C.cong (fst (B.choose e1)) e2) s1 in
-      let b' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          B.widen b1 b2
-        | exception Not_found -> b2
-      in
-      (s1_rest, S.add b' acc)
-    in
-    let (s1', acc) = S.fold f s2 (s1, empty ()) in
-    S.union s1' acc
-
-  let meet s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
-
-  let narrow s1 s2 =
-    let f b2 (s1, acc) =
-      let e2 = fst (B.choose b2) in
-      let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
-      let acc' = match S.choose s1_match with
-        | b1 ->
-          assert (S.cardinal s1_match = 1);
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              acc (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              acc (* remove bot bucket to preserve invariant *)
-            | b' ->
-              S.add b' acc
-          end
-        | exception Not_found -> acc
-      in
-      (s1_rest, acc')
-    in
-    snd (S.fold f s2 (s1, S.empty ()))
+  let nonidempotent_union f s1 s2 = nonidempotent_union (B.nonidempotent_union f) s1 s2
+  let idempotent_union f s1 s2 = idempotent_union (B.idempotent_union f) s1 s2 (* TODO: ? *)
+  let idempotent_inter_filter f s1 s2 = idempotent_inter (B.idempotent_inter_filter f) s1 s2 (* TODO: ? *)
+  let idempotent_inter f s1 s2 = idempotent_inter (B.idempotent_inter f) s1 s2 (* TODO: ? *)
+  let nonidempotent_inter_filter f s1 s2 = nonidempotent_inter (B.nonidempotent_inter_filter f) s1 s2 (* TODO: ? *)
+  let nonidempotent_inter f s1 s2 = nonidempotent_inter (B.nonidempotent_inter f) s1 s2
+  let difference f m1 m2 = difference (B.difference f) m1 m2 (* TODO: ? *)
 
   include MapDomain.Print (E) (R) (
     struct
@@ -900,8 +702,6 @@ struct
       let iter = iter
     end
     )
-
-  let arbitrary () = failwith "PairwiseMap.arbitrary"
 
   let filter p s = failwith "PairwiseMap.filter"
 
