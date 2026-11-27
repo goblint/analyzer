@@ -1,6 +1,6 @@
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):(Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
@@ -47,7 +47,7 @@
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):(Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
@@ -70,8 +70,8 @@ Same with loop unrolling:
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c --set exp.unrolling-factor 1 | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info] unrolling loop at 01-simple-loop-terminating.c:8:3-12:3 with factor 1
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):0 iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):(Not {0}([0,7]),[1,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by 0 iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by (Not {0}([0,7]),[1,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
@@ -109,8 +109,8 @@ Same with loop unrolling:
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c --set exp.unrolling-factor 1
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
   [Info] unrolling loop at 01-simple-loop-terminating.c:8:3-12:3 with factor 1
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):0 iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):(Not {0}([0,7]),[1,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by 0 iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by (Not {0}([0,7]),[1,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
@@ -132,7 +132,7 @@ Same with octagon:
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --enable ana.apron.invariant.diff-box --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):(Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
@@ -179,7 +179,7 @@ Same with octagon:
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 01-simple-loop-terminating.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by IntDomLifter(intdomtuple):(Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
+  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,10]) iteration(s) (01-simple-loop-terminating.c:8:10-8:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0

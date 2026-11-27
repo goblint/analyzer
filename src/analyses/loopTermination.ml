@@ -65,13 +65,13 @@ struct
             let is_bounded = bound <> `Top in
             man.sideg () (G.add loop_statement is_bounded (man.global ()));
             let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
-            begin match is_bounded with
-              | false ->
+            begin match bound with
+              | `Top ->
                 M.warn ~category:Termination ~loc "The program might not terminate! (Loop analysis)"
-              | true ->
+              | `Lifted bound ->
                 (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
                 if GobConfig.get_bool "dbg.termination-bounds" then
-                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" Queries.ID.pretty bound;
+                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" ValueDomain.ID.pretty bound;
             end
           | None ->
             failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."
