@@ -187,6 +187,8 @@ struct
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
 
+  let idempotent_union = nonidempotent_union
+
   let join s1 s2 = nonidempotent_union B.join s1 s2
   let widen s1 s2 = nonidempotent_union B.widen s1 s2
 
@@ -210,6 +212,8 @@ struct
       (s1_rest, acc')
     in
     snd (S.fold f s2 (s1, S.empty ()))
+
+  let idempotent_inter = nonidempotent_inter
 
   let meet s1 s2 = nonidempotent_inter B.meet s1 s2
   let narrow s1 s2 = nonidempotent_inter B.narrow s1 s2
@@ -682,11 +686,11 @@ struct
       B.mapi f b
     ) m
   let nonidempotent_union f s1 s2 = nonidempotent_union (B.nonidempotent_union f) s1 s2
-  let idempotent_union _ _ _ = failwith "PairwiseMap.idempotent_union" (* TODO: ? *)
+  let idempotent_union f s1 s2 = idempotent_union (B.idempotent_union f) s1 s2 (* TODO: ? *)
+  let idempotent_inter_filter f s1 s2 = idempotent_inter (B.idempotent_inter_filter f) s1 s2 (* TODO: ? *)
+  let idempotent_inter f s1 s2 = idempotent_inter (B.idempotent_inter f) s1 s2 (* TODO: ? *)
+  let nonidempotent_inter_filter f s1 s2 = nonidempotent_inter (B.nonidempotent_inter_filter f) s1 s2 (* TODO: ? *)
   let nonidempotent_inter f s1 s2 = nonidempotent_inter (B.nonidempotent_inter f) s1 s2
-  let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
-  let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
-  let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
   let difference f m1 m2 = difference (B.difference f) m1 m2 (* TODO: ? *)
 
   include MapDomain.Print (E) (R) (
