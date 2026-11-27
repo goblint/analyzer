@@ -1,4 +1,4 @@
-// SKIP TERM PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set ana.activated[+] termination
+// SKIP TERM PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set ana.apron.narrowing_delay.local 1 --set ana.activated[+] termination
 // fully works with --set ana.widen.delay.local 6
 // Somehow we prove termination even without and don't have good bounds on termination counter.
 // From Nicolas Halbwachs' PhD thesis, section 5.6.2.
@@ -24,7 +24,7 @@ int main() {
   __goblint_check(j >= 0);
   __goblint_check(i - 2 * j >= 0);
   __goblint_check(11 <= i);
-  __goblint_check(i <= 14); // TODO: needs one narrowing iteration
-  __goblint_check(i + 2 * j <= 24); // TODO: needs one narrowing iteration
+  __goblint_check(i <= 14); // needs one narrowing iteration
+  __goblint_check(i + 2 * j <= 24); // needs one narrowing iteration
   return 0;
 }
