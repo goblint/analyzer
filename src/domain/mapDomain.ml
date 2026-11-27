@@ -3,6 +3,17 @@
 module Pretty = GoblintCil.Pretty
 open Pretty
 
+module type MergeOps =
+sig
+  type t
+  type value
+
+  val idempotent_inter: (value -> value -> value) -> t -> t -> t
+  val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+  val idempotent_union: (value -> value -> value) -> t -> t -> t
+  val nonidempotent_union: (value -> value -> value) -> t -> t -> t
+end
+
 module type PS =
 sig
   include Printable.S
@@ -29,12 +40,12 @@ sig
 
   val for_all: (key -> value -> bool) -> t -> bool
   val reflexive_subset_domain_for_all2: (value -> value -> bool) -> t -> t -> bool
-  val idempotent_inter: (value -> value -> value) -> t -> t -> t
-  val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+
+  include MergeOps with type t := t and type value := value
+
+  (* TODO: move into MergeOps? *)
   val idempotent_inter_filter: (value -> value -> value option) -> t -> t -> t
   val nonidempotent_inter_filter: (value -> value -> value option) -> t -> t -> t
-  val idempotent_union: (value -> value -> value) -> t -> t -> t
-  val nonidempotent_union: (value -> value -> value) -> t -> t -> t
   val difference: (value -> value -> value option) -> t -> t -> t
 
   val cardinal: t -> int
