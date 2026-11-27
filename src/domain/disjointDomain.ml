@@ -282,6 +282,7 @@ module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: R
 sig
   include SetDomain.S with type elt = E.t
   val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
+  val difference_buckets: (B.t -> B.t -> B.t) -> t -> t -> t
 end
 =
 struct
@@ -356,6 +357,7 @@ struct
   let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
 
   let fold_buckets = M.fold
+  let difference_buckets = difference
 end
 
 (** {2 By congruence} *)

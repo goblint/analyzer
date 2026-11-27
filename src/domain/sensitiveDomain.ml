@@ -45,4 +45,5 @@ module ProjectiveSet (E: Lattice.S) (B: MayEqualSetDomain with type elt = E.t) (
           ) m2 acc
       ) m1 (empty ())
 
+  let narrow m1 m2 = difference_buckets B.narrow m1 m2 (* Keep all old buckets, narrow only matching ones, don't add any new! *)
 end
