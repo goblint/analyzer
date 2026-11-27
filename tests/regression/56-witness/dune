@@ -35,5 +35,8 @@
 
 (cram
  (alias runaprontest)
- (applies_to 80-terminating-program-example)
+ (applies_to
+  80-terminating-program-example
+  82-terminating-program-example-3
+  83-terminating-program-example-10000)
  (enabled_if %{lib-available:apron}))
