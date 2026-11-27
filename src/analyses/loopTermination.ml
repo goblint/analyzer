@@ -71,7 +71,7 @@ struct
               | `Lifted bound ->
                 (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
                 if GobConfig.get_bool "dbg.termination-bounds" then
-                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" ValueDomain.ID.pretty bound;
+                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" GobZ.pretty (Option.get (ValueDomain.ID.maximal bound)); (* If bounded, then maximal should exist. *)
             end
           | None ->
             failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."

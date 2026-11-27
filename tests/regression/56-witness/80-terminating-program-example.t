@@ -1,6 +1,6 @@
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,2]) iteration(s) (80-terminating-program-example.c:15:12-15:20)
+  [Success][Termination] Loop terminates: bounded by 2 iteration(s) (80-terminating-program-example.c:15:12-15:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
@@ -75,7 +75,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,2]) iteration(s) (80-terminating-program-example.c:15:12-15:20)
+  [Success][Termination] Loop terminates: bounded by 2 iteration(s) (80-terminating-program-example.c:15:12-15:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
@@ -98,7 +98,7 @@ TODO: Why no transition invariant on j, like with octagons (below)?
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra --enable dbg.termination-bounds --set witness.yaml.validate 80-terminating-program-example.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,2]) iteration(s) (80-terminating-program-example.c:15:12-15:20)
+  [Success][Termination] Loop terminates: bounded by 2 iteration(s) (80-terminating-program-example.c:15:12-15:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
@@ -121,7 +121,7 @@ Same with octagon:
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --enable ana.apron.invariant.diff-box --enable witness.yaml.enabled --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c | sed -r 's/term[0-9]+_[0-9]+_id[0-9]+#[0-9]+/$TERM/'
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,2]) iteration(s) (80-terminating-program-example.c:15:12-15:20)
+  [Success][Termination] Loop terminates: bounded by 2 iteration(s) (80-terminating-program-example.c:15:12-15:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
@@ -223,7 +223,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --set witness.yaml.validate witness.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,2]) iteration(s) (80-terminating-program-example.c:15:12-15:20)
+  [Success][Termination] Loop terminates: bounded by 2 iteration(s) (80-terminating-program-example.c:15:12-15:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
@@ -249,7 +249,7 @@ TODO: Are transition invariants between i and j useful/avoidable?
 
   $ goblint --set ana.activated[+] termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon --enable dbg.termination-bounds --set witness.yaml.validate 80-terminating-program-example.witness-2.1.yml --set witness.yaml.invariant-types "['loop_invariant', 'loop_transition_invariant']" 80-terminating-program-example.c
   [Warning] termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none
-  [Success][Termination] Loop terminates: bounded by (Unknown int([0,7]),[0,2]) iteration(s) (80-terminating-program-example.c:15:12-15:20)
+  [Success][Termination] Loop terminates: bounded by 2 iteration(s) (80-terminating-program-example.c:15:12-15:20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
