@@ -4,20 +4,12 @@
 module Pretty = GoblintCil.Pretty
 open Pretty
 
-module type S =
+module type Identity =
 sig
   type t
   val equal: t -> t -> bool
   val hash: t -> int
   val compare: t -> t -> int
-  val show: t -> string
-  val pretty: unit -> t -> doc
-  (* These two lets us reuse the short function, and allows some overriding
-   * possibilities. *)
-  val printXml : 'a BatInnerIO.output -> t -> unit
-  (* This is for debugging *)
-  val name: unit -> string
-  val to_yojson : t -> Yojson.Safe.t
 
   val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
 
@@ -28,6 +20,20 @@ sig
    * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
   (* The default for functors should pass the call to their argument modules, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
   val relift: t -> t
+end
+
+module type S =
+sig
+  include Identity
+
+  val show: t -> string
+  val pretty: unit -> t -> doc
+  (* These two lets us reuse the short function, and allows some overriding
+   * possibilities. *)
+  val printXml : 'a BatInnerIO.output -> t -> unit
+  (* This is for debugging *)
+  val name: unit -> string
+  val to_yojson : t -> Yojson.Safe.t
 end
 
 module Empty: S =
