@@ -49,6 +49,7 @@ struct
       type elt = Spec.D.t
     end
     module J = MapDomain.Joined (Spec.D) (V)
+    (* TODO: SensitiveDomain *)
     include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 

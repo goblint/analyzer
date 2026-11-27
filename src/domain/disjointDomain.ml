@@ -4,6 +4,8 @@
     Elements are grouped into disjoint buckets by a congruence or/and a projection.
     All operations on elements are performed bucket-wise and must be bucket-closed.
 
+    These are the foundations for {!SensitiveDomain}.
+
     Examples of such domains are path-sensitivity and address sets. *)
 
 (** {1 Common} *)
@@ -280,6 +282,7 @@ module ProjectiveSet (E: Printable.S) (B: SetDomain.S with type elt = E.t) (R: R
 sig
   include SetDomain.S with type elt = E.t
   val fold_buckets: (R.t -> B.t -> 'a -> 'a) -> t -> 'a -> 'a
+  val difference_buckets: (B.t -> B.t -> B.t) -> t -> t -> t
 end
 =
 struct
@@ -354,45 +357,7 @@ struct
   let disjoint m1 m2 = is_empty (inter m1 m2) (* TODO: optimize? *)
 
   let fold_buckets = M.fold
-end
-
-module type MayEqualSetDomain =
-sig
-  include SetDomain.S
-  val may_be_equal: elt -> elt -> bool
-end
-
-module ProjectiveSetPairwiseMeet (E: Lattice.S) (B: MayEqualSetDomain with type elt = E.t) (R: Representative with type elt = E.t): SetDomain.S with type elt = E.t = struct
-  include ProjectiveSet (E) (B) (R)
-
-  let meet m1 m2 =
-    let meet_buckets b1 b2 acc =
-      B.fold (fun e1 acc ->
-          let r1 = R.of_elt e1 in
-          B.fold (fun e2 acc ->
-              (* If they have the same representative, we use the normal meet within this bucket *)
-              if R.equal r1 (R.of_elt e2) then
-                try
-                  let m = E.meet e1 e2 in
-                  if not (E.is_bot m) then
-                    add m acc
-                  else
-                    acc
-                with Lattice.Uncomparable ->
-                  failwith (GobPretty.sprintf "Elements %a and %a are in same bucket, but meet throws!" E.pretty e1 E.pretty e2)
-              else if B.may_be_equal e1 e2 then
-                add e1 (add e2 acc)
-              else
-                acc
-            ) b2 acc
-        ) b1 acc
-    in
-    fold_buckets (fun _ b1 acc ->
-        fold_buckets (fun _ b2 acc ->
-            meet_buckets b1 b2 acc
-          ) m2 acc
-      ) m1 (empty ())
-
+  let difference_buckets = difference
 end
 
 (** {2 By congruence} *)
