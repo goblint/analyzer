@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <goblint.h>
 
 int myglobal;
 
@@ -10,6 +11,7 @@ void *t_fun(void *arg) {
 
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&mutex1); // WARN (must double locking)
+  __goblint_check(0); // NOWARN (unreachable)
   return NULL;
 }
 
