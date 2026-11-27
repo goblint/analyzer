@@ -11,11 +11,14 @@ module Pretty = GoblintCil.Pretty
      val in_rel : t -> relation -> t -> bool
    end *)
 
-(* partial order: elements might not be comparable and no bot/top -> join etc. might fail with exception Uncomparable *)
 exception Uncomparable
-module type PO =
+
+(** Partial order operations.
+
+    Elements might not be comparable and no bot/top -> join etc. might fail with {!Uncomparable}. *)
+module type Ops =
 sig
-  include Printable.S
+  type t
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
@@ -25,6 +28,13 @@ sig
 
   (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
   val pretty_diff: unit -> (t * t) -> Pretty.doc
+end
+
+(* Partial order. *)
+module type PO =
+sig
+  include Printable.S
+  include Ops with type t := t
 end
 
 module type Bot =

@@ -8,6 +8,21 @@
 
 (** {1 Common} *)
 
+module type CommonS =
+sig
+  include Printable.Identity
+  include Lattice.Ops with type t := t
+  include Lattice.Bot with type t := t
+  include Lattice.Top with type t := t
+
+  val empty: unit -> t
+  val is_empty: t -> bool
+
+  type bucket
+  include MapDomain.MergeOps with type t := t and type value := bucket
+  val difference: (bucket -> bucket -> bucket) -> t -> t -> t
+end
+
 (** {2 By projection} *)
 
 (** Buckets defined by projection.
@@ -25,7 +40,11 @@ end
     where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module ProjectiveCommon (E: Printable.S) (B: Lattice.S) (R: Representative with type elt = E.t) = (* TODO: E is unused *)
+module ProjectiveCommon (E: Printable.S) (B: Lattice.S) (R: Representative with type elt = E.t):
+sig
+  module M: MapDomain.S with type key = R.t and type value = B.t
+  include CommonS with type t = M.t and type bucket := B.t
+end = (* TODO: E is unused *)
 struct
   module M = MapDomain.MapBot (R) (B)
 
@@ -120,7 +139,11 @@ end
     where each bucket is described by [B].
 
     Handles {!Lattice.BotValue} from [B]. *)
-module PairwiseCommon (E: Printable.S) (B: PairwiseBucket with type elt = E.t) (C: Congruence with type elt = E.t) = (* TODO: E unused? *)
+module PairwiseCommon (E: Printable.S) (B: PairwiseBucket with type elt = E.t) (C: Congruence with type elt = E.t):
+sig
+  module S: SetDomain.S with type elt = B.t
+  include CommonS with type t = S.t and type bucket := B.t
+end = (* TODO: E unused? *)
 struct
   module S = SetDomain.Make (B)
 
