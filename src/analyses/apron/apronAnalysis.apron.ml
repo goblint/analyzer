@@ -15,7 +15,23 @@ let spec_module: (module MCPSpec) Lazy.t =
       let name () = "apron"
     end
     in
-    (module Spec)
+    let narrowing_delay = GobConfig.get_int "ana.apron.narrowing_delay.local" in
+    if (narrowing_delay > 0) then
+      let module Narrowed =
+      struct
+        module ApronChainParams: Printable.ChainParams =
+        struct
+          let n () = narrowing_delay
+          let names = string_of_int
+        end
+        include NarrowingDelay.DLifter (Spec) (ApronChainParams)
+        module A = Spec.A
+        let access = Spec.access
+      end
+      in
+      (module Narrowed)
+    else
+      (module Spec)
   )
 
 let get_spec (): (module MCPSpec) =

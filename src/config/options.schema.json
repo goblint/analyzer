@@ -962,6 +962,19 @@
               "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
+            "narrowing_delay": {
+              "title": "ana.apron.narrowing_delay",
+              "type": "object",
+              "properties": {
+                "local": {
+                  "title": "ana.apron.narrowing_delay.local",
+                  "description": "Number of narrowing steps that use meet for each local unknown (0 to disable)",
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
+            },
             "threshold_widening": {
               "title": "ana.apron.threshold_widening",
               "description":
