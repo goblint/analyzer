@@ -16,4 +16,3 @@
     live: 29
     dead: 0
     total lines: 29
-  [Info][Imprecise] Invalidating expressions: & tmp (04-thread.c:31:13-31:59)
