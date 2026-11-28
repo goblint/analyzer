@@ -16,7 +16,19 @@ let ask_bound man varinfo =
   match man.ask (EvalInt exp) with
   | `Top -> `Top
   | `Lifted v when is_top_of (ikind v) v -> `Top
-  | `Lifted v -> `Lifted v
+  | `Lifted v ->
+    (* It is not enough to check if bound is `Top (above): https://github.com/goblint/analyzer/issues/2336.
+       There may be congruence/bitfield/def_exc/enums components which are not top but interval/interval_set bounds are.
+       So check if bound is strictly smaller than loop counter maximum. *)
+    (* TODO: This is still not sound in general: https://github.com/goblint/analyzer/issues/1608.
+       It assumes that congruence/bitfield/def_exc/enums have sufficiently imprecise lt/maximal functions,
+       which don't exclude the maximum value, e.g., based on parity.
+       It also assumes IntDomTuple doesn't refine enough between int domains. *)
+    let _, counter_max = IntDomain0.Size.range TerminationPreprocessing.counter_ikind in
+    if ValueDomain.ID.lt v (ValueDomain.ID.of_int TerminationPreprocessing.counter_ikind counter_max) = Some true then
+      `Lifted v
+    else
+      `Top
   | `Bot -> failwith "Loop counter variable is Bot."
 
 (** The termination analysis considering loops and gotos *)
@@ -50,29 +62,16 @@ struct
         begin match VarToStmt.find_opt loop_counter !loop_counters with
           | Some loop_statement ->
             let bound = ask_bound man loop_counter in
-            let is_bounded =
-              match bound with
-              | `Top -> false
-              | `Lifted bound ->
-                (* It is not enough to check if bound is `Top (above): https://github.com/goblint/analyzer/issues/2336.
-                   There may be congruence/bitfield/def_exc/enums components which are not top but interval/interval_set bounds are.
-                   So check if bound is strictly smaller than loop counter maximum. *)
-                (* TODO: This is still not sound in general: https://github.com/goblint/analyzer/issues/1608.
-                   It assumes that congruence/bitfield/def_exc/enums have sufficiently imprecise lt/maximal functions,
-                   which don't exclude the maximum value, e.g., based on parity.
-                   It also assumes IntDomTuple doesn't refine enough between int domains. *)
-                let _, counter_max = IntDomain0.Size.range TerminationPreprocessing.counter_ikind in
-                ValueDomain.ID.lt bound (ValueDomain.ID.of_int TerminationPreprocessing.counter_ikind counter_max) = Some true
-            in
+            let is_bounded = bound <> `Top in
             man.sideg () (G.add loop_statement is_bounded (man.global ()));
             let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
-            begin match is_bounded with
-              | false ->
+            begin match bound with
+              | `Top ->
                 M.warn ~category:Termination ~loc "The program might not terminate! (Loop analysis)"
-              | true ->
+              | `Lifted bound ->
                 (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
                 if GobConfig.get_bool "dbg.termination-bounds" then
-                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" Queries.ID.pretty bound;
+                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" GobZ.pretty (Option.get (ValueDomain.ID.maximal bound)); (* If bounded, then maximal should exist. *)
             end
           | None ->
             failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."
