@@ -789,33 +789,23 @@ struct
 
   let relift t = t
 
-  (** representation as C expression
-
-      This function returns all the equalities that are saved in our datastructure t.
-
-      Lincons -> linear constraint *)
-  let invariant t =
-    let of_coeff xi coeffs o =
-      let typ = (Option.get @@ V.to_cil_varinfo xi).vtype in
-      let ikind = Cilfacade.get_ikind typ in
-      let cst = Coeff.s_of_z (IntDomain.Size.cast ikind o) in
-      let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
-      Lincons1.set_list lincons coeffs (Some cst);
-      lincons
-    in
-    let get_const acc i = function
-      | (None, o, d) ->
-        let xi = Environment.var_of_dim t.env i in
-        of_coeff xi [(GobApron.Coeff.s_of_z @@ Z.neg d, xi)] o :: acc
-      | (Some (c,r), _,_) when r = i -> acc
-      | (Some (c,r), o, d) ->
-        let xi = Environment.var_of_dim t.env i in
-        let ri = Environment.var_of_dim t.env r in
-        of_coeff xi [(GobApron.Coeff.s_of_z @@ Z.neg d, xi); (GobApron.Coeff.s_of_z c, ri)] o :: acc
-    in
-    BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
-
-  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+  (** Export [d*x = c*y + offset] as [-d*x + c*y + offset = 0]. *)
+  let invariant_constraints ~include_one_var ~include_equalities t =
+    match t.d with
+    | None -> Seq.empty
+    | Some _ when not include_equalities -> Seq.empty
+    | Some (_, equalities) ->
+      let var = Environment.var_of_dim t.env in
+      EConj.IntMap.to_rev_seq equalities
+      |> Seq.filter_map (fun (lhs, (monomial, offset, divisor)) ->
+          let equality rhs_terms =
+            Some LinearConstraint.{terms = (Z.neg divisor, var lhs) :: rhs_terms; constant = offset; comparison = Eq}
+          in
+          match monomial with
+          | None when include_one_var -> equality []
+          | Some (coeff, rhs) when rhs <> lhs -> equality [(coeff, var rhs)]
+          | _ -> None
+        )
 
   let env t = t.env
 

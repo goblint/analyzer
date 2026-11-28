@@ -269,12 +269,10 @@ struct
 
 end
 
-(** Conversion from Apron to CIL expressions. *)
-module CilOfApron (V: SV) =
+(** Export an Apron constraint with integer coefficients by clearing denominators. *)
+module ConstraintOfApron =
 struct
   exception Unsupported_Linexpr1
-
-  let longlong = TInt(ILongLong,[])
 
   let int_of_coeff_warn ~scalewith coeff =
     match int_of_coeff ~scalewith coeff with
@@ -282,61 +280,6 @@ struct
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty coeff;
       raise Unsupported_Linexpr1
-
-  (** Returned boolean indicates whether returned expression should be negated. *)
-  let cil_exp_of_int i =
-    let ci,truncation = truncateCilint ILongLong i in
-    if truncation = NoTruncation then
-      if Z.compare i Z.zero >= 0 then
-        false, Const (CInt(i,ILongLong,None))
-      else
-        (* attempt to negate if that does not cause an overflow *)
-        let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-        if truncation = NoTruncation then
-          true, Const (CInt((Z.neg i),ILongLong,None))
-        else
-          false, Const (CInt(i,ILongLong,None))
-    else
-      raise Unsupported_Linexpr1
-
-  (** Returned boolean indicates whether returned expression should be negated. *)
-  let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
-    match V.to_cil_varinfo v with
-    | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-      let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let i = int_of_coeff_warn ~scalewith c in
-      if Z.equal i Z.one then
-        false, var
-      else if Z.equal i Z.minus_one then
-        true, var
-      else (
-        let flip, coeff = cil_exp_of_int i in
-        let prod = BinOp(Mult, coeff, var, longlong) in
-        flip, prod
-      )
-    | None ->
-      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
-      raise Unsupported_Linexpr1
-    | _ ->
-      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
-      raise Unsupported_Linexpr1
-
-  (** Returned booleans indicates whether returned expressions should be negated. *)
-  let cil_exp_of_linexpr1 ~scalewith (linexpr1:Linexpr1.t) =
-    let terms =
-      let c = Linexpr1.get_cst linexpr1 in
-      if Coeff.is_zero c then
-        ref []
-      else
-        ref [cil_exp_of_int (int_of_coeff_warn ~scalewith c)]
-    in
-    let append_summand (c:Coeff.union_5) v =
-      if not (Coeff.is_zero c) then
-        terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
-    in
-    Linexpr1.iter append_summand linexpr1;
-    !terms
-
 
   let lcm_den linexpr1 =
     let exception UnsupportedScalar
@@ -364,24 +307,17 @@ struct
       Linexpr1.iter lcm_coeff linexpr1; !lcm_denom
     with UnsupportedScalar -> Z.one
 
-  let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
-    let zero = Cil.kinteger ILongLong 0 in
+  let of_lincons1 lincons1 =
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let common_denominator = lcm_den linexpr1 in
-      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
-      let (nterms, pterms) = BatTuple.Tuple2.mapn (List.map snd) (List.partition fst terms) in (* partition terms into negative (nterms) and positive (pterms) *)
-      let fold_terms terms =
-        List.fold_left (fun acc term ->
-            match acc with
-            | None -> Some term
-            | Some exp -> Some (BinOp (PlusA, exp, term, longlong))
-          ) None terms
-        |> BatOption.default zero
-      in
-      let lhs = fold_terms pterms in
-      let rhs = fold_terms nterms in (* negative terms are moved from Apron's lhs to our rhs, so they all become positive there *)
-      let binop =
+      let integer = int_of_coeff_warn ~scalewith:(lcm_den linexpr1) in
+      let cst = Linexpr1.get_cst linexpr1 in
+      let constant = if Coeff.is_zero cst then Z.zero else integer cst in
+      let terms = ref [] in
+      Linexpr1.iter (fun c v ->
+          if not (Coeff.is_zero c) then terms := (integer c, v) :: !terms
+        ) linexpr1;
+      let comparison: LinearConstraint.comparison =
         match Lincons1.get_typ lincons1 with
         | EQ -> Eq
         | SUPEQ -> Ge
@@ -389,17 +325,21 @@ struct
         | DISEQ -> Ne
         | EQMOD _ -> raise Unsupported_Linexpr1
       in
-      Some (BinOp(binop, lhs, rhs, TInt(IInt,[])))
+      Some LinearConstraint.{terms = List.rev !terms; constant; comparison}
     with
       Unsupported_Linexpr1 -> None
+
+  let invariant_constraints invariant ~include_one_var ~include_equalities d =
+    (* Filter after the domain's simplifications, e.g. octagons combine opposite inequalities into an equality. *)
+    invariant d
+    |> List.to_seq
+    |> Seq.filter (fun c ->
+        (include_one_var || Lincons1.num_vars c >= 2) && (include_equalities || Lincons1.get_typ c <> EQ)
+      )
+    |> Seq.filter_map of_lincons1
 end
 
-(** Conversion between CIL expressions and Apron. *)
-module Convert (V: SV) (Bounds: ConvBounds) (Arg: ConvertArg) (Tracked: RelationDomain.Tracked)=
-struct
-  include ApronOfCil (V) (Bounds) (Arg) (Tracked)
-  include CilOfApron (V)
-end
+module Convert = ApronOfCil
 
 
 (* Abstraction for the domain representations of the relational analyses:

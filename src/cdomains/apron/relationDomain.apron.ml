@@ -57,6 +57,7 @@ sig
   val arg: varinfo -> t
   val return: t
   val global: varinfo -> t
+  val pretty: unit -> t -> Pretty.doc
   val to_cil_varinfo: t -> varinfo Option.t
 end
 
@@ -74,6 +75,7 @@ struct
   let arg x = make_var (Arg x)
   let return = make_var Return
   let global g = make_var (Global g)
+  let pretty = Var.pretty
 
   let to_cil_varinfo v =
     match find_metadata v with
@@ -135,8 +137,8 @@ end
 module type S3 =
 sig
   include S2
-  val cil_exp_of_lincons1: Lincons1.t -> exp option
-  val invariant: t -> Lincons1.t list
+  val invariant_constraints: include_one_var:bool -> include_equalities:bool -> t -> var LinearConstraint.t Seq.t
+  (** When [include_one_var] is false, only include constraints involving at least two variables. *)
 end
 
 type ('a, 'b) relcomponents_t = {
