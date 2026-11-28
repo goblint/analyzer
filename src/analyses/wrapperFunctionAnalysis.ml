@@ -21,8 +21,35 @@ module type WrapperArgs = sig
   val is_wrapped : LibraryDesc.special -> bool
 end
 
+module type CallCounter = sig
+  include Lattice.S
+  val initial : unit -> t
+  val increment : Node.t -> t -> t
+end
+
+module CountMap (Count : Lattice.S with type t = int) = struct
+  include MapDomain.MapBot_LiftTop(NodeFlatLattice)(Count)
+  let initial = bot
+  let increment node counter =
+    let key = `Lifted node in
+    let count = find key counter in
+    if Count.is_top count then counter else add key (count + 1) counter
+end
+
+module MallocCounter = struct
+  module Bound = CountMap (MallocUniqueCount)
+  (* Intervals ordered by inclusion. Missing entries in both maps are zero,
+     so joining a visited and an unvisited site retains zero as a possibility. *)
+  include Lattice.Prod (Lattice.Reverse (Bound)) (Bound)
+  let initial () = Bound.initial (), Bound.initial ()
+  let increment node (lo, hi) = Bound.increment node lo, Bound.increment node hi
+  let bounds node (lo, hi) = Bound.find (`Lifted node) lo, Bound.find (`Lifted node) hi
+end
+
+module ThreadCounter = CountMap (ThreadCreateUniqueCount)
+
 (* The main analysis, generic to which functions are being wrapped. *)
-module SpecBase (UniqueCount : Lattice.S with type t = int) (WrapperArgs : WrapperArgs) =
+module SpecBase (Counter : CallCounter) (WrapperArgs : WrapperArgs) =
 struct
   include IdentitySpec
 
@@ -39,23 +66,14 @@ struct
     let name () = "wrapper call"
   end
 
-  module UniqueCount = UniqueCount
   module WrapperArgs = WrapperArgs
 
   (* Map for counting function call node visits up to n (of the current thread). *)
   module UniqueCallCounter =
   struct
-    include MapDomain.MapBot_LiftTop(NodeFlatLattice)(UniqueCount)
+    include Counter
     let name () = "unique calls"
   end
-
-  (* Increase counter for given node. If it does not exist yet, create it. *)
-  let add_unique_call counter node =
-    let open UniqueCallCounter in
-    let unique_call = `Lifted node in
-    let count = find unique_call counter in
-    if UniqueCount.is_top count then counter
-    else remove unique_call counter |> add unique_call (count + 1)
 
   module D = Lattice.Prod (NodeFlatLattice) (UniqueCallCounter)
   include Analyses.ValueContexts(D)
@@ -80,7 +98,7 @@ struct
     [(man.local, callee)]
 
   let combine_env man lval fexp f args fc (_, counter) f_ask =
-    (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
+    (* Keep the updated counter from the callee and the wrapper node from the caller. *)
     let lnode, _ = man.local in
     (lnode, counter)
 
@@ -88,18 +106,17 @@ struct
     let wrapper_node, counter = man.local in
     wrapper_node,
     (* track the unique ID per call to the wrapper function, not to the wrapped function *)
-    add_unique_call counter
-      (match wrapper_node with `Lifted node -> node | _ -> node_for_man man)
+    Counter.increment (match wrapper_node with `Lifted node -> node | _ -> node_for_man man) counter
 
   let special (man: (D.t, G.t, C.t, V.t) man) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     if WrapperArgs.is_wrapped @@ desc.special arglist then add_unique_call_man man else man.local
 
-  let startstate v = D.bot ()
+  let startstate v = NodeFlatLattice.bot (), Counter.initial ()
 
   let threadenter man ~multiple lval f args =
     (* The new thread receives a fresh counter *)
-    [D.bot ()]
+    [startstate f]
 
   let exitstate v = D.top ()
 
@@ -114,7 +131,7 @@ end
 module MallocWrapper = struct
 
   include SpecBase
-      (MallocUniqueCount)
+      (MallocCounter)
       (struct
         let wrappers () = get_string_list "ana.malloc.wrappers"
 
@@ -124,7 +141,7 @@ module MallocWrapper = struct
       end)
 
   module ThreadNode = struct
-    include Printable.Prod3 (ThreadIdDomain.ThreadLifted) (Node) (UniqueCount)
+    include Printable.Prod3 (ThreadIdDomain.ThreadLifted) (Node) (MallocUniqueCount)
 
     (* Description that gets appended to the varinfo-name in user output. *)
     let describe_varinfo (v: varinfo) (t, node, c) =
@@ -133,10 +150,10 @@ module MallocWrapper = struct
 
     let name_varinfo (t, node, c) =
       let uniq_count =
-        if not (GobConfig.get_bool "dbg.full-output") && UniqueCount.is_top c then
+        if not (GobConfig.get_bool "dbg.full-output") && MallocUniqueCount.is_top c then
           Format.dprintf ""
         else
-          Format.dprintf "(#%s)" (UniqueCount.show c)
+          Format.dprintf "(#%s)" (MallocUniqueCount.show c)
       in
       let tid =
         if not (GobConfig.get_bool "dbg.full-output") && ThreadLifted.is_top t then
@@ -161,18 +178,23 @@ module MallocWrapper = struct
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_man man
       in
-      let count = UniqueCallCounter.find (`Lifted node) counter in
-      let var = NodeVarinfoMap.to_varinfo (man.ask Q.CurrentThreadId, node, count) in
-      var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
-      if location = Stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
-      `Lifted var
+      let lo, hi = MallocCounter.bounds node counter in
+      let tid = man.ask Q.CurrentThreadId in
+      let vars = ref (Q.VS.empty ()) in
+      for count = lo to hi do
+        let var = NodeVarinfoMap.to_varinfo (tid, node, count) in
+        var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
+        if location = Stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr;
+        vars := Q.VS.add var !vars
+      done;
+      !vars
     | Q.IsHeapVar v ->
       NodeVarinfoMap.mem_varinfo v && not @@ hasAttribute "stack_alloca" v.vattr
     | Q.IsAllocVar v ->
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with
-        | Some (t, _, c) -> UniqueCount.is_top c ||
+        | Some (t, _, c) -> MallocUniqueCount.is_top c ||
                             (match t with
                              | `Lifted tid -> not (Thread.is_unique tid)
                              | _ ->
@@ -198,7 +220,7 @@ end
 module ThreadCreateWrapper = struct
 
   include SpecBase
-      (ThreadCreateUniqueCount)
+      (ThreadCounter)
       (struct
         let wrappers () = get_string_list "ana.thread.wrappers"
 
@@ -218,7 +240,7 @@ module ThreadCreateWrapper = struct
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_man man
       in
-      let count = UniqueCallCounter.find (`Lifted node) counter in
+      let count = ThreadCounter.find (`Lifted node) counter in
       `Lifted node, count
     | _ -> Queries.Result.top q
 

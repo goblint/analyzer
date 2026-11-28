@@ -19,8 +19,6 @@ module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
 module ThreadNodeLattice = Lattice.Prod (NFL) (TC)
 module ML = LibraryDesc.MathLifted
 
-module VI = Lattice.Flat (Basetype.Variables)
-
 module VarQuery = Goblint_constraint.VarQuery
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
@@ -118,9 +116,7 @@ type _ t =
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
-  | AllocVar: AllocationLocation.t -> VI.t t
-  (* Create a variable representing a dynamic allocation-site *)
-  (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
+  | AllocVar: AllocationLocation.t -> VS.t t (** Possible representatives of this heap or stack allocation. *)
   | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t
@@ -201,7 +197,7 @@ struct
     | BlobSize _ -> (module SizeDomain)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
-    | AllocVar _ -> (module VI)
+    | AllocVar _ -> (module VS)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
@@ -282,7 +278,7 @@ struct
     | BlobSize _ -> SizeDomain.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
-    | AllocVar _ -> VI.top ()
+    | AllocVar _ -> VS.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
