@@ -9,6 +9,8 @@ val v2_2: t
 val v2_2_goblint: t
 val v2_3: t
 val v2_3_goblint: t
+val v2_4: t
+val v2_4_goblint: t
 
 val show : t -> string
 val pretty : unit -> t -> GoblintCil.Pretty.doc
